@@ -22,6 +22,7 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/auth-background.png
 
 fonts:
     - family: Satoshi

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'ui/screens/onboarding/onboarding_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -12,22 +14,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'SIDCOP Mobile App',
       theme: ThemeData(
-        primarySwatch:Colors.indigo,
+        primarySwatch: Colors.indigo,
       ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('SIDCOP Mobile App'),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Text('API URL: $apiUrl'),
-              Text('API Key: $apiKey'),
-            ],
-          ),
-        ),
-      ),
+      home: const OnboardingScreen(),
     );
 
 
