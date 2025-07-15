@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'app.dart';
-Future<void> main() async {
+void main() {
+  runApp(const MainApp());
+}
 
-  await dotenv.load(fileName: '.env');
-  runApp(const MyApp());
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('Hello World!'),
+        ),
+      ),
+    );
+  }
 }
