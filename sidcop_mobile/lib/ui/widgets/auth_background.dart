@@ -12,13 +12,13 @@ class AuthBackground extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: Image.asset(
-                  'assets/auth-background.png',
+                  'assets/auth-background.jpg',
                   fit: BoxFit.cover,
                 ),
               ),
               Positioned.fill(
                 child: Container(
-                  color: const Color.fromARGB(148, 5, 18, 75), // 50% opacity
+                  color: const Color.fromARGB(204, 25, 26, 46), // #06115B, 50% opacity
                 ),
               ),
             ],

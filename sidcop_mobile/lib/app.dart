@@ -12,7 +12,8 @@ class MyApp extends StatelessWidget {
     final apiKey = dotenv.env['API_KEY'] ?? 'api key no definida';
 
     return MaterialApp(
-      title: 'SIDCOP Mobile App',
+      debugShowCheckedModeBanner: false,
+      title: 'SIDCOP',
       theme: ThemeData(
         primarySwatch: Colors.indigo,
       ),
