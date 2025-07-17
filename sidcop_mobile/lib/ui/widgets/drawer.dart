@@ -30,57 +30,67 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InkWell(
-                  // onTap: () {
-                  // if (usuario != null) {
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(
-                  //       builder: (context) => const ModificarUsuario(),
-                  //     ),
-                  //   ).then((_) {
-                  //     // cuando regreses de la pantalla, recarga datos
-                  //     cargarDatos();
-                  //   });
-                  // }
-                  //},
-                  child: Stack(
-                    alignment: Alignment.bottomLeft,
+                // Imagen de usuario a la izquierda
+                CircleAvatar(
+                  radius: 32,
+                  backgroundImage: const AssetImage('assets/user.jpg'),
+                ),
+                const SizedBox(width: 16),
+                // Nombre, cargo y botón logout
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Align(
-                        alignment: Alignment.bottomLeft,
-                        child: Container(padding: const EdgeInsets.all(4)),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Nombre
+                          Expanded(
+                            child: Text(
+                              'Usuario Demo',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontFamily: 'Satoshi',
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // Botón logout
+                          IconButton(
+                            icon: Transform.rotate(
+                              angle: 3.1416, // 180 grados
+                              child: const Icon(
+                                Icons.logout,
+                                color: Color(0xFFD6B68A),
+                              ),
+                            ),
+                            tooltip: 'Cerrar sesión',
+                            onPressed: () {
+                              // Acción de logout aquí
+                            },
+                          ),
+                        ],
                       ),
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundImage:
-                            const AssetImage('assets/user.jpg')
-                                as ImageProvider,
+                      // Cargo debajo del nombre, color igual a los iconos
+                      Text(
+                        'Cargo del usuario',
+                        style: const TextStyle(
+                          color: Color(0xFFD6B68A),
+                          fontSize: 14,
+                          fontFamily: 'Satoshi',
+                          fontWeight: FontWeight.w400,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                Column(
-                  children: [
-                    Text(
-                      'Usuario Demaaaaaaaaaaaaaaaao',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontFamily: 'Satoshi',
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
               ],
-              //Usuario
             ),
           ),
           const SizedBox(height: 10),
