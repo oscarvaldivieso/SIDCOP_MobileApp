@@ -1,8 +1,10 @@
 
 
 import 'package:flutter/material.dart';
+
 import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
+import '../home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -81,8 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             setState(() {
                               _error = 'Completa ambos campos';
                             });
-                          } else {
-                            // Autenticación
+                          } else {  
+                            // Redirigir al HomeScreen
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                            );
                           }
                         },
                         icon: const Icon(
