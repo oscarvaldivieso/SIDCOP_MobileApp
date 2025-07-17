@@ -47,8 +47,6 @@ class OnboardingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Iniciar sesión')),
-      drawer: CustomDrawer(),
       body: Stack(
         children: [
           const AuthBackground(),

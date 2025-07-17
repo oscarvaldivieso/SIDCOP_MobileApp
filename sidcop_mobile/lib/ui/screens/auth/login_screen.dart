@@ -19,8 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Iniciar sesión')),
-      drawer: CustomDrawer(),
       body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
