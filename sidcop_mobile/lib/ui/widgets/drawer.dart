@@ -111,12 +111,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           ListTile(
-            leading: const Icon(
-              Icons.drive_eta_rounded,
-              color: Color(0xFFD6B68A),
-            ),
+            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
             title: const Text(
-              'Insertar carro',
+              'Ruta',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -133,9 +130,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.car_rental, color: Color(0xFFD6B68A)),
+            leading: const Icon(
+              Icons.inventory_2_outlined,
+              color: Color(0xFFD6B68A),
+            ),
             title: const Text(
-              'Catalogo de carros',
+              'Productos',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -153,9 +153,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if (usuario != null && usuario!.usua_Clie == true)
           ListTile(
-            leading: const Icon(Icons.list, color: Color(0xFFD6B68A)),
+            leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
             title: const Text(
-              'Registro de Rentas',
+              'Metas',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -173,12 +173,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(
-              Icons.drive_eta_rounded,
-              color: Color(0xFFD6B68A),
-            ),
+            leading: const Icon(Icons.sell_outlined, color: Color(0xFFD6B68A)),
             title: const Text(
-              'Insertar carro',
+              'Ventas',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -196,12 +193,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(
-              Icons.space_dashboard_rounded,
-              color: Color(0xFFD6B68A),
-            ),
+            leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
             title: const Text(
-              'Dashboard rentas',
+              'Perfil y configuracion',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -219,12 +213,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(
-              Icons.space_dashboard_rounded,
-              color: Color(0xFFD6B68A),
-            ),
+            leading: const Icon(Icons.person_outline, color: Color(0xFFD6B68A)),
             title: const Text(
-              'Dashboard rentas',
+              'Clientes',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -246,9 +237,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
+            leading: Transform.flip(
+              flipX: true,
+              child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
+            ),
             title: const Text(
-              'DashBoard Supervisor',
+              'Recargas',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
@@ -271,12 +265,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
           //   if(usuario!.usua_Admin)
           ListTile(
             // leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
-            leading: Transform.rotate(
-              angle: 3.1416,
-              child: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
+            leading: const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFFD6B68A),
             ),
             title: const Text(
-              'Cerrar',
+              'Inventario',
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
