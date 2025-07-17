@@ -23,72 +23,69 @@ class _CustomDrawerState extends State<CustomDrawer> {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: Color(0xFF181E34),
               border: Border(
                 bottom: BorderSide(color: Color(0xFF666571), width: 0.2),
               ),
             ),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Imagen de usuario a la izquierda
+                // Imagen de usuario arriba
                 CircleAvatar(
                   radius: 32,
                   backgroundImage: const AssetImage('assets/user.jpg'),
                 ),
-                const SizedBox(width: 16),
-                // Nombre, cargo y botón logout
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                const SizedBox(height: 12),
+                // Nombre/cargo y logout en una fila
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Nombre y cargo
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Nombre
-                          Expanded(
-                            child: Text(
-                              'Usuario Demo',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontFamily: 'Satoshi',
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          Text(
+                            'Usuario Demo',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.w500,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          // Botón logout
-                          IconButton(
-                            icon: Transform.rotate(
-                              angle: 3.1416, // 180 grados
-                              child: const Icon(
-                                Icons.logout,
-                                color: Color(0xFFD6B68A),
-                              ),
+                          Text(
+                            'Cargo del usuario',
+                            style: const TextStyle(
+                              color: Color(0xFFD6B68A),
+                              fontSize: 14,
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.w400,
                             ),
-                            tooltip: 'Cerrar sesión',
-                            onPressed: () {
-                              // Acción de logout aquí
-                            },
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                      // Cargo debajo del nombre, color igual a los iconos
-                      Text(
-                        'Cargo del usuario',
-                        style: const TextStyle(
+                    ),
+                    // Botón logout
+                    IconButton(
+                      icon: Transform.rotate(
+                        angle: 3.1416,
+                        child: const Icon(
+                          Icons.logout,
                           color: Color(0xFFD6B68A),
-                          fontSize: 14,
-                          fontFamily: 'Satoshi',
-                          fontWeight: FontWeight.w400,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
+                      tooltip: 'Cerrar sesión',
+                      onPressed: () {
+                        // Acción de logout aquí
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
