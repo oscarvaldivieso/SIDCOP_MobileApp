@@ -33,54 +33,54 @@ class _CustomDrawerState extends State<CustomDrawer> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 InkWell(
-                  onTap: () {
-                    // if (usuario != null) {
-                    //   Navigator.push(
-                    //     context,
-                    //     MaterialPageRoute(
-                    //       builder: (context) => const ModificarUsuario(),
-                    //     ),
-                    //   ).then((_) {
-                    //     // cuando regreses de la pantalla, recarga datos
-                    //     cargarDatos();
-                    //   });
-                    // }
-                  },
+                  // onTap: () {
+                  // if (usuario != null) {
+                  //   Navigator.push(
+                  //     context,
+                  //     MaterialPageRoute(
+                  //       builder: (context) => const ModificarUsuario(),
+                  //     ),
+                  //   ).then((_) {
+                  //     // cuando regreses de la pantalla, recarga datos
+                  //     cargarDatos();
+                  //   });
+                  // }
+                  //},
                   child: Stack(
-                    alignment: Alignment.center,
+                    alignment: Alignment.bottomLeft,
                     children: [
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(padding: const EdgeInsets.all(4)),
+                      ),
                       CircleAvatar(
                         radius: 40,
                         backgroundImage:
                             const AssetImage('assets/user.jpg')
                                 as ImageProvider,
                       ),
-                      Positioned(
-                        bottom: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  'Usuario Demo',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
+                Column(
+                  children: [
+                    Text(
+                      'Usuario Demaaaaaaaaaaaaaaaao',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontFamily: 'Satoshi',
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ],
+              //Usuario
             ),
           ),
           const SizedBox(height: 10),
@@ -104,7 +104,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
+            leading: const Icon(
+              Icons.drive_eta_rounded,
+              color: Color(0xFFD6B68A),
+            ),
             title: const Text(
               'Insertar carro',
               style: TextStyle(
@@ -123,7 +126,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.car_rental, color: Colors.white),
+            leading: const Icon(Icons.car_rental, color: Color(0xFFD6B68A)),
             title: const Text(
               'Catalogo de carros',
               style: TextStyle(
@@ -143,7 +146,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if (usuario != null && usuario!.usua_Clie == true)
           ListTile(
-            leading: const Icon(Icons.list, color: Colors.white),
+            leading: const Icon(Icons.list, color: Color(0xFFD6B68A)),
             title: const Text(
               'Registro de Rentas',
               style: TextStyle(
@@ -163,7 +166,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
+            leading: const Icon(
+              Icons.drive_eta_rounded,
+              color: Color(0xFFD6B68A),
+            ),
             title: const Text(
               'Insertar carro',
               style: TextStyle(
@@ -185,7 +191,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ListTile(
             leading: const Icon(
               Icons.space_dashboard_rounded,
-              color: Colors.white,
+              color: Color(0xFFD6B68A),
             ),
             title: const Text(
               'Dashboard rentas',
@@ -208,7 +214,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ListTile(
             leading: const Icon(
               Icons.space_dashboard_rounded,
-              color: Colors.white,
+              color: Color(0xFFD6B68A),
             ),
             title: const Text(
               'Dashboard rentas',
@@ -233,7 +239,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.white),
+            leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
             title: const Text(
               'DashBoard Supervisor',
               style: TextStyle(
@@ -257,30 +263,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           //   if(usuario!.usua_Admin)
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.white),
-            title: const Text(
-              'DashBoard Supervisor',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
-              ),
+            // leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
+            leading: Transform.rotate(
+              angle: 3.1416,
+              child: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
             ),
-            onTap: () {
-              // await UsuarioService().cerrarSesion();
-
-              // Navigator.pop(context);
-
-              // Navigator.pushAndRemoveUntil(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-              //   (route) => false,
-              // );
-              print("tiene acceso 2");
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.white),
             title: const Text(
               'Cerrar',
               style: TextStyle(
