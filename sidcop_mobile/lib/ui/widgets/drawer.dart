@@ -2,9 +2,6 @@
 
 import 'package:flutter/material.dart';
 
-//import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
 
@@ -13,7 +10,6 @@ class CustomDrawer extends StatefulWidget {
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
-
   @override
   void initState() {
     super.initState();
@@ -22,13 +18,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: const Color(0xFF1A1F2B),
+      backgroundColor: const Color(0xFF181E34),
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(
-              color: Color(0xFF0C1120),
+              color: Color(0xFF181E34),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF666571), width: 0.2),
+              ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -52,7 +51,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: const AssetImage('assets/user.jpg') as ImageProvider,
+                        backgroundImage:
+                            const AssetImage('assets/user.jpg')
+                                as ImageProvider,
                       ),
                       Positioned(
                         bottom: 4,
@@ -62,11 +63,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.black54,
-                          ),
-                          child: const Icon(
-                            Icons.edit,
-                            size: 16,
-                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -89,184 +85,220 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           const SizedBox(height: 10),
           ListTile(
-            leading: const Icon(Icons.home, color: Colors.white),
-            title: const Text('Inicio',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w300)),
+            leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Inicio',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
             onTap: () {
-            //   Navigator.push(
-            //     context,
-            //     MaterialPageRoute(
-            //       builder: (context) => const DashboardInicioScreen(),
-            //     ),
-            //   );
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (context) => const DashboardInicioScreen(),
+              //     ),
+              //   );
             },
           ),
           ListTile(
             leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
-            title: const Text('Insertar carro',
-                style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'Satoshi',
-                        fontWeight: FontWeight.w300)),
-                onTap: () {
-                //   Navigator.push(
-                //     context,
-                //     MaterialPageRoute(
-                //       builder: (context) => const InsertarCarroScreen(),
-                //     ),
-                //   );
-                },
+            title: const Text(
+              'Insertar carro',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
               ),
-            ListTile(
-              leading: const Icon(Icons.car_rental, color: Colors.white),
-              title: const Text('Catalogo de carros',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: () {
-                //  Navigator.push(
-                //   context,
-                //   MaterialPageRoute(
-                //     builder: (context) => const MyWidget(),
-                //   ),
-                // );
-              },
             ),
-        //   if (usuario != null && usuario!.usua_Clie == true)
-            ListTile(
-              leading: const Icon(Icons.list, color: Colors.white),
-              title: const Text('Registro de Rentas',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: () {
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(
-                //     builder: (context) => const RentasClienteScreen(),
-                //   ),
-                // );
-              },
-            ),
-        //   if(usuario!.usua_Admin)
-            ListTile(
-                leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
-                title: const Text('Insertar carro',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'Satoshi',
-                        fontWeight: FontWeight.w300)),
-                onTap: () {
-                //   Navigator.push(
-                //     context,
-                //     MaterialPageRoute(
-                //       builder: (context) => const InsertarCarroScreen(),
-                //     ),
-                //   );
-                },
+            onTap: () {
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (context) => const InsertarCarroScreen(),
+              //     ),
+              //   );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.car_rental, color: Colors.white),
+            title: const Text(
+              'Catalogo de carros',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
               ),
-        //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
-            ListTile(
-              leading: const Icon(Icons.space_dashboard_rounded, color: Colors.white),
-              title: const Text('Dashboard rentas',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: ()  {
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(
-                //     builder: (context) => const DashboardRentaScreen(),
-                //   ),
-                // );
-              },
             ),
-        //   if(usuario!.usua_Admin)
-            ListTile(
-              leading: const Icon(Icons.space_dashboard_rounded, color: Colors.white),
-              title: const Text('Dashboard rentas',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: ()  {
-                // await UsuarioService().cerrarSesion();
-
-                // Navigator.pop(context);
-
-                // Navigator.pushAndRemoveUntil(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-                //   (route) => false,
-                // );
-                print("tiene acceso");
-              },
+            onTap: () {
+              //  Navigator.push(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => const MyWidget(),
+              //   ),
+              // );
+            },
+          ),
+          //   if (usuario != null && usuario!.usua_Clie == true)
+          ListTile(
+            leading: const Icon(Icons.list, color: Colors.white),
+            title: const Text(
+              'Registro de Rentas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
             ),
-        //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.white),
-              title: const Text('DashBoard Supervisor',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: ()  {
-                // await UsuarioService().cerrarSesion();
-
-                // Navigator.pop(context);
-
-                // Navigator.pushAndRemoveUntil(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-                //   (route) => false,
-                // );
-                print("tiene acceso 2");
-              },
+            onTap: () {
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => const RentasClienteScreen(),
+              //   ),
+              // );
+            },
+          ),
+          //   if(usuario!.usua_Admin)
+          ListTile(
+            leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
+            title: const Text(
+              'Insertar carro',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
             ),
-        //   if(usuario!.usua_Admin)
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.white),
-              title: const Text('DashBoard Supervisor',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.w300)),
-              onTap: ()  {
-                // await UsuarioService().cerrarSesion();
-
-                // Navigator.pop(context);
-
-                // Navigator.pushAndRemoveUntil(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-                //   (route) => false,
-                // );
-                print("tiene acceso 2");
-              },
+            onTap: () {
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (context) => const InsertarCarroScreen(),
+              //     ),
+              //   );
+            },
+          ),
+          //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
+          ListTile(
+            leading: const Icon(
+              Icons.space_dashboard_rounded,
+              color: Colors.white,
             ),
+            title: const Text(
+              'Dashboard rentas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => const DashboardRentaScreen(),
+              //   ),
+              // );
+            },
+          ),
+          //   if(usuario!.usua_Admin)
+          ListTile(
+            leading: const Icon(
+              Icons.space_dashboard_rounded,
+              color: Colors.white,
+            ),
+            title: const Text(
+              'Dashboard rentas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              // await UsuarioService().cerrarSesion();
+
+              // Navigator.pop(context);
+
+              // Navigator.pushAndRemoveUntil(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => const LoginScreen()),
+              //   (route) => false,
+              // );
+              print("tiene acceso");
+            },
+          ),
+          //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.white),
-            title: const Text('Cerrar',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w300)),
+            title: const Text(
+              'DashBoard Supervisor',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              // await UsuarioService().cerrarSesion();
+
+              // Navigator.pop(context);
+
+              // Navigator.pushAndRemoveUntil(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => const LoginScreen()),
+              //   (route) => false,
+              // );
+              print("tiene acceso 2");
+            },
+          ),
+          //   if(usuario!.usua_Admin)
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.white),
+            title: const Text(
+              'DashBoard Supervisor',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              // await UsuarioService().cerrarSesion();
+
+              // Navigator.pop(context);
+
+              // Navigator.pushAndRemoveUntil(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => const LoginScreen()),
+              //   (route) => false,
+              // );
+              print("tiene acceso 2");
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.white),
+            title: const Text(
+              'Cerrar',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
             onTap: () async {
-            //   await UsuarioService().cerrarSesion();
+              //   await UsuarioService().cerrarSesion();
 
-            //   Navigator.pop(context);
+              //   Navigator.pop(context);
 
-            //   Navigator.pushAndRemoveUntil(
-            //     context,
-            //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-            //     (route) => false,
-            //   );
+              //   Navigator.pushAndRemoveUntil(
+              //     context,
+              //     MaterialPageRoute(builder: (context) => const LoginScreen()),
+              //     (route) => false,
+              //   );
             },
           ),
         ],
