@@ -1,10 +1,7 @@
-
 import 'package:flutter/material.dart';
+import '../../widgets/drawer.dart';
 import '../../widgets/auth_background.dart';
 import '../auth/login_screen.dart';
-
-
-
 
 class _LoginBottomSheet extends StatelessWidget {
   const _LoginBottomSheet();
@@ -35,9 +32,7 @@ class _LoginBottomSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Expanded(
-                child: LoginScreen(scrollController: controller),
-              ),
+              Expanded(child: LoginScreen(scrollController: controller)),
             ],
           ),
         );
@@ -45,10 +40,6 @@ class _LoginBottomSheet extends StatelessWidget {
     );
   }
 }
-
-
-
-
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -71,13 +62,11 @@ class OnboardingScreen extends StatelessWidget {
                         'assets/logo_blanco.png', // Asegúrate que el nombre del archivo es correcto
                         height: 100,
                       ),
-                      Image.asset(
-                        'assets/marca_blanco.png',
-                        height: 80,
-                      ),
+                      Image.asset('assets/marca_blanco.png', height: 80),
                       const SizedBox(height: 40),
                       SizedBox(
-                        width: 280, // Un poco más ancho que la imagen marca_blanco.png (que tiene height: 80)
+                        width:
+                            280, // Un poco más ancho que la imagen marca_blanco.png (que tiene height: 80)
                         child: Text(
                           '¡Tu distribución más rápida, precisa y organizada!',
                           style: const TextStyle(
@@ -101,18 +90,22 @@ class OnboardingScreen extends StatelessWidget {
                       onPressed: () {
                         showModalBottomSheet(
                           context: context,
-                          isScrollControlled: true, // ← importante para altura completa
-                          backgroundColor: Colors.transparent, // Para bordes redondeados
+                          isScrollControlled:
+                              true, // ← importante para altura completa
+                          backgroundColor:
+                              Colors.transparent, // Para bordes redondeados
                           builder: (context) {
                             return const _LoginBottomSheet(); // Creamos este widget abajo
                           },
                         );
-
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF06115B),
-                        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 22,
+                          horizontal: 20,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
