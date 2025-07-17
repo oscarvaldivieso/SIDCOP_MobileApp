@@ -1,12 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
-// import '../screens/auth/login_screen.dart';
-// import 'dart:convert';
-/*
-    TODO: Reemplazar los datos en duro por modelos y servicios reales cuando estén listos
-*/
+
+//import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -16,13 +13,11 @@ class CustomDrawer extends StatefulWidget {
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
-  // Datos en duro para pruebas
-  String usuario = 'Usuario Demo';
-  String cliente = 'Cliente Demo';
-  String empleado = 'Empleado Demo';
-  List<String> pantallas = ['Home', 'Perfil', 'Configuración'];
 
-  // No es necesario initState ni cargarDatos para datos en duro
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,20 +28,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(
-              color: Color(0xFF22263A),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Bienvenido,', style: TextStyle(color: Colors.white70)),
-                Text(usuario, style: TextStyle(color: Colors.white, fontSize: 20)),
-                SizedBox(height: 8),
-                Text('Cliente: $cliente', style: TextStyle(color: Colors.white54)),
-                Text('Empleado: $empleado', style: TextStyle(color: Colors.white54)),
-              ],
-            ),
-          ),
-            decoration: const BoxDecoration(
               color: Color(0xFF0C1120),
             ),
             child: Column(
@@ -54,26 +35,24 @@ class _CustomDrawerState extends State<CustomDrawer> {
               children: [
                 InkWell(
                   onTap: () {
-                    if (usuario != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ModificarUsuario(),
-                        ),
-                      ).then((_) {
-                        // cuando regreses de la pantalla, recarga datos
-                        cargarDatos();
-                      });
-                    }
+                    // if (usuario != null) {
+                    //   Navigator.push(
+                    //     context,
+                    //     MaterialPageRoute(
+                    //       builder: (context) => const ModificarUsuario(),
+                    //     ),
+                    //   ).then((_) {
+                    //     // cuando regreses de la pantalla, recarga datos
+                    //     cargarDatos();
+                    //   });
+                    // }
                   },
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: (usuario != null && usuario!.usua_Imagen?.isNotEmpty == true)
-                            ? NetworkImage(usuario!.usua_Imagen!)
-                            : const AssetImage('assets/user.jpg') as ImageProvider,
+                        backgroundImage: const AssetImage('assets/user.jpg') as ImageProvider,
                       ),
                       Positioned(
                         bottom: 4,
@@ -96,9 +75,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  usuario!.usua_Clie == true
-                      ? '${cliente!.clie_Nombre} ${cliente!.clie_Apellido}'
-                      : '${empleado!.empl_Nombre} ${empleado!.empl_Apellido}',
+                  'Usuario Demo',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -119,33 +96,30 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     fontFamily: 'Satoshi',
                     fontWeight: FontWeight.w300)),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DashboardInicioScreen(),
-                ),
-              );
+            //   Navigator.push(
+            //     context,
+            //     MaterialPageRoute(
+            //       builder: (context) => const DashboardInicioScreen(),
+            //     ),
+            //   );
             },
           ),
-          if (usuario != null && usuario!.usua_Clie == false)
-            if(pantallas!=null && pantallas.contains("Insertar carro") && !usuario!.usua_Admin)
-              ListTile(
-                leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
-                title: const Text('Insertar carro',
-                    style: TextStyle(
+          ListTile(
+            leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
+            title: const Text('Insertar carro',
+                style: TextStyle(
                         color: Colors.white,
                         fontFamily: 'Satoshi',
                         fontWeight: FontWeight.w300)),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InsertarCarroScreen(),
-                    ),
-                  );
+                //   Navigator.push(
+                //     context,
+                //     MaterialPageRoute(
+                //       builder: (context) => const InsertarCarroScreen(),
+                //     ),
+                //   );
                 },
               ),
-          //if (usuario != null && usuario!.usua_Clie == true)
             ListTile(
               leading: const Icon(Icons.car_rental, color: Colors.white),
               title: const Text('Catalogo de carros',
@@ -154,15 +128,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       fontFamily: 'Satoshi',
                       fontWeight: FontWeight.w300)),
               onTap: () {
-                 Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MyWidget(),
-                  ),
-                );
+                //  Navigator.push(
+                //   context,
+                //   MaterialPageRoute(
+                //     builder: (context) => const MyWidget(),
+                //   ),
+                // );
               },
             ),
-          if (usuario != null && usuario!.usua_Clie == true)
+        //   if (usuario != null && usuario!.usua_Clie == true)
             ListTile(
               leading: const Icon(Icons.list, color: Colors.white),
               title: const Text('Registro de Rentas',
@@ -171,15 +145,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       fontFamily: 'Satoshi',
                       fontWeight: FontWeight.w300)),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RentasClienteScreen(),
-                  ),
-                );
+                // Navigator.push(
+                //   context,
+                //   MaterialPageRoute(
+                //     builder: (context) => const RentasClienteScreen(),
+                //   ),
+                // );
               },
             ),
-          if(usuario!.usua_Admin)
+        //   if(usuario!.usua_Admin)
             ListTile(
                 leading: const Icon(Icons.drive_eta_rounded, color: Colors.white),
                 title: const Text('Insertar carro',
@@ -188,15 +162,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         fontFamily: 'Satoshi',
                         fontWeight: FontWeight.w300)),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InsertarCarroScreen(),
-                    ),
-                  );
+                //   Navigator.push(
+                //     context,
+                //     MaterialPageRoute(
+                //       builder: (context) => const InsertarCarroScreen(),
+                //     ),
+                //   );
                 },
               ),
-          if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
+        //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
             ListTile(
               leading: const Icon(Icons.space_dashboard_rounded, color: Colors.white),
               title: const Text('Dashboard rentas',
@@ -205,15 +179,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       fontFamily: 'Satoshi',
                       fontWeight: FontWeight.w300)),
               onTap: ()  {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DashboardRentaScreen(),
-                  ),
-                );
+                // Navigator.push(
+                //   context,
+                //   MaterialPageRoute(
+                //     builder: (context) => const DashboardRentaScreen(),
+                //   ),
+                // );
               },
             ),
-          if(usuario!.usua_Admin)
+        //   if(usuario!.usua_Admin)
             ListTile(
               leading: const Icon(Icons.space_dashboard_rounded, color: Colors.white),
               title: const Text('Dashboard rentas',
@@ -234,7 +208,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 print("tiene acceso");
               },
             ),
-          if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
+        //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.white),
               title: const Text('DashBoard Supervisor',
@@ -255,7 +229,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 print("tiene acceso 2");
               },
             ),
-          if(usuario!.usua_Admin)
+        //   if(usuario!.usua_Admin)
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.white),
               title: const Text('DashBoard Supervisor',
@@ -284,15 +258,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     fontFamily: 'Satoshi',
                     fontWeight: FontWeight.w300)),
             onTap: () async {
-              await UsuarioService().cerrarSesion();
+            //   await UsuarioService().cerrarSesion();
 
-              Navigator.pop(context);
+            //   Navigator.pop(context);
 
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
+            //   Navigator.pushAndRemoveUntil(
+            //     context,
+            //     MaterialPageRoute(builder: (context) => const LoginScreen()),
+            //     (route) => false,
+            //   );
             },
           ),
         ],
