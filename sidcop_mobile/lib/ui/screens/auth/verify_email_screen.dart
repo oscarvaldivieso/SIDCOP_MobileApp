@@ -5,7 +5,12 @@ import '../../widgets/auth_background.dart';
 import '../../screens/auth/reset_password_screen.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
-  const VerifyEmailScreen({super.key});
+  final String email;
+  
+  const VerifyEmailScreen({
+    super.key, 
+    required this.email,
+  });
 
   @override
   State<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -129,7 +134,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                       textAlign: TextAlign.center,
                                     ),
                                     const SizedBox(height: 12),
-                                    const Text(
+                                    Text(
                                       'Se envió el código al correo \n asociado al usuario',
                                       style: TextStyle(
                                         fontFamily: 'Satoshi',

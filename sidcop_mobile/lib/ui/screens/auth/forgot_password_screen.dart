@@ -3,6 +3,7 @@ import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/auth_background.dart';
 import '../auth/verify_email_screen.dart';
+import '../../../services/user_verification_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -14,6 +15,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   String? _error;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -117,21 +119,53 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                       ),
                                     const SizedBox(height: 20),
                                     CustomButton(
-                                      text: 'Enviar',
-                                      onPressed: () {
+                                      text: _isLoading ? 'Cargando...' : 'Enviar',
+                                      onPressed: _isLoading ? null : () async {
                                         if (_emailController.text.isEmpty) {
                                           setState(() {
                                             _error = 'Ingresa tu usuario';
                                           });
                                           return;
                                         }
-                                        // Aquí iría la lógica para enviar el correo de recuperación
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const VerifyEmailScreen(),
-                                          ),
-                                        );
+                                        
+                                        setState(() {
+                                          _error = null;
+                                          _isLoading = true;
+                                        });
+                                        
+                                        try {
+                                          print('Verificando usuario: ${_emailController.text.trim()}');
+                                          final email = await UserVerificationService.getUserEmail(_emailController.text.trim());
+                                          print('Email obtenido: $email');
+                                          
+                                          if (!mounted) return;
+                                          
+                                          if (email != null && email.isNotEmpty) {
+                                            // Navegar a la siguiente pantalla solo si se obtuvo un email
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => VerifyEmailScreen(email: email),
+                                              ),
+                                            );
+                                          } else {
+                                            setState(() {
+                                              _error = 'No se encontró un correo asociado a este usuario';
+                                            });
+                                          }
+                                        } catch (e) {
+                                          print('Error al verificar el usuario: $e');
+                                          if (!mounted) return;
+                                          setState(() {
+                                            _error = 'Error al verificar el usuario. Intenta de nuevo.';
+                                          });
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() {
+                                              _isLoading = false;
+                                            });
+                                          }
+                                        }
                                       },
                                       width: MediaQuery.of(context).size.width * 0.6,
                                       height: 48,
