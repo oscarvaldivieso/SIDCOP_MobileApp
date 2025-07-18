@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
+import 'ui/screens/accesos/perfilUsuario_Screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -15,7 +16,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      home: const OnboardingScreen(),
+      // home: const OnboardingScreen(),
+      home: PerfilUsuarioScreen(),
     );
   }
 }
