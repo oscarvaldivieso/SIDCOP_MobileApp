@@ -12,7 +12,7 @@ class ClientesService {
 
   Future<List<dynamic>> getClientes() async{
 
-    final url = Uri.parse('http://$_apiServer/Cliente/Listar');
+    final url = Uri.parse('https://$_apiServer/Cliente/Listar');
     developer.log('Get Clientes Request URL: $url');
     try {
       final response = await http.get(
