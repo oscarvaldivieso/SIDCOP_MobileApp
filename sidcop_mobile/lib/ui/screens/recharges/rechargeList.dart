@@ -16,8 +16,8 @@ class _RechargeListState extends State<RechargeList> {
     return Scaffold(
       // backgroundColor: Color(0xFFF6F6F6),
       body: AppBackground(),
-      appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(),
+      // appBar: const AppBarWidget(),
+      // drawer: const CustomDrawer(),
     );
   }
 }

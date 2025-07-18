@@ -13,36 +13,39 @@ class AppBarWidget extends StatefulWidget implements PreferredSizeWidget {
 class _AppBarWidgetState extends State<AppBarWidget> {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.center,
-      margin: const EdgeInsets.symmetric(
-        horizontal: 20,
-      ), // fallback margin for small screens
-      width: MediaQuery.of(context).size.width * 0.9,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF6F6F6),
-        border: Border(
-          bottom: BorderSide(color: Color.fromARGB(255, 65, 55, 40), width: 2),
-        ),
-        borderRadius: BorderRadius.zero,
-      ),
-      child: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Color(0xFFF6F6F6),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Transform.flip(
-              flipX: true,
-              child: const Icon(Icons.notes_rounded),
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: const Color(0xFFF6F6F6),
+      elevation: 0,
+      flexibleSpace: SafeArea(
+        child: Center(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.88,
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFD9D9DD), width: 2),
+              ),
+              color: Colors.transparent,
             ),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
+            height: kToolbarHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: Transform.flip(
+                    flipX: true,
+                    child: const Icon(Icons.notes_rounded),
+                  ),
+                  onPressed: () {
+                    Scaffold.of(context).openDrawer();
+                  },
+                ),
+              ],
+            ),
           ),
-        ],
-        shape: null, // Remove shape since border is handled by Container
+        ),
       ),
+      toolbarHeight: kToolbarHeight,
     );
   }
 }
