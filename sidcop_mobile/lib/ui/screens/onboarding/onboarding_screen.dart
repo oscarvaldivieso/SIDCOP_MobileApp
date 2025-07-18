@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import '../../widgets/drawer.dart';
 import '../../widgets/auth_background.dart';
 import '../auth/login_screen.dart';
@@ -47,6 +48,8 @@ class OnboardingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: const AppBarWidget(),
+      drawer: const CustomDrawer(),
       body: Stack(
         children: [
           const AuthBackground(),
