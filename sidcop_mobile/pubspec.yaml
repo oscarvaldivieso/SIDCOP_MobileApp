@@ -25,7 +25,9 @@ flutter:
     - assets/auth-background.jpg
     - assets/marca_blanco.png
     - assets/logo_blanco.png
-    - assets/asset-breadcrumb.png
+    - assets/undraw_forgot-password_odai 1.png
+    - assets/eslogancompleto_Claro_SIDCOP 2.png
+    - assets/mark_email_unread.png
   
   fonts:
   - family: Satoshi
