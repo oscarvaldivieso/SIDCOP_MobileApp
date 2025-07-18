@@ -25,6 +25,7 @@ flutter:
     - assets/auth-background.jpg
     - assets/marca_blanco.png
     - assets/logo_blanco.png
+    - assets/asset-breadcrumb.png
   
   fonts:
   - family: Satoshi
