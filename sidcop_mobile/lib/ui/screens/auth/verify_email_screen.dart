@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/auth_background.dart';
@@ -14,9 +15,18 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   final List<TextEditingController> _codeControllers = List.generate(5, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode());
   String? _error;
+  late Timer _timer;
+  int _countdown = 30; // 30 segundos de cuenta regresiva
   
   @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  @override
   void dispose() {
+    _timer.cancel();
     for (var controller in _codeControllers) {
       controller.dispose();
     }
@@ -24,6 +34,19 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       node.dispose();
     }
     super.dispose();
+  }
+
+  void _startTimer() {
+    _countdown = 30; // Reiniciar a 30 segundos
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_countdown > 0) {
+        setState(() {
+          _countdown--;
+        });
+      } else {
+        _timer.cancel();
+      }
+    });
   }
   
   String get _verificationCode => _codeControllers.map((c) => c.text).join();
@@ -208,14 +231,23 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                       height: 48,
                                     ),
                                     const SizedBox(height: 24),
-                                     const Text(
-                                      'Reenviar código en 00:30',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontWeight: FontWeight.w400,
-                                        fontSize: 14,
+                                     GestureDetector(
+                                      onTap: _countdown == 0 ? () {
+                                        // Aquí puedes agregar la lógica para reenviar el código
+                                        _startTimer();
+                                      } : null,
+                                      child: Text(
+                                        _countdown > 0 
+                                          ? 'Reenviar código en 00:${_countdown.toString().padLeft(2, '0')}'
+                                          : 'Reenviar código',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w400, 
+                                          fontSize: 14,
+                                          color: _countdown > 0 ? Colors.grey : const Color.fromARGB(255, 38, 43, 64,),
+                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
-                                      textAlign: TextAlign.center,
                                     ),
                                     const SizedBox(height: 30),
                                   ],
