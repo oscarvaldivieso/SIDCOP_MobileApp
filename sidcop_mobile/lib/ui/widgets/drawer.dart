@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/rechargeList.dart';
+import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -224,15 +225,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              // await UsuarioService().cerrarSesion();
 
-              // Navigator.pop(context);
+ Navigator.pop(context);
 
-              // Navigator.pushAndRemoveUntil(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-              //   (route) => false,
-              // );
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const clientScreen()),
+                (route) => false,
+              );
+
               print("tiene acceso");
             },
           ),
