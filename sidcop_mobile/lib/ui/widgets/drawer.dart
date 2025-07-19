@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/rechargeList.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
+=======
+>>>>>>> Stashed changes
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -145,12 +147,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              //  Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const MyWidget(),
-              //   ),
-              // );
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProductsListScreen(),
+                ),
+              );
             },
           ),
           //   if (usuario != null && usuario!.usua_Clie == true)
