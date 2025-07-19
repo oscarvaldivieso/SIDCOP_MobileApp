@@ -30,6 +30,7 @@ flutter:
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png
+    - assets/Key.png
   
   fonts:
   - family: Satoshi
