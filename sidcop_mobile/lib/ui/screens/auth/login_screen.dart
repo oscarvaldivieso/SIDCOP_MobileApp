@@ -5,6 +5,7 @@ import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/drawer.dart';
 import '../../../services/UsuarioService.dart';
+import '../../screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -145,7 +146,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 40),
                         GestureDetector(
                           onTap: () {
-                            Navigator.of(context).pushNamed('/forgot_password');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
+                            );
                           },
                           child: Text(
                             '¿Olvidaste tu contraseña?',
