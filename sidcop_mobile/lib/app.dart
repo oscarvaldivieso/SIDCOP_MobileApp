@@ -19,8 +19,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      //home: UserInfoScreen(), // Widget correcto
-      home: const OnboardingScreen(),
+      home: UserInfoScreen(), // Widget correcto
+      // home: const OnboardingScreen(),
     );
   }
 }

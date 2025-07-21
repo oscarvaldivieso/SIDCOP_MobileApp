@@ -41,19 +41,18 @@ class UserInfoScreen extends StatelessWidget {
                 // Imagen SVG de fondo con flip horizontal y opacidad
                 SizedBox(
                   width: double.infinity,
-                  height: 150,
+                  height: 220,
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(60),
-                      bottomRight: Radius.circular(60),
-                    ),
+                    // borderRadius: const BorderRadius.only(
+                    //   bottomLeft: Radius.circular(60),
+                    //   bottomRight: Radius.circular(60),
+                    // ),
                     child: Opacity(
                       opacity: 0.7,
                       child: Positioned.fill(
                         child: Transform.flip(
-                          // flipX: true,
                           child: SvgPicture.asset(
-                            'assets/FondoNuevo2.svg', // Asegúrate de que la ruta sea correcta y esté en assets
+                            'assets/FondoNuevo2.svg',
                             fit: BoxFit.cover,
                           ),
                         ),
