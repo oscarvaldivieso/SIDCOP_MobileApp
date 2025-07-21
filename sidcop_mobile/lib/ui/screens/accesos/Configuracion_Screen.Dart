@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-class PerfilUsuarioScreen extends StatefulWidget {
+class ConfiguracionScreen extends StatefulWidget {
   @override
-  State<PerfilUsuarioScreen> createState() => _PerfilUsuarioScreenState();
+  State<ConfiguracionScreen> createState() => _ConfiguracionScreenState();
 }
 
-class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
+class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool isOnline = true;
 
   @override
