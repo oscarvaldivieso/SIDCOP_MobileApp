@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart' show AppBarWidget;
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 
@@ -51,7 +52,13 @@ class AppBackground extends StatelessWidget {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: Image.asset('breadcrum2.png', fit: BoxFit.cover),
+                        child: Transform.flip(
+                          flipX: true,
+                          child: SvgPicture.asset(
+                            'BreadCrumSVG2.svg',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                       // Título alineado a la izquierda y centrado verticalmente
                       Align(
