@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/accesos/configuracion_screen.dart';
 import 'ui/screens/accesos/UserInfoScreen.dart';
@@ -17,9 +19,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      // home: ConfiguracionScreen(),
-      home: UserInfoScreen(), // Widget correcto
-      // home: const OnboardingScreen(),
+      //home: UserInfoScreen(), // Widget correcto
+      home: const OnboardingScreen(),
     );
   }
 }
