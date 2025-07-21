@@ -33,7 +33,7 @@ class UserInfoScreen extends StatelessWidget {
               children: [
                 // Fondo con curva
                 Container(
-                  height: 180,
+                  height: 220,
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: Color(0xFF181C3A),
@@ -53,10 +53,26 @@ class UserInfoScreen extends StatelessWidget {
                       border: Border.all(color: Colors.white, width: 3),
                       color: Colors.grey[400],
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 60,
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/galaxia.jpg',
+                        fit: BoxFit.cover,
+                        width: 90,
+                        height: 90,
+                      ),
+                    ),
+                  ),
+                ),
+                // Nombre debajo de la foto
+                Positioned(
+                  top: 190,
+                  child: Text(
+                    'Deiby Deras',
+                    style: const TextStyle(
                       color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ),

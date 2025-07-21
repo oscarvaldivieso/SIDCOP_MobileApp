@@ -30,6 +30,7 @@ flutter:
     - assets/mark_email_unread.png
     - assets/Key.png
     - assets/fondo_usuario.jpg
+    - assets/galaxia.jpg
   
   fonts:
   - family: Satoshi
