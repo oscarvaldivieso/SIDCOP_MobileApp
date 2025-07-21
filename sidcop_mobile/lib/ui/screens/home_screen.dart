@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'general/client_screen.dart';
+import 'general/Clientes/client_screen.dart';
 import 'products/products_list_screen.dart';
 import '../widgets/appBar.dart';
 import '../widgets/drawer.dart';

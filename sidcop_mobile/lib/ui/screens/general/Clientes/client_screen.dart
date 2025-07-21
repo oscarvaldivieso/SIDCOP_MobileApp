@@ -21,6 +21,14 @@ class _clientScreenState extends State<clientScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Clientes')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Add your onPressed code here
+        },
+        backgroundColor: const Color(0xFF141A2F),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Color(0xFFD6B68A)),
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: clientesList,
         builder: (context, snapshot) {
