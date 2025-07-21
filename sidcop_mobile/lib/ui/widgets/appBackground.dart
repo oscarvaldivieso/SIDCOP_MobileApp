@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart' show AppBarWidget;
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 
@@ -33,22 +34,35 @@ class AppBackground extends StatelessWidget {
             colors: [Color(0xFFF6F6F6), Color(0xFFF6F6F6)],
           ),
         ),
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).size.height * 0.07,
-        ),
         child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).size.height * 0.07,
+            left: 16,
+            right: 16,
+            bottom: 16,
+          ),
           child: Column(
             children: [
+              // Breadcrumb que se mueve con el scroll
               Card.filled(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
                 color: const Color(0xFF141A2F),
                 child: SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.8,
+                  width: double.infinity,
                   height: MediaQuery.of(context).size.height * 0.18,
                   child: Stack(
                     children: [
-                      // Fondo decorativo
                       Positioned.fill(
-                        child: Image.asset('breadcrum2.png', fit: BoxFit.cover),
+                        child: Transform.flip(
+                          flipX: true,
+                          child: SvgPicture.asset(
+                            'BreadCrumSVG2.svg',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                       // Título alineado a la izquierda y centrado verticalmente
                       Align(
@@ -63,7 +77,8 @@ class AppBackground extends StatelessWidget {
                                   context,
                                 ).textTheme.headlineSmall?.copyWith(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
+                                  fontFamily: 'Satoshi',
                                 ),
                             textAlign: TextAlign.left,
                           ),
@@ -72,8 +87,8 @@ class AppBackground extends StatelessWidget {
                       // Icono alineado abajo y más al centro
                       Align(
                         alignment: Alignment(
-                          0.65,
-                          0.85,
+                          0.35,
+                          1.5,
                         ), // 0.65 = más cerca del centro, 0.85 = abajo
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 4.0),
@@ -88,10 +103,7 @@ class AppBackground extends StatelessWidget {
                   ),
                 ),
               ),
-              if (child != null) ...[
-                const SizedBox(height: 24),
-                child!,
-              ],
+              if (child != null) ...[const SizedBox(height: 24), child!],
             ],
           ),
         ),
