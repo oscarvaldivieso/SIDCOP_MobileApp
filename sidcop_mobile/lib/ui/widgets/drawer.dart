@@ -146,7 +146,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w300,
               ),
-            ),  
+            ),
             onTap: () {
               Navigator.push(
                 context,
@@ -258,7 +258,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const RechargesScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const RechargesScreen(),
+                ),
                 (route) => false,
               );
               print("tiene acceso 2");
