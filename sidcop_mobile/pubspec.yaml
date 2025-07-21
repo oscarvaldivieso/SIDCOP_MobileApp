@@ -12,11 +12,14 @@ dependencies:
   flutter_dotenv: ^5.2.1
   http: ^1.4.0
   provider: ^6.1.5
+  flutter_svg: ^2.0.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+
 
 flutter:
   uses-material-design: true
@@ -28,8 +31,14 @@ flutter:
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png
+    - assets/breadcrum2.png
+    - assets/breadcrum1.svg
+    - assets/test.svg
     - assets/Key.png
-    - assets/asset-breadcrumb.png
+    - assets/fondo_usuario.jpg
+    - assets/galaxia.jpg
+    - assets/BreadCrumSVG.svg
+    - assets/BreadCrumSVG2.svg
   
   fonts:
   - family: Satoshi
