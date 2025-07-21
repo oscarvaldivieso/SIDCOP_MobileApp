@@ -18,6 +18,7 @@ class UsuarioService {
       'correo': 'string',
       'usua_Clave': clave,
       'role_Id': 0,
+      'role_Descripcion': 'string',
       'usua_IdPersona': 0,
       'usua_EsVendedor': true,
       'usua_EsAdmin': true,
