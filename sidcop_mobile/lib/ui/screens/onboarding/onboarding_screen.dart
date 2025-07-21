@@ -48,8 +48,6 @@ class OnboardingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(),
       body: Stack(
         children: [
           const AuthBackground(),

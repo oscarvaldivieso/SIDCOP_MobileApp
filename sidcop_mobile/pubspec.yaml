@@ -19,6 +19,8 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+
+
 flutter:
   uses-material-design: true
   assets:
@@ -32,6 +34,9 @@ flutter:
     - assets/breadcrum2.png
     - assets/breadcrum1.svg
     - assets/test.svg
+    - assets/Key.png
+    - assets/fondo_usuario.jpg
+    - assets/galaxia.jpg
   
   fonts:
   - family: Satoshi

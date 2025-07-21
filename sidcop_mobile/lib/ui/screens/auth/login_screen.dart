@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
+
 import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/drawer.dart';
+import '../../../services/UsuarioService.dart';
+import '../../screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -14,7 +18,57 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final UsuarioService _usuarioService = UsuarioService();
   String? _error;
+  bool _isLoading = false;
+
+  Future<void> _handleLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      setState(() {
+        _error = 'Completa ambos campos';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final result = await _usuarioService.iniciarSesion(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (result != null && result['error'] != true) {
+        // Login exitoso - navegar al home screen
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
+      } else {
+        // Login fallido - mostrar error
+        setState(() {
+          _error = 'Credenciales incorrectas, intenta de nuevo';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error de conexión: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +104,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 50),
                         CustomInput(
-                          label: 'Correo electrónico',
-                          hint: 'Ingresa tu correo',
+                          label: 'Usuario',
+                          hint: 'Ingresa tu usuario',
                           controller: _emailController,
+                          obscureText: true,
                           keyboardType: TextInputType.emailAddress,
                           prefixIcon: const Icon(Icons.email_outlined),
+                          errorText: _error,
                           onChanged: (_) {
                             setState(() {
                               _error = null;
@@ -77,18 +133,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 50),
                         CustomButton(
-                          text: 'Ingresar',
-                          onPressed: () {
-                            // Aquí iría la lógica de login
-                            if (_emailController.text.isEmpty ||
-                                _passwordController.text.isEmpty) {
-                              setState(() {
-                                _error = 'Completa ambos campos';
-                              });
-                            } else {
-                              // Autenticación
-                            }
-                          },
+                          text: _isLoading ? 'Ingresando...' : 'Ingresar',
+                          onPressed: _isLoading ? null : _handleLogin,
                           icon: const Icon(
                             Icons.login,
                             color: Colors.white,
@@ -100,7 +146,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 40),
                         GestureDetector(
                           onTap: () {
-                            Navigator.of(context).pushNamed('/forgot_password');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
+                            );
                           },
                           child: Text(
                             '¿Olvidaste tu contraseña?',
