@@ -42,20 +42,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
               ),
               Column(
                 children: [
+                  // Ejemplo de cómo mapear los datos de la API a la tarjeta
                   _buildHistorialCard(
-                    'En proceso',
-                    Colors.amber.shade100,
-                    Colors.amber.shade700,
-                  ),
-                  _buildHistorialCard(
-                    'Aprobada',
-                    Colors.green.shade100,
-                    Colors.green.shade700,
-                  ),
-                  _buildHistorialCard(
-                    'Rechazada',
-                    Colors.red.shade100,
-                    Colors.red.shade700,
+                    _mapEstadoFromApi(false), // <- Cambia 'false' por el valor real de reca_Confirmacion
+                    _formatFechaFromApi("2025-07-21T00:00:00"), // <- Cambia por reca_Fecha
+                    int.tryParse("5") ?? 0, // <- Cambia por reDe_Cantidad
                   ),
                 ],
               ),
@@ -104,20 +95,53 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 
-  Widget _buildHistorialCard(String estado, Color bgColor, Color textColor) {
+  /// Helper para mapear el estado de la API a texto visual
+  String _mapEstadoFromApi(dynamic recaConfirmacion) {
+    // Cuando cambie a char, actualiza este método
+    if (recaConfirmacion == true) return 'Aprobada';
+    if (recaConfirmacion == false) return 'Rechazada';
+    return 'En proceso';
+  }
+
+  /// Helper para formatear la fecha de la API
+  String _formatFechaFromApi(String fechaIso) {
+    try {
+      final date = DateTime.parse(fechaIso);
+      // Ejemplo: 21 de Julio del 2025
+      return "${date.day} de "+_mesEnEspanol(date.month)+" del ${date.year}";
+    } catch (_) {
+      return fechaIso;
+    }
+  }
+
+  String _mesEnEspanol(int mes) {
+    const meses = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return meses[mes];
+  }
+
+  Widget _buildHistorialCard(String estado, String fecha, int cantidadProductos) {
+    Color textColor;
     String label;
     switch (estado) {
       case 'En proceso':
+      case 'Pendiente':
         label = 'En proceso';
+        textColor = Colors.amber.shade700;
         break;
       case 'Aprobada':
         label = 'Aprobada';
+        textColor = Colors.green.shade700;
         break;
       case 'Rechazada':
         label = 'Rechazada';
+        textColor = Colors.red.shade700;
         break;
       default:
         label = estado;
+        textColor = Colors.grey.shade700;
     }
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -154,7 +178,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Fecha de solicitud: 1 de Julio del 2025',
+                  'Fecha de solicitud: $fecha',
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 18,
@@ -168,9 +192,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total productos solicitados: 230',
-                style: TextStyle(
+              Text(
+                'Total productos solicitados: $cantidadProductos',
+                style: const TextStyle(
                   color: Color(0xFF181E34),
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
@@ -182,7 +206,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: bgColor,
+                  color: Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(

@@ -37,8 +37,8 @@ flutter:
     - assets/Key.png
     - assets/fondo_usuario.jpg
     - assets/galaxia.jpg
-    - assets/BreadCrumSVG.svg
     - assets/BreadCrumSVG2.svg
+    - assets/miniBreadSVG.svg
   
   fonts:
   - family: Satoshi
