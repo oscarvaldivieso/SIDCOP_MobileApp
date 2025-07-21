@@ -35,31 +35,34 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 children: [
                   const Text(
                     'Historial de solicitudes',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('Ver mas'),
-                  ),
+                  TextButton(onPressed: () {}, child: const Text('Ver mas')),
                 ],
               ),
               Column(
                 children: [
-                  _buildHistorialCard('En proceso', Colors.amber.shade100, Colors.amber.shade700),
-                  _buildHistorialCard('Aprobada', Colors.green.shade100, Colors.green.shade700),
-                  _buildHistorialCard('Rechazada', Colors.red.shade100, Colors.red.shade700),
+                  _buildHistorialCard(
+                    'En proceso',
+                    Colors.amber.shade100,
+                    Colors.amber.shade700,
+                  ),
+                  _buildHistorialCard(
+                    'Aprobada',
+                    Colors.green.shade100,
+                    Colors.green.shade700,
+                  ),
+                  _buildHistorialCard(
+                    'Rechazada',
+                    Colors.red.shade100,
+                    Colors.red.shade700,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
               const Text(
                 'Solicitar recarga',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               const SizedBox(height: 8),
               GestureDetector(
@@ -84,7 +87,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
                           ),
                         ),
                         SizedBox(width: 10),
-                        Icon(Icons.flash_on, color: Colors.white, size: 20),
+                        Icon(
+                          Icons.add_shopping_cart_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ],
                     ),
                   ),
@@ -138,7 +145,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.calendar_today, color: Color(0xFF181E34), size: 28),
+                child: const Icon(
+                  Icons.calendar_today,
+                  color: Color(0xFF181E34),
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -166,7 +177,10 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(20),
@@ -207,7 +221,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = productos.where((p) => p['nombre'].toLowerCase().contains(search.toLowerCase())).toList();
+    final filtered = productos
+        .where((p) => p['nombre'].toLowerCase().contains(search.toLowerCase()))
+        .toList();
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       minChildSize: 0.5,
@@ -220,7 +236,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -228,7 +247,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Solicitud de recarga', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Text(
+                    'Solicitud de recarga',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                 ],
               ),
             ),
@@ -239,7 +261,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   hintText: 'Buscar producto',
                   border: OutlineInputBorder(),
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  contentPadding: EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                 ),
                 onChanged: (v) => setState(() => search = v),
               ),
@@ -260,13 +285,21 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   backgroundColor: const Color(0xFF141A2F),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
                 ),
                 onPressed: () {},
                 icon: const Icon(Icons.send, color: Colors.white),
-                label: const Text('Solicitar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Solicitar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -291,7 +324,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(producto['nombre'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(
+                producto['nombre'],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             Row(
               children: [
@@ -303,7 +339,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     });
                   },
                 ),
-                Text('${producto['cantidad']}', style: const TextStyle(fontSize: 16)),
+                Text(
+                  '${producto['cantidad']}',
+                  style: const TextStyle(fontSize: 16),
+                ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {

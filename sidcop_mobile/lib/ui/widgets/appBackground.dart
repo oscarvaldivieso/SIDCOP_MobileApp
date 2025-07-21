@@ -88,10 +88,7 @@ class AppBackground extends StatelessWidget {
                   ),
                 ),
               ),
-              if (child != null) ...[
-                const SizedBox(height: 24),
-                child!,
-              ],
+              if (child != null) ...[const SizedBox(height: 24), child!],
             ],
           ),
         ),
