@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // <-- Agrega esta línea
 
 class UserInfoScreen extends StatelessWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
@@ -18,7 +19,7 @@ class UserInfoScreen extends StatelessWidget {
           'Información de usuario',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 22,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -31,18 +32,36 @@ class UserInfoScreen extends StatelessWidget {
             Stack(
               alignment: Alignment.center,
               children: [
-                // Fondo con curva
-                Container(
-                  height: 220,
+                // Fondo decorativo con curva
+                SizedBox(
                   width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF181C3A),
-                    borderRadius: BorderRadius.only(
+                  height: 220,
+                  child: CustomPaint(painter: _HeaderBackgroundPainter()),
+                ),
+                // Imagen SVG de fondo con flip horizontal y opacidad
+                SizedBox(
+                  width: double.infinity,
+                  height: 150,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(60),
                       bottomRight: Radius.circular(60),
                     ),
+                    child: Opacity(
+                      opacity: 0.7,
+                      child: Positioned.fill(
+                        child: Transform.flip(
+                          // flipX: true,
+                          child: SvgPicture.asset(
+                            'assets/FondoNuevo2.svg', // Asegúrate de que la ruta sea correcta y esté en assets
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+                // Foto de perfil y nombre
                 Positioned(
                   top: 90,
                   child: Container(
@@ -63,7 +82,6 @@ class UserInfoScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Nombre debajo de la foto
                 Positioned(
                   top: 190,
                   child: Text(
