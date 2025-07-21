@@ -63,6 +63,36 @@ class ClientesService {
       throw Exception('Error en la solicitud: $e');
     }
   }
+
+Future<List<dynamic>> get() async {
+
+    final url = Uri.parse('https://$_apiServer/DireccionesPorCliente/Listar');
+    developer.log('Get DireccionesPorCliente Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log('Get DireccionesPorCliente Response Status: \${response.statusCode}');
+      developer.log('Get DireccionesPorCliente Response Body: \${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> direccionesList = jsonDecode(response.body);
+        return direccionesList;
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get DireccionesPorCliente Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
+
+
 }
 
 
