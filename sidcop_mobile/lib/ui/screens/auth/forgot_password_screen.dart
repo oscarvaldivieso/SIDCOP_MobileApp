@@ -141,13 +141,42 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                           if (!mounted) return;
                                           
                                           if (email != null && email.isNotEmpty) {
-                                            // Navegar a la siguiente pantalla solo si se obtuvo un email
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => VerifyEmailScreen(email: email),
-                                              ),
-                                            );
+                                            // Obtener la respuesta completa del usuario para extraer el ID y username
+                                            final userResponse = await UserVerificationService.verifyUser(_emailController.text.trim());
+                                            
+                                            if (userResponse == null || userResponse.data.isEmpty) {
+                                              setState(() {
+                                                _error = 'No se pudo obtener la información del usuario';
+                                                _isLoading = false;
+                                              });
+                                              return;
+                                            }
+                                            
+                                            final userData = userResponse.data.first;
+                                            
+                                            // Enviar el código de verificación
+                                            final codeSent = await UserVerificationService.sendVerificationCode(email);
+                                            
+                                            if (!mounted) return;
+                                            
+                                            if (codeSent) {
+                                              // Navegar a la pantalla de verificación con los datos del usuario
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => VerifyEmailScreen(
+                                                    email: email,
+                                                    userId: userData.usuaId,
+                                                    username: userData.usuaUsuario ?? _emailController.text.trim(),
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              setState(() {
+                                                _error = 'Error al enviar el código de verificación. Intente nuevamente.';
+                                                _isLoading = false;
+                                              });
+                                            }
                                           } else {
                                             setState(() {
                                               _error = 'No se encontró un correo asociado a este usuario';
