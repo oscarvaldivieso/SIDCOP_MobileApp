@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'ui/screens/onboarding/onboarding_screen.dart';
+import 'ui/screens/accesos/perfilUsuario_Screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -10,26 +13,11 @@ class MyApp extends StatelessWidget {
     final apiKey = dotenv.env['API_KEY'] ?? 'api key no definida';
 
     return MaterialApp(
-      title: 'SIDCOP Mobile App',
-      theme: ThemeData(
-        primarySwatch:Colors.indigo,
-      ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('SIDCOP Mobile App'),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Text('API URL: $apiUrl'),
-              Text('API Key: $apiKey'),
-            ],
-          ),
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      title: 'SIDCOP',
+      theme: ThemeData(primarySwatch: Colors.indigo),
+      home: const OnboardingScreen(),
+      //home: PerfilUsuarioScreen(),
     );
-
-
   }
 }
