@@ -39,6 +39,7 @@ flutter:
     - assets/galaxia.jpg
     - assets/BreadCrumSVG.svg
     - assets/BreadCrumSVG2.svg
+    - assets/SIDCOP.svg
   
   fonts:
   - family: Satoshi
