@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/rechargeList.dart';
@@ -258,7 +259,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const RechargeList()),
+                MaterialPageRoute(builder: (context) => const RechargesScreen()),
                 (route) => false,
               );
               print("tiene acceso 2");
