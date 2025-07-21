@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart' show AppBarWidget;
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 
@@ -40,15 +41,24 @@ class AppBackground extends StatelessWidget {
           child: Column(
             children: [
               Card.filled(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
                 color: const Color(0xFF141A2F),
                 child: SizedBox(
                   width: MediaQuery.of(context).size.width * 0.8,
                   height: MediaQuery.of(context).size.height * 0.18,
                   child: Stack(
                     children: [
-                      // Fondo decorativo
                       Positioned.fill(
-                        child: Image.asset('breadcrum2.png', fit: BoxFit.cover),
+                        child: Transform.flip(
+                          flipX: true,
+                          child: SvgPicture.asset(
+                            'BreadCrumSVG2.svg',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                       // Título alineado a la izquierda y centrado verticalmente
                       Align(
@@ -88,10 +98,7 @@ class AppBackground extends StatelessWidget {
                   ),
                 ),
               ),
-              if (child != null) ...[
-                const SizedBox(height: 24),
-                child!,
-              ],
+              if (child != null) ...[const SizedBox(height: 24), child!],
             ],
           ),
         ),
