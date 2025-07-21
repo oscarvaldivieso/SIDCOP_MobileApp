@@ -8,6 +8,7 @@ class AppBackground extends StatelessWidget {
   final Color? iconColor;
   final double? iconSize;
   final TextStyle? titleStyle;
+  final Widget? child;
 
   const AppBackground({
     super.key,
@@ -16,6 +17,7 @@ class AppBackground extends StatelessWidget {
     this.iconColor,
     this.iconSize,
     this.titleStyle,
+    this.child,
   });
 
   @override
@@ -34,7 +36,7 @@ class AppBackground extends StatelessWidget {
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).size.height * 0.07,
         ),
-        child: Center(
+        child: SingleChildScrollView(
           child: Column(
             children: [
               Card.filled(
@@ -86,6 +88,10 @@ class AppBackground extends StatelessWidget {
                   ),
                 ),
               ),
+              if (child != null) ...[
+                const SizedBox(height: 24),
+                child!,
+              ],
             ],
           ),
         ),
