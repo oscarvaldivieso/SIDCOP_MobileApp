@@ -1,8 +1,11 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
+import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/rechargeList.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
+import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -143,14 +146,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w300,
               ),
-            ),
+            ),  
             onTap: () {
-              //  Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const MyWidget(),
-              //   ),
-              // );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProductScreen()),
+              );
             },
           ),
           //   if (usuario != null && usuario!.usua_Clie == true)
@@ -225,8 +226,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-
- Navigator.pop(context);
+              Navigator.pop(context);
 
               Navigator.pushAndRemoveUntil(
                 context,
