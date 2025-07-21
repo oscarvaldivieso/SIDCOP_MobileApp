@@ -173,7 +173,6 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Barra de agarre
                     Container(
                       margin: const EdgeInsets.only(top: 8, bottom: 8),
                       width: 40,
@@ -184,7 +183,6 @@ class _ProductScreenState extends State<ProductScreen> {
                       ),
                     ),
 
-                    // Header de filtros
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -210,7 +208,6 @@ class _ProductScreenState extends State<ProductScreen> {
                       ),
                     ),
 
-                    // Contenido de filtros
                     Expanded(
                       child: FutureBuilder(
                         future: Future.wait([
@@ -412,6 +409,7 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  //La tarjetita de los productos
   Widget _buildProductCard(Productos product) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -484,6 +482,7 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  //Detalle del producto
   void _showProductDetail(Productos product) {
     showModalBottomSheet(
       context: context,
