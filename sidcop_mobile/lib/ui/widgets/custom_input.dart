@@ -36,7 +36,7 @@ class CustomInput extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: theme.colorScheme.onBackground,
             fontFamily: 'Satoshi',
-            fontSize: 20,
+            fontSize: 15,
           ),
         ),
         const SizedBox(height: 10),
@@ -60,7 +60,7 @@ class CustomInput extends StatelessWidget {
             errorText: errorText,
             filled: true,
             fillColor: theme.colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 25, vertical: 23),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
               borderSide: BorderSide(

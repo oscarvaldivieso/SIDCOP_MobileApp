@@ -26,3 +26,11 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+sidcop_mobile/linux/flutter/generated_plugin_registrant.cc
+*.cc
+sidcop_mobile/linux/flutter/generated_plugins.cmake
+sidcop_mobile/macos/Flutter/GeneratedPluginRegistrant.swift
+sidcop_mobile/windows/flutter/generated_plugin_registrant.cc
+sidcop_mobile/windows/flutter/generated_plugin_registrant.h
+sidcop_mobile/windows/flutter/generated_plugins.cmake
+sidcop_mobile/windows/flutter/generated_plugins.cmake
