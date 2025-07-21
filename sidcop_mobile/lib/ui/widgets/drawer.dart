@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
-import 'package:sidcop_mobile/ui/screens/recharges/rechargeList.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 
