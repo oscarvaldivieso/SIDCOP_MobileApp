@@ -40,13 +40,16 @@ class AppBackground extends StatelessWidget {
           child: Column(
             children: [
               Card.filled(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
                 color: const Color(0xFF141A2F),
                 child: SizedBox(
                   width: MediaQuery.of(context).size.width * 0.8,
                   height: MediaQuery.of(context).size.height * 0.18,
                   child: Stack(
                     children: [
-                      // Fondo decorativo
                       Positioned.fill(
                         child: Image.asset('breadcrum2.png', fit: BoxFit.cover),
                       ),
