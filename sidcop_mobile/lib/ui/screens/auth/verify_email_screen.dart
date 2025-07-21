@@ -3,13 +3,18 @@ import 'package:flutter/material.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/auth_background.dart';
 import '../../screens/auth/reset_password_screen.dart';
+import '../../../services/user_verification_service.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   final String email;
+  final int userId;
+  final String username;
   
   const VerifyEmailScreen({
     super.key, 
     required this.email,
+    required this.userId,
+    required this.username,
   });
 
   @override
@@ -215,21 +220,39 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                     const SizedBox(height: 24),
                                     CustomButton(
                                       text: 'Confirmar',
-                                      onPressed: () {
+                                      onPressed: () async {
                                         if (_verificationCode.length < 5) {
                                           setState(() {
                                             _error = 'Por favor ingresa el código de 5 dígitos';
                                           });
                                           return;
                                         }
-                                        // Aquí iría la lógica para enviar el correo de recuperación
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const ResetPasswordScreen(),
-                                          ),
+
+                                        // Validar el código ingresado
+                                        final isValid = UserVerificationService.validateVerificationCode(
+                                          _verificationCode,
+                                          widget.email, // Pasar el email para validación
                                         );
                                         
+                                        if (isValid) {
+                                          // Código válido, navegar a la pantalla de restablecimiento de contraseña
+                                          if (!mounted) return;
+Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => ResetPasswordScreen(
+                                                userId: widget.userId,
+                                                email: widget.email,
+                                                username: widget.username,
+                                              ),
+                                            ),
+                                          );
+                                        } else {
+                                          // Código inválido
+                                          setState(() {
+                                            _error = 'Código incorrecto. Por favor, inténtalo de nuevo.';
+                                          });
+                                        }
                                       },
                                       width: MediaQuery.of(context).size.width * 0.6,
                                       
@@ -237,9 +260,22 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                     ),
                                     const SizedBox(height: 24),
                                      GestureDetector(
-                                      onTap: _countdown == 0 ? () {
-                                        // Aquí puedes agregar la lógica para reenviar el código
-                                        _startTimer();
+                                      onTap: _countdown == 0 ? () async {
+                                        // Reenviar el código de verificación
+                                        final email = widget.email;
+                                        final codeSent = await UserVerificationService.sendVerificationCode(email);
+                                        
+                                        if (codeSent) {
+                                          _startTimer();
+                                        } else {
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Error al reenviar el código. Intente nuevamente.'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
                                       } : null,
                                       child: Text(
                                         _countdown > 0 
