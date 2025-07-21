@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/auth_background.dart';
+import 'package:sidcop_mobile/services/user_verification_service.dart';
+import 'package:sidcop_mobile/models/reset_password_request.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_input.dart';
-import '../../widgets/auth_background.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
+  final int userId;
+  final String email;
+  final String username;
   
-  const ResetPasswordScreen({super.key});
+  const ResetPasswordScreen({
+    super.key,
+    required this.userId,
+    required this.email,
+    required this.username,
+  });
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -16,6 +25,76 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final TextEditingController _passwordController = TextEditingController();
     final TextEditingController _verifyPassword = TextEditingController();
     String? _error;
+    bool _isLoading = false;
+
+  Future<void> _resetPassword() async {
+    final password = _passwordController.text;
+    final confirmPassword = _verifyPassword.text;
+
+    // Validar que las contraseñas coincidan
+    if (password != confirmPassword) {
+      setState(() {
+        _error = 'Las contraseñas no coinciden';
+      });
+      return;
+    }
+
+    // Validar longitud mínima de contraseña
+    if (password.length < 6) {
+      setState(() {
+        _error = 'La contraseña debe tener al menos 6 caracteres';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final request = ResetPasswordRequest(
+        usua_Id: widget.userId,
+        usua_Usuario: widget.username,
+        correo: widget.email,
+        usua_Clave: password,
+        usua_Modificacion: widget.userId, // Mismo que usua_Id
+        usua_FechaModificacion: DateTime.now(),
+      );
+
+      final success = await UserVerificationService.resetPassword(request);
+
+      if (!mounted) return;
+
+      if (success) {
+        // Mostrar mensaje de éxito y regresar al login
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Contraseña actualizada exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.popUntil(context, (route) => route.isFirst);
+        }
+      } else {
+        setState(() {
+          _error = 'Error al actualizar la contraseña. Por favor, intente nuevamente.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error inesperado. Por favor, intente nuevamente.';
+      });
+      print('Error resetting password: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +206,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                       label: 'Nueva contraseña',
                                       hint: '',
                                       controller: _passwordController,
-                                      keyboardType: TextInputType.emailAddress,
+                                      obscureText: true,
+                                      keyboardType: TextInputType.visiblePassword,
                                       onChanged: (_) {
                                         setState(() {
                                           _error = null;
@@ -138,7 +218,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                       label: 'Confirma tu contraseña',
                                       hint: '',
                                       controller: _verifyPassword,
-                                      keyboardType: TextInputType.emailAddress,
+                                      obscureText: true,
+                                      keyboardType: TextInputType.visiblePassword,
                                       onChanged: (_) {
                                         setState(() {
                                           _error = null;
@@ -146,18 +227,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                       },
                                     ),
                                     const SizedBox(height: 24),
-                                    CustomButton(
-                                      text: 'Confirmar',
-                                      onPressed: () {
-                                        // Aquí iría la lógica para enviar el correo de recuperación
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const ResetPasswordScreen(),
-                                          ),
-                                        );
-                                        
-                                      },
+                                    _isLoading
+                                        ? const Center(child: CircularProgressIndicator())
+                                        : CustomButton(
+                                            text: 'Confirmar',
+                                            onPressed: _resetPassword,
                                       width: MediaQuery.of(context).size.width * 0.6,
                                       
                                       height: 48,
