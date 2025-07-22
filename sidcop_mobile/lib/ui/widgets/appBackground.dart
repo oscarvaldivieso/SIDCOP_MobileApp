@@ -87,8 +87,8 @@ class AppBackground extends StatelessWidget {
                       // Icono alineado abajo y más al centro
                       Align(
                         alignment: Alignment(
-                          0.35,
-                          1.5,
+                          0.4,
+                          0.9,
                         ), // 0.65 = más cerca del centro, 0.85 = abajo
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 4.0),

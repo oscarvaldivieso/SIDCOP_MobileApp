@@ -1,9 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
-import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 
@@ -107,12 +106,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const DashboardInicioScreen(),
-              //     ),
-              //   );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
             },
           ),
           ListTile(

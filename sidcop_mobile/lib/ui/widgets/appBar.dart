@@ -5,7 +5,7 @@ class AppBarWidget extends StatefulWidget implements PreferredSizeWidget {
   const AppBarWidget({super.key});
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(70.0);
 
   @override
   State<AppBarWidget> createState() => _AppBarWidgetState();
@@ -79,7 +79,7 @@ class _AppBarWidgetState extends State<AppBarWidget>
                       animation: _pulseAnimation,
                       builder: (context, child) {
                         return Container(
-                          width: 4,
+                          width: 5,
                           height: 40,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -97,9 +97,10 @@ class _AppBarWidgetState extends State<AppBarWidget>
                         );
                       },
                     ),
+                    const SizedBox(width: 12),
                     SvgPicture.asset(
                       'assets/SIDCOP.svg',
-                      height:35,
+                      height:26,
                       fit: BoxFit.contain,
                       placeholderBuilder: (BuildContext context) => Container(
                         padding: const EdgeInsets.symmetric(
@@ -145,72 +146,47 @@ class _AppBarWidgetState extends State<AppBarWidget>
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                        spreadRadius: 0,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                        spreadRadius: 0,
-                      ),
-                    ],
+                    
                   ),
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      splashColor: const Color.fromARGB(255, 18, 31, 57).withOpacity(0.1),
-                      highlightColor: const Color.fromARGB(255, 18, 34, 57).withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      splashColor: const Color(0xFF6B7280).withOpacity(0.1),
+                      highlightColor: const Color(0xFF9CA3AF).withOpacity(0.05),
                       onTap: () {
                         Scaffold.of(context).openDrawer();
                       },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: const Color(0xFFE5E7EB),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Líneas del menú hamburguesa personalizadas
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 18,
-                                  height: 2.5,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1F2937),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  width: 14,
-                                  height: 2.5,
-                                  decoration: BoxDecoration(
-                                    color: const Color.fromARGB(255, 55, 62, 78),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  width: 16,
-                                  height: 2.5,
-                                  decoration: BoxDecoration(
-                                    color: const Color.fromARGB(255, 35, 47, 79),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ],
+                            Container(
+                              width: 22,
+                              height: 2.5,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF374151),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              width: 18,
+                              height: 2.5,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6B7280),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              width: 20,
+                              height: 2.5,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF9CA3AF),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ],
                         ),

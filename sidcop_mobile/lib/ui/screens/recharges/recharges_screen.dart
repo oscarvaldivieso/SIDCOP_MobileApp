@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class RechargesScreen extends StatefulWidget {
-  const RechargesScreen({Key? key}) : super(key: key);
+  const RechargesScreen({super.key});
 
   @override
   State<RechargesScreen> createState() => _RechargesScreenState();
@@ -206,7 +206,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
 }
 
 class RecargaBottomSheet extends StatefulWidget {
-  const RecargaBottomSheet({Key? key}) : super(key: key);
+  const RecargaBottomSheet({super.key});
 
   @override
   State<RecargaBottomSheet> createState() => _RecargaBottomSheetState();

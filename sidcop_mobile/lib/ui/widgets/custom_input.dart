@@ -34,7 +34,7 @@ class CustomInput extends StatelessWidget {
           label,
           style: theme.textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
             fontFamily: 'Satoshi',
             fontSize: 15,
           ),
@@ -46,14 +46,14 @@ class CustomInput extends StatelessWidget {
           keyboardType: keyboardType,
           onChanged: onChanged,
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
             fontFamily: 'Satoshi',
             fontSize: 16 // Adjusted for better scaling
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onBackground.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
               fontFamily: 'Satoshi',
               fontSize:16
             ),
