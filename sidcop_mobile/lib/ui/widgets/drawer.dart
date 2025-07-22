@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
+import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
 import '../../services/PerfilUsuarioService.Dart';
 
 class CustomDrawer extends StatefulWidget {
@@ -252,7 +253,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const UserInfoScreen()),
+                MaterialPageRoute(builder: (context) => ConfiguracionScreen()),
               );
             },
           ),
