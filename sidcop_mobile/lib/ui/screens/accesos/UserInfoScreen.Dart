@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/PerfilUsuarioService.Dart';
@@ -18,6 +19,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
   String _correoElectronico = 'Cargando...';
   String _telefono = 'Cargando...';
   String _cargo = 'Cargando...';
+  String? _imagenUsuario;
   bool _isLoading = true;
 
   @override
@@ -37,6 +39,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       final correoElectronico = await _perfilUsuarioService.obtenerCorreoElectronico();
       final telefono = await _perfilUsuarioService.obtenerTelefono();
       final cargo = await _perfilUsuarioService.obtenerCargo();
+      final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
 
       if (mounted) {
         setState(() {
@@ -46,6 +49,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           _correoElectronico = correoElectronico;
           _telefono = telefono;
           _cargo = cargo;
+          _imagenUsuario = imagenUsuario;
           _isLoading = false;
         });
       }
@@ -58,6 +62,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           _correoElectronico = 'Error al cargar';
           _telefono = 'Error al cargar';
           _cargo = 'Error al cargar';
+          _imagenUsuario = null;
           _isLoading = false;
         });
       }
@@ -132,12 +137,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                       color: Colors.grey[400],
                     ),
                     child: ClipOval(
-                      child: Image.asset(
-                        'assets/galaxia.jpg',
-                        fit: BoxFit.cover,
-                        width: 90,
-                        height: 90,
-                      ),
+                      child: _buildProfileImage(),
                     ),
                   ),
                 ),
@@ -273,6 +273,91 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileImage() {
+    if (_isLoading) {
+      return Container(
+        width: 90,
+        height: 90,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.grey,
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
+      // Si la imagen es una URL (comienza con http)
+      if (_imagenUsuario!.startsWith('http')) {
+        return Image.network(
+          _imagenUsuario!,
+          fit: BoxFit.cover,
+          width: 90,
+          height: 90,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey,
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _buildDefaultProfileImage();
+          },
+        );
+      } else {
+        // Si es una imagen en base64 o otro formato
+        try {
+          return Image.memory(
+            const Base64Decoder().convert(_imagenUsuario!),
+            fit: BoxFit.cover,
+            width: 90,
+            height: 90,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultProfileImage();
+            },
+          );
+        } catch (e) {
+          return _buildDefaultProfileImage();
+        }
+      }
+    }
+
+    // Imagen por defecto si no hay imagen del usuario
+    return _buildDefaultProfileImage();
+  }
+
+  Widget _buildDefaultProfileImage() {
+    return Container(
+      width: 90,
+      height: 90,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.grey[300],
+      ),
+      child: const Icon(
+        Icons.person,
+        size: 50,
+        color: Colors.grey,
       ),
     );
   }

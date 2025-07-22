@@ -130,6 +130,24 @@ class PerfilUsuarioService {
            'No disponible';
   }
   
+  Future<String?> obtenerImagenUsuario() async {
+    final userData = await obtenerDatosUsuario();
+    if (userData == null) return null;
+    
+    // Mapear desde los campos del API response
+    final imagen = userData['usua_Imagen'] ?? 
+                   userData['imagen'] ?? 
+                   userData['profileImage'] ?? 
+                   userData['avatar'];
+    
+    // Verificar que la imagen no sea null, vacía o 'string' (valor por defecto)
+    if (imagen == null || imagen.toString().isEmpty || imagen.toString().toLowerCase() == 'string') {
+      return null;
+    }
+    
+    return imagen.toString();
+  }
+  
   // Método para debug - mostrar todos los campos disponibles
   Future<void> mostrarCamposDisponibles() async {
     final userData = await obtenerDatosUsuario();
