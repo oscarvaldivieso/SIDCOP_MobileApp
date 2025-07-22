@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
 import '../../../services/UsuarioService.dart';
+import '../../../services/PerfilUsuarioService.Dart';
 import '../../screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final UsuarioService _usuarioService = UsuarioService();
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   String? _error;
   bool _isLoading = false;
 
@@ -41,7 +43,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result != null && result['error'] != true) {
-        // Login exitoso - navegar al home screen
+        // Login exitoso - guardar datos del usuario y navegar al home screen
+        await _perfilUsuarioService.guardarDatosUsuario(result);
+        
         if (mounted) {
           Navigator.pushReplacement(
             context,

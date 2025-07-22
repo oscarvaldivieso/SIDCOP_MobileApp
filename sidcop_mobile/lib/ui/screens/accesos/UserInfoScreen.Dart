@@ -1,8 +1,68 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // <-- Agrega esta línea
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../../services/PerfilUsuarioService.Dart';
 
-class UserInfoScreen extends StatelessWidget {
+class UserInfoScreen extends StatefulWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
+
+  @override
+  State<UserInfoScreen> createState() => _UserInfoScreenState();
+}
+
+class _UserInfoScreenState extends State<UserInfoScreen> {
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  
+  String _nombreCompleto = 'Cargando...';
+  String _numeroIdentidad = 'Cargando...';
+  String _numeroEmpleado = 'Cargando...';
+  String _correoElectronico = 'Cargando...';
+  String _telefono = 'Cargando...';
+  String _cargo = 'Cargando...';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatosUsuario();
+  }
+
+  Future<void> _cargarDatosUsuario() async {
+    try {
+      // Debug: mostrar todos los campos disponibles del API
+      await _perfilUsuarioService.mostrarCamposDisponibles();
+      
+      final nombreCompleto = await _perfilUsuarioService.obtenerNombreCompleto();
+      final numeroIdentidad = await _perfilUsuarioService.obtenerNumeroIdentidad();
+      final numeroEmpleado = await _perfilUsuarioService.obtenerNumeroEmpleado();
+      final correoElectronico = await _perfilUsuarioService.obtenerCorreoElectronico();
+      final telefono = await _perfilUsuarioService.obtenerTelefono();
+      final cargo = await _perfilUsuarioService.obtenerCargo();
+
+      if (mounted) {
+        setState(() {
+          _nombreCompleto = nombreCompleto;
+          _numeroIdentidad = numeroIdentidad;
+          _numeroEmpleado = numeroEmpleado;
+          _correoElectronico = correoElectronico;
+          _telefono = telefono;
+          _cargo = cargo;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nombreCompleto = 'Error al cargar';
+          _numeroIdentidad = 'Error al cargar';
+          _numeroEmpleado = 'Error al cargar';
+          _correoElectronico = 'Error al cargar';
+          _telefono = 'Error al cargar';
+          _cargo = 'Error al cargar';
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +144,7 @@ class UserInfoScreen extends StatelessWidget {
                 Positioned(
                   top: 190,
                   child: Text(
-                    'Deiby Deras',
+                    _isLoading ? 'Cargando...' : _nombreCompleto,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -97,9 +157,9 @@ class UserInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: 55),
             // Nombre
-            const Text(
-              'Deyby Cardenas',
-              style: TextStyle(
+            Text(
+              _isLoading ? 'Cargando...' : _nombreCompleto,
+              style: const TextStyle(
                 color: Color(0xFF1a1d3a),
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -128,13 +188,13 @@ class UserInfoScreen extends StatelessWidget {
                   _buildSectionHeader('Datos personales', Icons.person),
                   _buildInfoRow(
                     'Nombre completo:',
-                    'Deyby Josué Deras Cardenas',
+                    _nombreCompleto,
                   ),
-                  _buildInfoRow('Número de identidad:', '0512-2005-23476'),
-                  _buildInfoRow('Número de empleado:', 'SDC-0251'),
-                  _buildInfoRow('Correo electrónico:', 'deybideras@gmail.com'),
-                  _buildInfoRow('Teléfono:', '+504 8929-0835'),
-                  _buildInfoRow('Cargo:', 'Vendedor'),
+                  _buildInfoRow('Número de identidad:', _numeroIdentidad),
+                  _buildInfoRow('Número de empleado:', _numeroEmpleado),
+                  _buildInfoRow('Correo electrónico:', _correoElectronico),
+                  _buildInfoRow('Teléfono:', _telefono),
+                  _buildInfoRow('Cargo:', _cargo),
                   const SizedBox(height: 18),
                   _buildSectionHeader(
                     'Datos de asignación laboral',
