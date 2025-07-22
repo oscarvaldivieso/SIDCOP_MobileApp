@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/models/RecargasViewModel.dart';
 import 'package:sidcop_mobile/services/RecargasService.Dart';
+import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -307,20 +309,38 @@ class RecargaBottomSheet extends StatefulWidget {
 }
 
 class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
-  final List<Map<String, dynamic>> productos = [
-    {
-      'nombre': 'Café Espresso Americano Region Blend',
-      'cantidad': 00,
-      'img': 'assets/marca_blanco.png',
-    },
-  ];
+  final ProductosService _productosService = ProductosService();
+  List<Productos> _productos = [];
+  Map<int, int> _cantidades = {}; // prod_Id -> cantidad
   String search = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProductos();
+  }
+
+  Future<void> _fetchProductos() async {
+    try {
+      final productos = await _productosService.getProductos();
+      setState(() {
+        _productos = productos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = productos
-        .where((p) => p['nombre'].toLowerCase().contains(search.toLowerCase()))
-        .toList();
+    final filtered = _productos.where((p) {
+      final nombre = (p.prod_DescripcionCorta ?? '').toLowerCase();
+      return nombre.contains(search.toLowerCase());
+    }).toList();
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       minChildSize: 0.5,
@@ -368,13 +388,17 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: filtered.length,
-                itemBuilder: (context, i) {
-                  return _buildProducto(filtered[i]);
-                },
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final producto = filtered[i];
+                        final cantidad = _cantidades[producto.prod_Id] ?? 0;
+                        return _buildProducto(producto, cantidad);
+                      },
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -403,7 +427,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     );
   }
 
-  Widget _buildProducto(Map<String, dynamic> producto) {
+  Widget _buildProducto(Productos producto, int cantidad) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
@@ -412,17 +436,20 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                producto['img'],
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-              ),
+              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
+                  ? Image.network(
+                      producto.prod_Imagen!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                    )
+                  : const Icon(Icons.image, size: 48),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                producto['nombre'],
+                producto.prod_DescripcionCorta ?? '-',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -430,21 +457,23 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      producto['cantidad'] = (producto['cantidad'] as int) - 1;
-                    });
-                  },
+                  onPressed: cantidad > 0
+                      ? () {
+                          setState(() {
+                            _cantidades[producto.prod_Id] = cantidad - 1;
+                          });
+                        }
+                      : null,
                 ),
                 Text(
-                  '${producto['cantidad']}',
+                  '$cantidad',
                   style: const TextStyle(fontSize: 16),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
                     setState(() {
-                      producto['cantidad'] = (producto['cantidad'] as int) + 1;
+                      _cantidades[producto.prod_Id] = cantidad + 1;
                     });
                   },
                 ),
