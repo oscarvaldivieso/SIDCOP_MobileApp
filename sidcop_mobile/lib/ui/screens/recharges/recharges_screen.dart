@@ -66,8 +66,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     return Center(child: Text('Error: \\${snapshot.error}'));
                   }
                   final recargas = snapshot.data ?? [];
-                  // Filtrar recargas únicas por reca_Id
-                  // Agrupar todos los registros por reca_Id
                   final Map<int, List<RecargasViewModel>> agrupadas = {};
                   for (final r in recargas) {
                     if (r.reca_Id != null) {
@@ -156,9 +154,8 @@ class _RechargesScreenState extends State<RechargesScreen> {
   }
 
   String _mapEstadoFromApi(dynamic recaConfirmacion) {
-    // Cuando cambie a char, actualiza este método
-    if (recaConfirmacion == true) return 'Aprobada';
-    if (recaConfirmacion == false) return 'Rechazada';
+    if (recaConfirmacion == "A") return 'Aprobada';
+    if (recaConfirmacion == "R") return 'Rechazada';
     return 'En proceso';
   }
 
