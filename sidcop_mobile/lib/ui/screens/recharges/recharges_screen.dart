@@ -67,26 +67,30 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   }
                   final recargas = snapshot.data ?? [];
                   // Filtrar recargas únicas por reca_Id
-                  final Map<int, RecargasViewModel> unicas = {};
+                  // Agrupar todos los registros por reca_Id
+                  final Map<int, List<RecargasViewModel>> agrupadas = {};
                   for (final r in recargas) {
-                    if (r.reca_Id != null && !unicas.containsKey(r.reca_Id)) {
-                      unicas[r.reca_Id!] = r;
+                    if (r.reca_Id != null) {
+                      agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
                     }
                   }
-                  final recargasUnicas = unicas.values.toList();
-                  if (recargasUnicas.isEmpty) {
+                  if (agrupadas.isEmpty) {
                     return const Center(child: Text('No hay recargas.'));
                   }
                   return Column(
-                    children: recargasUnicas.map((recarga) {
+                    children: agrupadas.entries.map((entry) {
+                      final recaId = entry.key;
+                      final recargasGrupo = entry.value;
+                      final recarga = recargasGrupo.first;
+                      final totalCantidad = recargasGrupo.fold<int>(0, (sum, r) {
+                        if (r.reDe_Cantidad == null) return sum;
+                        if (r.reDe_Cantidad is int) return sum + (r.reDe_Cantidad as int);
+                        return sum + (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                      });
                       return _buildHistorialCard(
                         _mapEstadoFromApi(recarga.reca_Confirmacion),
                         recarga.reca_Fecha != null ? _formatFechaFromApi(recarga.reca_Fecha!.toIso8601String()) : '-',
-                        recarga.reDe_Cantidad != null
-                            ? (recarga.reDe_Cantidad is int
-                                ? recarga.reDe_Cantidad as int
-                                : int.tryParse(recarga.reDe_Cantidad.toString()) ?? 0)
-                            : 0,
+                        totalCantidad,
                       );
                     }).toList(),
                   );
