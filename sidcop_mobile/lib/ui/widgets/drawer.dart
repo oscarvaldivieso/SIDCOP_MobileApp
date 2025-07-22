@@ -75,7 +75,18 @@ class _CustomDrawerState extends State<CustomDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Imagen de usuario arriba
-                _buildProfileAvatar(),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context); // Cerrar el drawer primero
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserInfoScreen(),
+                      ),
+                    );
+                  },
+                  child: _buildProfileAvatar(),
+                ),
                 const SizedBox(height: 12),
                 // Nombre/cargo y logout en una fila
                 Row(
