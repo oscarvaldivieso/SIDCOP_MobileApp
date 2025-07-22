@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
@@ -38,9 +38,11 @@ class _clientScreenState extends State<clientScreen> {
                 final cliente = clientes[index];
                 return Card(
                   margin: const EdgeInsets.all(8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 4,
-                  child: Container(
+                  child: SizedBox(
                     height: 140,
                     child: Row(
                       children: [
@@ -55,12 +57,17 @@ class _clientScreenState extends State<clientScreen> {
                             height: 140,
                             width: 140, // Fixed width for the image
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: 140,
-                              width: 140,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.person, size: 40, color: Colors.grey),
-                            ),
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  height: 140,
+                                  width: 140,
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.person,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                           ),
                         ),
                         // Content on the right
@@ -71,12 +78,14 @@ class _clientScreenState extends State<clientScreen> {
                                 padding: const EdgeInsets.all(12.0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                         const SizedBox(height: 10),
+                                        const SizedBox(height: 10),
                                         Text(
                                           '${cliente['clie_NombreNegocio'] ?? ''}',
                                           style: const TextStyle(
@@ -88,7 +97,8 @@ class _clientScreenState extends State<clientScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          cliente['clie_DireccionExacta'] ?? 'Direccion no disponible',
+                                          cliente['clie_DireccionExacta'] ??
+                                              'Direccion no disponible',
                                           style: const TextStyle(
                                             fontSize: 13,
                                             color: Colors.black54,
@@ -104,11 +114,17 @@ class _clientScreenState extends State<clientScreen> {
                                       height: 40,
                                       child: ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF141A2F),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                          backgroundColor: const Color(
+                                            0xFF141A2F,
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
                                         ),
                                         onPressed: () {},
                                         child: const Text(
@@ -130,9 +146,14 @@ class _clientScreenState extends State<clientScreen> {
                                 top: 0,
                                 right: 0,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: _getBadgeColor(cliente['clie_Monto']), 
+                                    color: _getBadgeColor(
+                                      cliente['clie_Monto'],
+                                    ),
                                     borderRadius: const BorderRadius.only(
                                       topRight: Radius.circular(16),
                                       bottomLeft: Radius.circular(16),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class RechargesScreen extends StatefulWidget {
-  const RechargesScreen({Key? key}) : super(key: key);
+  const RechargesScreen({super.key});
 
   @override
   State<RechargesScreen> createState() => _RechargesScreenState();
@@ -35,9 +35,23 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 children: [
                   const Text(
                     'Historial de solicitudes',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Satoshi'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      fontFamily: 'Satoshi',
+                    ),
                   ),
-                  TextButton(onPressed: () {}, child: const Text('Ver mas', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, fontFamily: 'Satoshi'),))
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text(
+                      'Ver mas',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                        fontFamily: 'Satoshi',
+                      ),
+                    ),
+                  ),
                 ],
               ),
               Column(
@@ -62,9 +76,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
               const SizedBox(height: 24),
               const Text(
                 'Solicitar recarga',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 18, fontFamily: 'Satoshi'),
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 18,
+                  fontFamily: 'Satoshi',
+                ),
               ),
-              const SizedBox(height:15),
+              const SizedBox(height: 15),
               GestureDetector(
                 onTap: _openRecargaModal,
                 child: Container(
@@ -206,7 +224,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
 }
 
 class RecargaBottomSheet extends StatefulWidget {
-  const RecargaBottomSheet({Key? key}) : super(key: key);
+  const RecargaBottomSheet({super.key});
 
   @override
   State<RecargaBottomSheet> createState() => _RecargaBottomSheetState();
