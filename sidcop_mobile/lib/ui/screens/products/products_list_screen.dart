@@ -3,7 +3,7 @@ import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 
 class ProductScreen extends StatefulWidget {
-  const ProductScreen({Key? key}) : super(key: key);
+  const ProductScreen({super.key});
 
   @override
   State<ProductScreen> createState() => _ProductScreenState();
@@ -465,7 +465,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
+                    'L. ${product.prod_PrecioUnitario.toStringAsFixed(2) ?? '0.00'}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
