@@ -64,7 +64,7 @@ class ClientesService {
     }
   }
 
-Future<List<dynamic>> getCuentasPorCobrar() async {
+  Future<List<dynamic>> getCuentasPorCobrar() async {
 
     final url = Uri.parse('https://$_apiServer/CuentasPorCobrar/Listar');
     developer.log('Get CuentasPorCobrar Request URL: $url');
@@ -91,9 +91,55 @@ Future<List<dynamic>> getCuentasPorCobrar() async {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getMunicipios() async {
+    final url = Uri.parse('https://$_apiServer/Municipios/Listar');
+    developer.log('Get Municipios Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
 
+      developer.log('Get Municipios Response Status: \${response.statusCode}');
+      developer.log('Get Municipios Response Body: \${response.body}');
 
+      if (response.statusCode == 200) {
+        final List<dynamic> municipiosList = jsonDecode(response.body);
+        return municipiosList.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Municipios Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getColonias() async {
+    final url = Uri.parse('https://$_apiServer/Colonias/Listar');
+    developer.log('Get Colonias Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log('Get Colonias Response Status: \${response.statusCode}');
+      developer.log('Get Colonias Response Body: \${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> coloniasList = jsonDecode(response.body);
+        return coloniasList.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Colonias Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
 }
-
-
-
