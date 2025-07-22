@@ -42,7 +42,6 @@ flutter:
     - assets/fondo_usuario_2.png
     - assets/FondoNuevo.svg
     - assets/FondoNuevo2.svg
-    - assets/BreadCrumSVG.svg
     - assets/BreadCrumSVG2.svg
     - assets/miniBreadSVG.svg
   

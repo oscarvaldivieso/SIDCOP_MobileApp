@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/models/RecargasViewModel.dart';
+import 'package:sidcop_mobile/services/RecargasService.Dart';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -54,15 +56,41 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   ),
                 ],
               ),
-              Column(
-                children: [
-                  // Ejemplo de cómo mapear los datos de la API a la tarjeta
-                  _buildHistorialCard(
-                    _mapEstadoFromApi(false), // <- Cambia 'false' por el valor real de reca_Confirmacion
-                    _formatFechaFromApi("2025-07-21T00:00:00"), // <- Cambia por reca_Fecha
-                    int.tryParse("5") ?? 0, // <- Cambia por reDe_Cantidad
-                  ),
-                ],
+              FutureBuilder<List<RecargasViewModel>>(
+                future: RecargasService().getRecargas(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: \\${snapshot.error}'));
+                  }
+                  final recargas = snapshot.data ?? [];
+                  // Filtrar recargas únicas por reca_Id
+                  final Map<int, RecargasViewModel> unicas = {};
+                  for (final r in recargas) {
+                    if (r.reca_Id != null && !unicas.containsKey(r.reca_Id)) {
+                      unicas[r.reca_Id!] = r;
+                    }
+                  }
+                  final recargasUnicas = unicas.values.toList();
+                  if (recargasUnicas.isEmpty) {
+                    return const Center(child: Text('No hay recargas.'));
+                  }
+                  return Column(
+                    children: recargasUnicas.map((recarga) {
+                      return _buildHistorialCard(
+                        _mapEstadoFromApi(recarga.reca_Confirmacion),
+                        recarga.reca_Fecha != null ? _formatFechaFromApi(recarga.reca_Fecha!.toIso8601String()) : '-',
+                        recarga.reDe_Cantidad != null
+                            ? (recarga.reDe_Cantidad is int
+                                ? recarga.reDe_Cantidad as int
+                                : int.tryParse(recarga.reDe_Cantidad.toString()) ?? 0)
+                            : 0,
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const Text(
