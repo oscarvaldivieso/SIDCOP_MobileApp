@@ -48,7 +48,8 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        return responseData;
+        // Aquí puedes validar si trae "data" o un objeto directo
+        return responseData['data'] ?? responseData;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
         return {

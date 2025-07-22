@@ -34,7 +34,7 @@ class CustomInput extends StatelessWidget {
           label,
           style: theme.textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
             fontFamily: 'Satoshi',
             fontSize: 15,
           ),
@@ -46,21 +46,24 @@ class CustomInput extends StatelessWidget {
           keyboardType: keyboardType,
           onChanged: onChanged,
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
             fontFamily: 'Satoshi',
-            fontSize: 16 // Adjusted for better scaling
+            fontSize: 16, // Adjusted for better scaling
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onBackground.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
               fontFamily: 'Satoshi',
-              fontSize:16
+              fontSize: 16,
             ),
             errorText: errorText,
             filled: true,
             fillColor: theme.colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
               borderSide: BorderSide(
@@ -77,10 +80,7 @@ class CustomInput extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide(
-                color: Color(0xFF98774A),
-                width: 1.5,
-              ),
+              borderSide: BorderSide(color: Color(0xFF98774A), width: 1.5),
             ),
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,

@@ -10,9 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_dotenv: ^5.2.1
+  # flutter_svg: ^2.2.0
   http: ^1.4.0
   provider: ^6.1.5
   flutter_svg: ^2.0.5
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -35,8 +37,12 @@ flutter:
     - assets/breadcrum1.svg
     - assets/test.svg
     - assets/Key.png
-    - assets/fondo_usuario.jpg
+    - assets/fondo_usuario.png
     - assets/galaxia.jpg
+    - assets/fondo_usuario_2.png
+    - assets/FondoNuevo.svg
+    - assets/FondoNuevo2.svg
+    - assets/BreadCrumSVG.svg
     - assets/BreadCrumSVG2.svg
     - assets/miniBreadSVG.svg
   
