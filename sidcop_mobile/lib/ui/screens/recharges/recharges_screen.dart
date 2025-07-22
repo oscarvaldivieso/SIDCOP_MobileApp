@@ -82,14 +82,23 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       final recaId = entry.key;
                       final recargasGrupo = entry.value;
                       final recarga = recargasGrupo.first;
-                      final totalCantidad = recargasGrupo.fold<int>(0, (sum, r) {
+                      final totalCantidad = recargasGrupo.fold<int>(0, (
+                        sum,
+                        r,
+                      ) {
                         if (r.reDe_Cantidad == null) return sum;
-                        if (r.reDe_Cantidad is int) return sum + (r.reDe_Cantidad as int);
-                        return sum + (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                        if (r.reDe_Cantidad is int)
+                          return sum + (r.reDe_Cantidad as int);
+                        return sum +
+                            (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
                       });
                       return _buildHistorialCard(
                         _mapEstadoFromApi(recarga.reca_Confirmacion),
-                        recarga.reca_Fecha != null ? _formatFechaFromApi(recarga.reca_Fecha!.toIso8601String()) : '-',
+                        recarga.reca_Fecha != null
+                            ? _formatFechaFromApi(
+                                recarga.reca_Fecha!.toIso8601String(),
+                              )
+                            : '-',
                         totalCantidad,
                       );
                     }).toList(),
@@ -146,7 +155,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 
-  /// Helper para mapear el estado de la API a texto visual
   String _mapEstadoFromApi(dynamic recaConfirmacion) {
     // Cuando cambie a char, actualiza este método
     if (recaConfirmacion == true) return 'Aprobada';
@@ -154,12 +162,12 @@ class _RechargesScreenState extends State<RechargesScreen> {
     return 'En proceso';
   }
 
-  /// Helper para formatear la fecha de la API
   String _formatFechaFromApi(String fechaIso) {
     try {
       final date = DateTime.parse(fechaIso);
-      // Ejemplo: 21 de Julio del 2025
-      return "${date.day} de "+_mesEnEspanol(date.month)+" del ${date.year}";
+      return "${date.day} de " +
+          _mesEnEspanol(date.month) +
+          " del ${date.year}";
     } catch (_) {
       return fechaIso;
     }
@@ -167,13 +175,28 @@ class _RechargesScreenState extends State<RechargesScreen> {
 
   String _mesEnEspanol(int mes) {
     const meses = [
-      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      '',
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
     ];
     return meses[mes];
   }
 
-  Widget _buildHistorialCard(String estado, String fecha, int cantidadProductos) {
+  Widget _buildHistorialCard(
+    String estado,
+    String fecha,
+    int cantidadProductos,
+  ) {
     Color textColor;
     String label;
     switch (estado) {
