@@ -11,7 +11,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppBackground(
-      title: 'Bienvenido, Oscarito',
+      title: 'Bienvenido,',
       icon: Icons.home,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

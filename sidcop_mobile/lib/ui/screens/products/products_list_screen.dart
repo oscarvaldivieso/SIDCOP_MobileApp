@@ -600,17 +600,20 @@ class _ProductScreenState extends State<ProductScreen> {
                 Text(
                   product.marc_Descripcion ?? 'MASTER',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 26,
+                    fontFamily: 'Satoshi',
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                    color: Color.fromARGB(255, 0, 0, 0),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   product.prod_Descripcion ?? 'PET MASTER',
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    fontFamily: 'Satoshi',
+                    color: Color.fromARGB(255, 143, 141, 141),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -627,7 +630,8 @@ class _ProductScreenState extends State<ProductScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
+                  
+                    color: const Color.fromARGB(255, 255, 255, 255),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -644,7 +648,15 @@ class _ProductScreenState extends State<ProductScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text('Solicitar recarga'),
+                    child: Text(
+                      'Solicitar recarga',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Satoshi',
+                        color: Color(0xFFD6B68A),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -665,9 +677,11 @@ class _ProductScreenState extends State<ProductScreen> {
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
+              style: TextStyle(
+                color: const Color.fromARGB(255, 0, 0, 0),
+                fontFamily: 'Satoshi',
+
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
