@@ -5,8 +5,7 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 class ProductDetailScreen extends StatelessWidget {
   final Productos product;
 
-  const ProductDetailScreen({Key? key, required this.product})
-    : super(key: key);
+  const ProductDetailScreen({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +72,7 @@ class ProductDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
+              'L. ${product.prod_PrecioUnitario.toStringAsFixed(2) ?? '0.00'}',
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,

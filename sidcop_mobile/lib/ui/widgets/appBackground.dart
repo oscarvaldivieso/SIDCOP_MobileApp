@@ -34,68 +34,73 @@ class AppBackground extends StatelessWidget {
             colors: [Color(0xFFF6F6F6), Color(0xFFF6F6F6)],
           ),
         ),
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).size.height * 0.07,
-        ),
         child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).size.height * 0.07,
+            left: 16,
+            right: 16,
+            bottom: 16,
+          ),
           child: Column(
             children: [
-              Container(
-                width: MediaQuery.of(context).size.width * 0.5,
-                height: MediaQuery.of(context).size.width * 0.5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF141A2F),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+              // Breadcrumb que se mueve con el scroll
+              Card.filled(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Stack(
-                  children: [
-                    // Background pattern
-                    Positioned.fill(
-                      child: Transform.flip(
-                        flipX: true,
-                        child: ClipOval(
+                clipBehavior: Clip.antiAliasWithSaveLayer,
+                color: const Color(0xFF141A2F),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.18,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Transform.flip(
+                          flipX: true,
                           child: SvgPicture.asset(
                             'BreadCrumSVG2.svg',
                             fit: BoxFit.cover,
                           ),
                         ),
                       ),
-                    ),
-                    // Title centered
-                    Align(
-                      alignment: Alignment.center,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Text(
-                          title,
-                          style: titleStyle ??
-                              Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      // Título alineado a la izquierda y centrado verticalmente
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Text(
+                            title,
+                            style:
+                                titleStyle ??
+                                Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                  fontFamily: 'Satoshi',
+                                ),
+                            textAlign: TextAlign.left,
+                          ),
                         ),
                       ),
-                    ),
-                    // Icon positioned at the bottom center
-                    Align(
-                      alignment: const Alignment(0, 0.6),
-                      child: Icon(
-                        icon,
-                        color: iconColor ?? const Color(0xFFE0C7A0),
-                        size: iconSize ?? 48,
+                      // Icono alineado abajo y más al centro
+                      Align(
+                        alignment: Alignment(
+                          0.35,
+                          1.5,
+                        ), // 0.65 = más cerca del centro, 0.85 = abajo
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 4.0),
+                          child: Icon(
+                            icon,
+                            color: iconColor ?? const Color(0xFFE0C7A0),
+                            size: iconSize ?? 32,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (child != null) ...[const SizedBox(height: 24), child!],
