@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/ConfiguracionSerivice.Dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   @override
@@ -7,6 +8,81 @@ class ConfiguracionScreen extends StatefulWidget {
 
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool isOnline = true;
+
+  /// Método para limpiar la caché con confirmación del usuario
+  Future<void> _limpiarCache() async {
+    // Mostrar diálogo de confirmación
+    bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Limpiar Caché'),
+          content: Text('¿Está seguro de que desea limpiar toda la memoria caché? Esta acción eliminará todos los datos almacenados temporalmente.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Limpiar', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar == true) {
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text('Limpiando caché...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      try {
+        // Llamar al servicio para limpiar caché
+        bool resultado = await ConfiguracionService.limpiarCache();
+        
+        // Cerrar el diálogo de carga
+        Navigator.of(context).pop();
+        
+        // Mostrar resultado
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resultado 
+                ? 'Caché limpiado exitosamente' 
+                : 'Error al limpiar caché',
+            ),
+            backgroundColor: resultado ? Colors.green : Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } catch (e) {
+        // Cerrar el diálogo de carga en caso de error
+        Navigator.of(context).pop();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error inesperado al limpiar caché'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +209,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         leading: Icon(Icons.delete_outline, color: Colors.black54),
                         title: Text('Limpiar caché'),
                         trailing: Icon(Icons.chevron_right),
-                        onTap: () {},
+                        onTap: () => _limpiarCache(),
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                       ),
