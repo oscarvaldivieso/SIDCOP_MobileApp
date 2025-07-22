@@ -12,6 +12,7 @@ class UsuarioService {
     String clave,
   ) async {
     final url = Uri.parse('https://$_apiServer/Usuarios/IniciarSesion');
+
     developer.log('Iniciar Sesion Request URL: $url');
 
     // Crear el body con la estructura requerida por el API
@@ -21,6 +22,7 @@ class UsuarioService {
       'correo': 'string',
       'usua_Clave': clave,
       'role_Id': 0,
+      'role_Descripcion': 'string',
       'usua_IdPersona': 0,
       'usua_EsVendedor': true,
       'usua_EsAdmin': true,
