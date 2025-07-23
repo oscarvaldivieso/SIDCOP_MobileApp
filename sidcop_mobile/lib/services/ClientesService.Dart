@@ -20,8 +20,8 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get Clientes Response Status: \${response.statusCode}');
-      developer.log('Get Clientes Response Body: \${response.body}');
+      developer.log('Get Clientes Response Status: ${response.statusCode}');
+      developer.log('Get Clientes Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> clientesList = jsonDecode(response.body);
@@ -47,8 +47,8 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get DireccionesPorCliente Response Status: \${response.statusCode}');
-      developer.log('Get DireccionesPorCliente Response Body: \${response.body}');
+      developer.log('Get DireccionesPorCliente Response Status: ${response.statusCode}');
+      developer.log('Get DireccionesPorCliente Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> direccionesList = jsonDecode(response.body);
@@ -74,8 +74,8 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get CuentasPorCobrar Response Status: \${response.statusCode}');
-      developer.log('Get CuentasPorCobrar Response Body: \${response.body}');
+      developer.log('Get CuentasPorCobrar Response Status: ${response.statusCode}');
+      developer.log('Get CuentasPorCobrar Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> cuentasPorCobrarList = jsonDecode(response.body);

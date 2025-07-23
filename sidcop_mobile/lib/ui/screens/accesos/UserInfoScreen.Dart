@@ -1,7 +1,73 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../../services/PerfilUsuarioService.Dart';
 
-class UserInfoScreen extends StatelessWidget {
+class UserInfoScreen extends StatefulWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
+
+  @override
+  State<UserInfoScreen> createState() => _UserInfoScreenState();
+}
+
+class _UserInfoScreenState extends State<UserInfoScreen> {
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  
+  String _nombreCompleto = 'Cargando...';
+  String _numeroIdentidad = 'Cargando...';
+  String _numeroEmpleado = 'Cargando...';
+  String _correoElectronico = 'Cargando...';
+  String _telefono = 'Cargando...';
+  String _cargo = 'Cargando...';
+  String? _imagenUsuario;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatosUsuario();
+  }
+
+  Future<void> _cargarDatosUsuario() async {
+    try {
+      // Debug: mostrar todos los campos disponibles del API
+      await _perfilUsuarioService.mostrarCamposDisponibles();
+      
+      final nombreCompleto = await _perfilUsuarioService.obtenerNombreCompleto();
+      final numeroIdentidad = await _perfilUsuarioService.obtenerNumeroIdentidad();
+      final numeroEmpleado = await _perfilUsuarioService.obtenerNumeroEmpleado();
+      final correoElectronico = await _perfilUsuarioService.obtenerCorreoElectronico();
+      final telefono = await _perfilUsuarioService.obtenerTelefono();
+      final cargo = await _perfilUsuarioService.obtenerCargo();
+      final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+
+      if (mounted) {
+        setState(() {
+          _nombreCompleto = nombreCompleto;
+          _numeroIdentidad = numeroIdentidad;
+          _numeroEmpleado = numeroEmpleado;
+          _correoElectronico = correoElectronico;
+          _telefono = telefono;
+          _cargo = cargo;
+          _imagenUsuario = imagenUsuario;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nombreCompleto = 'Error al cargar';
+          _numeroIdentidad = 'Error al cargar';
+          _numeroEmpleado = 'Error al cargar';
+          _correoElectronico = 'Error al cargar';
+          _telefono = 'Error al cargar';
+          _cargo = 'Error al cargar';
+          _imagenUsuario = null;
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +84,7 @@ class UserInfoScreen extends StatelessWidget {
           'Información de usuario',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 22,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -31,18 +97,35 @@ class UserInfoScreen extends StatelessWidget {
             Stack(
               alignment: Alignment.center,
               children: [
-                // Fondo con curva
-                Container(
-                  height: 220,
+                // Fondo decorativo con curva
+                SizedBox(
                   width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF181C3A),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(60),
-                      bottomRight: Radius.circular(60),
+                  height: 220,
+                  child: CustomPaint(painter: _HeaderBackgroundPainter()),
+                ),
+                // Imagen SVG de fondo con flip horizontal y opacidad
+                SizedBox(
+                  width: double.infinity,
+                  height: 220,
+                  child: ClipRRect(
+                    // borderRadius: const BorderRadius.only(
+                    //   bottomLeft: Radius.circular(60),
+                    //   bottomRight: Radius.circular(60),
+                    // ),
+                    child: Opacity(
+                      opacity: 0.7,
+                      child: Positioned.fill(
+                        child: Transform.flip(
+                          child: SvgPicture.asset(
+                            'assets/FondoNuevo2.svg',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
+                // Foto de perfil y nombre
                 Positioned(
                   top: 90,
                   child: Container(
@@ -54,20 +137,14 @@ class UserInfoScreen extends StatelessWidget {
                       color: Colors.grey[400],
                     ),
                     child: ClipOval(
-                      child: Image.asset(
-                        'assets/galaxia.jpg',
-                        fit: BoxFit.cover,
-                        width: 90,
-                        height: 90,
-                      ),
+                      child: _buildProfileImage(),
                     ),
                   ),
                 ),
-                // Nombre debajo de la foto
                 Positioned(
                   top: 190,
                   child: Text(
-                    'Deiby Deras',
+                    _isLoading ? 'Cargando...' : _nombreCompleto,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -80,9 +157,9 @@ class UserInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: 55),
             // Nombre
-            const Text(
-              'Deyby Cardenas',
-              style: TextStyle(
+            Text(
+              _isLoading ? 'Cargando...' : _nombreCompleto,
+              style: const TextStyle(
                 color: Color(0xFF1a1d3a),
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -111,13 +188,13 @@ class UserInfoScreen extends StatelessWidget {
                   _buildSectionHeader('Datos personales', Icons.person),
                   _buildInfoRow(
                     'Nombre completo:',
-                    'Deyby Josué Deras Cardenas',
+                    _nombreCompleto,
                   ),
-                  _buildInfoRow('Número de identidad:', '0512-2005-23476'),
-                  _buildInfoRow('Número de empleado:', 'SDC-0251'),
-                  _buildInfoRow('Correo electrónico:', 'deybideras@gmail.com'),
-                  _buildInfoRow('Teléfono:', '+504 8929-0835'),
-                  _buildInfoRow('Cargo:', 'Vendedor'),
+                  _buildInfoRow('Número de identidad:', _numeroIdentidad),
+                  _buildInfoRow('Número de empleado:', _numeroEmpleado),
+                  _buildInfoRow('Correo electrónico:', _correoElectronico),
+                  _buildInfoRow('Teléfono:', _telefono),
+                  _buildInfoRow('Cargo:', _cargo),
                   const SizedBox(height: 18),
                   _buildSectionHeader(
                     'Datos de asignación laboral',
@@ -196,6 +273,91 @@ class UserInfoScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileImage() {
+    if (_isLoading) {
+      return Container(
+        width: 90,
+        height: 90,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.grey,
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
+      // Si la imagen es una URL (comienza con http)
+      if (_imagenUsuario!.startsWith('http')) {
+        return Image.network(
+          _imagenUsuario!,
+          fit: BoxFit.cover,
+          width: 90,
+          height: 90,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey,
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _buildDefaultProfileImage();
+          },
+        );
+      } else {
+        // Si es una imagen en base64 o otro formato
+        try {
+          return Image.memory(
+            const Base64Decoder().convert(_imagenUsuario!),
+            fit: BoxFit.cover,
+            width: 90,
+            height: 90,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultProfileImage();
+            },
+          );
+        } catch (e) {
+          return _buildDefaultProfileImage();
+        }
+      }
+    }
+
+    // Imagen por defecto si no hay imagen del usuario
+    return _buildDefaultProfileImage();
+  }
+
+  Widget _buildDefaultProfileImage() {
+    return Container(
+      width: 90,
+      height: 90,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.grey[300],
+      ),
+      child: const Icon(
+        Icons.person,
+        size: 50,
+        color: Colors.grey,
       ),
     );
   }

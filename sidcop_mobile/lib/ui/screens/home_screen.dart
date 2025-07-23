@@ -6,7 +6,7 @@ import 'recharges/recharges_screen.dart';
 import '../widgets/appBackground.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 32),
-          
+
           // Estadísticas rápidas
           Row(
             children: [
@@ -61,14 +61,14 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Gauge Chart para ventas
           _buildSalesGaugeChart(context),
-          
+
           const SizedBox(height: 32),
-          
+
           const Text(
             'Acciones rápidas',
             style: TextStyle(
@@ -79,7 +79,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Tarjetas de navegación
           _buildNavigationCard(
             context,
@@ -93,9 +93,9 @@ class HomeScreen extends StatelessWidget {
               );
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildNavigationCard(
             context,
             'Gestión de Clientes',
@@ -108,9 +108,9 @@ class HomeScreen extends StatelessWidget {
               );
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildNavigationCard(
             context,
             'Solicitar Recarga',
@@ -119,13 +119,15 @@ class HomeScreen extends StatelessWidget {
             const Color(0xFFF59E0B),
             () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const RechargesScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const RechargesScreen(),
+                ),
               );
             },
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Sección de actividad reciente
           const Text(
             'Actividad reciente',
@@ -137,21 +139,21 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           _buildActivityItem(
             'Nuevo cliente registrado',
             'Juan Pérez se registró en el sistema',
             Icons.person_add,
             '2 horas',
           ),
-          
+
           _buildActivityItem(
             'Producto actualizado',
             'Café Espresso - Stock actualizado',
             Icons.update,
             '4 horas',
           ),
-          
+
           _buildActivityItem(
             'Recarga aprobada',
             'Solicitud #001 fue aprobada',
@@ -162,7 +164,7 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildStatCard(
     BuildContext context,
     String title,
@@ -192,11 +194,7 @@ class HomeScreen extends StatelessWidget {
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 12),
           Text(
@@ -221,7 +219,7 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildNavigationCard(
     BuildContext context,
     String title,
@@ -253,11 +251,7 @@ class HomeScreen extends StatelessWidget {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
+              child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -295,7 +289,7 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildActivityItem(
     String title,
     String subtitle,
@@ -324,11 +318,7 @@ class HomeScreen extends StatelessWidget {
               color: const Color(0xFF6B7280).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF6B7280),
-              size: 20,
-            ),
+            child: Icon(icon, color: const Color(0xFF6B7280), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -368,7 +358,7 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildSalesGaugeChart(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -376,10 +366,7 @@ class HomeScreen extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFFAFAFA),
-          ],
+          colors: [Color(0xFFFFFFFF), Color(0xFFFAFAFA)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -396,10 +383,7 @@ class HomeScreen extends StatelessWidget {
             spreadRadius: 0,
           ),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.8),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,7 +404,12 @@ class HomeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color.fromARGB(255, 170, 150, 107).withOpacity(0.3),
+                      color: const Color.fromARGB(
+                        255,
+                        170,
+                        150,
+                        107,
+                      ).withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -459,7 +448,10 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -470,7 +462,12 @@ class HomeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color.fromARGB(255, 170, 150, 107).withOpacity(0.3),
+                      color: const Color.fromARGB(
+                        255,
+                        170,
+                        150,
+                        107,
+                      ).withOpacity(0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 3),
                     ),
@@ -498,10 +495,7 @@ class HomeScreen extends StatelessWidget {
                 gradient: RadialGradient(
                   center: Alignment.center,
                   radius: 0.8,
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.white.withOpacity(0.1), Colors.transparent],
                 ),
               ),
               child: CustomPaint(
@@ -519,10 +513,7 @@ class HomeScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             ),
             child: Row(
               children: [
@@ -565,11 +556,7 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: const Color(0xFFE5E7EB),
-                ),
+                Container(width: 1, height: 40, color: const Color(0xFFE5E7EB)),
                 const SizedBox(width: 20),
                 Expanded(
                   child: Column(
@@ -628,36 +615,36 @@ class GaugeChartPainter extends CustomPainter {
   final double percentage;
   final Color primaryColor;
   final Color backgroundColor;
-  
+
   GaugeChartPainter({
     required this.percentage,
     required this.primaryColor,
     required this.backgroundColor,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height);
     final radius = size.width / 2 - 10;
-    
+
     // Ángulos para el semicírculo (de -π a 0)
     const startAngle = -math.pi;
     const sweepAngle = math.pi;
-    
+
     // Paint para el fondo del gauge
     final backgroundPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
-    
+
     // Paint para el progreso del gauge
     final progressPaint = Paint()
       ..color = primaryColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
-    
+
     // Dibujar el fondo del gauge
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -666,7 +653,7 @@ class GaugeChartPainter extends CustomPainter {
       false,
       backgroundPaint,
     );
-    
+
     // Dibujar el progreso del gauge
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -675,7 +662,7 @@ class GaugeChartPainter extends CustomPainter {
       false,
       progressPaint,
     );
-    
+
     // Dibujar el texto del porcentaje en el centro
     final textPainter = TextPainter(
       text: TextSpan(
@@ -689,20 +676,20 @@ class GaugeChartPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     );
-    
+
     textPainter.layout();
     final textOffset = Offset(
       center.dx - textPainter.width / 2,
       center.dy - textPainter.height - 20,
     );
     textPainter.paint(canvas, textOffset);
-    
+
     // Dibujar pequeños marcadores
     final markerPaint = Paint()
       ..color = backgroundColor.withOpacity(0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    
+
     for (int i = 0; i <= 10; i++) {
       final angle = startAngle + (sweepAngle * i / 10);
       final startPoint = Offset(
@@ -713,11 +700,11 @@ class GaugeChartPainter extends CustomPainter {
         center.dx + (radius - 5) * math.cos(angle),
         center.dy + (radius - 5) * math.sin(angle),
       );
-      
+
       canvas.drawLine(startPoint, endPoint, markerPaint);
     }
   }
-  
+
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
