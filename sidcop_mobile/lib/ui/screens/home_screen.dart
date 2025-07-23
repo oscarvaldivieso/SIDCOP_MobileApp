@@ -15,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _gaugeAnimationController;
   late Animation<double> _gaugeAnimation;
-  
+
   @override
   void initState() {
     super.initState();
@@ -23,14 +23,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    _gaugeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 0.75, // 75%
-    ).animate(CurvedAnimation(
-      parent: _gaugeAnimationController,
-      curve: Curves.easeInOutCubic,
-    ));
-    
+    _gaugeAnimation =
+        Tween<double>(
+          begin: 0.0,
+          end: 0.75, // 75%
+        ).animate(
+          CurvedAnimation(
+            parent: _gaugeAnimationController,
+            curve: Curves.easeInOutCubic,
+          ),
+        );
+
     // Iniciar la animación después de un pequeño delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -38,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     });
   }
-  
+
   @override
   void dispose() {
     _gaugeAnimationController.dispose();
@@ -73,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 32),
-          
+
           // Gauge Chart para ventas
           _buildSalesGaugeChart(context),
 
@@ -378,8 +381,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           end: Alignment.bottomRight,
           colors: [
             Color.fromARGB(255, 20, 26, 47),
-            Color.fromARGB(255, 38, 43, 64)         
-            ],
+            Color.fromARGB(255, 38, 43, 64),
+          ],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -414,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Color.fromARGB(255, 255, 255, 255),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12)
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.trending_up_rounded,
@@ -688,7 +691,7 @@ class GaugeChartPainter extends CustomPainter {
       ..color = backgroundColor.withOpacity(0)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0;
-    
+
     for (int i = 0; i <= 10; i++) {
       final angle = startAngle + (sweepAngle * i / 10);
       final startPoint = Offset(
