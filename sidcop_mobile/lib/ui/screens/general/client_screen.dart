@@ -5,7 +5,7 @@ import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:flutter_svg/svg.dart';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();

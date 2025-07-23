@@ -2,11 +2,13 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
+import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 
 class CustomDrawer extends StatefulWidget {
@@ -152,12 +154,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const DashboardInicioScreen(),
-              //     ),
-              //   );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
             },
           ),
           ListTile(
@@ -324,16 +324,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 fontWeight: FontWeight.w300,
               ),
             ),
-            onTap: () async {
-              //   await UsuarioService().cerrarSesion();
+            onTap: () {
+              Navigator.pop(context);
 
-              //   Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const InventoryScreen()),
+                (route) => false,
+              );
 
-              //   Navigator.pushAndRemoveUntil(
-              //     context,
-              //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-              //     (route) => false,
-              //   );
+              print("tiene acceso");
             },
           ),
         ],
