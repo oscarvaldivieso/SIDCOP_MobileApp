@@ -209,15 +209,24 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
             
             // Switch para activar/desactivar modo offline
             SwitchListTile(
-              title: const Text('Modo Offline'),
-              subtitle: Text(
-                _isOfflineMode 
-                  ? 'La app funciona sin conexión usando datos locales'
-                  : 'La app requiere conexión a internet',
-              ),
-              value: _isOfflineMode,
-              onChanged: _isLoading ? null : _toggleOfflineMode,
-            ),
+  secondary: Icon(
+    _isOfflineMode ? Icons.cloud_off : Icons.cloud,
+    color: _isOfflineMode ? Colors.orange : Colors.blue,
+  ),
+  title: Text(_isOfflineMode ? 'Offline' : 'Online',
+    style: TextStyle(
+      color: _isOfflineMode ? Colors.orange : Colors.blue,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+  subtitle: Text(
+    _isOfflineMode
+      ? 'La app funciona sin conexión usando datos locales'
+      : 'La app requiere conexión a internet',
+  ),
+  value: _isOfflineMode,
+  onChanged: _isLoading ? null : _toggleOfflineMode,
+),
             
             const Divider(),
             
