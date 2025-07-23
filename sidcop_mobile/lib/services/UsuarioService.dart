@@ -12,6 +12,7 @@ class UsuarioService {
     String clave,
   ) async {
     final url = Uri.parse('https://$_apiServer/Usuarios/IniciarSesion');
+
     developer.log('Iniciar Sesion Request URL: $url');
 
     // Crear el body con la estructura requerida por el API
@@ -43,6 +44,7 @@ class UsuarioService {
 
       developer.log('Iniciar Sesion Response Status: ${response.statusCode}');
       developer.log('Iniciar Sesion Response Body: ${response.body}');
+      print(response.body);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
