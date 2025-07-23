@@ -32,19 +32,11 @@ class _clientScreenState extends State<clientScreen> {
   @override
   @override
   void initState() {
+
+
+
     super.initState();
-    clientesList = ClientesService().getClientes();
-    // Cargar TODOS los datos de ubicación al inicializar - REEMPLAZA _loadDepartamentos();
-    _loadAllLocationData();
-    
-    // Cargar cuentas por cobrar
-    _clienteService.getCuentasPorCobrar().then((cuentas) {
-      setState(() {
-        _cuentasPorCobrar = cuentas;
-      });
-    });
-    
-    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
+ // Cargar direccionesPorCliente antes de inicializar la lista filtrada
     _clienteService.getDireccionesPorCliente().then((direcciones) {
       setState(() {
         _direccionesPorCliente = direcciones;
@@ -55,6 +47,22 @@ class _clientScreenState extends State<clientScreen> {
         });
       });
     });
+
+
+    clientesList = ClientesService().getClientes();
+    // Cargar TODOS los datos de ubicación al inicializar - REEMPLAZA _loadDepartamentos();
+    _loadAllLocationData();
+    
+    // Cargar cuentas por cobrar
+    _clienteService.getCuentasPorCobrar().then((cuentas) {
+      setState(() {
+        print('Cuentas por cobrarrr: ${cuentas}');
+          _cuentasPorCobrar = cuentas;
+        
+      });
+    });
+    
+   
   }
 
   @override
@@ -634,6 +642,7 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
+  print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
     if (clienteId == null) return Colors.grey;
     
     // Si el monto es 0, mostrar gris (sin crédito)
@@ -643,29 +652,33 @@ class _clientScreenState extends State<clientScreen> {
     
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
-      cuenta['Clie_Id'] == clienteId && 
-      cuenta['CPCo_Anulado'] == false && 
-      cuenta['CPCo_Saldada'] == false
+      cuenta['clie_Id'] == clienteId && 
+      cuenta['cpCo_Anulado'] == false && 
+      cuenta['cpCo_Saldada'] == false
     ).toList();
     
     // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
     if (cuentasCliente.isEmpty) {
+      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
       return Colors.green;
     }
     
     // Verificar si tiene alguna cuenta vencida
     final now = DateTime.now();
     bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      if (cuenta['CPCo_FechaVencimiento'] == null) return false;
+      print('DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}');
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
       
-      final fechaVencimiento = DateTime.tryParse(cuenta['CPCo_FechaVencimiento'].toString());
+      final fechaVencimiento = DateTime.tryParse(cuenta['cpCo_FechaVencimiento'].toString());
       if (fechaVencimiento == null) return false;
       
       return fechaVencimiento.isBefore(now);
     });
     
     // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    return tieneCuentaVencida ? Colors.red : Colors.orange;
+    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
+    print('DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color');
+    return color;
   }
   
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
@@ -673,24 +686,24 @@ class _clientScreenState extends State<clientScreen> {
     
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
-      cuenta['Clie_Id'] == clienteId && 
-      cuenta['CPCo_Anulado'] == false && 
-      cuenta['CPCo_Saldada'] == false
+      cuenta['clie_Id'] == clienteId && 
+      cuenta['cpCo_Anulado'] == false && 
+      cuenta['cpCo_Saldada'] == false
     ).toList();
     
     // Si no tiene cuentas por cobrar, mostrar el límite de crédito
     if (cuentasCliente.isEmpty) {
       return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
     }
-    
-    // Sumar los saldos de todas las cuentas por cobrar
-    double totalSaldo = 0;
-    for (var cuenta in cuentasCliente) {
-      final saldo = double.tryParse(cuenta['CPCo_Saldo']?.toString() ?? '0') ?? 0;
-      totalSaldo += saldo;
-    }
-    
-    return totalSaldo;
+
+    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
+    cuentasCliente.sort((a, b) {
+      final fechaA = DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ?? DateTime(1970);
+      final fechaB = DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ?? DateTime(1970);
+      return fechaB.compareTo(fechaA);
+    });
+    final saldoReciente = double.tryParse(cuentasCliente.first['clie_Saldo']?.toString() ?? '0') ?? 0;
+    return saldoReciente;
   }
 
   // --- Ubicaciones networking y UI ---
