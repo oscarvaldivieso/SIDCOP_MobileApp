@@ -44,46 +44,47 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
 
     try {
       if (value) {
-        // Activar modo offline - sincronizar datos primero
-        final hasConnection = await SyncService.hasInternetConnection();
-        if (hasConnection) {
+        // Activar modo ONLINE (value = true significa switch ON = Online)
+        await OfflineConfigService.setOfflineMode(false); // false = no offline = online
+        
+        // Sincronización automática al activar online
+        if (_syncStats['has_connection'] == true) {
           final syncResult = await SyncService.syncAllData();
           if (syncResult) {
-            await OfflineConfigService.setOfflineMode(true);
+            // Actualizar timestamp de última sincronización
+            await OfflineConfigService.updateLastSyncDate();
             _showSnackBar(
-              'Modo offline activado. Datos sincronizados correctamente.',
+              'Modo online activado. Datos sincronizados correctamente.',
               Colors.green,
             );
           } else {
             _showSnackBar(
-              'Error sincronizando datos. Modo offline activado con datos existentes.',
+              'Modo online activado. Error en sincronización.',
               Colors.orange,
             );
-            await OfflineConfigService.setOfflineMode(true);
           }
         } else {
-          await OfflineConfigService.setOfflineMode(true);
           _showSnackBar(
-            'Modo offline activado sin conexión. Usando datos locales.',
+            'Modo online activado sin conexión. Se sincronizará cuando haya conexión.',
             Colors.orange,
           );
         }
       } else {
-        // Desactivar modo offline
-        await OfflineConfigService.setOfflineMode(false);
+        // Activar modo OFFLINE (value = false significa switch OFF = Offline)
+        await OfflineConfigService.setOfflineMode(true); // true = offline
         _showSnackBar(
-          'Modo offline desactivado. La app usará datos en línea.',
+          'Modo offline activado. La app usará datos locales.',
           Colors.blue,
         );
       }
 
       setState(() {
-        _isOfflineMode = value;
+        _isOfflineMode = !value; // Invertir porque ahora value=true es online
       });
 
       await _loadSyncStats();
     } catch (e) {
-      _showSnackBar('Error cambiando modo offline: $e', Colors.red);
+      _showSnackBar('Error cambiando modo: $e', Colors.red);
     } finally {
       setState(() {
         _isLoading = false;
@@ -207,7 +208,7 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
     return Container(
       margin: const EdgeInsets.all(16),
       child: InkWell(
-        onTap: _isLoading ? null : () => _toggleOfflineMode(!_isOfflineMode),
+        onTap: _isLoading ? null : () => _toggleOfflineMode(_isOfflineMode), // Cambiar lógica
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -235,11 +236,12 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isOfflineMode ? 'Offline' : 'Online',
-                      style: const TextStyle(
+                      !_isOfflineMode ? 'Online' : 'Offline', // Lógica invertida
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Satoshi',
+                        color: !_isOfflineMode ? Colors.green : Colors.orange,
                       ),
                     ),
                     Text(
@@ -247,19 +249,30 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
                           ? 'Conectado'
                           : 'Sin conexión',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         color: Colors.grey,
                         fontFamily: 'Satoshi',
                       ),
                     ),
+                    // Mostrar última sincronización
+                    if (!_isOfflineMode) // Solo mostrar en modo online
+                      Text(
+                        'Última sync: ${_formatLastSync()}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
                   ],
                 ),
               ),
-              // Switch integrado
+              // Switch integrado - lógica invertida
               Switch(
-                value: _isOfflineMode,
+                value: !_isOfflineMode, // Invertir: true = Online, false = Offline
                 onChanged: _isLoading ? null : _toggleOfflineMode,
-                activeColor: Colors.orange,
+                activeColor: Colors.green, // Verde para online
+                inactiveThumbColor: Colors.orange, // Naranja para offline
               ),
             ],
           ),
