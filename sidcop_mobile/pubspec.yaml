@@ -20,6 +20,7 @@ dependencies:
   connectivity_plus: ^5.0.1
   encrypt: ^5.0.3
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -49,6 +50,7 @@ flutter:
     - assets/BreadCrumSVG2.svg
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
+  
   
   fonts:
   - family: Satoshi
