@@ -36,10 +36,10 @@ class AppBackground extends StatelessWidget {
         ),
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
-            top: MediaQuery.of(context).size.height * 0.07,
+            top: MediaQuery.of(context).size.height * 0.03,
             left: 16,
             right: 16,
-            bottom: 16,
+            bottom: 14,
           ),
           child: Column(
             children: [
@@ -52,7 +52,7 @@ class AppBackground extends StatelessWidget {
                 color: const Color(0xFF141A2F),
                 child: SizedBox(
                   width: double.infinity,
-                  height: MediaQuery.of(context).size.height * 0.18,
+                  height: MediaQuery.of(context).size.height * 0.10,
                   child: Stack(
                     children: [
                       Positioned.fill(
@@ -84,19 +84,14 @@ class AppBackground extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Icono alineado abajo y más al centro
-                      Align(
-                        alignment: Alignment(
-                          0.35,
-                          1.5,
-                        ), // 0.65 = más cerca del centro, 0.85 = abajo
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: Icon(
-                            icon,
-                            color: iconColor ?? const Color(0xFFE0C7A0),
-                            size: iconSize ?? 32,
-                          ),
+                      // Icono alineado a la esquina inferior derecha
+                      Positioned(
+                        bottom: 12,
+                        right: 18,
+                        child: Icon(
+                          icon,
+                          color: iconColor ?? const Color(0xFFE0C7A0),
+                          size: iconSize ?? 32,
                         ),
                       ),
                     ],
