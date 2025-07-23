@@ -78,7 +78,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     return const Center(child: Text('No hay recargas.'));
                   }
                   return Column(
-                    children: agrupadas.entries.map((entry) {
+                    children: agrupadas.entries.take(3).map((entry) {
                       final recaId = entry.key;
                       final recargasGrupo = entry.value;
                       final recarga = recargasGrupo.first;

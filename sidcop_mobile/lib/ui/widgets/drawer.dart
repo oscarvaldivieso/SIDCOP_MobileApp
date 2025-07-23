@@ -141,6 +141,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
           ),
           const SizedBox(height: 10),
+
           ListTile(
             leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
             title: const Text(
@@ -327,7 +328,17 @@ class _CustomDrawerState extends State<CustomDrawer> {
             onTap: () async {
               //   await UsuarioService().cerrarSesion();
 
+<<<<<<< Updated upstream
               //   Navigator.pop(context);
+=======
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InventoryScreen(),
+                ),
+                (route) => false,
+              );
+>>>>>>> Stashed changes
 
               //   Navigator.pushAndRemoveUntil(
               //     context,
