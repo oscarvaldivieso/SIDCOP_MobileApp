@@ -23,6 +23,7 @@ class _clientScreenState extends State<clientScreen> {
   List<dynamic> _municipios = [];
   List<dynamic> _colonias = [];
   List<dynamic> _direccionesPorCliente = [];
+  List<dynamic> _cuentasPorCobrar = [];
 
   String? _selectedDepa;
   String? _selectedMuni;
@@ -35,6 +36,14 @@ class _clientScreenState extends State<clientScreen> {
     clientesList = ClientesService().getClientes();
     // Cargar TODOS los datos de ubicación al inicializar - REEMPLAZA _loadDepartamentos();
     _loadAllLocationData();
+    
+    // Cargar cuentas por cobrar
+    _clienteService.getCuentasPorCobrar().then((cuentas) {
+      setState(() {
+        _cuentasPorCobrar = cuentas;
+      });
+    });
+    
     // Cargar direccionesPorCliente antes de inicializar la lista filtrada
     _clienteService.getDireccionesPorCliente().then((direcciones) {
       setState(() {
@@ -532,36 +541,42 @@ class _clientScreenState extends State<clientScreen> {
                                       Positioned(
                                         top: 0,
                                         right: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getBadgeColor(
-                                              cliente['clie_Monto'],
+                                        child: Builder(builder: (context) {
+                                          final amount = _getBadgeAmount(cliente['clie_Id'], cliente['clie_LimiteCredito']);
+                                          final isZero = amount == 0;
+                                          
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 4,
                                             ),
-                                            borderRadius:
-                                                const BorderRadius.only(
-                                                  topRight: Radius.circular(16),
-                                                  bottomLeft: Radius.circular(
-                                                    16,
+                                            decoration: BoxDecoration(
+                                              color: _getBadgeColor(
+                                                cliente['clie_Id'],
+                                                amount: amount,
+                                              ),
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topRight: Radius.circular(16),
+                                                    bottomLeft: Radius.circular(
+                                                      16,
+                                                    ),
+                                                    topLeft: Radius.circular(0),
+                                                    bottomRight: Radius.circular(
+                                                      0,
+                                                    ),
                                                   ),
-                                                  topLeft: Radius.circular(0),
-                                                  bottomRight: Radius.circular(
-                                                    0,
-                                                  ),
-                                                ),
-                                          ),
-                                          child: Text(
-                                            'L. ${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 10,
                                             ),
-                                          ),
-                                        ),
+                                            child: Text(
+                                              isZero ? 'Sin crédito' : 'L. ${amount.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          );
+                                        }),
                                       ),
                                     ],
                                   ),
@@ -582,12 +597,64 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
-  Color _getBadgeColor(dynamic monto) {
-    if (monto == null) return Colors.grey;
-    final value = double.tryParse(monto.toString()) ?? 0;
-    if (value >= 5000) return Colors.green;
-    if (value >= 1700) return Colors.orange;
-    return Colors.red;
+  Color _getBadgeColor(dynamic clienteId, {double? amount}) {
+    if (clienteId == null) return Colors.grey;
+    
+    // Si el monto es 0, mostrar gris (sin crédito)
+    if (amount != null && amount == 0) {
+      return Colors.grey;
+    }
+    
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
+      cuenta['Clie_Id'] == clienteId && 
+      cuenta['CPCo_Anulado'] == false && 
+      cuenta['CPCo_Saldada'] == false
+    ).toList();
+    
+    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
+    if (cuentasCliente.isEmpty) {
+      return Colors.green;
+    }
+    
+    // Verificar si tiene alguna cuenta vencida
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      if (cuenta['CPCo_FechaVencimiento'] == null) return false;
+      
+      final fechaVencimiento = DateTime.tryParse(cuenta['CPCo_FechaVencimiento'].toString());
+      if (fechaVencimiento == null) return false;
+      
+      return fechaVencimiento.isBefore(now);
+    });
+    
+    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
+    return tieneCuentaVencida ? Colors.red : Colors.orange;
+  }
+  
+  double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
+    if (clienteId == null) return 0;
+    
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
+      cuenta['Clie_Id'] == clienteId && 
+      cuenta['CPCo_Anulado'] == false && 
+      cuenta['CPCo_Saldada'] == false
+    ).toList();
+    
+    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+    if (cuentasCliente.isEmpty) {
+      return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    }
+    
+    // Sumar los saldos de todas las cuentas por cobrar
+    double totalSaldo = 0;
+    for (var cuenta in cuentasCliente) {
+      final saldo = double.tryParse(cuenta['CPCo_Saldo']?.toString() ?? '0') ?? 0;
+      totalSaldo += saldo;
+    }
+    
+    return totalSaldo;
   }
 
   // --- Ubicaciones networking y UI ---
