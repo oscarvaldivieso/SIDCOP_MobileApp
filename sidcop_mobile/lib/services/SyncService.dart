@@ -65,10 +65,10 @@ class SyncService {
       // Obtener clientes desde el servidor
       final clientsResponse = await _clientesService.getClientes();
 
-      if (clientsResponse != null && clientsResponse.isNotEmpty) {
+      if (clientsResponse.isNotEmpty) {
         // Convertir List<dynamic> a List<Map<String, dynamic>>
         final clientsData = clientsResponse.cast<Map<String, dynamic>>();
-        
+
         // Guardar en CSV cifrado
         await EncryptedCsvStorageService.saveClientsData(clientsData);
 
@@ -97,10 +97,12 @@ class SyncService {
       // Obtener productos desde el servidor
       final productsResponse = await _productosService.getProductos();
 
-      if (productsResponse != null && productsResponse.isNotEmpty) {
+      if (productsResponse.isNotEmpty) {
         // Convertir List<Productos> a List<Map<String, dynamic>>
-        final productsData = productsResponse.map((producto) => producto.toJson()).toList();
-        
+        final productsData = productsResponse
+            .map((producto) => producto.toJson())
+            .toList();
+
         // Guardar en CSV cifrado
         await EncryptedCsvStorageService.saveProductsData(productsData);
 
@@ -135,17 +137,17 @@ class SyncService {
         }
 
         developer.log(
-          'Clientes obtenidos en modo offline: ${clients?.length ?? 0} registros',
+          'Clientes obtenidos en modo offline: ${clients.length ?? 0} registros',
         );
         return clients ?? [];
       } else {
         // Modo online: obtener desde servidor y actualizar caché/CSV
         try {
           final clientsResponse = await _clientesService.getClientes();
-          if (clientsResponse != null && clientsResponse.isNotEmpty) {
+          if (clientsResponse.isNotEmpty) {
             // Convertir List<dynamic> a List<Map<String, dynamic>>
             final clients = clientsResponse.cast<Map<String, dynamic>>();
-            
+
             // Actualizar caché  y CSV cifrado en background
             CacheService.cacheClientsData(clients);
             EncryptedCsvStorageService.saveClientsData(clients);
@@ -188,17 +190,19 @@ class SyncService {
         }
 
         developer.log(
-          'Productos obtenidos en modo offline: ${products?.length ?? 0} registros',
+          'Productos obtenidos en modo offline: ${products.length ?? 0} registros',
         );
         return products ?? [];
       } else {
         // Modo online: obtener desde servidor y actualizar caché/CSV
         try {
           final productsResponse = await _productosService.getProductos();
-          if (productsResponse != null && productsResponse.isNotEmpty) {
+          if (productsResponse.isNotEmpty) {
             // Convertir List<Productos> a List<Map<String, dynamic>>
-            final products = productsResponse.map((producto) => producto.toJson()).toList();
-            
+            final products = productsResponse
+                .map((producto) => producto.toJson())
+                .toList();
+
             // Actualizar caché y CSV cifrado en background
             CacheService.cacheProductsData(products);
             EncryptedCsvStorageService.saveProductsData(products);

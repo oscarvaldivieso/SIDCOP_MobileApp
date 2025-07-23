@@ -4,7 +4,7 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
@@ -26,13 +26,13 @@ class _clientScreenState extends State<clientScreen> {
       });
     });
   }
-  
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
-  
+
   void _filterClientes(String query) {
     clientesList.then((clientes) {
       setState(() {
@@ -40,10 +40,13 @@ class _clientScreenState extends State<clientScreen> {
           filteredClientes = clientes;
         } else {
           filteredClientes = clientes.where((cliente) {
-            final nombreNegocio = cliente['clie_NombreNegocio']?.toString().toLowerCase() ?? '';
-            final direccion = cliente['clie_DireccionExacta']?.toString().toLowerCase() ?? '';
+            final nombreNegocio =
+                cliente['clie_NombreNegocio']?.toString().toLowerCase() ?? '';
+            final direccion =
+                cliente['clie_DireccionExacta']?.toString().toLowerCase() ?? '';
             final searchLower = query.toLowerCase();
-            return nombreNegocio.contains(searchLower) || direccion.contains(searchLower);
+            return nombreNegocio.contains(searchLower) ||
+                direccion.contains(searchLower);
           }).toList();
         }
       });
@@ -61,14 +64,17 @@ class _clientScreenState extends State<clientScreen> {
         onPressed: () {
           // Acción para agregar un nuevo cliente
         },
-        child: const Icon(Icons.add, color: Colors.white),
         shape: const CircleBorder(),
         elevation: 4.0,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 16.0,
+            ),
             child: Container(
               width: double.infinity,
               height: 100,
@@ -100,7 +106,10 @@ class _clientScreenState extends State<clientScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -118,10 +127,16 @@ class _clientScreenState extends State<clientScreen> {
                 onChanged: _filterClientes,
                 decoration: InputDecoration(
                   hintText: 'Filtrar por nombre...',
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
+                          icon: const Icon(
+                            Icons.clear,
+                            color: Color(0xFF141A2F),
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             _filterClientes('');
@@ -138,150 +153,188 @@ class _clientScreenState extends State<clientScreen> {
             child: FutureBuilder<List<dynamic>>(
               future: clientesList,
               builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No hay clientes'));
-          } else {
-            // Usar la lista filtrada en lugar de la original
-            final clientes = filteredClientes.isEmpty && _searchController.text.isEmpty ? snapshot.data! : filteredClientes;
-            
-            if (clientes.isEmpty) {
-              return const Center(child: Text('No se encontraron clientes con ese criterio'));
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: ListView.builder(
-                itemCount: clientes.length,
-                itemBuilder: (context, index) {
-                final cliente = clientes[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                  child: Container(
-                    height: 140,
-                    child: Row(
-                      children: [
-                        // Image on the left
-                        ClipRRect(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            bottomLeft: Radius.circular(16),
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No hay clientes'));
+                } else {
+                  // Usar la lista filtrada en lugar de la original
+                  final clientes =
+                      filteredClientes.isEmpty && _searchController.text.isEmpty
+                      ? snapshot.data!
+                      : filteredClientes;
+
+                  if (clientes.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No se encontraron clientes con ese criterio',
+                      ),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: ListView.builder(
+                      itemCount: clientes.length,
+                      itemBuilder: (context, index) {
+                        final cliente = clientes[index];
+                        return Card(
+                          margin: const EdgeInsets.all(8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Image.network(
-                            '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                          elevation: 4,
+                          child: SizedBox(
                             height: 140,
-                            width: 140, // Fixed width for the image
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: 140,
-                              width: 140,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.person, size: 40, color: Colors.grey),
-                            ),
-                          ),
-                        ),
-                        // Content on the right
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                         const SizedBox(height: 10),
-                                        Text(
-                                          '${cliente['clie_NombreNegocio'] ?? ''}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                    cliente['clie_DireccionExacta'] ?? 'Sin dirección',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
+                            child: Row(
+                              children: [
+                                // Image on the left
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(16),
+                                    bottomLeft: Radius.circular(16),
                                   ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 40,
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF141A2F),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Image.network(
+                                    '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                                    height: 140,
+                                    width: 140, // Fixed width for the image
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              height: 140,
+                                              width: 140,
+                                              color: Colors.grey[300],
+                                              child: const Icon(
+                                                Icons.person,
+                                                size: 40,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                  ),
+                                ),
+                                // Content on the right
+                                Expanded(
+                                  child: Stack(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  '${cliente['clie_NombreNegocio'] ?? ''}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  cliente['clie_DireccionExacta'] ??
+                                                      'Sin dirección',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            SizedBox(
+                                              width: double.infinity,
+                                              height: 40,
+                                              child: ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: const Color(
+                                                    0xFF141A2F,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                      ),
+                                                ),
+                                                onPressed: () {},
+                                                child: const Text(
+                                                  'Detalles',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: Color(0xFFD6B68A),
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 1.1,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        onPressed: () {},
-                                        child: const Text(
-                                          'Detalles',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Color(0xFFD6B68A),
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.1,
+                                      ),
+                                      // Badge de monto
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getBadgeColor(
+                                              cliente['clie_Monto'],
+                                            ),
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topRight: Radius.circular(16),
+                                                  bottomLeft: Radius.circular(
+                                                    16,
+                                                  ),
+                                                  topLeft: Radius.circular(0),
+                                                  bottomRight: Radius.circular(
+                                                    0,
+                                                  ),
+                                                ),
+                                          ),
+                                          child: Text(
+                                            'L. 	${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 10,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Badge de monto
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: _getBadgeColor(cliente['clie_Monto']), 
-                                    borderRadius: const BorderRadius.only(
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
-                                      topLeft: Radius.circular(0),
-                                      bottomRight: Radius.circular(0),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'L. 	${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
-                                    ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ),
-                );
+                  );
+                }
               },
             ),
-            );
-          }
-        },
-      ),
           ),
         ],
       ),
@@ -295,6 +348,4 @@ class _clientScreenState extends State<clientScreen> {
     if (value >= 1700) return Colors.orange;
     return Colors.red;
   }
-  
-
 }
