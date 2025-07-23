@@ -76,7 +76,7 @@ class PerfilUsuarioService {
     if (userData == null) return 'No disponible';
     
     // Mapear desde los campos del API response
-    return userData['numeroIdentidad'] ?? 
+    return userData['dni'] ?? 
            userData['usua_NumeroIdentidad'] ?? 
            userData['numeroDocumento'] ?? 
            userData['documento'] ??
