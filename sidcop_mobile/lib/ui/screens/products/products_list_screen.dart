@@ -530,7 +530,6 @@ class _ProductScreenState extends State<ProductScreen> {
               ),
               const SizedBox(width: 16),
 
-              // Contenido textual
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
