@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 
@@ -13,7 +13,7 @@ class clientScreen extends StatefulWidget {
 class _clientScreenState extends State<clientScreen> {
   late Future<List<dynamic>> clientesList;
   List<dynamic> filteredClientes = [];
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController(); 
   bool isSearching = false;
 
   @override
