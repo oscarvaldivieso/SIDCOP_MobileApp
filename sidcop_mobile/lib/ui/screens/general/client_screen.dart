@@ -55,7 +55,9 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   void _filterClientes(String query) {
-    _applyAllFilters(query);
+    setState(() {
+      _applyAllFilters(query);
+    });
   }
 
   void _applyAllFilters(String query) async {
@@ -64,6 +66,18 @@ class _clientScreenState extends State<clientScreen> {
     print('Depa seleccionado: ${_selectedDepa}');
     print('Muni seleccionado: ${_selectedMuni}');
     print('Colo seleccionado: ${_selectedColo}');
+    
+    // Verificar datos cargados
+    print('Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}');
+    
+    // Si hay municipio seleccionado, mostrar colonias de ese municipio
+    if (_selectedMuni != null) {
+      final coloniasDelMunicipio = _colonias.where((c) => c['muni_Codigo'] == _selectedMuni).toList();
+      print('Colonias en municipio $_selectedMuni: ${coloniasDelMunicipio.length}');
+      if (coloniasDelMunicipio.isNotEmpty) {
+        print('Ejemplo de colonia: ${coloniasDelMunicipio.first}');
+      }
+    }
 
     final searchLower = query.toLowerCase();
 
@@ -133,15 +147,31 @@ class _clientScreenState extends State<clientScreen> {
                   if (coloId == null) return false;
 
                   // Buscar la colonia en la lista de colonias
-                  final colonia = _colonias.firstWhere(
-                    (c) => c['colo_Id'] == coloId,
-                    orElse: () => null,
-                  );
+                  dynamic colonia;
+                  try {
+                    colonia = _colonias.firstWhere(
+                      (c) => c['colo_Id'] == coloId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                  } catch (e) {
+                    print('Error al buscar colonia $coloId: $e');
+                    return false;
+                  }
 
-                  if (colonia == null) return false;
+                  if (colonia.isEmpty) {
+                    print('No se encontró la colonia $coloId para el cliente ${cliente['clie_Id']}');
+                    return false;
+                  }
 
+                  // Verificar si la colonia pertenece al municipio seleccionado
                   final String? muniCodigo = colonia['muni_Codigo'];
-                  return muniCodigo == _selectedMuni;
+                  final bool coincideMunicipio = muniCodigo == _selectedMuni;
+                  
+                  if (coincideMunicipio) {
+                    print('Cliente ${cliente['clie_Id']} tiene dirección en colonia $coloId que pertenece al municipio $_selectedMuni');
+                  }
+                  
+                  return coincideMunicipio;
                 });
 
             print(
@@ -161,26 +191,50 @@ class _clientScreenState extends State<clientScreen> {
                   if (coloId == null) return false;
 
                   // Buscar la colonia
-                  final colonia = _colonias.firstWhere(
-                    (c) => c['colo_Id'] == coloId,
-                    orElse: () => null,
-                  );
+                  dynamic colonia;
+                  try {
+                    colonia = _colonias.firstWhere(
+                      (c) => c['colo_Id'] == coloId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                  } catch (e) {
+                    print('Error al buscar colonia $coloId para filtro de departamento: $e');
+                    return false;
+                  }
 
-                  if (colonia == null) return false;
+                  if (colonia.isEmpty) {
+                    print('No se encontró la colonia $coloId para el cliente ${cliente['clie_Id']} en filtro de departamento');
+                    return false;
+                  }
 
                   final String? muniCodigo = colonia['muni_Codigo'];
                   if (muniCodigo == null) return false;
 
                   // Buscar el municipio
-                  final municipio = _municipios.firstWhere(
-                    (m) => m['muni_Codigo'] == muniCodigo,
-                    orElse: () => null,
-                  );
+                  dynamic municipio;
+                  try {
+                    municipio = _municipios.firstWhere(
+                      (m) => m['muni_Codigo'] == muniCodigo,
+                      orElse: () => <String, dynamic>{},
+                    );
+                  } catch (e) {
+                    print('Error al buscar municipio $muniCodigo: $e');
+                    return false;
+                  }
 
-                  if (municipio == null) return false;
+                  if (municipio.isEmpty) {
+                    print('No se encontró el municipio $muniCodigo para el cliente ${cliente['clie_Id']}');
+                    return false;
+                  }
 
                   final String? depaCodigo = municipio['depa_Codigo'];
-                  return depaCodigo == _selectedDepa;
+                  final bool coincideDepartamento = depaCodigo == _selectedDepa;
+                  
+                  if (coincideDepartamento) {
+                    print('Cliente ${cliente['clie_Id']} tiene dirección en colonia $coloId, municipio $muniCodigo que pertenece al departamento $_selectedDepa');
+                  }
+                  
+                  return coincideDepartamento;
                 });
 
             print(
@@ -345,11 +399,13 @@ class _clientScreenState extends State<clientScreen> {
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(child: Text('No hay clientes'));
                 } else {
-                  // Usar la lista filtrada en lugar de la original
-                  final clientes =
-                      filteredClientes.isEmpty && _searchController.text.isEmpty
-                      ? snapshot.data!
-                      : filteredClientes;
+                  // Verificar si hay algún filtro activo (texto o ubicación)
+                  final bool hasTextFilter = _searchController.text.isNotEmpty;
+                  final bool hasLocationFilter = _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
+                  final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+                  
+                  // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
+                  final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
 
                   if (clientes.isEmpty) {
                     return const Center(
@@ -428,7 +484,7 @@ class _clientScreenState extends State<clientScreen> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  cliente['clie_DireccionExacta'] ??
+                                                  cliente['clie_Nombres'] + ' ' + cliente['clie_Apellidos'] ??
                                                       'Sin dirección',
                                                   style: const TextStyle(
                                                     fontSize: 12,
