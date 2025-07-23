@@ -751,7 +751,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  product.prod_Descripcion ?? 'PET MASTER',
+                  product.prod_DescripcionCorta ?? 'PET MASTER',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
