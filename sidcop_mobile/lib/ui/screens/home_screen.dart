@@ -76,9 +76,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           
           // Gauge Chart para ventas
           _buildSalesGaugeChart(context),
-          
+
           const SizedBox(height: 32),
-          
+
           const Text(
             'Acciones rápidas',
             style: TextStyle(
@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Tarjetas de navegación
           _buildNavigationCard(
             context,
@@ -103,9 +103,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               );
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildNavigationCard(
             context,
             'Gestión de Clientes',
@@ -118,9 +118,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               );
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildNavigationCard(
             context,
             'Solicitar Recarga',
@@ -129,13 +129,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const Color(0xFFF59E0B),
             () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const RechargesScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const RechargesScreen(),
+                ),
               );
             },
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Sección de actividad reciente
           const Text(
             'Actividad reciente',
@@ -147,21 +149,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           _buildActivityItem(
             'Nuevo cliente registrado',
             'Juan Pérez se registró en el sistema',
             Icons.person_add,
             '2 horas',
           ),
-          
+
           _buildActivityItem(
             'Producto actualizado',
             'Café Espresso - Stock actualizado',
             Icons.update,
             '4 horas',
           ),
-          
+
           _buildActivityItem(
             'Recarga aprobada',
             'Solicitud #001 fue aprobada',
@@ -172,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildStatCard(
     BuildContext context,
     String title,
@@ -202,11 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 12),
           Text(
@@ -231,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildNavigationCard(
     BuildContext context,
     String title,
@@ -263,11 +261,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
+              child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -305,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildActivityItem(
     String title,
     String subtitle,
@@ -334,11 +328,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               color: const Color(0xFF6B7280).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF6B7280),
-              size: 20,
-            ),
+            child: Icon(icon, color: const Color(0xFF6B7280), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -378,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   Widget _buildSalesGaugeChart(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -406,10 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             spreadRadius: 0,
           ),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.8),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -462,7 +449,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -499,10 +489,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 gradient: RadialGradient(
                   center: Alignment.center,
                   radius: 0.8,
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.white.withOpacity(0.1), Colors.transparent],
                 ),
               ),
               child: AnimatedBuilder(
@@ -525,10 +512,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: const Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             ),
             child: Row(
               children: [
@@ -571,11 +555,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: const Color(0xFFE5E7EB),
-                ),
+                Container(width: 1, height: 40, color: const Color(0xFFE5E7EB)),
                 const SizedBox(width: 20),
                 Expanded(
                   child: Column(
@@ -634,36 +614,36 @@ class GaugeChartPainter extends CustomPainter {
   final double percentage;
   final Color primaryColor;
   final Color backgroundColor;
-  
+
   GaugeChartPainter({
     required this.percentage,
     required this.primaryColor,
     required this.backgroundColor,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height);
     final radius = size.width / 2 - 10;
-    
+
     // Ángulos para el semicírculo (de -π a 0)
     const startAngle = -math.pi;
     const sweepAngle = math.pi;
-    
+
     // Paint para el fondo del gauge
     final backgroundPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 22
       ..strokeCap = StrokeCap.round;
-    
+
     // Paint para el progreso del gauge
     final progressPaint = Paint()
       ..color = primaryColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 16
       ..strokeCap = StrokeCap.round;
-    
+
     // Dibujar el fondo del gauge
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -672,7 +652,7 @@ class GaugeChartPainter extends CustomPainter {
       false,
       backgroundPaint,
     );
-    
+
     // Dibujar el progreso del gauge
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -681,7 +661,7 @@ class GaugeChartPainter extends CustomPainter {
       false,
       progressPaint,
     );
-    
+
     // Dibujar el texto del porcentaje en el centro
     final textPainter = TextPainter(
       text: TextSpan(
@@ -695,14 +675,14 @@ class GaugeChartPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     );
-    
+
     textPainter.layout();
     final textOffset = Offset(
       center.dx - textPainter.width / 2,
       center.dy - textPainter.height - 20,
     );
     textPainter.paint(canvas, textOffset);
-    
+
     // Dibujar pequeños marcadores
     final markerPaint = Paint()
       ..color = backgroundColor.withOpacity(0)
@@ -719,11 +699,11 @@ class GaugeChartPainter extends CustomPainter {
         center.dx + (radius - 5) * math.cos(angle),
         center.dy + (radius - 5) * math.sin(angle),
       );
-      
+
       canvas.drawLine(startPoint, endPoint, markerPaint);
     }
   }
-  
+
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 }

@@ -7,10 +7,14 @@ class UsuarioService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
-  Future<Map<String, dynamic>?> iniciarSesion(String usuario, String clave) async {
+  Future<Map<String, dynamic>?> iniciarSesion(
+    String usuario,
+    String clave,
+  ) async {
     final url = Uri.parse('https://$_apiServer/Usuarios/IniciarSesion');
+
     developer.log('Iniciar Sesion Request URL: $url');
-    
+
     // Crear el body con la estructura requerida por el API
     final body = {
       'usua_Id': 0,
@@ -28,9 +32,9 @@ class UsuarioService {
       'usua_Modificacion': 0,
       'usua_FechaModificacion': DateTime.now().toIso8601String(),
       'usua_Estado': true,
-      'permisosJson': 'string'
+      'permisosJson': 'string',
     };
-    
+
     try {
       final response = await http.post(
         url,
@@ -40,25 +44,23 @@ class UsuarioService {
 
       developer.log('Iniciar Sesion Response Status: ${response.statusCode}');
       developer.log('Iniciar Sesion Response Body: ${response.body}');
+      print(response.body);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        return responseData;
+        // Aquí puedes validar si trae "data" o un objeto directo
+        return responseData['data'] ?? responseData;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
         return {
           'error': true,
           'message': 'Error de autenticación: ${response.statusCode}',
-          'details': response.body
+          'details': response.body,
         };
       }
     } catch (e) {
       developer.log('Iniciar Sesion Error: $e');
-      return {
-        'error': true,
-        'message': 'Error de conexión: $e',
-      };
+      return {'error': true, 'message': 'Error de conexión: $e'};
     }
   }
-  
 }

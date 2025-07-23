@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/models/RecargasViewModel.dart';
+import 'package:sidcop_mobile/services/RecargasService.Dart';
+import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -35,36 +39,82 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 children: [
                   const Text(
                     'Historial de solicitudes',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Satoshi'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      fontFamily: 'Satoshi',
+                    ),
                   ),
-                  TextButton(onPressed: () {}, child: const Text('Ver mas', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, fontFamily: 'Satoshi'),))
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text(
+                      'Ver mas',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                        fontFamily: 'Satoshi',
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              Column(
-                children: [
-                  _buildHistorialCard(
-                    'En proceso',
-                    Colors.amber.shade100,
-                    Colors.amber.shade700,
-                  ),
-                  _buildHistorialCard(
-                    'Aprobada',
-                    Colors.green.shade100,
-                    Colors.green.shade700,
-                  ),
-                  _buildHistorialCard(
-                    'Rechazada',
-                    Colors.red.shade100,
-                    Colors.red.shade700,
-                  ),
-                ],
+              FutureBuilder<List<RecargasViewModel>>(
+                future: RecargasService().getRecargas(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: \\${snapshot.error}'));
+                  }
+                  final recargas = snapshot.data ?? [];
+                  final Map<int, List<RecargasViewModel>> agrupadas = {};
+                  for (final r in recargas) {
+                    if (r.reca_Id != null) {
+                      agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
+                    }
+                  }
+                  if (agrupadas.isEmpty) {
+                    return const Center(child: Text('No hay recargas.'));
+                  }
+                  return Column(
+                    children: agrupadas.entries.map((entry) {
+                      final recaId = entry.key;
+                      final recargasGrupo = entry.value;
+                      final recarga = recargasGrupo.first;
+                      final totalCantidad = recargasGrupo.fold<int>(0, (
+                        sum,
+                        r,
+                      ) {
+                        if (r.reDe_Cantidad == null) return sum;
+                        if (r.reDe_Cantidad is int)
+                          return sum + (r.reDe_Cantidad as int);
+                        return sum +
+                            (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                      });
+                      return _buildHistorialCard(
+                        _mapEstadoFromApi(recarga.reca_Confirmacion),
+                        recarga.reca_Fecha != null
+                            ? _formatFechaFromApi(
+                                recarga.reca_Fecha!.toIso8601String(),
+                              )
+                            : '-',
+                        totalCantidad,
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const Text(
                 'Solicitar recarga',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 18, fontFamily: 'Satoshi'),
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 18,
+                  fontFamily: 'Satoshi',
+                ),
               ),
-              const SizedBox(height:15),
+              const SizedBox(height: 15),
               GestureDetector(
                 onTap: _openRecargaModal,
                 child: Container(
@@ -105,20 +155,66 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 
-  Widget _buildHistorialCard(String estado, Color bgColor, Color textColor) {
+  String _mapEstadoFromApi(dynamic recaConfirmacion) {
+    if (recaConfirmacion == "A") return 'Aprobada';
+    if (recaConfirmacion == "R") return 'Rechazada';
+    return 'En proceso';
+  }
+
+  String _formatFechaFromApi(String fechaIso) {
+    try {
+      final date = DateTime.parse(fechaIso);
+      return "${date.day} de " +
+          _mesEnEspanol(date.month) +
+          " del ${date.year}";
+    } catch (_) {
+      return fechaIso;
+    }
+  }
+
+  String _mesEnEspanol(int mes) {
+    const meses = [
+      '',
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    return meses[mes];
+  }
+
+  Widget _buildHistorialCard(
+    String estado,
+    String fecha,
+    int cantidadProductos,
+  ) {
+    Color textColor;
     String label;
     switch (estado) {
       case 'En proceso':
+      case 'Pendiente':
         label = 'En proceso';
+        textColor = Colors.amber.shade700;
         break;
       case 'Aprobada':
         label = 'Aprobada';
+        textColor = Colors.green.shade700;
         break;
       case 'Rechazada':
         label = 'Rechazada';
+        textColor = Colors.red.shade700;
         break;
       default:
         label = estado;
+        textColor = Colors.grey.shade700;
     }
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -155,7 +251,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Fecha de solicitud: 1 de Julio del 2025',
+                  'Fecha de solicitud: $fecha',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 18,
@@ -170,9 +266,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total productos solicitados: 230',
-                style: TextStyle(
+              Text(
+                'Total productos solicitados: $cantidadProductos',
+                style: const TextStyle(
                   color: Color(0xFF181E34),
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
@@ -185,7 +281,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: bgColor,
+                  color: Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -213,20 +309,38 @@ class RecargaBottomSheet extends StatefulWidget {
 }
 
 class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
-  final List<Map<String, dynamic>> productos = [
-    {
-      'nombre': 'Café Espresso Americano Region Blend',
-      'cantidad': 00,
-      'img': 'assets/marca_blanco.png',
-    },
-  ];
+  final ProductosService _productosService = ProductosService();
+  List<Productos> _productos = [];
+  Map<int, int> _cantidades = {}; // prod_Id -> cantidad
   String search = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProductos();
+  }
+
+  Future<void> _fetchProductos() async {
+    try {
+      final productos = await _productosService.getProductos();
+      setState(() {
+        _productos = productos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = productos
-        .where((p) => p['nombre'].toLowerCase().contains(search.toLowerCase()))
-        .toList();
+    final filtered = _productos.where((p) {
+      final nombre = (p.prod_DescripcionCorta ?? '').toLowerCase();
+      return nombre.contains(search.toLowerCase());
+    }).toList();
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       minChildSize: 0.5,
@@ -274,13 +388,17 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: filtered.length,
-                itemBuilder: (context, i) {
-                  return _buildProducto(filtered[i]);
-                },
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final producto = filtered[i];
+                        final cantidad = _cantidades[producto.prod_Id] ?? 0;
+                        return _buildProducto(producto, cantidad);
+                      },
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -309,7 +427,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     );
   }
 
-  Widget _buildProducto(Map<String, dynamic> producto) {
+  Widget _buildProducto(Productos producto, int cantidad) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
@@ -318,17 +436,20 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                producto['img'],
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-              ),
+              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
+                  ? Image.network(
+                      producto.prod_Imagen!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                    )
+                  : const Icon(Icons.image, size: 48),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                producto['nombre'],
+                producto.prod_DescripcionCorta ?? '-',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -336,21 +457,23 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      producto['cantidad'] = (producto['cantidad'] as int) - 1;
-                    });
-                  },
+                  onPressed: cantidad > 0
+                      ? () {
+                          setState(() {
+                            _cantidades[producto.prod_Id] = cantidad - 1;
+                          });
+                        }
+                      : null,
                 ),
                 Text(
-                  '${producto['cantidad']}',
+                  '$cantidad',
                   style: const TextStyle(fontSize: 16),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
                     setState(() {
-                      producto['cantidad'] = (producto['cantidad'] as int) + 1;
+                      _cantidades[producto.prod_Id] = cantidad + 1;
                     });
                   },
                 ),

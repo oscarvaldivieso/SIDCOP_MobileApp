@@ -18,6 +18,8 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.indigo),
       //home: UserInfoScreen(), // Widget correcto
       home: const HomeScreen(),
+      // home: UserInfoScreen(), // Widget correcto
+      //home: const OnboardingScreen()
     );
   }
 }

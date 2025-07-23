@@ -84,19 +84,14 @@ class AppBackground extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Icono alineado abajo y más al centro
-                      Align(
-                        alignment: Alignment(
-                          0.4,
-                          0.9,
-                        ), // 0.65 = más cerca del centro, 0.85 = abajo
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: Icon(
-                            icon,
-                            color: iconColor ?? const Color(0xFFE0C7A0),
-                            size: iconSize ?? 32,
-                          ),
+                      // Icono alineado a la esquina inferior derecha
+                      Positioned(
+                        bottom: 12,
+                        right: 18,
+                        child: Icon(
+                          icon,
+                          color: iconColor ?? const Color(0xFFE0C7A0),
+                          size: iconSize ?? 32,
                         ),
                       ),
                     ],

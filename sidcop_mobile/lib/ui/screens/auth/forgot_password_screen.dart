@@ -23,12 +23,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       body: Stack(
         children: [
           const AuthBackground(),
-          
+
           Material(
             color: Colors.transparent,
             child: LayoutBuilder(
-                 
-   
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   child: ConstrainedBox(
@@ -36,12 +34,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       minHeight: constraints.maxHeight,
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 0.0, left: 16.0, right: 16.0, bottom: 8.0),
+                      padding: const EdgeInsets.only(
+                        top: 0.0,
+                        left: 16.0,
+                        right: 16.0,
+                        bottom: 8.0,
+                      ),
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 400),
 
-                           child: Column(
+                          child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
@@ -55,11 +58,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               Container(
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12)
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 padding: const EdgeInsets.all(24),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Row(
@@ -106,9 +110,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                         });
                                       },
                                     ),
-                                    if (_error != null) 
+                                    if (_error != null)
                                       Padding(
-                                        padding: const EdgeInsets.only(top: 4.0, left: 4.0),
+                                        padding: const EdgeInsets.only(
+                                          top: 4.0,
+                                          left: 4.0,
+                                        ),
                                         child: Text(
                                           _error!,
                                           style: const TextStyle(
@@ -119,84 +126,123 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                       ),
                                     const SizedBox(height: 20),
                                     CustomButton(
-                                      text: _isLoading ? 'Cargando...' : 'Enviar',
-                                      onPressed: _isLoading ? null : () async {
-                                        if (_emailController.text.isEmpty) {
-                                          setState(() {
-                                            _error = 'Ingresa tu usuario';
-                                          });
-                                          return;
-                                        }
-                                        
-                                        setState(() {
-                                          _error = null;
-                                          _isLoading = true;
-                                        });
-                                        
-                                        try {
-                                          print('Verificando usuario: ${_emailController.text.trim()}');
-                                          final email = await UserVerificationService.getUserEmail(_emailController.text.trim());
-                                          print('Email obtenido: $email');
-                                          
-                                          if (!mounted) return;
-                                          
-                                          if (email != null && email.isNotEmpty) {
-                                            // Obtener la respuesta completa del usuario para extraer el ID y username
-                                            final userResponse = await UserVerificationService.verifyUser(_emailController.text.trim());
-                                            
-                                            if (userResponse == null || userResponse.data.isEmpty) {
+                                      text: _isLoading
+                                          ? 'Cargando...'
+                                          : 'Enviar',
+                                      onPressed: _isLoading
+                                          ? null
+                                          : () async {
+                                              if (_emailController
+                                                  .text
+                                                  .isEmpty) {
+                                                setState(() {
+                                                  _error = 'Ingresa tu usuario';
+                                                });
+                                                return;
+                                              }
+
                                               setState(() {
-                                                _error = 'No se pudo obtener la información del usuario';
-                                                _isLoading = false;
+                                                _error = null;
+                                                _isLoading = true;
                                               });
-                                              return;
-                                            }
-                                            
-                                            final userData = userResponse.data.first;
-                                            
-                                            // Enviar el código de verificación
-                                            final codeSent = await UserVerificationService.sendVerificationCode(email);
-                                            
-                                            if (!mounted) return;
-                                            
-                                            if (codeSent) {
-                                              // Navegar a la pantalla de verificación con los datos del usuario
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => VerifyEmailScreen(
-                                                    email: email,
-                                                    userId: userData.usuaId,
-                                                    username: userData.usuaUsuario ?? _emailController.text.trim(),
-                                                  ),
-                                                ),
-                                              );
-                                            } else {
-                                              setState(() {
-                                                _error = 'Error al enviar el código de verificación. Intente nuevamente.';
-                                                _isLoading = false;
-                                              });
-                                            }
-                                          } else {
-                                            setState(() {
-                                              _error = 'No se encontró un correo asociado a este usuario';
-                                            });
-                                          }
-                                        } catch (e) {
-                                          print('Error al verificar el usuario: $e');
-                                          if (!mounted) return;
-                                          setState(() {
-                                            _error = 'Error al verificar el usuario. Intenta de nuevo.';
-                                          });
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() {
-                                              _isLoading = false;
-                                            });
-                                          }
-                                        }
-                                      },
-                                      width: MediaQuery.of(context).size.width * 0.6,
+
+                                              try {
+                                                print(
+                                                  'Verificando usuario: ${_emailController.text.trim()}',
+                                                );
+                                                final email =
+                                                    await UserVerificationService.getUserEmail(
+                                                      _emailController.text
+                                                          .trim(),
+                                                    );
+                                                print('Email obtenido: $email');
+
+                                                if (!mounted) return;
+
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  // Obtener la respuesta completa del usuario para extraer el ID y username
+                                                  final userResponse =
+                                                      await UserVerificationService.verifyUser(
+                                                        _emailController.text
+                                                            .trim(),
+                                                      );
+
+                                                  if (userResponse == null ||
+                                                      userResponse
+                                                          .data
+                                                          .isEmpty) {
+                                                    setState(() {
+                                                      _error =
+                                                          'No se pudo obtener la información del usuario';
+                                                      _isLoading = false;
+                                                    });
+                                                    return;
+                                                  }
+
+                                                  final userData =
+                                                      userResponse.data.first;
+
+                                                  // Enviar el código de verificación
+                                                  final codeSent =
+                                                      await UserVerificationService.sendVerificationCode(
+                                                        email,
+                                                      );
+
+                                                  if (!mounted) return;
+
+                                                  if (codeSent) {
+                                                    // Navegar a la pantalla de verificación con los datos del usuario
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            VerifyEmailScreen(
+                                                              email: email,
+                                                              userId: userData
+                                                                  .usuaId,
+                                                              username:
+                                                                  userData
+                                                                      .usuaUsuario ??
+                                                                  _emailController
+                                                                      .text
+                                                                      .trim(),
+                                                            ),
+                                                      ),
+                                                    );
+                                                  } else {
+                                                    setState(() {
+                                                      _error =
+                                                          'Error al enviar el código de verificación. Intente nuevamente.';
+                                                      _isLoading = false;
+                                                    });
+                                                  }
+                                                } else {
+                                                  setState(() {
+                                                    _error =
+                                                        'No se encontró un correo asociado a este usuario';
+                                                  });
+                                                }
+                                              } catch (e) {
+                                                print(
+                                                  'Error al verificar el usuario: $e',
+                                                );
+                                                if (!mounted) return;
+                                                setState(() {
+                                                  _error =
+                                                      'Error al verificar el usuario. Intenta de nuevo.';
+                                                });
+                                              } finally {
+                                                if (mounted) {
+                                                  setState(() {
+                                                    _isLoading = false;
+                                                  });
+                                                }
+                                              }
+                                            },
+                                      width:
+                                          MediaQuery.of(context).size.width *
+                                          0.6,
                                       height: 48,
                                     ),
                                     const SizedBox(height: 30),
