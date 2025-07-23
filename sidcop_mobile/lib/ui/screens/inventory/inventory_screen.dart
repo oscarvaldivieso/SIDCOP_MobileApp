@@ -1,8 +1,48 @@
 import 'package:flutter/material.dart';
 import '../../widgets/appBackground.dart';
+import '../../../models/inventory_item.dart';
+import '../../../services/inventory_service.dart';
 
-class InventoryScreen extends StatelessWidget {
-  const InventoryScreen({super.key});
+class InventoryScreen extends StatefulWidget {
+  final int usuaIdPersona;
+  
+  const InventoryScreen({super.key, required this.usuaIdPersona});
+  
+  @override
+  State<InventoryScreen> createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen> {
+  List<InventoryItem> _inventoryItems = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInventoryData();
+  }
+
+  Future<void> _loadInventoryData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      final items = await InventoryService().getInventoryByVendor(widget.usuaIdPersona);
+      
+      setState(() {
+        _inventoryItems = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -288,36 +328,58 @@ class InventoryScreen extends StatelessWidget {
   }
 
   Widget _buildAssignedInventory() {
-    // Lista de productos asignados para el día
-    final assignedProducts = [
-      {
-        'name': 'Coca Cola 600ml',
-        'sku': 'CC600',
-        'assigned': 24,
-        'current': 18,
-        'price': 2.50,
-        'category': 'Bebidas',
-        'icon': Icons.local_drink,
-      },
-      {
-        'name': 'Papas Lays Original',
-        'sku': 'PL001',
-        'assigned': 15,
-        'current': 12,
-        'price': 1.75,
-        'category': 'Snacks',
-        'icon': Icons.fastfood,
-      },
-      {
-        'name': 'Agua Mineral 500ml',
-        'sku': 'AM500',
-        'assigned': 30,
-        'current': 30,
-        'price': 1.00,
-        'category': 'Bebidas',
-        'icon': Icons.water_drop,
-      },
-    ];
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC2AF86)),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Error al cargar inventario',
+              style: const TextStyle(
+                color: Colors.red,
+                fontFamily: 'Satoshi',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: Colors.red,
+                fontFamily: 'Satoshi',
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadInventoryData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC2AF86),
+                foregroundColor: const Color(0xFF141A2F),
+              ),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,7 +408,7 @@ class InventoryScreen extends StatelessWidget {
                 ),
               ),
               child: Text(
-                '${assignedProducts.length} productos',
+                '${_inventoryItems.length} productos',
                 style: const TextStyle(
                   color: Color(0xFFC2AF86),
                   fontFamily: 'Satoshi',
@@ -360,30 +422,67 @@ class InventoryScreen extends StatelessWidget {
         const SizedBox(height: 16),
         
         // Lista de productos
-        ...assignedProducts.map((product) => _buildProductCard(product)).toList(),
+        ..._inventoryItems.map((item) => _buildInventoryItemCard(item)).toList(),
       ],
     );
   }
 
-  Widget _buildProductCard(Map<String, dynamic> product) {
-    final int assigned = product['assigned'];
-    final int current = product['current'];
-    final int sold = assigned - current;
-    final double percentage = current / assigned;
-    
-    Color statusColor;
-    String statusText;
-    
-    if (current == 0) {
-      statusColor = Colors.red;
-      statusText = 'Agotado';
-    } else if (percentage <= 0.3) {
-      statusColor = Colors.orange;
-      statusText = 'Stock Bajo';
-    } else {
-      statusColor = Colors.green;
-      statusText = 'Disponible';
+  // Método auxiliar para obtener el icono del producto
+  Widget _getProductIcon(String subcDescripcion) {
+    IconData productIcon = Icons.inventory;
+    if (subcDescripcion.toLowerCase().contains('bebida')) {
+      productIcon = Icons.local_drink;
+    } else if (subcDescripcion.toLowerCase().contains('panaderia')) {
+      productIcon = Icons.bakery_dining;
+    } else if (subcDescripcion.toLowerCase().contains('snack')) {
+      productIcon = Icons.fastfood;
     }
+    
+    return Icon(
+      productIcon,
+      color: const Color(0xFF141A2F),
+      size: 30,
+    );
+  }
+
+  Widget _buildInventoryItemCard(InventoryItem item) {
+    final int assigned = item.cantidadAsignada;
+    final int current = item.currentQuantity;
+    final int sold = item.soldQuantity;
+    final double percentage = item.stockPercentage;
+    
+    final Color statusColor = item.statusColor;
+    final String statusText = item.statusText;
+    
+    // Usar imagen del producto si está disponible
+    Widget productImage = item.prodImagen.isNotEmpty
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              item.prodImagen,
+              width: 55,
+              height: 55,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback icon si la imagen falla
+                return _getProductIcon(item.subcDescripcion);
+              },
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                    color: const Color(0xFF141A2F),
+                    strokeWidth: 2,
+                  ),
+                );
+              },
+            ),
+          )
+        : _getProductIcon(item.subcDescripcion);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -414,19 +513,19 @@ class InventoryScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Ícono del producto
+              // Imagen del producto
               Container(
                 width: 55,
                 height: 55,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: item.prodImagen.isEmpty ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
                       const Color(0xFFC2AF86),
                       const Color(0xFFB8A478),
                     ],
-                  ),
+                  ) : null,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
@@ -436,11 +535,7 @@ class InventoryScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(
-                  product['icon'],
-                  color: const Color(0xFF141A2F),
-                  size: 30,
-                ),
+                child: productImage,
               ),
               const SizedBox(width: 16),
               
@@ -450,7 +545,7 @@ class InventoryScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      product['name'],
+                      item.nombreProducto,
                       style: const TextStyle(
                         color: Colors.white,
                         fontFamily: 'Satoshi',
@@ -460,7 +555,7 @@ class InventoryScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'SKU: ${product['sku']} • ${product['category']}',
+                      'Código: ${item.codigoProducto} • ${item.subcDescripcion}',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontFamily: 'Satoshi',
@@ -500,7 +595,7 @@ class InventoryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${product['price'].toStringAsFixed(2)}',
+                    '\L.${item.precio.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: Color(0xFFC2AF86),
                       fontFamily: 'Satoshi',
