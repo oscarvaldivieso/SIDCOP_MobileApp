@@ -4,7 +4,7 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
@@ -61,9 +61,9 @@ class _clientScreenState extends State<clientScreen> {
         onPressed: () {
           // Acción para agregar un nuevo cliente
         },
-        child: const Icon(Icons.add, color: Colors.white),
         shape: const CircleBorder(),
         elevation: 4.0,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
@@ -161,7 +161,7 @@ class _clientScreenState extends State<clientScreen> {
                   margin: const EdgeInsets.all(8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 4,
-                  child: Container(
+                  child: SizedBox(
                     height: 140,
                     child: Row(
                       children: [
