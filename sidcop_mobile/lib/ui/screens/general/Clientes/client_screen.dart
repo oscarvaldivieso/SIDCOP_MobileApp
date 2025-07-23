@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 
@@ -93,7 +94,7 @@ class _clientScreenState extends State<clientScreen> {
                         fontSize: 22,
                       ),
                     ),
-                    Icon(Icons.people, color: Colors.white, size: 30),
+                    const Icon(Icons.people, color: Colors.white, size: 30),
                   ],
                 ),
               ),
@@ -138,150 +139,169 @@ class _clientScreenState extends State<clientScreen> {
             child: FutureBuilder<List<dynamic>>(
               future: clientesList,
               builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No hay clientes'));
-          } else {
-            // Usar la lista filtrada en lugar de la original
-            final clientes = filteredClientes.isEmpty && _searchController.text.isEmpty ? snapshot.data! : filteredClientes;
-            
-            if (clientes.isEmpty) {
-              return const Center(child: Text('No se encontraron clientes con ese criterio'));
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: ListView.builder(
-                itemCount: clientes.length,
-                itemBuilder: (context, index) {
-                final cliente = clientes[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                  child: Container(
-                    height: 140,
-                    child: Row(
-                      children: [
-                        // Image on the left
-                        ClipRRect(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            bottomLeft: Radius.circular(16),
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No hay clientes'));
+                } else {
+                  // Usar la lista filtrada en lugar de la original
+                  final clientes = filteredClientes.isEmpty && _searchController.text.isEmpty 
+                      ? snapshot.data! 
+                      : filteredClientes;
+                  
+                  if (clientes.isEmpty) {
+                    return const Center(child: Text('No se encontraron clientes con ese criterio'));
+                  }
+                  
+                  return ListView.builder(
+                    itemCount: clientes.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    itemBuilder: (context, index) {
+                      final cliente = clientes[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ClientdetailsScreen(
+                                clienteId: cliente['clie_Id'],
+                              ),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 16.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Image.network(
-                            '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                          elevation: 4,
+                          child: SizedBox(
                             height: 140,
-                            width: 140, // Fixed width for the image
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: 140,
-                              width: 140,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.person, size: 40, color: Colors.grey),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Image on the left
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(16),
+                                    bottomLeft: Radius.circular(16),
+                                  ),
+                                  child: Image.network(
+                                    cliente['clie_ImagenDelNegocio'] ?? '',
+                                    width: 140,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      width: 140,
+                                      color: Colors.grey[200],
+                                      child: const Icon(Icons.person, size: 40, color: Colors.grey),
+                                    ),
+                                  ),
+                                ),
+                                // Content on the right
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Stack(
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              cliente['clie_NombreNegocio'] ?? 'Sin nombre',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              cliente['clie_DireccionExacta'] ?? 'Sin dirección',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const Spacer(),
+                                            SizedBox(
+                                              width: double.infinity,
+                                              height: 36,
+                                              child: ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: const Color(0xFF141A2F),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  padding: EdgeInsets.zero,
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) => ClientdetailsScreen(
+                                                        clienteId: cliente['clie_Id'],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: const Text(
+                                                  'Detalles',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Color(0xFFD6B68A),
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        // Badge de monto
+                                        Positioned(
+                                          top: 0,
+                                          right: 0,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _getBadgeColor(cliente['clie_Monto']),
+                                              borderRadius: const BorderRadius.only(
+                                                bottomLeft: Radius.circular(8),
+                                                topRight: Radius.circular(16),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'L. ${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        // Content on the right
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                         const SizedBox(height: 10),
-                                        Text(
-                                          '${cliente['clie_NombreNegocio'] ?? ''}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                    cliente['clie_DireccionExacta'] ?? 'Sin dirección',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 40,
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF141A2F),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        ),
-                                        onPressed: () {},
-                                        child: const Text(
-                                          'Detalles',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Color(0xFFD6B68A),
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.1,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Badge de monto
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: _getBadgeColor(cliente['clie_Monto']), 
-                                    borderRadius: const BorderRadius.only(
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
-                                      topLeft: Radius.circular(0),
-                                      bottomRight: Radius.circular(0),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'L. 	${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                      );
+                    },
+                  );
+                }
               },
             ),
-            );
-          }
-        },
-      ),
           ),
         ],
       ),
@@ -295,6 +315,4 @@ class _clientScreenState extends State<clientScreen> {
     if (value >= 1700) return Colors.orange;
     return Colors.red;
   }
-  
-
 }
