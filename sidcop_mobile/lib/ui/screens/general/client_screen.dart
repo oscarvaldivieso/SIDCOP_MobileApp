@@ -270,6 +270,96 @@ class _clientScreenState extends State<clientScreen> {
     });
   }
 
+  // Método para construir la barra de búsqueda
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16.0,
+        vertical: 8.0,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _filterClientes,
+          decoration: InputDecoration(
+            hintText: 'Filtrar por nombre...',
+            prefixIcon: const Icon(
+              Icons.search,
+              color: Color(0xFF141A2F),
+            ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      color: Color(0xFF141A2F),
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      _filterClientes('');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 15,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Método para construir el botón de filtro y mostrar el contador de resultados
+  Widget _buildFilterAndCount() {
+    final bool hasTextFilter = _searchController.text.isNotEmpty;
+    final bool hasLocationFilter = _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
+    final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+    
+    // Usar la lista filtrada si hay algún filtro activo
+    final int resultCount = filteredClientes.length;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Row(
+        children: [
+          // Contador de resultados
+          Text(
+            '$resultCount resultados',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const Spacer(),
+          // Botón para limpiar filtros (opcional)
+         
+          const SizedBox(width: 8),
+          // Botón de filtrar
+          ElevatedButton.icon(
+            onPressed: _showLocationFilters,
+            icon: const Icon(Icons.filter_list),
+            label: const Text('Filtrar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF141A2F),
+              foregroundColor: const Color(0xFFD6B68A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -297,7 +387,7 @@ class _clientScreenState extends State<clientScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               clipBehavior: Clip.antiAliasWithSaveLayer,
-              color: const Color(0xFF141A2F),
+              color: const Color(0xFFE0C7A0), // Color actualizado
               child: SizedBox(
                 width: double.infinity,
                 height: MediaQuery.of(context).size.height * 0.18,
@@ -341,62 +431,8 @@ class _clientScreenState extends State<clientScreen> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _filterClientes,
-                      decoration: InputDecoration(
-                        hintText: 'Filtrar por nombre...',
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: Color(0xFF141A2F),
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.clear,
-                                  color: Color(0xFF141A2F),
-                                ),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _filterClientes('');
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.filter_alt, color: Color(0xFF141A2F)),
-                  onPressed: _showLocationFilters,
-                ),
-              ],
-            ),
-          ),
+          _buildSearchBar(),
+          _buildFilterAndCount(),
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: clientesList,
@@ -705,10 +741,92 @@ class _clientScreenState extends State<clientScreen> {
     }
   }
 
+  Widget _buildFilterSection(
+    String title,
+    IconData icon,
+    List<dynamic> items,
+    String idKey,
+    String nameKey,
+    String? selectedValue,
+    Function(String) onSelected,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A2F),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: const Color.fromARGB(255, 255, 255, 255),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: items.map((item) {
+              final id = item[idKey].toString();
+              final name = item[nameKey] as String? ?? 'Sin nombre';
+              final isSelected = selectedValue == id;
+
+              return ChoiceChip(
+                label: Text(
+                  name,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color.fromARGB(255, 0, 0, 0)
+                        : const Color.fromARGB(255, 255, 255, 255),
+                    fontSize: 13,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: const Color(0xFFD6B68A), // cuando está seleccionado
+                backgroundColor: const Color(0xFF141A2F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSelected
+                        ? const Color.fromARGB(255, 255, 255, 255)
+                        : const Color(0xFFD6B68A),
+                  ),
+                ),
+                onSelected: (selected) {
+                  if (selected) {
+                    onSelected(id);
+                  } else {
+                    onSelected('');
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLocationFilters() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -724,112 +842,175 @@ class _clientScreenState extends State<clientScreen> {
                       .where((c) => c['muni_Codigo'] == _selectedMuni)
                       .toList();
 
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Filtros de Ubicación',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  // Dropdown Departamento
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Departamento',
+            return GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.7,
+                minChildSize: 0.5,
+                maxChildSize: 0.9,
+                builder: (context, scrollController) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF141A2F),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                     ),
-                    value: _selectedDepa,
-                    items: _departamentos.map<DropdownMenuItem<String>>((d) {
-                      return DropdownMenuItem<String>(
-                        value: d['depa_Codigo'],
-                        child: Text(d['depa_Descripcion']),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setModalState(() {
-                        _selectedDepa = value;
-                        _selectedMuni = null;
-                        _selectedColo = null;
-                      });
-                      setState(() {
-                        _selectedDepa = value;
-                        _selectedMuni = null;
-                        _selectedColo = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  // Dropdown Municipio
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Municipio'),
-                    value: _selectedMuni,
-                    items: municipiosFiltrados.map<DropdownMenuItem<String>>((
-                      m,
-                    ) {
-                      return DropdownMenuItem<String>(
-                        value: m['muni_Codigo'],
-                        child: Text(m['muni_Descripcion']),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setModalState(() {
-                        _selectedMuni = value;
-                        _selectedColo = null;
-                      });
-                      setState(() {
-                        _selectedMuni = value;
-                        _selectedColo = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  // Dropdown Colonia
-                  DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(labelText: 'Colonia'),
-                    value: _selectedColo,
-                    items: coloniasFiltradas.map<DropdownMenuItem<int>>((c) {
-                      return DropdownMenuItem<int>(
-                        value: c['colo_Id'],
-                        child: Text(c['colo_Descripcion']),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setModalState(() => _selectedColo = value);
-                      setState(() => _selectedColo = value);
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() {
-                            _selectedDepa = null;
-                            _selectedMuni = null;
-                            _selectedColo = null;
-                          });
-                          setState(() {
-                            _selectedDepa = null;
-                            _selectedMuni = null;
-                            _selectedColo = null;
-                          });
-                          _applyAllFilters(_searchController.text);
-                        },
-                        child: const Text('Limpiar'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _applyAllFilters(_searchController.text);
-                        },
-                        child: const Text('Aplicar'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
-                ],
+                    child: Column(
+                      children: [
+                        // Drag handle
+                        Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        
+                        // Header with title and close/clear buttons
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Filtrar clientes',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontFamily: 'Satoshi',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  setModalState(() {
+                                    _selectedDepa = null;
+                                    _selectedMuni = null;
+                                    _selectedColo = null;
+                                  });
+                                  setState(() {
+                                    _selectedDepa = null;
+                                    _selectedMuni = null;
+                                    _selectedColo = null;
+                                  });
+                                  _applyAllFilters(_searchController.text);
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD6B68A),
+                                ),
+                                child: const Text('Limpiar'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Filter sections
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Column(
+                                children: [
+                                  // Departamento section
+                                  _buildFilterSection(
+                                    'Departamentos',
+                                    Icons.location_city,
+                                    _departamentos,
+                                    'depa_Codigo',
+                                    'depa_Descripcion',
+                                    _selectedDepa,
+                                    (value) {
+                                      setModalState(() {
+                                        _selectedDepa = value.isEmpty ? null : value;
+                                        _selectedMuni = null;
+                                        _selectedColo = null;
+                                      });
+                                      setState(() {
+                                        _selectedDepa = value.isEmpty ? null : value;
+                                        _selectedMuni = null;
+                                        _selectedColo = null;
+                                      });
+                                    },
+                                  ),
+                                  
+                                  // Municipio section
+                                  _buildFilterSection(
+                                    'Municipios',
+                                    Icons.apartment,
+                                    municipiosFiltrados,
+                                    'muni_Codigo',
+                                    'muni_Descripcion',
+                                    _selectedMuni,
+                                    (value) {
+                                      setModalState(() {
+                                        _selectedMuni = value.isEmpty ? null : value;
+                                        _selectedColo = null;
+                                      });
+                                      setState(() {
+                                        _selectedMuni = value.isEmpty ? null : value;
+                                        _selectedColo = null;
+                                      });
+                                    },
+                                  ),
+                                  
+                                  // Colonia section
+                                  _buildFilterSection(
+                                    'Colonias',
+                                    Icons.home_work,
+                                    coloniasFiltradas,
+                                    'colo_Id',
+                                    'colo_Descripcion',
+                                    _selectedColo?.toString(),
+                                    (value) {
+                                      final intValue = value.isEmpty ? null : int.tryParse(value);
+                                      setModalState(() => _selectedColo = intValue);
+                                      setState(() => _selectedColo = intValue);
+                                    },
+                                  ),
+                                  
+                                  // Apply button
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _applyAllFilters(_searchController.text);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF141A2F),
+                                        side: const BorderSide(color: Color(0xFFD6B68A)),
+                                        elevation: 0,
+                                        foregroundColor: const Color(0xFFD6B68A),
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      child: const Text('Aplicar filtros'),
+                                    ),
+                                  ),
+                                  SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 16),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             );
           },
