@@ -98,35 +98,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             Stack(
               alignment: Alignment.center,
               children: [
-                // AppBar personalizado integrado
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 100,
-                    color: const Color(0xFF1a1d3a),
-                    child: SafeArea(
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
-                            'Configuración',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
                 // Fondo decorativo con curva
                 SizedBox(
                   width: double.infinity,
@@ -171,6 +142,35 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       Icons.settings,
                       size: 50,
                       color: Colors.white,
+                    ),
+                  ),
+                ),
+                // AppBar personalizado integrado (al final para estar encima)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 60,
+                    color: const Color(0xFF1a1d3a),
+                    child: SafeArea(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'Configuración',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w500,
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
