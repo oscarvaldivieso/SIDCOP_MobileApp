@@ -18,16 +18,16 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Limpiar Caché'),
-          content: Text('¿Está seguro de que desea limpiar toda la memoria caché? Esta acción eliminará todos los datos almacenados temporalmente.'),
+          title: Text('Limpiar Caché', style: TextStyle(fontFamily: 'Satoshi')),
+          content: Text('¿Está seguro de que desea limpiar toda la memoria caché? Esta acción eliminará todos los datos almacenados temporalmente.', style: TextStyle(fontFamily: 'Satoshi')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Cancelar'),
+              child: Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Limpiar', style: TextStyle(color: Colors.red)),
+              child: Text('Limpiar', style: TextStyle(color: Colors.red, fontFamily: 'Satoshi')),
             ),
           ],
         );
@@ -45,7 +45,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(width: 20),
-                Text('Limpiando caché...'),
+                Text('Limpiando caché...', style: TextStyle(fontFamily: 'Satoshi')),
               ],
             ),
           );
@@ -66,6 +66,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               resultado 
                 ? 'Caché limpiado exitosamente' 
                 : 'Error al limpiar caché',
+              style: TextStyle(fontFamily: 'Satoshi'),
             ),
             backgroundColor: resultado ? Colors.green : Colors.red,
             duration: Duration(seconds: 3),
@@ -77,7 +78,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error inesperado al limpiar caché'),
+            content: Text('Error inesperado al limpiar caché', style: TextStyle(fontFamily: 'Satoshi')),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -89,41 +90,53 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1d3a),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1a1d3a),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Configuración',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        centerTitle: false,
-      ),
+      backgroundColor: Colors.white, // Fondo blanco para toda la pantalla
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Fondo azul oscuro con curva suave y ícono de configuración
+            // Sección superior con fondo decorativo azul oscuro
             Stack(
               alignment: Alignment.center,
               children: [
+                // AppBar personalizado integrado
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 100,
+                    color: const Color(0xFF1a1d3a),
+                    child: SafeArea(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'Configuración',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w500,
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 // Fondo decorativo con curva
                 SizedBox(
                   width: double.infinity,
-                  height: 220,
+                  height: 250,
                   child: CustomPaint(painter: _HeaderBackgroundPainter()),
                 ),
                 // Imagen SVG de fondo con flip horizontal y opacidad
                 SizedBox(
                   width: double.infinity,
-                  height: 220,
+                  height: 250,
                   child: ClipRRect(
                     child: Opacity(
                       opacity: 0.1,
@@ -142,7 +155,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ),
                 // Ícono de configuración
                 Positioned(
-                  top: 60,
+                  top: 120,
                   child: Container(
                     width: 90,
                     height: 90,
@@ -163,7 +176,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ),
               ],
             ),
-            // Contenido principal
+            // Contenido principal con fondo blanco
             Transform.translate(
               offset: const Offset(0, -50),
               child: Container(
@@ -200,19 +213,20 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF2d2d2d),
+                              fontFamily: 'Satoshi',
                             ),
                           ),
                           const SizedBox(height: 8),
                           ListTile(
                             leading: const Icon(Icons.help_outline, color: Color(0xFF666666)),
-                            title: const Text('Ayuda y soporte'),
+                            title: const Text('Ayuda y soporte', style: TextStyle(fontFamily: 'Satoshi')),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {},
                             contentPadding: EdgeInsets.zero,
                           ),
                           ListTile(
                             leading: const Icon(Icons.info_outline, color: Color(0xFF666666)),
-                            title: const Text('Términos y condiciones'),
+                            title: const Text('Términos y condiciones', style: TextStyle(fontFamily: 'Satoshi')),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {},
                             contentPadding: EdgeInsets.zero,
@@ -227,12 +241,13 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF2d2d2d),
+                              fontFamily: 'Satoshi',
                             ),
                           ),
                           const SizedBox(height: 8),
                           ListTile(
                             leading: const Icon(Icons.delete_outline, color: Color(0xFF666666)),
-                            title: const Text('Limpiar caché'),
+                            title: const Text('Limpiar caché', style: TextStyle(fontFamily: 'Satoshi')),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () => _limpiarCache(),
                             contentPadding: EdgeInsets.zero,
@@ -243,6 +258,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   ],
                 ),
               ),
+            ),
+            // Espacio adicional para asegurar fondo blanco completo
+            Container(
+              height: 100,
+              color: Colors.white,
             ),
           ],
         ),
