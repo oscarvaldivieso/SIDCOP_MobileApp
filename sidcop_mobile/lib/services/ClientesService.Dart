@@ -7,6 +7,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 
 class ClientesService {
+  // --- Ubicaciones ---
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
@@ -91,6 +92,27 @@ class ClientesService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getDepartamentos() async {
+    final url = Uri.parse('https://$_apiServer/Departamentos/Listar');
+    developer.log('Get Departamentos Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+      developer.log('Get Departamentos Response Status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final List<dynamic> list = jsonDecode(response.body);
+        return list.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Error ${response.statusCode}');
+      }
+    } catch (e) {
+      developer.log('Get Departamentos Error: $e');
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getMunicipios() async {
     final url = Uri.parse('https://$_apiServer/Municipios/Listar');
     developer.log('Get Municipios Request URL: $url');
@@ -118,7 +140,7 @@ class ClientesService {
   }
 
   Future<List<Map<String, dynamic>>> getColonias() async {
-    final url = Uri.parse('https://$_apiServer/Colonias/Listar');
+    final url = Uri.parse('https://$_apiServer/Colonia/Listar');
     developer.log('Get Colonias Request URL: $url');
     try {
       final response = await http.get(
