@@ -39,7 +39,7 @@ class _ProductScreenState extends State<ProductScreen> {
       _allProducts = await _productosService.getProductos();
       _filteredProducts = List.from(_allProducts);
     } catch (e) {
-      debugPrint('Error loading products: $e');
+      debugPrint('Error cargando productos: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -124,7 +124,7 @@ class _ProductScreenState extends State<ProductScreen> {
               _buildSearchBar(),
               _buildFilterButton(),
               _buildResultsCount(),
-              _buildProductList(), // This contains the Expanded widget
+              _buildProductList(),
             ],
           ),
         ),
@@ -512,6 +512,7 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
+              // Imagen del producto
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
                 child: Image.network(
@@ -528,51 +529,96 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
               ),
               const SizedBox(width: 16),
+
+              // Contenido textual
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-
                   children: [
+                    // Nombre del producto con flecha al lado
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.prod_Descripcion ?? 'Sin descripción',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: Colors.black),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Fila para marca y categoría
+                    Row(
+                      children: [
+                        // Marca
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.green[100]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            product.marc_Descripcion ?? '',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Categoría
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.blue[100]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            product.cate_Descripcion ?? 'Sin categoría',
+                            style: TextStyle(
+                              color: Colors.blue[800],
+                              fontFamily: 'Satoshi',
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Precio
                     Text(
-                      product.prod_Descripcion ?? 'Sin descripción',
+                      'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         fontFamily: 'Satoshi',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.marc_Descripcion ?? '',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontFamily: 'Satoshi',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.cate_Descripcion ?? '',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontFamily: 'Satoshi',
+                        color: Color(0xFF141A2F),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Icon(Icons.chevron_right, color: Colors.grey),
-                ],
               ),
             ],
           ),
