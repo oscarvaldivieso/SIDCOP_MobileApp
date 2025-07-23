@@ -94,87 +94,82 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Sección superior con fondo decorativo azul oscuro
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                // Fondo decorativo con curva
-                SizedBox(
-                  width: double.infinity,
-                  height: 250,
-                  child: CustomPaint(painter: _HeaderBackgroundPainter()),
-                ),
-                // Imagen SVG de fondo con flip horizontal y opacidad
-                SizedBox(
-                  width: double.infinity,
-                  height: 250,
-                  child: ClipRRect(
-                    child: Opacity(
-                      opacity: 0.1,
-                      child: Transform(
-                        alignment: Alignment.center,
-                        transform: Matrix4.identity()..scale(-1.0, 1.0),
-                        child: SvgPicture.asset(
-                          'assets/FondoNuevo2.svg',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
+            // Sección superior con fondo SVG como UserInfoScreen
+            Container(
+              width: double.infinity,
+              height: 300,
+              color: const Color(0xFF1a1d3a),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Imagen SVG de fondo con flip horizontal y opacidad (igual que UserInfoScreen)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 200,
+                    child: ClipRRect(
+                      child: Opacity(
+                        opacity: 0.4,
+                        child: Transform.flip(
+                          child: SvgPicture.asset(
+                            'assets/FondoNuevo2.svg',
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                // Ícono de configuración
-                Positioned(
-                  top: 50,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.2),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 2,
+                  // Ícono de configuración
+                  Positioned(
+                    top: 100,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.2),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.settings,
+                        size: 40,
+                        color: Colors.white,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.settings,
-                      size: 50,
-                      color: Colors.white,
-                    ),
                   ),
-                ),
-                // AppBar personalizado integrado (al final para estar encima)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 60,
-                    color: const Color(0xFF1a1d3a),
-                    child: SafeArea(
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
-                            'Configuración',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: 'Satoshi',
+                  // AppBar personalizado integrado
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 60,
+                      color: const Color(0xFF1a1d3a),
+                      child: SafeArea(
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                              onPressed: () => Navigator.pop(context),
                             ),
-                          ),
-                        ],
+                            const Text(
+                              'Configuración',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             // Contenido principal con fondo blanco
             Transform.translate(
@@ -192,70 +187,100 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    // Widget de configuración offline
-                    const OfflineConfigWidget(),
-                    
-                    // Separador
-                    const Divider(height: 1),
-                    
-                    // Contenido adicional de configuración
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Sección Acerca de
-                          const Text(
-                            'Acerca de',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2d2d2d),
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ListTile(
-                            leading: const Icon(Icons.help_outline, color: Color(0xFF666666)),
-                            title: const Text('Ayuda y soporte', style: TextStyle(fontFamily: 'Satoshi')),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {},
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.info_outline, color: Color(0xFF666666)),
-                            title: const Text('Términos y condiciones', style: TextStyle(fontFamily: 'Satoshi')),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {},
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          
-                          const SizedBox(height: 16),
-                          
-                          // Sección Almacenamiento
-                          const Text(
-                            'Almacenamiento y sincronización',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2d2d2d),
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ListTile(
-                            leading: const Icon(Icons.delete_outline, color: Color(0xFF666666)),
-                            title: const Text('Limpiar caché', style: TextStyle(fontFamily: 'Satoshi')),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => _limpiarCache(),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ],
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Sección Cuenta alineada a la izquierda
+                      const Text(
+                        'Cuenta',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      
+                      // Widget de configuración offline
+                      const OfflineConfigWidget(),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Sección Acerca de
+                      const Text(
+                        'Acerca de',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      ListTile(
+                        leading: const Icon(Icons.help_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Ayuda y soporte',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+                        onTap: () {},
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      
+                      ListTile(
+                        leading: const Icon(Icons.info_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Términos y condiciones',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+                        onTap: () {},
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Sección Almacenamiento y sincronización
+                      const Text(
+                        'Almacenamiento',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      ListTile(
+                        leading: const Icon(Icons.delete_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Limpiar caché',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+                        onTap: () => _limpiarCache(),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -271,39 +296,4 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   }
 }
 
-// Fondo decorativo superior (copiado de UserInfoScreen)
-class _HeaderBackgroundPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF23264b);
-    final path = Path();
-    path.moveTo(0, size.height * 0.7);
-    path.quadraticBezierTo(
-      size.width * 0.5,
-      size.height * 1.2,
-      size.width,
-      size.height * 0.6,
-    );
-    path.lineTo(size.width, 0);
-    path.lineTo(0, 0);
-    path.close();
-    canvas.drawPath(path, paint);
 
-    final paint2 = Paint()..color = const Color(0xFF1a1d3a).withOpacity(0.7);
-    final path2 = Path();
-    path2.moveTo(0, size.height * 0.8);
-    path2.quadraticBezierTo(
-      size.width * 0.7,
-      size.height * 1.1,
-      size.width,
-      size.height * 0.7,
-    );
-    path2.lineTo(size.width, 0);
-    path2.lineTo(0, 0);
-    path2.close();
-    canvas.drawPath(path2, paint2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
