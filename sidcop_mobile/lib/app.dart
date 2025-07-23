@@ -17,9 +17,9 @@ class MyApp extends StatelessWidget {
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
       //home: UserInfoScreen(), // Widget correcto
-      home: const HomeScreen(),
+      //home: const HomeScreen(),
       // home: UserInfoScreen(), // Widget correcto
-      //home: const OnboardingScreen()
+      home: const OnboardingScreen()
     );
   }
 }

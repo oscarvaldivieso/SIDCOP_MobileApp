@@ -36,10 +36,10 @@ class AppBackground extends StatelessWidget {
         ),
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
-            top: MediaQuery.of(context).size.height * 0.07,
+            top: MediaQuery.of(context).size.height * 0.03,
             left: 16,
             right: 16,
-            bottom: 16,
+            bottom: 14,
           ),
           child: Column(
             children: [
@@ -52,7 +52,7 @@ class AppBackground extends StatelessWidget {
                 color: const Color(0xFF141A2F),
                 child: SizedBox(
                   width: double.infinity,
-                  height: MediaQuery.of(context).size.height * 0.18,
+                  height: MediaQuery.of(context).size.height * 0.10,
                   child: Stack(
                     children: [
                       Positioned.fill(
