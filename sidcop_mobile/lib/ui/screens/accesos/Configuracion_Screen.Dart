@@ -144,7 +144,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         alignment: Alignment.center,
                         transform: Matrix4.identity()..scale(-1.0, 1.0),
                         child: SvgPicture.asset(
-                          'assets/images/fondo.svg',
+                          'assets/FondoNuevo2.svg',
                           fit: BoxFit.cover,
                           width: double.infinity,
                           height: double.infinity,
@@ -155,7 +155,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ),
                 // Ícono de configuración
                 Positioned(
-                  top: 120,
+                  top: 50,
                   child: Container(
                     width: 90,
                     height: 90,
