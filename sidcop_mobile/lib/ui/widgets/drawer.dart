@@ -1,12 +1,17 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
+import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
+import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
+import '../../services/PerfilUsuarioService.Dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -16,9 +21,44 @@ class CustomDrawer extends StatefulWidget {
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+
+  String _nombreUsuario = 'Cargando...';
+  String _cargoUsuario = 'Cargando...';
+  String? _imagenUsuario;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    _cargarDatosUsuario();
+  }
+
+  Future<void> _cargarDatosUsuario() async {
+    try {
+      final nombreCompleto = await _perfilUsuarioService
+          .obtenerNombreCompleto();
+      final cargo = await _perfilUsuarioService.obtenerCargo();
+      final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+
+      if (mounted) {
+        setState(() {
+          _nombreUsuario = nombreCompleto;
+          _cargoUsuario = cargo;
+          _imagenUsuario = imagenUsuario;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nombreUsuario = 'Usuario';
+          _cargoUsuario = 'Sin cargo';
+          _imagenUsuario = null;
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -40,9 +80,17 @@ class _CustomDrawerState extends State<CustomDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Imagen de usuario arriba
-                CircleAvatar(
-                  radius: 32,
-                  backgroundImage: const AssetImage('assets/user.jpg'),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context); // Cerrar el drawer primero
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserInfoScreen(),
+                      ),
+                    );
+                  },
+                  child: _buildProfileAvatar(),
                 ),
                 const SizedBox(height: 12),
                 // Nombre/cargo y logout en una fila
@@ -55,7 +103,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Usuario Demo',
+                            _nombreUsuario,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -65,7 +113,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'Cargo del usuario',
+                            _cargoUsuario,
                             style: const TextStyle(
                               color: Color(0xFFD6B68A),
                               fontSize: 14,
@@ -108,12 +156,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const DashboardInicioScreen(),
-              //     ),
-              //   );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
             },
           ),
           ListTile(
@@ -209,9 +255,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const UserInfoScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => ConfiguracionScreen()),
               );
             },
           ),
@@ -282,20 +326,77 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 fontWeight: FontWeight.w300,
               ),
             ),
-            onTap: () async {
-              //   await UsuarioService().cerrarSesion();
+            onTap: () {
+              Navigator.pop(context);
 
-              //   Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const InventoryScreen()),
+                (route) => false,
+              );
 
-              //   Navigator.pushAndRemoveUntil(
-              //     context,
-              //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-              //     (route) => false,
-              //   );
+              print("tiene acceso");
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProfileAvatar() {
+    if (_isLoading) {
+      return CircleAvatar(
+        radius: 32,
+        backgroundColor: Colors.grey[300],
+        child: const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
+      // Si la imagen es una URL (comienza con http)
+      if (_imagenUsuario!.startsWith('http')) {
+        return CircleAvatar(
+          radius: 32,
+          backgroundImage: NetworkImage(_imagenUsuario!),
+          onBackgroundImageError: (exception, stackTrace) {
+            // En caso de error, se mostrará el avatar por defecto
+          },
+          child: null,
+        );
+      } else {
+        // Si es una imagen en base64 o otro formato
+        try {
+          return CircleAvatar(
+            radius: 32,
+            backgroundImage: MemoryImage(
+              const Base64Decoder().convert(_imagenUsuario!),
+            ),
+            onBackgroundImageError: (exception, stackTrace) {
+              // En caso de error, se mostrará el avatar por defecto
+            },
+          );
+        } catch (e) {
+          return _buildDefaultAvatar();
+        }
+      }
+    }
+
+    // Avatar por defecto si no hay imagen del usuario
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: const Color(0xFFD6B68A),
+      child: const Icon(Icons.person, size: 32, color: Colors.white),
     );
   }
 }
