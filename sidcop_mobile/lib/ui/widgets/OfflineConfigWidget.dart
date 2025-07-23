@@ -192,56 +192,67 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  _isOfflineMode ? Icons.cloud_off : Icons.cloud,
-                  color: _isOfflineMode ? Colors.orange : Colors.blue,
+            // Botón único para estado y configuración
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _isLoading ? null : () => _toggleOfflineMode(!_isOfflineMode),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      // Ícono de estado de conexión
+                      Icon(
+                        _syncStats['has_connection'] == true ? Icons.wifi : Icons.wifi_off,
+                        color: _syncStats['has_connection'] == true ? Colors.green : Colors.red,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      // Información principal
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isOfflineMode ? 'Offline' : 'Online',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _isOfflineMode ? Colors.orange : Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _syncStats['has_connection'] == true ? 'Conectado' : 'Sin conexión',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Switch
+                      Switch(
+                        value: _isOfflineMode,
+                        onChanged: _isLoading ? null : _toggleOfflineMode,
+                        activeColor: Colors.orange,
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Configuración Offline',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 16),
-            
-            // Switch para activar/desactivar modo offline
-            SwitchListTile(
-  secondary: Icon(
-    _isOfflineMode ? Icons.cloud_off : Icons.cloud,
-    color: _isOfflineMode ? Colors.orange : Colors.blue,
-  ),
-  title: Text(_isOfflineMode ? 'Offline' : 'Online',
-    style: TextStyle(
-      color: _isOfflineMode ? Colors.orange : Colors.blue,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-  subtitle: Text(
-    _isOfflineMode
-      ? 'La app funciona sin conexión usando datos locales'
-      : 'La app requiere conexión a internet',
-  ),
-  value: _isOfflineMode,
-  onChanged: _isLoading ? null : _toggleOfflineMode,
-),
             
             const Divider(),
             
             // Información de sincronización
-            ListTile(
-              leading: Icon(
-                _syncStats['has_connection'] == true ? Icons.wifi : Icons.wifi_off,
-                color: _syncStats['has_connection'] == true ? Colors.green : Colors.red,
-              ),
-              title: const Text('Estado de Conexión'),
-              subtitle: Text(
-                _syncStats['has_connection'] == true ? 'Conectado' : 'Sin conexión',
-              ),
-            ),
-            
             ListTile(
               leading: const Icon(Icons.sync),
               title: const Text('Última Sincronización'),
@@ -251,41 +262,22 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
                 : const Icon(Icons.check_circle, color: Colors.green),
             ),
             
-            // Información de almacenamiento
-            if (_syncStats['csv_storage_size_mb'] != null)
-              ListTile(
-                leading: const Icon(Icons.storage),
-                title: const Text('Datos Offline'),
-                subtitle: Text('${_syncStats['csv_storage_size_mb']} MB almacenados'),
-              ),
-            
             const SizedBox(height: 16),
             
-            // Botones de acción
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _forceSyncData,
-                    icon: _isLoading 
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.sync),
-                    label: const Text('Sincronizar'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _clearOfflineData,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Limpiar'),
-                  ),
-                ),
-              ],
+            // Botón de sincronización
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading ? null : _forceSyncData,
+                icon: _isLoading 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+                label: const Text('Sincronizar'),
+              ),
             ),
             
             if (_isLoading)
