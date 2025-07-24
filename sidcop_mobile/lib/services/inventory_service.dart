@@ -7,9 +7,8 @@ class InventoryService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
-  
   Future<List<InventoryItem>> getInventoryByVendor(int vendorId) async {
-    final url = Uri.parse('https://$_apiServer/InventarioBodegas/Buscar/$vendorId');
+    final url = Uri.parse('$_apiServer/InventarioBodegas/Buscar/$vendorId');
     try {
       final response = await http.get(
         url,
