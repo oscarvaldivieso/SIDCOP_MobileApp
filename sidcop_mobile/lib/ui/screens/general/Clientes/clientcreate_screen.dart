@@ -89,7 +89,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_ObservacionRetiro': 'Pendiente',
         'clie_Confirmacion': false,
         'TiVi_Id': 1,  // Default value as requested
-        'Clie_Nacionalidad': 'pdt',  // Default value as requested
+        'Clie_Nacionalidad': 'HND',  // Default value as requested
         'usua_Creacion': 1,
         'clie_FechaCreacion': now,
         'clie_Estado': true,
