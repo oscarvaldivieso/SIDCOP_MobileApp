@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 
@@ -59,8 +60,21 @@ class _clientScreenState extends State<clientScreen> {
       backgroundColor: const Color(0xFFF6F6F6),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF141A2F),
-        onPressed: () {
-          // Acción para agregar un nuevo cliente
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ClientCreateScreen()),
+          );
+          
+          if (result == true) {
+            // Refresh the client list if a new client was added
+            setState(() {
+              clientesList = ClientesService().getClientes();
+              clientesList.then((clientes) {
+                _filterClientes(_searchController.text);
+              });
+            });
+          }
         },
         child: const Icon(Icons.add, color: Colors.white),
         shape: const CircleBorder(),
