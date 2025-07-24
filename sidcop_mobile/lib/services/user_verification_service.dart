@@ -3,10 +3,11 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/user_verification_model.dart';
 import '../models/reset_password_request.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 class UserVerificationService {
   // Base URL - Update this with your actual base URL
-  static const String _baseUrl = 'https://localhost:7071';
+  static const String _baseUrl = 'https://$apiServer';
   
   // API Key - Consider using flutter_dotenv or similar for production
   static const String _apiKey = 'bdccf3f3-d486-4e1e-ab44-74081aefcdbc';
