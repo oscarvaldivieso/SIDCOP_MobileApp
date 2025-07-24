@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/models/RecargasViewModel.dart';
 import 'package:sidcop_mobile/services/RecargasService.Dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -46,7 +47,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {}, // Restaurar botón 'Ver más' a su estado original
                     child: const Text(
                       'Ver mas',
                       style: TextStyle(
@@ -410,7 +411,54 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                onPressed: () {},
+                onPressed: () async {
+  // 1. Obtener usuario logueado
+  final perfilService = PerfilUsuarioService();
+  final userData = await perfilService.obtenerDatosUsuario();
+  if (userData == null || userData['usua_Id'] == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No se pudo obtener el usuario logueado.")));
+    }
+    return;
+  }
+  final int usuaId = userData['usua_Id'] is String
+      ? int.tryParse(userData['usua_Id']) ?? 0
+      : userData['usua_Id'] ?? 0;
+  if (usuaId == 0) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ID de usuario inválido.")));
+    }
+    return;
+  }
+
+  // 2. Construir detalles
+  final detalles = _cantidades.entries
+      .where((e) => e.value > 0)
+      .map((e) => {
+            "prod_Id": e.key,
+            "reDe_Cantidad": e.value,
+            "reDe_Observaciones": "N/A",
+          })
+      .toList();
+  if (detalles.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selecciona al menos un producto.")));
+    }
+    return;
+  }
+
+  // 3. Llamar a RecargasService
+  final recargaService = RecargasService();
+  final ok = await recargaService.insertarRecarga(usuaCreacion: usuaId, detalles: detalles);
+  if (mounted) {
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Recarga enviada correctamente"), backgroundColor: Colors.green));
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar la recarga"), backgroundColor: Colors.red));
+    }
+  }
+},
                 icon: const Icon(Icons.send, color: Colors.white),
                 label: const Text(
                   'Solicitar',
