@@ -12,7 +12,7 @@ class ProductosService {
 Future<List<Productos>> getProductos() async {
 
 
-    final url = Uri.parse('https://$_apiServer/Productos/Listar');
+    final url = Uri.parse('$_apiServer/Productos/Listar');
     developer.log('Get Productos Request URL: $url');
 
     try {
