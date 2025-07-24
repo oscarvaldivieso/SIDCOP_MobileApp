@@ -5,7 +5,7 @@ import '../../services/CacheService.dart';
 import '../../services/EncryptedCsvStorageService.dart';
 
 class OfflineConfigWidget extends StatefulWidget {
-  const OfflineConfigWidget({Key? key}) : super(key: key);
+  const OfflineConfigWidget({super.key});
 
   @override
   State<OfflineConfigWidget> createState() => _OfflineConfigWidgetState();
@@ -44,34 +44,47 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
 
     try {
       if (value) {
-        // Activar modo offline - sincronizar datos primero
-        final hasConnection = await SyncService.hasInternetConnection();
-        if (hasConnection) {
+        // Activar modo ONLINE (value = true significa switch ON = Online)
+        await OfflineConfigService.setOfflineMode(false); // false = no offline = online
+        
+        // Sincronización automática al activar online
+        if (_syncStats['has_connection'] == true) {
           final syncResult = await SyncService.syncAllData();
           if (syncResult) {
-            await OfflineConfigService.setOfflineMode(true);
-            _showSnackBar('Modo offline activado. Datos sincronizados correctamente.', Colors.green);
+            // Actualizar timestamp de última sincronización
+            await OfflineConfigService.updateLastSyncDate();
+            _showSnackBar(
+              'Modo online activado. Datos sincronizados correctamente.',
+              Colors.green,
+            );
           } else {
-            _showSnackBar('Error sincronizando datos. Modo offline activado con datos existentes.', Colors.orange);
-            await OfflineConfigService.setOfflineMode(true);
+            _showSnackBar(
+              'Modo online activado. Error en sincronización.',
+              Colors.orange,
+            );
           }
         } else {
-          await OfflineConfigService.setOfflineMode(true);
-          _showSnackBar('Modo offline activado sin conexión. Usando datos locales.', Colors.orange);
+          _showSnackBar(
+            'Modo online activado sin conexión. Se sincronizará cuando haya conexión.',
+            Colors.orange,
+          );
         }
       } else {
-        // Desactivar modo offline
-        await OfflineConfigService.setOfflineMode(false);
-        _showSnackBar('Modo offline desactivado. La app usará datos en línea.', Colors.blue);
+        // Activar modo OFFLINE (value = false significa switch OFF = Offline)
+        await OfflineConfigService.setOfflineMode(true); // true = offline
+        _showSnackBar(
+          'Modo offline activado. La app usará datos locales.',
+          Colors.blue,
+        );
       }
 
       setState(() {
-        _isOfflineMode = value;
+        _isOfflineMode = !value; // Invertir porque ahora value=true es online
       });
-      
+
       await _loadSyncStats();
     } catch (e) {
-      _showSnackBar('Error cambiando modo offline: $e', Colors.red);
+      _showSnackBar('Error cambiando modo: $e', Colors.red);
     } finally {
       setState(() {
         _isLoading = false;
@@ -86,13 +99,19 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
 
     try {
       final result = await SyncService.forceSyncAll();
-      
+
       if (result['success']) {
-        _showSnackBar('Sincronización exitosa: ${result['synced_items']} elementos', Colors.green);
+        _showSnackBar(
+          'Sincronización exitosa: ${result['synced_items']} elementos',
+          Colors.green,
+        );
       } else {
-        _showSnackBar('Error en sincronización: ${result['message']}', Colors.red);
+        _showSnackBar(
+          'Error en sincronización: ${result['message']}',
+          Colors.red,
+        );
       }
-      
+
       await _loadSyncStats();
     } catch (e) {
       _showSnackBar('Error sincronizando: $e', Colors.red);
@@ -117,7 +136,7 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
       try {
         await CacheService.clearAllCache();
         await EncryptedCsvStorageService.clearAllData();
-        
+
         _showSnackBar('Datos offline eliminados correctamente', Colors.green);
         await _loadSyncStats();
       } catch (e) {
@@ -142,35 +161,36 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
 
   Future<bool> _showConfirmDialog(String title, String content) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(content),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirmar'),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text(title),
+              content: Text(content),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Confirmar'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   String _formatLastSync() {
     final lastSyncStr = _syncStats['last_sync'] as String?;
     if (lastSyncStr == null) return 'Nunca';
-    
+
     try {
       final lastSync = DateTime.parse(lastSyncStr);
       final now = DateTime.now();
       final difference = now.difference(lastSync);
-      
+
       if (difference.inMinutes < 60) {
         return 'Hace ${difference.inMinutes} minutos';
       } else if (difference.inHours < 24) {
@@ -185,108 +205,77 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  _isOfflineMode ? Icons.cloud_off : Icons.cloud,
-                  color: _isOfflineMode ? Colors.orange : Colors.blue,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Configuración Offline',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Switch para activar/desactivar modo offline
-            SwitchListTile(
-              title: const Text('Modo Offline'),
-              subtitle: Text(
-                _isOfflineMode 
-                  ? 'La app funciona sin conexión usando datos locales'
-                  : 'La app requiere conexión a internet',
+      child: InkWell(
+        onTap: _isLoading ? null : () => _toggleOfflineMode(_isOfflineMode), // Cambiar lógica
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: Row(
+            children: [
+              // Ícono de conexión
+              Icon(
+                _syncStats['has_connection'] == true
+                    ? Icons.wifi
+                    : Icons.wifi_off,
+                color: _syncStats['has_connection'] == true
+                    ? Colors.green
+                    : Colors.red,
+                size: 24,
               ),
-              value: _isOfflineMode,
-              onChanged: _isLoading ? null : _toggleOfflineMode,
-            ),
-            
-            const Divider(),
-            
-            // Información de sincronización
-            ListTile(
-              leading: Icon(
-                _syncStats['has_connection'] == true ? Icons.wifi : Icons.wifi_off,
-                color: _syncStats['has_connection'] == true ? Colors.green : Colors.red,
-              ),
-              title: const Text('Estado de Conexión'),
-              subtitle: Text(
-                _syncStats['has_connection'] == true ? 'Conectado' : 'Sin conexión',
-              ),
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.sync),
-              title: const Text('Última Sincronización'),
-              subtitle: Text(_formatLastSync()),
-              trailing: _syncStats['needs_sync'] == true
-                ? const Icon(Icons.warning, color: Colors.orange)
-                : const Icon(Icons.check_circle, color: Colors.green),
-            ),
-            
-            // Información de almacenamiento
-            if (_syncStats['csv_storage_size_mb'] != null)
-              ListTile(
-                leading: const Icon(Icons.storage),
-                title: const Text('Datos Offline'),
-                subtitle: Text('${_syncStats['csv_storage_size_mb']} MB almacenados'),
-              ),
-            
-            const SizedBox(height: 16),
-            
-            // Botones de acción
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _forceSyncData,
-                    icon: _isLoading 
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.sync),
-                    label: const Text('Sincronizar'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _clearOfflineData,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Limpiar'),
-                  ),
-                ),
-              ],
-            ),
-            
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: Center(
-                  child: CircularProgressIndicator(),
+              const SizedBox(width: 12),
+              // Información principal
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      !_isOfflineMode ? 'Online' : 'Offline', // Lógica invertida
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Satoshi',
+                        color: !_isOfflineMode ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                    Text(
+                      _syncStats['has_connection'] == true
+                          ? 'Conectado'
+                          : 'Sin conexión',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontFamily: 'Satoshi',
+                      ),
+                    ),
+                    // Mostrar última sincronización
+                    if (!_isOfflineMode) // Solo mostrar en modo online
+                      Text(
+                        'Última sync: ${_formatLastSync()}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                  ],
                 ),
               ),
-          ],
+              // Switch integrado - lógica invertida
+              Switch(
+                value: !_isOfflineMode, // Invertir: true = Online, false = Offline
+                onChanged: _isLoading ? null : _toggleOfflineMode,
+                activeColor: Colors.green, // Verde para online
+                inactiveThumbColor: Colors.orange, // Naranja para offline
+              ),
+            ],
+          ),
         ),
       ),
     );

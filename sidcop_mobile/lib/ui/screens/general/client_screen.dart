@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
@@ -11,6 +13,7 @@ class clientScreen extends StatefulWidget {
 }
 
 class _clientScreenState extends State<clientScreen> {
+  List<dynamic> permisos = [];
   late Future<List<dynamic>> clientesList;
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController(); 
@@ -19,12 +22,27 @@ class _clientScreenState extends State<clientScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPermisos();
     clientesList = ClientesService().getClientes();
     clientesList.then((clientes) {
       setState(() {
         filteredClientes = clientes;
       });
     });
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+      try {
+        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
   }
   
   @override
@@ -54,7 +72,7 @@ class _clientScreenState extends State<clientScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(),
+      drawer: CustomDrawer(permisos: permisos),
       backgroundColor: const Color(0xFFF6F6F6),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF141A2F),

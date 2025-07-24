@@ -3,17 +3,22 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
-import 'package:sidcop_mobile/ui/screens/logistica/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
-import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
+import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
 import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
-  const CustomDrawer({super.key});
+  final List<dynamic> permisos;
+  const CustomDrawer({Key? key, required this.permisos}) : super(key: key);
 
   @override
   State<CustomDrawer> createState() => _CustomDrawerState();
@@ -25,6 +30,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _nombreUsuario = 'Cargando...';
   String _cargoUsuario = 'Cargando...';
   String? _imagenUsuario;
+  String? _imagenVendedor;
+  int? _usuaIdPersona;
   bool _isLoading = true;
 
   @override
@@ -40,11 +47,18 @@ class _CustomDrawerState extends State<CustomDrawer> {
       final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
 
+      // Obtener usuaIdPersona desde los datos guardados
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final usuaIdPersona = userData?['personaId'] as int?;
+      final imagenVendedor = userData?['imagen'] as String?;
+
       if (mounted) {
         setState(() {
           _nombreUsuario = nombreCompleto;
           _cargoUsuario = cargo;
           _imagenUsuario = imagenUsuario;
+          _usuaIdPersona = usuaIdPersona;
+          _imagenVendedor = imagenVendedor;
           _isLoading = false;
         });
       }
@@ -54,10 +68,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _nombreUsuario = 'Usuario';
           _cargoUsuario = 'Sin cargo';
           _imagenUsuario = null;
+          _imagenVendedor = null;
           _isLoading = false;
         });
       }
     }
+  }
+
+  bool tienePermiso(int pantId) {
+    return widget.permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
   @override
@@ -134,8 +153,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                       ),
                       tooltip: 'Cerrar sesión',
-                      onPressed: () {
-                        // Acción de logout aquí
+                      onPressed: () async {
+                        await _perfilUsuarioService.limpiarDatosUsuario();
+                        if (!mounted) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (context) => const OnboardingScreen(),
+                          ),
+                          (route) => false,
+                        );
                       },
                     ),
                   ],
@@ -144,6 +170,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
           ),
           const SizedBox(height: 10),
+
           ListTile(
             leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
             title: const Text(
@@ -155,91 +182,89 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              Navigator.push(
+              Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                MaterialPageRoute(builder: (context) => HomeScreen()),
+                (route) => false,
               );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Ruta',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          // Accesos móviles según permisos
+          if (tienePermiso(48)) // MRuta
+            ListTile(
+              leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+              title: const Text(
+                'Ruta',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
               ),
+              onTap: () {
+                // Navegar a MRuta
+              },
             ),
-            onTap: () {
+          if (tienePermiso(49)) // MProductos
+            ListTile(
+              leading: const Icon(
+                Icons.inventory_2_outlined,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Productos',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => RutasScreen(),
+                    builder: (context) => const ProductScreen(),
                   ),
                 );
-            },
-          ),
-          ListTile(
-            leading: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFFD6B68A),
+              },
             ),
-            title: const Text(
-              'Productos',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          if (tienePermiso(50)) // MMetas
+            ListTile(
+              leading: const Icon(
+                Icons.speed_outlined,
+                color: Color(0xFFD6B68A),
               ),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProductScreen()),
-              );
-            },
-          ),
-          //   if (usuario != null && usuario!.usua_Clie == true)
-          ListTile(
-            leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Metas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+              title: const Text(
+                'Metas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
               ),
+              onTap: () {
+                // Navegar a MMetas
+              },
             ),
-            onTap: () {
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const RentasClienteScreen(),
-              //   ),
-              // );
-            },
-          ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            leading: const Icon(Icons.sell_outlined, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Ventas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          if (tienePermiso(51)) // MVentas
+            ListTile(
+              leading: const Icon(
+                Icons.sell_outlined,
+                color: Color(0xFFD6B68A),
               ),
+              title: const Text(
+                'Ventas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                // Navegar a MVentas
+              },
             ),
-            onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const InsertarCarroScreen(),
-              //     ),
-              //   );
-            },
-          ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
           ListTile(
             leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
@@ -258,85 +283,73 @@ class _CustomDrawerState extends State<CustomDrawer> {
               );
             },
           ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            leading: const Icon(Icons.person_outline, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Clientes',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          if (tienePermiso(52)) // MClientes
+            ListTile(
+              leading: const Icon(
+                Icons.person_outline,
+                color: Color(0xFFD6B68A),
               ),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const clientScreen()),
-                (route) => false,
-              );
-
-              print("tiene acceso");
-            },
-          ),
-          //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
-          ListTile(
-            leading: Transform.flip(
-              flipX: true,
-              child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
-            ),
-            title: const Text(
-              'Recargas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            onTap: () {
-              // await UsuarioService().cerrarSesion();
-
-              Navigator.pop(context);
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const RechargesScreen(),
+              title: const Text(
+                'Clientes',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
                 ),
-                (route) => false,
-              );
-              print("tiene acceso 2");
-            },
-          ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            // leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
-            leading: const Icon(
-              Icons.assignment_turned_in_outlined,
-              color: Color(0xFFD6B68A),
-            ),
-            title: const Text(
-              'Inventario',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
               ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const clientScreen()),
+                  (route) => false,
+                );
+              },
             ),
-            onTap: () {
-              Navigator.pop(context);
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const InventoryScreen()),
-                (route) => false,
-              );
-
-              print("tiene acceso");
-            },
-          ),
+          if (tienePermiso(53)) // MRecargas
+            ListTile(
+              leading: Transform.flip(
+                flipX: true,
+                child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
+              ),
+              title: const Text(
+                'Recargas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RechargesScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
+            ),
+          //   if(usuario!.usua_Admin)
+          if (tienePermiso(54)) // MInventario
+            ListTile(
+              leading: const Icon(
+                Icons.assignment_turned_in_outlined,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Inventario',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () async {
+                // Navegar a MInventario
+              },
+            ),
         ],
       ),
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
-import 'package:sidcop_mobile/services/ProductosService.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final Productos product;
