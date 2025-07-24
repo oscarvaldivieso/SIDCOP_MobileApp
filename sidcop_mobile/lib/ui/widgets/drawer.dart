@@ -2,12 +2,14 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
+import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
@@ -26,6 +28,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _nombreUsuario = 'Cargando...';
   String _cargoUsuario = 'Cargando...';
   String? _imagenUsuario;
+  String? _imagenVendedor;
+  int? _usuaIdPersona;
   bool _isLoading = true;
 
   @override
@@ -40,12 +44,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
           .obtenerNombreCompleto();
       final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+      
+      // Obtener usuaIdPersona desde los datos guardados
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final usuaIdPersona = userData?['personaId'] as int?;
+      final imagenVendedor = userData?['imagen'] as String?;
 
       if (mounted) {
         setState(() {
           _nombreUsuario = nombreCompleto;
           _cargoUsuario = cargo;
           _imagenUsuario = imagenUsuario;
+          _usuaIdPersona = usuaIdPersona;
+          _imagenVendedor = imagenVendedor;
           _isLoading = false;
         });
       }
@@ -55,6 +66,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _nombreUsuario = 'Usuario';
           _cargoUsuario = 'Sin cargo';
           _imagenUsuario = null;
+          _imagenVendedor = null;
           _isLoading = false;
         });
       }
@@ -166,8 +178,46 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Ruta',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(
+              //       builder: (context) => const InsertarCarroScreen(),
+              //     ),
+              //   );
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              Icons.inventory_2_outlined,
+              color: Color(0xFFD6B68A),
+            ),
+            title: const Text(
+              'Productos',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+            onTap: () {
+              Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => HomeScreen(),
@@ -325,6 +375,30 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 // Navegar a MInventario
               },
             ),
+            onTap: () {
+              Navigator.pop(context);
+
+              // Verificar que usuaIdPersona esté disponible
+              if (_usuaIdPersona != null) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                  ),
+                  (route) => false,
+                );
+                print("Navegando a inventario con usuaIdPersona: $_usuaIdPersona");
+              } else {
+                // Mostrar error si no hay usuaIdPersona
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: No se pudo obtener la información del usuario'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
         ],
       ),
     );
