@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/appBackground.dart';
 import '../../../models/inventory_item.dart';
 import '../../../services/inventory_service.dart';
+import '../../../services/PerfilUsuarioService.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -16,11 +17,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
   List<InventoryItem> _inventoryItems = [];
   bool _isLoading = true;
   String? _errorMessage;
+  String _sellerName = 'Cargando...';
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
 
   @override
   void initState() {
     super.initState();
     _loadInventoryData();
+    _loadSellerName();
   }
 
   Future<void> _loadInventoryData() async {
@@ -42,6 +46,62 @@ class _InventoryScreenState extends State<InventoryScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadSellerName() async {
+    try {
+      // Try to get name from nombres and apellidos fields
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      if (userData != null) {
+        final nombres = userData['nombres'] ?? '';
+        final apellidos = userData['apellidos'] ?? '';
+        
+        if (nombres.isNotEmpty && apellidos.isNotEmpty) {
+          setState(() {
+            _sellerName = '$nombres $apellidos';
+          });
+          return;
+        } else if (nombres.isNotEmpty) {
+          setState(() {
+            _sellerName = nombres;
+          });
+          return;
+        } else if (apellidos.isNotEmpty) {
+          setState(() {
+            _sellerName = apellidos;
+          });
+          return;
+        }
+      }
+      
+      // Fallback to existing method
+      final name = await _perfilUsuarioService.obtenerNombreCompleto();
+      setState(() {
+        _sellerName = name;
+      });
+    } catch (e) {
+      setState(() {
+        _sellerName = 'Usuario';
+      });
+    }
+  }
+
+  String _formatCurrentDate() {
+    final now = DateTime.now();
+    final weekdays = [
+      'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
+    ];
+    final months = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    
+    final weekday = weekdays[now.weekday - 1];
+    final day = now.day;
+    final month = months[now.month - 1];
+    final year = now.year;
+    
+    return '$weekday, $day $month $year';
   }
 
   @override
@@ -117,7 +177,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Lunes, 22 Julio 2025',
+                    _formatCurrentDate(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontFamily: 'Satoshi',
@@ -175,9 +235,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Juan Carlos Pérez',
-                      style: TextStyle(
+                    Text(
+                      _sellerName,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontFamily: 'Satoshi',
                         fontSize: 16,
@@ -422,7 +482,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         const SizedBox(height: 16),
         
         // Lista de productos
-        ..._inventoryItems.map((item) => _buildInventoryItemCard(item)).toList(),
+        ..._inventoryItems.map((item) => _buildInventoryItemCard(item)),
       ],
     );
   }
@@ -595,7 +655,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\L.${item.precio.toStringAsFixed(2)}',
+                    'L.${item.precio.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: Color(0xFFC2AF86),
                       fontFamily: 'Satoshi',
