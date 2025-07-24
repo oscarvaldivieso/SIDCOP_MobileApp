@@ -3,13 +3,13 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'EncryptedCsvStorageService.dart';
 import 'CacheService.dart';
 import 'OfflineConfigService.dart';
-import 'UsuarioService.dart';
+// import 'UsuarioService.dart';
 // import 'ClientesService.Dart';
 import 'ProductosService.Dart';
 
 /// Servicio para manejar la sincronización entre datos offline y online
 class SyncService {
-  static final UsuarioService _usuarioService = UsuarioService();
+  // static final UsuarioService _usuarioService = UsuarioService();
   // static final ClientesService _clientesService = ClientesService();
   static final ProductosService _productosService = ProductosService();
 
@@ -36,8 +36,8 @@ class SyncService {
       bool allSynced = true;
 
       // Sincronizar clientes
-      final clientsSync = await syncClients();
-      if (!clientsSync) allSynced = false;
+      // final clientsSync = await syncClients();
+      // if (!clientsSync) allSynced = false;
 
       // Sincronizar productos
       final productsSync = await syncProducts();
