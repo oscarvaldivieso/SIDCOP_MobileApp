@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class ProductScreen extends StatefulWidget {
@@ -36,8 +37,17 @@ class _ProductScreenState extends State<ProductScreen> {
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
     try {
-      _allProducts = await _productosService.getProductos();
+      // Usar SyncService.getProducts() en lugar de _productosService.getProductos()
+      // para aprovechar la funcionalidad offline
+      final productsData = await SyncService.getProducts();
+      
+      // Convertir List<Map<String, dynamic>> a List<Productos>
+      _allProducts = productsData.map((productMap) => 
+        Productos.fromJson(productMap)
+      ).toList();
+      
       _filteredProducts = List.from(_allProducts);
+      debugPrint('Productos cargados: ${_allProducts.length}');
     } catch (e) {
       debugPrint('Error cargando productos: $e');
     } finally {
