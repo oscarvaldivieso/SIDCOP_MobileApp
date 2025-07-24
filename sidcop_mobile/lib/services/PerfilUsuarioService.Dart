@@ -71,6 +71,29 @@ class PerfilUsuarioService {
            'No disponible';
   }
   
+  // Obtener nombre completo desde campos nombres y apellidos
+  Future<String> obtenerNombreDesdeNombresApellidos() async {
+    final userData = await obtenerDatosUsuario();
+    if (userData == null) return 'No disponible';
+    
+    final nombres = userData['nombres'] ?? '';
+    final apellidos = userData['apellidos'] ?? '';
+    
+    if (nombres.isNotEmpty && apellidos.isNotEmpty) {
+      return '$nombres $apellidos';
+    } else if (nombres.isNotEmpty) {
+      return nombres;
+    } else if (apellidos.isNotEmpty) {
+      return apellidos;
+    }
+    
+    // Fallback a otros campos si nombres y apellidos no están disponibles
+    return userData['nombreCompleto'] ?? 
+           userData['usua_Usuario'] ?? 
+           userData['usuario'] ?? 
+           'No disponible';
+  }
+  
   Future<String> obtenerNumeroIdentidad() async {
     final userData = await obtenerDatosUsuario();
     if (userData == null) return 'No disponible';
