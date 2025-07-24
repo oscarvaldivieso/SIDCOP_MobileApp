@@ -5,48 +5,11 @@ import 'products/products_list_screen.dart';
 import 'recharges/recharges_screen.dart';
 import '../widgets/appBackground.dart';
 
+import '../../services/PerfilUsuarioService.Dart';
+import 'dart:convert';
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late AnimationController _gaugeAnimationController;
-  late Animation<double> _gaugeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _gaugeAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-    _gaugeAnimation =
-        Tween<double>(
-          begin: 0.0,
-          end: 0.75, // 75%
-        ).animate(
-          CurvedAnimation(
-            parent: _gaugeAnimationController,
-            curve: Curves.easeInOutCubic,
-          ),
-        );
-
-    // Iniciar la animación después de un pequeño delay
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _gaugeAnimationController.forward();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _gaugeAnimationController.dispose();
-    super.dispose();
-  }
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -78,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return AppBackground(
-      title: 'Home',
+      title: 'Bienvenido, Oscarito',
       icon: Icons.home,
       permisos: permisos,
       child: Column(
@@ -86,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const SizedBox(height: 20),
           const Text(
-            'Bienvenido de vuelta, Oscarito',
+            'Bienvenido de vuelta',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -103,6 +66,33 @@ class _HomeScreenState extends State<HomeScreen> {
               fontFamily: 'Satoshi',
             ),
           ),
+          const SizedBox(height: 32),
+
+          // Estadísticas rápidas
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  context,
+                  'Productos',
+                  '156',
+                  Icons.inventory_2,
+                  const Color(0xFF3B82F6),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildStatCard(
+                  context,
+                  'Clientes',
+                  '89',
+                  Icons.people,
+                  const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 32),
 
           // Gauge Chart para ventas
@@ -407,10 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color.fromARGB(255, 20, 26, 47),
-            Color.fromARGB(255, 38, 43, 64),
-          ],
+          colors: [Color(0xFFFFFFFF), Color(0xFFFAFAFA)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -441,15 +428,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color.fromARGB(255, 255, 255, 255),
-                      Color.fromARGB(255, 255, 255, 255),
+                      Color.fromARGB(255, 190, 170, 127),
+                      Color.fromARGB(255, 170, 150, 107),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(
+                        255,
+                        170,
+                        150,
+                        107,
+                      ).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.trending_up_rounded,
-                  color: Color.fromARGB(255, 6, 3, 55),
+                  color: Colors.white,
                   size: 28,
                 ),
               ),
@@ -463,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Color.fromARGB(255, 255, 255, 255),
+                        color: Color(0xFF1F2937),
                         fontFamily: 'Satoshi',
                       ),
                     ),
@@ -487,25 +486,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
-                      Color.fromARGB(255, 213, 181, 138),
-                      Color.fromARGB(255, 157, 128, 63),
+                      Color.fromARGB(255, 190, 170, 127),
+                      Color.fromARGB(255, 170, 150, 107),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(
+                        255,
+                        170,
+                        150,
+                        107,
+                      ).withOpacity(0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: AnimatedBuilder(
-                  animation: _gaugeAnimation,
-                  builder: (context, child) {
-                    return Text(
-                      '${(_gaugeAnimation.value * 100).toInt()}%',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontFamily: 'Satoshi',
-                      ),
-                    );
-                  },
+                child: const Text(
+                  '75%',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Satoshi',
+                  ),
                 ),
               ),
             ],
@@ -523,17 +529,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   colors: [Colors.white.withOpacity(0.1), Colors.transparent],
                 ),
               ),
-              child: AnimatedBuilder(
-                animation: _gaugeAnimation,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: GaugeChartPainter(
-                      percentage: _gaugeAnimation.value,
-                      primaryColor: const Color.fromARGB(255, 170, 150, 107),
-                      backgroundColor: const Color(0xFFF3F4F6),
-                    ),
-                  );
-                },
+              child: CustomPaint(
+                painter: GaugeChartPainter(
+                  percentage: 0.75, // 75%
+                  primaryColor: const Color.fromARGB(255, 170, 150, 107),
+                  backgroundColor: const Color(0xFFF3F4F6),
+                ),
               ),
             ),
           ),
@@ -575,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        '\L.5,000.00',
+                        '\$50,000',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -621,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        '\L.3,750.00',
+                        '\$37,500',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -665,14 +666,14 @@ class GaugeChartPainter extends CustomPainter {
     final backgroundPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 22
+      ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
 
     // Paint para el progreso del gauge
     final progressPaint = Paint()
       ..color = primaryColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
+      ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
 
     // Dibujar el fondo del gauge
@@ -700,7 +701,7 @@ class GaugeChartPainter extends CustomPainter {
         style: const TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
-          color: Color.fromARGB(255, 211, 220, 252),
+          color: Color(0xFF181E34),
           fontFamily: 'Satoshi',
         ),
       ),
@@ -716,9 +717,9 @@ class GaugeChartPainter extends CustomPainter {
 
     // Dibujar pequeños marcadores
     final markerPaint = Paint()
-      ..color = backgroundColor.withOpacity(0)
+      ..color = backgroundColor.withOpacity(0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0;
+      ..strokeWidth = 2;
 
     for (int i = 0; i <= 10; i++) {
       final angle = startAngle + (sweepAngle * i / 10);

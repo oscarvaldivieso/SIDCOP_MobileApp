@@ -6,7 +6,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({super.key});
+  const clientScreen({Key? key}) : super(key: key);
 
   @override
   State<clientScreen> createState() => _clientScreenState();
@@ -79,9 +79,9 @@ class _clientScreenState extends State<clientScreen> {
         onPressed: () {
           // Acción para agregar un nuevo cliente
         },
+        child: const Icon(Icons.add, color: Colors.white),
         shape: const CircleBorder(),
         elevation: 4.0,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
@@ -179,7 +179,7 @@ class _clientScreenState extends State<clientScreen> {
                   margin: const EdgeInsets.all(8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 4,
-                  child: SizedBox(
+                  child: Container(
                     height: 140,
                     child: Row(
                       children: [
