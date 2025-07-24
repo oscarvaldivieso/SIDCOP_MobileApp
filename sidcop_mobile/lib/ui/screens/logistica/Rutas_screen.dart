@@ -3,13 +3,13 @@ import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 
 class RutasScreen extends StatefulWidget {
   @override
   State<RutasScreen> createState() => _RutasScreenState();
-  final String mapApiKey = mapApiKey;
+
 }
 
 class _RutasScreenState extends State<RutasScreen> {
@@ -46,6 +46,7 @@ class _RutasScreenState extends State<RutasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String mapApiKey = 'AIzaSyA6bbij1_4crYsWVg6E1PnqGb17lNGdIjA';
     return Scaffold(
       appBar: AppBar(title: const Text('Rutas')),
       drawer: CustomDrawer(permisos: permisos),
@@ -84,18 +85,7 @@ class _RutasScreenState extends State<RutasScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Image.network(
-                    'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
-                    height: 120,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 120,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.map, size: 40, color: Colors.grey),
-                    ),
-                  ),
+                  
                   Expanded(
                     child: ListView.builder(
                       itemCount: _rutas.length,
@@ -103,41 +93,53 @@ class _RutasScreenState extends State<RutasScreen> {
                         final ruta = _rutas[index];
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          child: ListTile(
-                            title: Text(ruta.ruta_Descripcion ?? 'Sin descripción'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Código: ${(ruta.ruta_Codigo ?? "-").toString()}'),
-                                Text('Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}'),
-                                const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 40, 
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF141A2F),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        ),
-                                        onPressed: () {},
-                                        child: const Text(
-                                          'Detalles',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Color(0xFFD6B68A),
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.1,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                              ],
-                            ),
-                            
+                  child: ListTile(
+                    title: Text(ruta.ruta_Descripcion ?? 'Sin descripción'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        Image.network(
+                          'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
+                          height: 120,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 120,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.map, size: 40, color: Colors.grey),
                           ),
+                        ),
+                        Text('Código: ${(ruta.ruta_Codigo ?? "-").toString()}'),
+                        Text('Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}'),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 40, 
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF141A2F),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            onPressed: () {},
+                            child: const Text(
+                              'Detalles',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFFD6B68A),
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                  ),
                           
                         );
                       },
