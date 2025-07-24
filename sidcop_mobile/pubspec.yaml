@@ -47,6 +47,7 @@ flutter:
     - assets/FondoNuevo.svg
     - assets/FondoNuevo2.svg
     - assets/BreadCrumSVG2.svg
+    - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
   
   fonts:

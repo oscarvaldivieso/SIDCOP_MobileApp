@@ -2,12 +2,14 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
+import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
@@ -26,6 +28,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _nombreUsuario = 'Cargando...';
   String _cargoUsuario = 'Cargando...';
   String? _imagenUsuario;
+  String? _imagenVendedor;
+  int? _usuaIdPersona;
   bool _isLoading = true;
 
   @override
@@ -41,11 +45,18 @@ class _CustomDrawerState extends State<CustomDrawer> {
       final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
 
+      // Obtener usuaIdPersona desde los datos guardados
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final usuaIdPersona = userData?['personaId'] as int?;
+      final imagenVendedor = userData?['imagen'] as String?;
+
       if (mounted) {
         setState(() {
           _nombreUsuario = nombreCompleto;
           _cargoUsuario = cargo;
           _imagenUsuario = imagenUsuario;
+          _usuaIdPersona = usuaIdPersona;
+          _imagenVendedor = imagenVendedor;
           _isLoading = false;
         });
       }
@@ -55,6 +66,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _nombreUsuario = 'Usuario';
           _cargoUsuario = 'Sin cargo';
           _imagenUsuario = null;
+          _imagenVendedor = null;
           _isLoading = false;
         });
       }
@@ -143,7 +155,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         await _perfilUsuarioService.limpiarDatosUsuario();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const OnboardingScreen(),
+                          ),
                           (route) => false,
                         );
                       },
@@ -169,9 +183,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               Navigator.pop(context);
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => HomeScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => HomeScreen()),
                 (route) => false,
               );
             },
@@ -209,13 +221,18 @@ class _CustomDrawerState extends State<CustomDrawer> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProductScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ProductScreen(),
+                  ),
                 );
               },
             ),
           if (tienePermiso(50)) // MMetas
             ListTile(
-              leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
+              leading: const Icon(
+                Icons.speed_outlined,
+                color: Color(0xFFD6B68A),
+              ),
               title: const Text(
                 'Metas',
                 style: TextStyle(
@@ -230,7 +247,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
           if (tienePermiso(51)) // MVentas
             ListTile(
-              leading: const Icon(Icons.sell_outlined, color: Color(0xFFD6B68A)),
+              leading: const Icon(
+                Icons.sell_outlined,
+                color: Color(0xFFD6B68A),
+              ),
               title: const Text(
                 'Ventas',
                 style: TextStyle(
@@ -263,7 +283,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           if (tienePermiso(52)) // MClientes
             ListTile(
-              leading: const Icon(Icons.person_outline, color: Color(0xFFD6B68A)),
+              leading: const Icon(
+                Icons.person_outline,
+                color: Color(0xFFD6B68A),
+              ),
               title: const Text(
                 'Clientes',
                 style: TextStyle(
