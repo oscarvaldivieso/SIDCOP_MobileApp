@@ -208,15 +208,12 @@ class _ProductScreenState extends State<ProductScreen> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-
                       child: Row(
                         children: [
                           IconButton(
                             icon: const Icon(Icons.close),
-
                             onPressed: () => Navigator.pop(context),
                           ),
                           const SizedBox(width: 8),
@@ -226,7 +223,7 @@ class _ProductScreenState extends State<ProductScreen> {
                               fontSize: 18,
                               fontFamily: 'Satoshi',
                               fontWeight: FontWeight.bold,
-                              color: Color.fromARGB(255, 255, 255, 255),
+                              color: Colors.white,
                             ),
                           ),
                           const Spacer(),
@@ -240,7 +237,6 @@ class _ProductScreenState extends State<ProductScreen> {
                         ],
                       ),
                     ),
-
                     Expanded(
                       child: FutureBuilder(
                         future: Future.wait([
@@ -256,7 +252,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                   child: CircularProgressIndicator(),
                                 );
                               }
-
                               if (snapshot.hasError) {
                                 return const Center(
                                   child: Text('Error al cargar filtros'),
@@ -293,7 +288,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                         'cate_Descripcion',
                                         'categorias',
                                       ),
-
                                       _buildFilterSection(
                                         'Subcategorías',
                                         Icons.list,
@@ -302,7 +296,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                         'subc_Descripcion',
                                         'subcategorias',
                                       ),
-
                                       _buildFilterSection(
                                         'Marcas',
                                         Icons.branding_watermark,
@@ -311,7 +304,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                         'marc_Descripcion',
                                         'marcas',
                                       ),
-
                                       const SizedBox(height: 24),
                                       SizedBox(
                                         width: double.infinity,
@@ -371,7 +363,6 @@ class _ProductScreenState extends State<ProductScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
-
       decoration: BoxDecoration(
         color: const Color(0xFF141A2F),
         borderRadius: BorderRadius.circular(12),
@@ -381,12 +372,7 @@ class _ProductScreenState extends State<ProductScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: const Color.fromARGB(255, 255, 255, 255),
-              ),
-
+              Icon(icon, size: 20, color: Colors.white),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -411,24 +397,16 @@ class _ProductScreenState extends State<ProductScreen> {
                 label: Text(
                   name,
                   style: TextStyle(
-                    color: isSelected
-                        ? const Color.fromARGB(255, 0, 0, 0)
-                        : const Color.fromARGB(255, 255, 255, 255),
+                    color: isSelected ? Colors.black : Colors.white,
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: const Color(
-                  0xFFD6B68A,
-                ), //cuando está seleccionado
-                backgroundColor: const Color(
-                  0xFF141A2F,
-                ), //  cuando no está seleccionado
+                selectedColor: const Color(0xFFD6B68A),
+                backgroundColor: const Color(0xFF141A2F),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected
-                        ? const Color.fromARGB(255, 255, 255, 255)
-                        : const Color(0xFFD6B68A)!,
+                    color: isSelected ? Colors.white : const Color(0xFFD6B68A),
                   ),
                 ),
                 onSelected: (selected) =>
@@ -512,7 +490,6 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              // Imagen del producto
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
                 child: Image.network(
@@ -529,12 +506,10 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nombre del producto con flecha al lado
                     Row(
                       children: [
                         Expanded(
@@ -551,11 +526,8 @@ class _ProductScreenState extends State<ProductScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
-                    // Fila para marca y categoría
                     Row(
                       children: [
-                        // Marca
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -578,8 +550,6 @@ class _ProductScreenState extends State<ProductScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-
-                        // Categoría
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -605,8 +575,6 @@ class _ProductScreenState extends State<ProductScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
-                    // Precio
                     Text(
                       'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(
@@ -746,7 +714,7 @@ class _ProductScreenState extends State<ProductScreen> {
                     fontSize: 26,
                     fontFamily: 'Satoshi',
                     fontWeight: FontWeight.bold,
-                    color: Color.fromARGB(255, 0, 0, 0),
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -756,7 +724,7 @@ class _ProductScreenState extends State<ProductScreen> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'Satoshi',
-                    color: Color.fromARGB(255, 143, 141, 141),
+                    color: Colors.grey,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -773,7 +741,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 255, 255, 255),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -781,7 +749,10 @@ class _ProductScreenState extends State<ProductScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pop(context); // Cierra el modal de detalle
+                      _openRecargaModal(product); // Abre el modal de recarga
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF141A2F),
                       foregroundColor: const Color(0xFFD6B68A),
@@ -809,6 +780,22 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  void _openRecargaModal(Productos producto) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) {
+          return RecargaBottomSheetWithProduct(productoInicial: producto);
+        },
+      ),
+    );
+  }
+
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -819,8 +806,8 @@ class _ProductScreenState extends State<ProductScreen> {
             width: 100,
             child: Text(
               label,
-              style: TextStyle(
-                color: const Color.fromARGB(255, 0, 0, 0),
+              style: const TextStyle(
+                color: Colors.black,
                 fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w800,
               ),
@@ -833,6 +820,199 @@ class _ProductScreenState extends State<ProductScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class RecargaBottomSheetWithProduct extends StatefulWidget {
+  final Productos productoInicial;
+
+  const RecargaBottomSheetWithProduct({
+    super.key,
+    required this.productoInicial,
+  });
+
+  @override
+  State<RecargaBottomSheetWithProduct> createState() =>
+      _RecargaBottomSheetWithProductState();
+}
+
+class _RecargaBottomSheetWithProductState
+    extends State<RecargaBottomSheetWithProduct> {
+  final ProductosService _productosService = ProductosService();
+  List<Productos> _productos = [];
+  Map<int, int> _cantidades = {};
+  String search = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidades[widget.productoInicial.prod_Id] = 1;
+    _fetchProductos();
+  }
+
+  Future<void> _fetchProductos() async {
+    try {
+      final productos = await _productosService.getProductos();
+      setState(() {
+        _productos = productos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _productos.where((p) {
+      final nombre = (p.prod_DescripcionCorta ?? '').toLowerCase();
+      return nombre.contains(search.toLowerCase());
+    }).toList();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Solicitud de recarga',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Buscar producto',
+                border: OutlineInputBorder(),
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+              ),
+              onChanged: (v) => setState(() => search = v),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final producto = filtered[i];
+                      final cantidad = _cantidades[producto.prod_Id] ?? 0;
+                      return _buildProducto(producto, cantidad);
+                    },
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  // Lógica para enviar la recarga
+                  Navigator.pop(context); // Cierra el modal
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF141A2F),
+                  foregroundColor: const Color(0xFFD6B68A),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Solicitar recarga',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Satoshi',
+                    color: Color(0xFFD6B68A),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProducto(Productos producto, int cantidad) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child:
+                  producto.prod_Imagen != null &&
+                      producto.prod_Imagen!.isNotEmpty
+                  ? Image.network(
+                      producto.prod_Imagen!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, size: 48),
+                    )
+                  : const Icon(Icons.image, size: 48),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                producto.prod_DescripcionCorta ?? '-',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: cantidad > 0
+                      ? () {
+                          setState(() {
+                            _cantidades[producto.prod_Id] = cantidad - 1;
+                          });
+                        }
+                      : null,
+                ),
+                Text('$cantidad', style: const TextStyle(fontSize: 16)),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () {
+                    setState(() {
+                      _cantidades[producto.prod_Id] = cantidad + 1;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
