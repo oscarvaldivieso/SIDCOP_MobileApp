@@ -6,6 +6,8 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 
+import 'dart:convert';
+
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
 
@@ -14,6 +16,27 @@ class RechargesScreen extends StatefulWidget {
 }
 
 class _RechargesScreenState extends State<RechargesScreen> {
+  List<dynamic> permisos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPermisos();
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+      try {
+        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
+  }
   void _openRecargaModal() {
     showModalBottomSheet(
       context: context,
@@ -28,6 +51,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     return AppBackground(
       title: 'Recarga',
       icon: Icons.sync,
+      permisos: permisos,
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

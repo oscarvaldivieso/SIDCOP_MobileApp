@@ -5,14 +5,45 @@ import 'products/products_list_screen.dart';
 import 'recharges/recharges_screen.dart';
 import '../widgets/appBackground.dart';
 
-class HomeScreen extends StatelessWidget {
+import '../../services/PerfilUsuarioService.Dart';
+import 'dart:convert';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<dynamic> permisos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPermisos();
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+      try {
+        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppBackground(
       title: 'Bienvenido, Oscarito',
       icon: Icons.home,
+      permisos: permisos,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

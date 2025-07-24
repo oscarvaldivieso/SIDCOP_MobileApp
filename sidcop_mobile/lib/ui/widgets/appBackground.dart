@@ -10,6 +10,7 @@ class AppBackground extends StatelessWidget {
   final double? iconSize;
   final TextStyle? titleStyle;
   final Widget? child;
+  final List<dynamic> permisos;
 
   const AppBackground({
     super.key,
@@ -19,13 +20,14 @@ class AppBackground extends StatelessWidget {
     this.iconSize,
     this.titleStyle,
     this.child,
+    this.permisos = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(),
+      drawer: CustomDrawer(permisos: permisos),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
