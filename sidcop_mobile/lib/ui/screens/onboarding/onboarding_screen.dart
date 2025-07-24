@@ -15,7 +15,7 @@ class _LoginBottomSheet extends StatelessWidget {
       builder: (_, controller) {
         return Container(
           decoration: const BoxDecoration(
-            color: Color.fromARGB(255, 254, 247, 255),
+            color: Color.fromARGB(255, 238, 238, 238),
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
           child: Column(

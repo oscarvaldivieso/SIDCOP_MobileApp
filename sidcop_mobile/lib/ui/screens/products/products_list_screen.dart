@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
-import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -39,7 +38,7 @@ class _ProductScreenState extends State<ProductScreen> {
       _allProducts = await _productosService.getProductos();
       _filteredProducts = List.from(_allProducts);
     } catch (e) {
-      debugPrint('Error cargando productos: $e');
+      debugPrint('Error loading products: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -54,9 +53,8 @@ class _ProductScreenState extends State<ProductScreen> {
         final matchesSearch =
             searchTerm.isEmpty ||
             (product.prod_Descripcion?.toLowerCase().contains(searchTerm) ??
-                false ||
-                    (product.prod_Codigo?.toLowerCase().contains(searchTerm) ??
-                        false));
+                false) ||
+            (product.prod_Codigo?.toLowerCase().contains(searchTerm) ?? false);
 
         // Filtros por categorías, subcategorías y marcas
         final matchesFilters = _selectedFilters.entries.every((entry) {
@@ -112,22 +110,21 @@ class _ProductScreenState extends State<ProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AppBackground(
-        title: 'Productos',
-        icon: Icons.inventory_2,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height,
+      appBar: AppBar(
+        title: const Text('Productos'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showFiltersPanel,
           ),
-          child: Column(
-            children: [
-              _buildSearchBar(),
-              _buildFilterButton(),
-              _buildResultsCount(),
-              _buildProductList(),
-            ],
-          ),
-        ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          _buildResultsCount(),
+          _buildProductList(),
+        ],
       ),
     );
   }
@@ -155,29 +152,6 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
-  Widget _buildFilterButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _showFiltersPanel,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showFiltersPanel() {
     showModalBottomSheet(
       context: context,
@@ -194,7 +168,7 @@ class _ProductScreenState extends State<ProductScreen> {
             builder: (context, scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141A2F),
+                  color: Colors.white,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: Column(
@@ -211,12 +185,10 @@ class _ProductScreenState extends State<ProductScreen> {
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-
                       child: Row(
                         children: [
                           IconButton(
                             icon: const Icon(Icons.close),
-
                             onPressed: () => Navigator.pop(context),
                           ),
                           const SizedBox(width: 8),
@@ -224,18 +196,13 @@ class _ProductScreenState extends State<ProductScreen> {
                             'Filtrar productos',
                             style: TextStyle(
                               fontSize: 18,
-                              fontFamily: 'Satoshi',
                               fontWeight: FontWeight.bold,
-                              color: Color.fromARGB(255, 255, 255, 255),
                             ),
                           ),
                           const Spacer(),
                           TextButton(
                             onPressed: _clearFilters,
                             child: const Text('Limpiar'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFD6B68A),
-                            ),
                           ),
                         ],
                       ),
@@ -281,7 +248,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 12,
                                   ),
                                   child: Column(
                                     children: [
@@ -321,25 +287,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                             Navigator.pop(context);
                                           },
                                           child: const Text('Aplicar filtros'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF141A2F,
-                                            ),
-                                            side: const BorderSide(
-                                              color: Color(0xFFD6B68A),
-                                            ),
-                                            elevation: 0,
-                                            foregroundColor: const Color(
-                                              0xFFD6B68A,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 16,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                            ),
-                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 16),
@@ -368,77 +315,35 @@ class _ProductScreenState extends State<ProductScreen> {
     String nameKey,
     String filterType,
   ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: items.map((item) {
+            final id = item[idKey] as int;
+            final name = item[nameKey] as String? ?? 'Sin nombre';
+            final isSelected =
+                _selectedFilters[filterType]?.contains(id) ?? false;
 
-      decoration: BoxDecoration(
-        color: const Color(0xFF141A2F),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: const Color.fromARGB(255, 255, 255, 255),
-              ),
-
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: items.map((item) {
-              final id = item[idKey] as int;
-              final name = item[nameKey] as String? ?? 'Sin nombre';
-              final isSelected =
-                  _selectedFilters[filterType]?.contains(id) ?? false;
-
-              return ChoiceChip(
-                label: Text(
-                  name,
-                  style: TextStyle(
-                    color: isSelected
-                        ? const Color.fromARGB(255, 0, 0, 0)
-                        : const Color.fromARGB(255, 255, 255, 255),
-                  ),
-                ),
-                selected: isSelected,
-                selectedColor: const Color(
-                  0xFFD6B68A,
-                ), //cuando está seleccionado
-                backgroundColor: const Color(
-                  0xFF141A2F,
-                ), //  cuando no está seleccionado
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: isSelected
-                        ? const Color.fromARGB(255, 255, 255, 255)
-                        : const Color(0xFFD6B68A)!,
-                  ),
-                ),
-                onSelected: (selected) =>
-                    _toggleFilterSelection(filterType, id),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
+            return ChoiceChip(
+              label: Text(name),
+              selected: isSelected,
+              onSelected: (selected) => _toggleFilterSelection(filterType, id),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -471,20 +376,23 @@ class _ProductScreenState extends State<ProductScreen> {
     if (_isLoading) {
       return const Expanded(child: Center(child: CircularProgressIndicator()));
     }
+
     if (_filteredProducts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off, size: 50, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('No se encontraron productos'),
-            if (_hasActiveFilters)
-              TextButton(
-                onPressed: _clearFilters,
-                child: const Text('Limpiar filtros'),
-              ),
-          ],
+      return Expanded(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off, size: 50, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No se encontraron productos'),
+              if (_hasActiveFilters)
+                TextButton(
+                  onPressed: _clearFilters,
+                  child: const Text('Limpiar filtros'),
+                ),
+            ],
+          ),
         ),
       );
     }
@@ -501,6 +409,7 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  //La tarjetita de los productos
   Widget _buildProductCard(Productos product) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -512,7 +421,6 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              // Imagen del producto
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
                 child: Image.network(
@@ -529,95 +437,43 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nombre del producto con flecha al lado
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            product.prod_Descripcion ?? 'Sin descripción',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, color: Colors.black),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Fila para marca y categoría
-                    Row(
-                      children: [
-                        // Marca
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green[50],
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.green[100]!,
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            product.marc_Descripcion ?? '',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Categoría
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.blue[100]!,
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            product.cate_Descripcion ?? 'Sin categoría',
-                            style: TextStyle(
-                              color: Colors.blue[800],
-                              fontFamily: 'Satoshi',
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Precio
                     Text(
-                      'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
+                      product.prod_Descripcion ?? 'Sin descripción',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        fontFamily: 'Satoshi',
-                        color: Color(0xFF141A2F),
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      product.marc_Descripcion ?? '',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      product.cate_Descripcion ?? '',
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
                 ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'L. ${product.prod_PrecioUnitario.toStringAsFixed(2) ?? '0.00'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
               ),
             ],
           ),
@@ -626,6 +482,7 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  //Detalle del producto
   void _showProductDetail(Productos product) {
     showModalBottomSheet(
       context: context,
@@ -743,20 +600,17 @@ class _ProductScreenState extends State<ProductScreen> {
                 Text(
                   product.marc_Descripcion ?? 'MASTER',
                   style: const TextStyle(
-                    fontSize: 26,
-                    fontFamily: 'Satoshi',
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color.fromARGB(255, 0, 0, 0),
+                    color: Colors.grey,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  product.prod_DescripcionCorta ?? 'PET MASTER',
+                  product.prod_Descripcion ?? 'PET MASTER',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'Satoshi',
-                    color: Color.fromARGB(255, 143, 141, 141),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -773,7 +627,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 255, 255, 255),
+                    color: Colors.green[50],
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -790,15 +644,7 @@ class _ProductScreenState extends State<ProductScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text(
-                      'Solicitar recarga',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Satoshi',
-                        color: Color(0xFFD6B68A),
-                      ),
-                    ),
+                    child: const Text('Solicitar recarga'),
                   ),
                 ),
               ],
@@ -819,10 +665,9 @@ class _ProductScreenState extends State<ProductScreen> {
             width: 100,
             child: Text(
               label,
-              style: TextStyle(
-                color: const Color.fromARGB(255, 0, 0, 0),
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w800,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
               ),
             ),
           ),
