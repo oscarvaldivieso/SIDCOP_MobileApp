@@ -328,17 +328,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             onTap: () async {
               //   await UsuarioService().cerrarSesion();
 
-<<<<<<< Updated upstream
               //   Navigator.pop(context);
-=======
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const InventoryScreen(),
-                ),
-                (route) => false,
-              );
->>>>>>> Stashed changes
 
               //   Navigator.pushAndRemoveUntil(
               //     context,
