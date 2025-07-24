@@ -26,6 +26,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _nombreUsuario = 'Cargando...';
   String _cargoUsuario = 'Cargando...';
   String? _imagenUsuario;
+  String? _imagenVendedor;
+  int? _usuaIdPersona;
   bool _isLoading = true;
 
   @override
@@ -40,12 +42,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
           .obtenerNombreCompleto();
       final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+      
+      // Obtener usuaIdPersona desde los datos guardados
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final usuaIdPersona = userData?['personaId'] as int?;
+      final imagenVendedor = userData?['imagen'] as String?;
 
       if (mounted) {
         setState(() {
           _nombreUsuario = nombreCompleto;
           _cargoUsuario = cargo;
           _imagenUsuario = imagenUsuario;
+          _usuaIdPersona = usuaIdPersona;
+          _imagenVendedor = imagenVendedor;
           _isLoading = false;
         });
       }
@@ -55,6 +64,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _nombreUsuario = 'Usuario';
           _cargoUsuario = 'Sin cargo';
           _imagenUsuario = null;
+          _imagenVendedor = null;
           _isLoading = false;
         });
       }
@@ -329,13 +339,25 @@ class _CustomDrawerState extends State<CustomDrawer> {
             onTap: () {
               Navigator.pop(context);
 
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const InventoryScreen()),
-                (route) => false,
-              );
-
-              print("tiene acceso");
+              // Verificar que usuaIdPersona esté disponible
+              if (_usuaIdPersona != null) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                  ),
+                  (route) => false,
+                );
+                print("Navegando a inventario con usuaIdPersona: $_usuaIdPersona");
+              } else {
+                // Mostrar error si no hay usuaIdPersona
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: No se pudo obtener la información del usuario'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
           ),
         ],
