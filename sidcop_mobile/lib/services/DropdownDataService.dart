@@ -73,7 +73,7 @@ class DropdownDataService {
       // Set default values
       clienteData['usua_Creacion'] = 1;
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
-      clienteData['clie_ImagenDelNegocio'] = 'string';
+      // clie_ImagenDelNegocio will be set by the client creation form
       
       final response = await http.post(
         Uri.parse('$_baseUrl/Cliente/Insertar'),

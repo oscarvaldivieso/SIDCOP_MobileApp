@@ -8,36 +8,34 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class CloudinaryService {
   static const String _cloudName = 'dbt7mxrwk';
+  static const String _apiKey = '134792964771762';
+  static const String _apiSecret = 'ImAB6ob6wd7HosRxpmPeVGQ-Xs0';
   static const String _uploadPreset = 'ml_default';
   static const String _folder = 'Clientes';
 
   Future<String?> uploadImage(File imageFile, {String? publicId}) async {
     try {
-      final fileName = publicId ?? 
-          '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
+      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/upload');
       
-      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
+      // Read file as bytes
+      final bytes = await imageFile.readAsBytes();
       
-      final request = http.MultipartRequest('POST', url)
-        ..fields['upload_preset'] = _uploadPreset
-        ..fields['folder'] = _folder;
+      // Create multipart request
+      var request = http.MultipartRequest('POST', url);
       
-      final fileExtension = path.extension(imageFile.path).replaceAll('.', '');
-      final mimeType = _getMimeType(fileExtension);
-      
-      final fileStream = http.ByteStream(imageFile.openRead());
-      final length = await imageFile.length();
-      
-      final multipartFile = http.MultipartFile(
+      // Add file to request
+      request.files.add(http.MultipartFile.fromBytes(
         'file',
-        fileStream,
-        length,
-        filename: fileName,
-        contentType: MediaType('image', mimeType),
-      );
+        bytes,
+        filename: '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}',
+        contentType: MediaType('image', 'jpeg'),
+      ));
       
-      request.files.add(multipartFile);
+      // Add other parameters
+      request.fields['upload_preset'] = _uploadPreset;
+      request.fields['folder'] = _folder;
       
+      // Send request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       
@@ -53,41 +51,27 @@ class CloudinaryService {
       return null;
     }
   }
-  
-  String _getMimeType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-        return 'jpeg';
-      case 'png':
-        return 'png';
-      case 'gif':
-        return 'gif';
-      case 'webp':
-        return 'webp';
-      default:
-        return 'jpeg';
-    }
-  }
 
   Future<String?> uploadImageFromBytes(Uint8List imageBytes, {String? publicId, String? fileName}) async {
     try {
-      final uniqueFileName = fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
+      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/upload');
       
-      final request = http.MultipartRequest('POST', url)
-        ..fields['upload_preset'] = _uploadPreset
-        ..fields['folder'] = _folder;
+      // Create multipart request
+      var request = http.MultipartRequest('POST', url);
       
-      final multipartFile = http.MultipartFile.fromBytes(
+      // Add file to request
+      request.files.add(http.MultipartFile.fromBytes(
         'file',
         imageBytes,
-        filename: uniqueFileName,
+        filename: fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg',
         contentType: MediaType('image', 'jpeg'),
-      );
+      ));
       
-      request.files.add(multipartFile);
+      // Add other parameters
+      request.fields['upload_preset'] = _uploadPreset;
+      request.fields['folder'] = _folder;
       
+      // Send request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       

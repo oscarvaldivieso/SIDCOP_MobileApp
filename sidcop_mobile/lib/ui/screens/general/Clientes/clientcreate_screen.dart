@@ -88,18 +88,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Observaciones': 'Pendiente',
         'clie_ObservacionRetiro': 'Pendiente',
         'clie_Confirmacion': false,
+        'TiVi_Id': 1,  // Default value as requested
+        'Clie_Nacionalidad': 'pdt',  // Default value as requested
         'usua_Creacion': 1,
         'clie_FechaCreacion': now,
         'clie_Estado': true,
       };
 
-      // Log the complete request payload
-      print('📤 Sending request to API:');
-      print('URL: https://localhost:7071/Cliente/Insertar');
-      print('Headers: {accept: */*, X-Api-Key: bdccf3f3-d486-4e1e-ab44-74081aefcdbc, Content-Type: application/json}');
-      print('Body:');
-      final jsonBody = JsonEncoder.withIndent('  ').convert(clienteData);
-      print(jsonBody);
+      Map<String, dynamic> finalClienteData = Map<String, dynamic>.from(clienteData);
       
       try {
         // Upload image to Cloudinary if one was selected
@@ -109,14 +105,22 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
               ? await cloudinaryService.uploadImageFromBytes(_selectedImageBytes!)
               : await cloudinaryService.uploadImage(_selectedImage!);
           if (imageUrl != null) {
-            clienteData['clie_ImagenDelNegocio'] = imageUrl;
+            finalClienteData['clie_ImagenDelNegocio'] = imageUrl;
             print('✅ Imagen subida correctamente a Cloudinary: $imageUrl');
           } else {
             print('⚠️ No se pudo subir la imagen a Cloudinary');
           }
         }
+        
+        // Log the complete request payload
+        print('📤 Sending request to API:');
+        print('URL: https://localhost:7071/Cliente/Insertar');
+        print('Headers: {accept: */*, X-Api-Key: bdccf3f3-d486-4e1e-ab44-74081aefcdbc, Content-Type: application/json}');
+        print('Body:');
+        final jsonBody = JsonEncoder.withIndent('  ').convert(finalClienteData);
+        print(jsonBody);
 
-        final response = await _dropdownService.insertCliente(clienteData);
+        final response = await _dropdownService.insertCliente(finalClienteData);
         
         // Debug: Print the complete response
         print('📥 API Response:');
