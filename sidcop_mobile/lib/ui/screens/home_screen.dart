@@ -5,6 +5,9 @@ import 'products/products_list_screen.dart';
 import 'recharges/recharges_screen.dart';
 import '../widgets/appBackground.dart';
 
+import '../../services/PerfilUsuarioService.Dart';
+import 'dart:convert';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -15,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _gaugeAnimationController;
   late Animation<double> _gaugeAnimation;
+  List<dynamic> permisos = [];
 
   @override
   void initState() {
@@ -23,23 +27,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    _gaugeAnimation =
-        Tween<double>(
-          begin: 0.0,
-          end: 0.75, // 75%
-        ).animate(
-          CurvedAnimation(
-            parent: _gaugeAnimationController,
-            curve: Curves.easeInOutCubic,
-          ),
-        );
-
+    _gaugeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 0.75, // 75%
+    ).animate(
+      CurvedAnimation(
+        parent: _gaugeAnimationController,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
     // Iniciar la animación después de un pequeño delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         _gaugeAnimationController.forward();
       }
     });
+    _loadPermisos();
   }
 
   @override
@@ -48,11 +51,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+      try {
+        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppBackground(
       title: 'Home',
       icon: Icons.home,
+      permisos: permisos,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
