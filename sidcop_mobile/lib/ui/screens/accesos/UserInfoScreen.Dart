@@ -40,7 +40,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       final telefono = await _perfilUsuarioService.obtenerTelefono();
       final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
-
+  
       if (mounted) {
         setState(() {
           _nombreCompleto = nombreCompleto;

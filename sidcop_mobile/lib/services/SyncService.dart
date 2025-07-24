@@ -27,6 +27,13 @@ class SyncService {
   /// Sincroniza todos los datos cuando hay conexión
   static Future<bool> syncAllData() async {
     try {
+      // Verificar primero si el modo offline está activado
+      final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
+      if (isOfflineMode) {
+        developer.log('Modo offline activado: no se realizará sincronización');
+        return false;
+      }
+
       final hasConnection = await hasInternetConnection();
       if (!hasConnection) {
         developer.log('No hay conexión a internet para sincronizar');
@@ -90,8 +97,18 @@ class SyncService {
   /// Sincroniza datos de productos
   static Future<bool> syncProducts() async {
     try {
+      // Verificar primero si el modo offline está activado
+      final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
+      if (isOfflineMode) {
+        developer.log('Modo offline activado: no se sincronizarán productos');
+        return false;
+      }
+      
       final hasConnection = await hasInternetConnection();
-      if (!hasConnection) return false;
+      if (!hasConnection) {
+        developer.log('Sin conexión a internet: no se sincronizarán productos');
+        return false;
+      }
 
       // Obtener productos desde el servidor
       final productsResponse = await _productosService.getProductos();
@@ -173,58 +190,79 @@ class SyncService {
   //     return [];
   //   }
   // }
-
   /// Obtiene datos de productos (online o offline según configuración)
   static Future<List<Map<String, dynamic>>> getProducts() async {
     try {
       final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
 
-      if (isOfflineMode || !await hasInternetConnection()) {
-        // Modo offline: intentar obtener desde caché primero
-        var products = await CacheService.getCachedProductsData();
+      // Si estamos en modo offline, ni siquiera intentamos conectarnos al servidor
+      if (isOfflineMode) {
+        developer.log('Modo offline activado: usando datos locales');
+        return await _getLocalProductsData();
+      }
 
-        if (products == null || products.isEmpty) {
-          // Si no hay caché, obtener desde CSV cifrado
-          products = await EncryptedCsvStorageService.loadProductsData();
-        }
+      // Verificar conexión solo si no estamos en modo offline
+      final hasConnection = await hasInternetConnection();
+      if (!hasConnection) {
+        developer.log('Sin conexión a internet: usando datos locales');
+        return await _getLocalProductsData();
+      }
+
+      // Modo online: obtener del servidor y actualizar almacenamiento local
+      final productsResponse = await _productosService.getProductos();
+      
+      if (productsResponse.isNotEmpty) {
+        final productsData = productsResponse
+            .map((producto) => producto.toJson())
+            .toList();
+
+        // Guardar en CSV y caché
+        await EncryptedCsvStorageService.saveProductsData(productsData);
+        await CacheService.cacheProductsData(productsData);
 
         developer.log(
-          'Productos obtenidos en modo offline: ${products.length ?? 0} registros',
+          'Productos obtenidos del servidor: ${productsData.length} registros',
         );
-        return products ?? [];
-      } else {
-        // Modo online: obtener desde servidor y actualizar caché/CSV
-        try {
-          final productsResponse = await _productosService.getProductos();
-          if (productsResponse.isNotEmpty) {
-            // Convertir List<Productos> a List<Map<String, dynamic>>
-            final products = productsResponse
-                .map((producto) => producto.toJson())
-                .toList();
-
-            // Actualizar caché y CSV cifrado en background
-            CacheService.cacheProductsData(products);
-            EncryptedCsvStorageService.saveProductsData(products);
-
-            developer.log(
-              'Productos obtenidos en modo online: ${products.length} registros',
-            );
-            return products;
-          }
-        } catch (e) {
-          developer.log(
-            'Error obteniendo productos online, fallback a offline: $e',
-          );
-        }
-
-        // Fallback a datos offline si falla la conexión
-        var products = await CacheService.getCachedProductsData();
-        products ??= await EncryptedCsvStorageService.loadProductsData();
-
-        return products ?? [];
+        return productsData;
       }
+
+      // Si no hay datos en el servidor, intentar usar datos locales
+      return await _getLocalProductsData();
     } catch (e) {
       developer.log('Error obteniendo productos: $e');
+      
+      // En caso de error, intentar obtener datos locales
+      return await _getLocalProductsData();
+    }
+  }
+
+  /// Método auxiliar para obtener datos locales de productos
+  static Future<List<Map<String, dynamic>>> _getLocalProductsData() async {
+    try {
+      // Intentar obtener desde caché primero (más rápido)
+      final cachedProducts = await CacheService.getCachedProductsData();
+      if (cachedProducts != null && cachedProducts.isNotEmpty) {
+        developer.log(
+          'Productos obtenidos desde caché: ${cachedProducts.length} registros',
+        );
+        return cachedProducts;
+      }
+
+      // Si no hay en caché, obtener desde CSV
+      final csvProducts = await EncryptedCsvStorageService.loadProductsData();
+      if (csvProducts.isNotEmpty) {
+        developer.log(
+          'Productos obtenidos desde CSV: ${csvProducts.length} registros',
+        );
+        // Actualizar caché con datos del CSV
+        await CacheService.cacheProductsData(csvProducts);
+        return csvProducts;
+      }
+
+      developer.log('No se encontraron productos en almacenamiento local');
+      return [];
+    } catch (e) {
+      developer.log('Error obteniendo datos locales: $e');
       return [];
     }
   }

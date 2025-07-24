@@ -2,17 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DropdownDataService {
-  final String _baseUrl = 'https://localhost:7071';
+  // final String _baseUrl = 'https://localhost:7071';
+  final String _baseUrl = 'http://200.59.27.115:8091';
   final String _apiKey = 'bdccf3f3-d486-4e1e-ab44-74081aefcdbc';
 
   Future<List<dynamic>> getCanales() async {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/Canal/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -30,10 +28,7 @@ class DropdownDataService {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/EstadosCiviles/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -51,10 +46,7 @@ class DropdownDataService {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/Rutas/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -68,13 +60,15 @@ class DropdownDataService {
     }
   }
 
-  Future<Map<String, dynamic>> insertCliente(Map<String, dynamic> clienteData) async {
+  Future<Map<String, dynamic>> insertCliente(
+    Map<String, dynamic> clienteData,
+  ) async {
     try {
       // Set default values
       clienteData['usua_Creacion'] = 1;
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
       // clie_ImagenDelNegocio will be set by the client creation form
-      
+
       final response = await http.post(
         Uri.parse('$_baseUrl/Cliente/Insertar'),
         headers: {
