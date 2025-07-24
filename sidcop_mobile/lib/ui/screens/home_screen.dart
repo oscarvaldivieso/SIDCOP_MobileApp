@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'general/client_screen.dart';
+import 'general/clientes/client_screen.dart';
 import 'products/products_list_screen.dart';
 import 'recharges/recharges_screen.dart';
 import '../widgets/appBackground.dart';

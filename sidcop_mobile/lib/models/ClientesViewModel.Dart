@@ -27,6 +27,8 @@ class Cliente {
   final String? clie_Observaciones;
   final String? clie_ObservacionRetiro;
   final bool clie_Confirmacion = true;
+  final int TiVi_Id;
+  final String? Clie_Nacionalidad;
   final int usua_Creacion ;
   final DateTime clie_FechaCreacion ;
   final int usua_Modificacion ;
@@ -66,12 +68,13 @@ class Cliente {
     required this.clie_Observaciones,
     required this.clie_ObservacionRetiro,
     required this.clie_Confirmacion,
+    this.TiVi_Id = 1,
+    this.Clie_Nacionalidad = 'pdt',
     required this.usua_Creacion,
     required this.clie_FechaCreacion,
     required this.usua_Modificacion,
     required this.clie_FechaModificacion,
     required this.clie_Estado,
-        
   });
 
   Map<String, dynamic> toJson() {
@@ -102,6 +105,8 @@ class Cliente {
       "clie_Observaciones": clie_Observaciones,
       "clie_ObservacionRetiro": clie_ObservacionRetiro,
       "clie_Confirmacion": clie_Confirmacion,
+      "TiVi_Id": TiVi_Id,
+      "Clie_Nacionalidad": Clie_Nacionalidad,
       "usua_Creacion": usua_Creacion,
       "clie_FechaCreacion": clie_FechaCreacion.toUtc().toIso8601String?(),
       "usua_Modificacion": usua_Modificacion,
@@ -143,12 +148,14 @@ class Cliente {
       clie_Vencido: json['clie_Vencido'],
       clie_Observaciones: json['clie_Observaciones'],
       clie_ObservacionRetiro: json['clie_ObservacionRetiro'],
-      clie_Confirmacion: json['clie_Confirmacion'],
+      clie_Confirmacion: json['clie_Confirmacion'] ?? true,
+      TiVi_Id: json['TiVi_Id'] ?? 1,
+      Clie_Nacionalidad: json['Clie_Nacionalidad'] ?? 'pdt',
       usua_Creacion: json['usua_Creacion'],
-      clie_FechaCreacion: DateTime.parse(json['clie_FechaCreacion']),
-      usua_Modificacion: json['usua_Modificacion'],
-      clie_FechaModificacion: DateTime.parse(json['clie_FechaModificacion']),
-      clie_Estado: json['clie_Estado'],
+      clie_FechaCreacion: json['clie_FechaCreacion'] != null ? DateTime.parse(json['clie_FechaCreacion']) : DateTime.now(),
+      usua_Modificacion: json['usua_Modificacion'] ?? 0,
+      clie_FechaModificacion: json['clie_FechaModificacion'] != null ? DateTime.parse(json['clie_FechaModificacion']) : DateTime.now(),
+      clie_Estado: json['clie_Estado'] ?? true,
       usuarioCreacion: json['usuarioCreacion'],
       usuarioModificacion: json['usuarioModificacion'],
       cana_Descripcion: json['cana_Descripcion'],
