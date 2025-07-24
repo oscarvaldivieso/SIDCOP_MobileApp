@@ -4,13 +4,13 @@ import 'EncryptedCsvStorageService.dart';
 import 'CacheService.dart';
 import 'OfflineConfigService.dart';
 import 'UsuarioService.dart';
-import 'ClientesService.Dart';
+// import 'ClientesService.Dart';
 import 'ProductosService.Dart';
 
 /// Servicio para manejar la sincronización entre datos offline y online
 class SyncService {
   static final UsuarioService _usuarioService = UsuarioService();
-  static final ClientesService _clientesService = ClientesService();
+  // static final ClientesService _clientesService = ClientesService();
   static final ProductosService _productosService = ProductosService();
 
   /// Verifica si hay conexión a internet
@@ -56,36 +56,36 @@ class SyncService {
   }
 
   /// Sincroniza datos de clientes
-  static Future<bool> syncClients() async {
-    try {
-      final hasConnection = await hasInternetConnection();
-      if (!hasConnection) return false;
+  // static Future<bool> syncClients() async {
+  //   try {
+  //     final hasConnection = await hasInternetConnection();
+  //     if (!hasConnection) return false;
 
-      // Obtener clientes desde el servidor
-      final clientsResponse = await _clientesService.getClientes();
+  //     // Obtener clientes desde el servidor
+  //     final clientsResponse = await _clientesService.getClientes();
 
-      if (clientsResponse.isNotEmpty) {
-        // Convertir List<dynamic> a List<Map<String, dynamic>>
-        final clientsData = clientsResponse.cast<Map<String, dynamic>>();
+  //     if (clientsResponse.isNotEmpty) {
+  //       // Convertir List<dynamic> a List<Map<String, dynamic>>
+  //       final clientsData = clientsResponse.cast<Map<String, dynamic>>();
 
-        // Guardar en CSV cifrado
-        await EncryptedCsvStorageService.saveClientsData(clientsData);
+  //       // Guardar en CSV cifrado
+  //       await EncryptedCsvStorageService.saveClientsData(clientsData);
 
-        // Guardar en caché
-        await CacheService.cacheClientsData(clientsData);
+  //       // Guardar en caché
+  //       await CacheService.cacheClientsData(clientsData);
 
-        developer.log(
-          'Clientes sincronizados: ${clientsData.length} registros',
-        );
-        return true;
-      }
+  //       developer.log(
+  //         'Clientes sincronizados: ${clientsData.length} registros',
+  //       );
+  //       return true;
+  //     }
 
-      return false;
-    } catch (e) {
-      developer.log('Error sincronizando clientes: $e');
-      return false;
-    }
-  }
+  //     return false;
+  //   } catch (e) {
+  //     developer.log('Error sincronizando clientes: $e');
+  //     return false;
+  //   }
+  // }
 
   /// Sincroniza datos de productos
   static Future<bool> syncProducts() async {
@@ -122,57 +122,57 @@ class SyncService {
   }
 
   /// Obtiene datos de clientes (online o offline según configuración)
-  static Future<List<Map<String, dynamic>>> getClients() async {
-    try {
-      final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
+  // static Future<List<Map<String, dynamic>>> getClients() async {
+  //   try {
+  //     final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
 
-      if (isOfflineMode || !await hasInternetConnection()) {
-        // Modo offline: intentar obtener d esde caché primero
-        var clients = await CacheService.getCachedClientsData();
+  //     if (isOfflineMode || !await hasInternetConnection()) {
+  //       // Modo offline: intentar obtener d esde caché primero
+  //       var clients = await CacheService.getCachedClientsData();
 
-        if (clients == null || clients.isEmpty) {
-          // Si no hay caché, obtener desde CSV cifrado
-          clients = await EncryptedCsvStorageService.loadClientsData();
-        }
+  //       if (clients == null || clients.isEmpty) {
+  //         // Si no hay caché, obtener desde CSV cifrado
+  //         clients = await EncryptedCsvStorageService.loadClientsData();
+  //       }
 
-        developer.log(
-          'Clientes obtenidos en modo offline: ${clients.length ?? 0} registros',
-        );
-        return clients ?? [];
-      } else {
-        // Modo online: obtener desde servidor y actualizar caché/CSV
-        try {
-          final clientsResponse = await _clientesService.getClientes();
-          if (clientsResponse.isNotEmpty) {
-            // Convertir List<dynamic> a List<Map<String, dynamic>>
-            final clients = clientsResponse.cast<Map<String, dynamic>>();
+  //       developer.log(
+  //         'Clientes obtenidos en modo offline: ${clients.length ?? 0} registros',
+  //       );
+  //       return clients ?? [];
+  //     } else {
+  //       // Modo online: obtener desde servidor y actualizar caché/CSV
+  //       try {
+  //         final clientsResponse = await _clientesService.getClientes();
+  //         if (clientsResponse.isNotEmpty) {
+  //           // Convertir List<dynamic> a List<Map<String, dynamic>>
+  //           final clients = clientsResponse.cast<Map<String, dynamic>>();
 
-            // Actualizar caché  y CSV cifrado en background
-            CacheService.cacheClientsData(clients);
-            EncryptedCsvStorageService.saveClientsData(clients);
+  //           // Actualizar caché  y CSV cifrado en background
+  //           CacheService.cacheClientsData(clients);
+  //           EncryptedCsvStorageService.saveClientsData(clients);
 
-            developer.log(
-              'Clientes obtenidos en modo online: ${clients.length} registros',
-            );
-            return clients;
-          }
-        } catch (e) {
-          developer.log(
-            'Error obteniendo clientes online, fallback a offline: $e',
-          );
-        }
+  //           developer.log(
+  //             'Clientes obtenidos en modo online: ${clients.length} registros',
+  //           );
+  //           return clients;
+  //         }
+  //       } catch (e) {
+  //         developer.log(
+  //           'Error obteniendo clientes online, fallback a offline: $e',
+  //         );
+  //       }
 
-        // Fallback a datos offline si falla la conexión
-        var clients = await CacheService.getCachedClientsData();
-        clients ??= await EncryptedCsvStorageService.loadClientsData();
+  //       // Fallback a datos offline si falla la conexión
+  //       var clients = await CacheService.getCachedClientsData();
+  //       clients ??= await EncryptedCsvStorageService.loadClientsData();
 
-        return clients ?? [];
-      }
-    } catch (e) {
-      developer.log('Error obteniendo clientes: $e');
-      return [];
-    }
-  }
+  //       return clients ?? [];
+  //     }
+  //   } catch (e) {
+  //     developer.log('Error obteniendo clientes: $e');
+  //     return [];
+  //   }
+  // }
 
   /// Obtiene datos de productos (online o offline según configuración)
   static Future<List<Map<String, dynamic>>> getProducts() async {
@@ -245,13 +245,13 @@ class SyncService {
       List<String> errors = [];
 
       // Sincronizar clientes
-      try {
-        if (await syncClients()) {
-          syncedItems++;
-        }
-      } catch (e) {
-        errors.add('Clientes: $e');
-      }
+      // try {
+      //   if (await syncClients()) {
+      //     syncedItems++;
+      //   }
+      // } catch (e) {
+      //   errors.add('Clientes: $e');
+      // }
 
       // Sincronizar productos
       try {
