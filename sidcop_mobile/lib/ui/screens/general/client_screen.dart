@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
-import 'package:sidcop_mobile/ui/widgets/drawer.dart';
-import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:flutter_svg/svg.dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
@@ -30,13 +28,9 @@ class _clientScreenState extends State<clientScreen> {
   int? _selectedColo;
 
   @override
-  @override
   void initState() {
-
-
-
     super.initState();
- // Cargar direccionesPorCliente antes de inicializar la lista filtrada
+    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
     _clienteService.getDireccionesPorCliente().then((direcciones) {
       setState(() {
         _direccionesPorCliente = direcciones;
@@ -48,21 +42,17 @@ class _clientScreenState extends State<clientScreen> {
       });
     });
 
-
     clientesList = ClientesService().getClientes();
-    // Cargar TODOS los datos de ubicación al inicializar - REEMPLAZA _loadDepartamentos();
+    // Cargar TODOS los datos de ubicación al inicializar
     _loadAllLocationData();
     
     // Cargar cuentas por cobrar
     _clienteService.getCuentasPorCobrar().then((cuentas) {
       setState(() {
         print('Cuentas por cobrarrr: ${cuentas}');
-          _cuentasPorCobrar = cuentas;
-        
+        _cuentasPorCobrar = cuentas;
       });
     });
-    
-   
   }
 
   @override
@@ -282,7 +272,7 @@ class _clientScreenState extends State<clientScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: 16.0,
+        horizontal: 0.0,
         vertical: 8.0,
       ),
       child: Container(
@@ -338,7 +328,7 @@ class _clientScreenState extends State<clientScreen> {
     final int resultCount = filteredClientes.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 0.0),
       child: Row(
         children: [
           // Contador de resultados
@@ -347,8 +337,6 @@ class _clientScreenState extends State<clientScreen> {
             style: const TextStyle(color: Colors.grey),
           ),
           const Spacer(),
-          // Botón para limpiar filtros (opcional)
-         
           const SizedBox(width: 8),
           // Botón de filtrar
           ElevatedButton.icon(
@@ -368,281 +356,221 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(),
-      backgroundColor: const Color(0xFFF6F6F6),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF141A2F),
-        onPressed: () {
-          // Acción para agregar un nuevo cliente
-        },
-        shape: const CircleBorder(),
-        elevation: 4.0,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 16.0,
-            ),
-            child: Card.filled(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              clipBehavior: Clip.antiAliasWithSaveLayer,
-              color: const Color(0xFFE0C7A0), // Color actualizado
-              child: SizedBox(
-                width: double.infinity,
-                height: MediaQuery.of(context).size.height * 0.18,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Transform.flip(
-                        flipX: true,
-                        child: SvgPicture.asset(
-                          'BreadCrumSVG2.svg',
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Text(
-                          'Clientes',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontFamily: 'Satoshi',
-                            fontSize: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Positioned(
-                      bottom: 12,
-                      right: 18,
-                      child: Icon(
-                        Icons.people,
-                        color: Color(0xFFE0C7A0),
-                        size: 32,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _buildSearchBar(),
-          _buildFilterAndCount(),
-          Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: clientesList,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No hay clientes'));
-                } else {
-                  // Verificar si hay algún filtro activo (texto o ubicación)
-                  final bool hasTextFilter = _searchController.text.isNotEmpty;
-                  final bool hasLocationFilter = _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
-                  final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
-                  
-                  // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
-                  final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
+  Widget _buildClientesList() {
+    return FutureBuilder<List<dynamic>>(
+      future: clientesList,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No hay clientes'));
+        } else {
+          // Verificar si hay algún filtro activo (texto o ubicación)
+          final bool hasTextFilter = _searchController.text.isNotEmpty;
+          final bool hasLocationFilter = _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
+          final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+          
+          // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
+          final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
 
-                  if (clientes.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No se encontraron clientes con ese criterio',
-                      ),
-                    );
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: ListView.builder(
-                      itemCount: clientes.length,
-                      itemBuilder: (context, index) {
-                        final cliente = clientes[index];
-                        return Card(
-                          margin: const EdgeInsets.all(8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 4,
-                          child: SizedBox(
-                            height: 140,
-                            child: Row(
-                              children: [
-                                // Image on the left
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    bottomLeft: Radius.circular(16),
-                                  ),
-                                  child: Image.network(
-                                    '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+          if (clientes.isEmpty) {
+            return const Center(
+              child: Text(
+                'No se encontraron clientes con ese criterio',
+              ),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: clientes.length,
+            itemBuilder: (context, index) {
+              final cliente = clientes[index];
+              return Card(
+                margin: const EdgeInsets.all(8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 4,
+                child: SizedBox(
+                  height: 140,
+                  child: Row(
+                    children: [
+                      // Image on the left
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                        ),
+                        child: Image.network(
+                          '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                          height: 140,
+                          width: 140, // Fixed width for the image
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, error, stackTrace) =>
+                                  Container(
                                     height: 140,
-                                    width: 140, // Fixed width for the image
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              height: 140,
-                                              width: 140,
-                                              color: Colors.grey[300],
-                                              child: const Icon(
-                                                Icons.person,
-                                                size: 40,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
+                                    width: 140,
+                                    color: Colors.grey[300],
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                ),
-                                // Content on the right
-                                Expanded(
-                                  child: Stack(
+                        ),
+                      ),
+                      // Content on the right
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                const SizedBox(height: 10),
-                                                Text(
-                                                  '${cliente['clie_NombreNegocio'] ?? ''}',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  cliente['clie_Nombres'] + ' ' + cliente['clie_Apellidos'] ??
-                                                      'Sin dirección',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            SizedBox(
-                                              width: double.infinity,
-                                              height: 40,
-                                              child: ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color(
-                                                    0xFF141A2F,
-                                                  ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                      ),
-                                                ),
-                                                onPressed: () {},
-                                                child: const Text(
-                                                  'Detalles',
-                                                  style: TextStyle(
-                                                    fontSize: 16,
-                                                    color: Color(0xFFD6B68A),
-                                                    fontWeight: FontWeight.bold,
-                                                    letterSpacing: 1.1,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        '${cliente['clie_NombreNegocio'] ?? ''}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
                                         ),
+                                        maxLines: 1,
+                                        overflow:
+                                            TextOverflow.ellipsis,
                                       ),
-                                      // Badge de monto
-                                      Positioned(
-                                        top: 0,
-                                        right: 0,
-                                        child: Builder(builder: (context) {
-                                          final amount = _getBadgeAmount(cliente['clie_Id'], cliente['clie_LimiteCredito']);
-                                          final isZero = amount == 0;
-                                          
-                                          return Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: _getBadgeColor(
-                                                cliente['clie_Id'],
-                                                amount: amount,
-                                              ),
-                                              borderRadius:
-                                                  const BorderRadius.only(
-                                                    topRight: Radius.circular(16),
-                                                    bottomLeft: Radius.circular(
-                                                      16,
-                                                    ),
-                                                    topLeft: Radius.circular(0),
-                                                    bottomRight: Radius.circular(
-                                                      0,
-                                                    ),
-                                                  ),
-                                            ),
-                                            child: Text(
-                                              isZero ? 'Sin crédito' : 'L. ${amount.toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          );
-                                        }),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        cliente['clie_Nombres'] + ' ' + cliente['clie_Apellidos'] ??
+                                            'Sin dirección',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 40,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                                12,
+                                              ),
+                                        ),
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                      ),
+                                      onPressed: () {},
+                                      child: const Text(
+                                        'Detalles',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Color(0xFFD6B68A),
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
+                            // Badge de monto
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Builder(builder: (context) {
+                                final amount = _getBadgeAmount(cliente['clie_Id'], cliente['clie_LimiteCredito']);
+                                final isZero = amount == 0;
+                                
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getBadgeColor(
+                                      cliente['clie_Id'],
+                                      amount: amount,
+                                    ),
+                                    borderRadius:
+                                        const BorderRadius.only(
+                                          topRight: Radius.circular(16),
+                                          bottomLeft: Radius.circular(
+                                            16,
+                                          ),
+                                          topLeft: Radius.circular(0),
+                                          bottomRight: Radius.circular(
+                                            0,
+                                          ),
+                                        ),
+                                  ),
+                                  child: Text(
+                                    isZero ? 'Sin crédito' : 'L. ${amount.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBackground(
+      title: 'Clientes',
+      icon: Icons.people,
+      child: Column(
+        children: [
+          _buildSearchBar(),
+          const SizedBox(height: 12),
+          _buildFilterAndCount(),
+          const SizedBox(height: 16),
+          _buildClientesList(),
         ],
       ),
+      // FloatingActionButton se mantiene fuera del AppBackground
     );
   }
 
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-  print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
     if (clienteId == null) return Colors.grey;
     
     // Si el monto es 0, mostrar gris (sin crédito)
