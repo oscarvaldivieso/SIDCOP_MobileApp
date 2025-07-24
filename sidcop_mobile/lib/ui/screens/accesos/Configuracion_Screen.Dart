@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/ConfiguracionSerivice.Dart';
+import '../../widgets/OfflineConfigWidget.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   @override
@@ -16,16 +18,16 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Limpiar Caché'),
-          content: Text('¿Está seguro de que desea limpiar toda la memoria caché? Esta acción eliminará todos los datos almacenados temporalmente.'),
+          title: Text('Limpiar Caché', style: TextStyle(fontFamily: 'Satoshi')),
+          content: Text('¿Está seguro de que desea limpiar toda la memoria caché? Esta acción eliminará todos los datos almacenados temporalmente.', style: TextStyle(fontFamily: 'Satoshi')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Cancelar'),
+              child: Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Limpiar', style: TextStyle(color: Colors.red)),
+              child: Text('Limpiar', style: TextStyle(color: Colors.red, fontFamily: 'Satoshi')),
             ),
           ],
         );
@@ -43,7 +45,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(width: 20),
-                Text('Limpiando caché...'),
+                Text('Limpiando caché...', style: TextStyle(fontFamily: 'Satoshi')),
               ],
             ),
           );
@@ -64,6 +66,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               resultado 
                 ? 'Caché limpiado exitosamente' 
                 : 'Error al limpiar caché',
+              style: TextStyle(fontFamily: 'Satoshi'),
             ),
             backgroundColor: resultado ? Colors.green : Colors.red,
             duration: Duration(seconds: 3),
@@ -75,7 +78,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error inesperado al limpiar caché'),
+            content: Text('Error inesperado al limpiar caché', style: TextStyle(fontFamily: 'Satoshi')),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -87,140 +90,210 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Color(0xFF19213B),
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Configuración',
-          style: TextStyle(color: Colors.white),
-        ),
-        centerTitle: false,
-      ),
-      body: Stack(
-        children: [
-          Container(
-            height: 160,
-            decoration: BoxDecoration(
-              color: Color(0xFF19213B),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(40),
-                bottomRight: Radius.circular(40),
+      backgroundColor: Colors.white, // Fondo blanco para toda la pantalla
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Sección superior con fondo SVG como UserInfoScreen
+            Container(
+              width: double.infinity,
+              height: 300,
+              color: const Color(0xFF1a1d3a),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Imagen SVG de fondo con flip horizontal y opacidad (igual que UserInfoScreen)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 200,
+                    child: ClipRRect(
+                      child: Opacity(
+                        opacity: 0.4,
+                        child: Transform.flip(
+                          child: SvgPicture.asset(
+                            'assets/FondoNuevo2.svg',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Ícono de configuración
+                  Positioned(
+                    top: 100,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.2),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.settings,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  // AppBar personalizado integrado
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 60,
+                      color: const Color(0xFF1a1d3a),
+                      child: SafeArea(
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            const Text(
+                              'Configuración',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 40),
-                child: Icon(Icons.settings, color: Colors.white, size: 48),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 100),
+            // Contenido principal con fondo blanco
+            Transform.translate(
+              offset: const Offset(0, -50),
               child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
+                margin: const EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Cuenta
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.wifi, color: Color(0xFF1CBF63)),
-                              SizedBox(width: 8),
-                              Text(
-                                'Online',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          Switch(
-                            value: isOnline,
-                            activeColor: Color(0xFF1CBF63),
-                            onChanged: (val) {
-                              setState(() => isOnline = val);
-                            },
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 24),
-                      // Acerca de
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Acerca de',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                      // Sección Cuenta alineada a la izquierda
+                      const Text(
+                        'Cuenta',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
                         ),
                       ),
-                      ListTile(
-                        leading: Icon(Icons.help_outline, color: Colors.black54),
-                        title: Text('Ayuda y soporte'),
-                        trailing: Icon(Icons.chevron_right),
-                        onTap: () {},
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.info_outline, color: Colors.black54),
-                        title: Text('Términos y condiciones'),
-                        trailing: Icon(Icons.chevron_right),
-                        onTap: () {},
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                      SizedBox(height: 12),
-                      // Almacenamiento y sincronización
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Almacenamiento y sincronización',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                      const SizedBox(height: 12),
+                      
+                      // Widget de configuración offline
+                      const OfflineConfigWidget(),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Sección Acerca de
+                      const Text(
+                        'Acerca de',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      
                       ListTile(
-                        leading: Icon(Icons.delete_outline, color: Colors.black54),
-                        title: Text('Limpiar caché'),
-                        trailing: Icon(Icons.chevron_right),
+                        leading: const Icon(Icons.help_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Ayuda y soporte',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+                        onTap: () {},
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      
+                      ListTile(
+                        leading: const Icon(Icons.info_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Términos y condiciones',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+                        onTap: () {},
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Sección Almacenamiento y sincronización
+                      const Text(
+                        'Almacenamiento',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      ListTile(
+                        leading: const Icon(Icons.delete_outline, color: Color(0xFF666666)),
+                        title: const Text(
+                          'Limpiar caché',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
                         onTap: () => _limpiarCache(),
                         contentPadding: EdgeInsets.zero,
-                        dense: true,
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+            // Espacio adicional para asegurar fondo blanco completo
+            Container(
+              height: 100,
+              color: Colors.white,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+
