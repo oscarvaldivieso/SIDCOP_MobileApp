@@ -16,6 +16,16 @@ class RechargesScreen extends StatefulWidget {
 }
 
 class _RechargesScreenState extends State<RechargesScreen> {
+  Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
+    if (personaId == null) {
+      throw Exception('No se encontró personaId en los datos de usuario');
+    }
+    return RecargasService().getRecargas(personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0);
+  }
+
   List<dynamic> permisos = [];
 
   @override
@@ -84,12 +94,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 ],
               ),
               FutureBuilder<List<RecargasViewModel>>(
-                future: RecargasService().getRecargas(),
+                future: _getRecargasConPersonaId(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
                     return Center(child: Text('Error: \\${snapshot.error}'));
                   }
                   final recargas = snapshot.data ?? [];

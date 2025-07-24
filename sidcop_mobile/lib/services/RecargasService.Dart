@@ -9,9 +9,9 @@ class RecargasService
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
-  Future<List<RecargasViewModel>> getRecargas() async 
+  Future<List<RecargasViewModel>> getRecargas(int personaId) async 
   {
-    final url = Uri.parse('https://$_apiServer/Recargas/Listar');
+    final url = Uri.parse('https://$_apiServer/Recargas/ListarVendedor/$personaId');
 
     try
     {
@@ -36,10 +36,22 @@ class RecargasService
           return [];
         }
         
-        final List<dynamic> recargasList = jsonDecode(responseBody);
+        final decoded = jsonDecode(responseBody);
+        List<dynamic> recargasList;
+        if (decoded is List) {
+          recargasList = decoded;
+        } else if (decoded is Map<String, dynamic>) {
+          // Busca una propiedad común: "data", "recargas", "result", etc.
+          recargasList = decoded['data'] ?? decoded['recargas'] ?? decoded['result'] ?? [];
+          if (recargasList is! List) {
+            recargasList = [];
+          }
+        } else {
+          recargasList = [];
+        }
         return recargasList
-        .map((json) => RecargasViewModel.fromJson(json as Map<String, dynamic>))
-        .toList();
+            .map((json) => RecargasViewModel.fromJson(json as Map<String, dynamic>))
+            .toList();
 
       } 
       else

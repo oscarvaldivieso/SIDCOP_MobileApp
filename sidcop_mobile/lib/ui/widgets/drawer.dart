@@ -9,6 +9,8 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
 import '../../services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -137,8 +139,13 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                       ),
                       tooltip: 'Cerrar sesión',
-                      onPressed: () {
-                        // Acción de logout aquí
+                      onPressed: () async {
+                        await _perfilUsuarioService.limpiarDatosUsuario();
+                        if (!mounted) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+                          (route) => false,
+                        );
                       },
                     ),
                   ],
