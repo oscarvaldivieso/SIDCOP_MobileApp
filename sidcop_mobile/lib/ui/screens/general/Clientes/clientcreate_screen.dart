@@ -256,6 +256,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
               
               // Apellidos
               _buildTextField('Apellidos', _apellidosController, 'Ingrese los apellidos', isRequired: true),
+              
+              // Identidad
+              _buildTextField('Identidad', _dniController, 'Ej: 0501-2009-2452', isRequired: true, keyboardType: TextInputType.number),
+              
+              // Nombre del Negocio
+              _buildTextField('Nombre del Negocio', _nombreNegocioController, 'Ingrese el nombre del negocio', isRequired: true),
+              
               const SizedBox(height: 16),
               
               // Image Picker
@@ -310,12 +317,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   ],
                 ],
               ),
-              const SizedBox(height: 16),  
-              // Identidad
-              _buildTextField('Identidad', _dniController, 'Ej: 0501-2009-2452', isRequired: true, keyboardType: TextInputType.number),
-              
-              // Nombre del Negocio
-              _buildTextField('Nombre del Negocio', _nombreNegocioController, 'Ingrese el nombre del negocio', isRequired: true),
               
               // Agregar Ubicación Button
               _buildLocationButton(),
