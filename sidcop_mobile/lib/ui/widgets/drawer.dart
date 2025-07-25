@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
@@ -26,6 +27,7 @@ class CustomDrawer extends StatefulWidget {
 
 class _CustomDrawerState extends State<CustomDrawer> {
   final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final UsuarioService _usuarioService = UsuarioService();
 
   String _nombreUsuario = 'Cargando...';
   String _cargoUsuario = 'Cargando...';
@@ -154,7 +156,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
+                        // Limpiar datos del usuario
                         await _perfilUsuarioService.limpiarDatosUsuario();
+                        
+                        // Limpiar contraseña almacenada para modo offline
+                        await _usuarioService.limpiarContrasenaOffline();
+                        
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
