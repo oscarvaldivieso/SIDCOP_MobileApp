@@ -13,7 +13,7 @@ class ClientesService {
 
   Future<List<dynamic>> getClientes() async{
 
-    final url = Uri.parse('https://$_apiServer/Cliente/Listar');
+    final url = Uri.parse('$_apiServer/Cliente/Listar');
     developer.log('Get Clientes Request URL: $url');
     try {
       final response = await http.get(
@@ -40,7 +40,7 @@ class ClientesService {
 
   Future<List<dynamic>> getDireccionesPorCliente() async{
 
-    final url = Uri.parse('https://$_apiServer/DireccionesPorCliente/Listar');
+    final url = Uri.parse('$_apiServer/DireccionesPorCliente/Listar');
     developer.log('Get DireccionesPorCliente Request URL: $url');
     try {
       final response = await http.get(
@@ -67,7 +67,7 @@ class ClientesService {
 
   Future<List<dynamic>> getCuentasPorCobrar() async {
 
-    final url = Uri.parse('https://$_apiServer/CuentasPorCobrar/Listar');
+    final url = Uri.parse('$_apiServer/CuentasPorCobrar/Listar');
     developer.log('Get CuentasPorCobrar Request URL: $url');
     try {
       final response = await http.get(
@@ -93,7 +93,7 @@ class ClientesService {
   }
 
   Future<List<Map<String, dynamic>>> getDepartamentos() async {
-    final url = Uri.parse('https://$_apiServer/Departamentos/Listar');
+    final url = Uri.parse('$_apiServer/Departamentos/Listar');
     developer.log('Get Departamentos Request URL: $url');
     try {
       final response = await http.get(
@@ -114,7 +114,7 @@ class ClientesService {
   }
 
   Future<List<Map<String, dynamic>>> getMunicipios() async {
-    final url = Uri.parse('https://$_apiServer/Municipios/Listar');
+    final url = Uri.parse('$_apiServer/Municipios/Listar');
     developer.log('Get Municipios Request URL: $url');
     try {
       final response = await http.get(

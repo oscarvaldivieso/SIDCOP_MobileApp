@@ -11,7 +11,7 @@ class UsuarioService {
     String usuario,
     String clave,
   ) async {
-    final url = Uri.parse('https://$_apiServer/Usuarios/IniciarSesion');
+    final url = Uri.parse('$_apiServer/Usuarios/IniciarSesion');
 
     developer.log('Iniciar Sesion Request URL: $url');
 
