@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 
 import '../../widgets/custom_input.dart';
@@ -23,6 +25,14 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _isLoading = false;
 
+  /// Verifica el estado de la conexión a internet
+  Future<bool> _tieneConexionInternet() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+  
+
+
   Future<void> _handleLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
@@ -37,14 +47,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // El UsuarioService ahora maneja automáticamente online/offline
       final result = await _usuarioService.iniciarSesion(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
       if (result != null && result['error'] != true) {
-        // Login exitoso - guardar datos del usuario y navegar al home screen
+        // Login exitoso - guardar datos del usuario
         await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        developer.log('Login exitoso: ${result['offline'] == true ? 'OFFLINE' : 'ONLINE'}');
         
         if (mounted) {
           Navigator.pushReplacement(
@@ -55,12 +68,12 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // Login fallido - mostrar error
         setState(() {
-          _error = 'Credenciales incorrectas, intenta de nuevo';
+          _error = result?['message'] ?? 'Credenciales incorrectas';
         });
       }
     } catch (e) {
       setState(() {
-        _error = 'Error de conexión: $e';
+        _error = 'Error: $e';
       });
     } finally {
       if (mounted) {

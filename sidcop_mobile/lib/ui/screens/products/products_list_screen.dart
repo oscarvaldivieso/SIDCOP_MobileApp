@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/services/RecargasService.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -36,15 +36,63 @@ class _ProductScreenState extends State<ProductScreen> {
     _searchController.addListener(_applyFilters);
   }
 
+  /// Método optimizado para cargar productos usando precarga cuando esté disponible
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
+    
     try {
-      _allProducts = await _productosService.getProductos();
+      // PASO 1: Verificar si los productos están precargados
+      if (ProductPreloadService.isPreloaded()) {
+        debugPrint('⚡ Usando productos precargados (carga instantánea)');
+        
+        // Obtener productos precargados directamente
+        _allProducts = ProductPreloadService.getPreloadedProducts();
+        _filteredProducts = List.from(_allProducts);
+        
+        debugPrint('✅ Productos cargados instantáneamente: ${_allProducts.length}');
+        
+        // Actualizar UI inmediatamente
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      // PASO 2: Si no están precargados, cargar normalmente
+      debugPrint('🔄 Productos no precargados, cargando desde servidor/caché...');
+      
+      // Usar SyncService.getProducts() para aprovechar funcionalidad offline
+      final productsData = await SyncService.getProducts();
+      
+      // Convertir List<Map<String, dynamic>> a List<Productos>
+      _allProducts = productsData.map((productMap) => 
+        Productos.fromJson(productMap)
+      ).toList();
+      
       _filteredProducts = List.from(_allProducts);
+      debugPrint('✅ Productos cargados desde servidor/caché: ${_allProducts.length}');
+      
+      // PASO 3: Iniciar precarga en segundo plano para próximas veces
+      if (!ProductPreloadService.isPreloading()) {
+        debugPrint('🚀 Iniciando precarga en segundo plano para futuras cargas...');
+        ProductPreloadService.preloadInBackground();
+      }
+      
     } catch (e) {
-      debugPrint('Error cargando productos: $e');
+      debugPrint('❌ Error cargando productos: $e');
+      
+      // Mostrar mensaje de error al usuario
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error cargando productos: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -57,8 +105,9 @@ class _ProductScreenState extends State<ProductScreen> {
         final matchesSearch =
             searchTerm.isEmpty ||
             (product.prod_Descripcion?.toLowerCase().contains(searchTerm) ??
-                false) ||
-            (product.prod_Codigo?.toLowerCase().contains(searchTerm) ?? false);
+                false ||
+                    (product.prod_Codigo?.toLowerCase().contains(searchTerm) ??
+                        false));
 
         // Filtros por categorías, subcategorías y marcas
         final matchesFilters = _selectedFilters.entries.every((entry) {
@@ -123,7 +172,8 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
           child: Column(
             children: [
-              _buildSearchBar(), // Ahora incluye el ícono de filtrar
+              _buildSearchBar(),
+              _buildFilterButton(),
               _buildResultsCount(),
               _buildProductList(),
             ],
@@ -136,42 +186,22 @@ class _ProductScreenState extends State<ProductScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Buscar productos...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applyFilters();
-                        },
-                      )
-                    : null,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
-            child: IconButton(
-              onPressed: _showFiltersPanel,
-              icon: const Icon(
-                Icons.filter_list,
-                color: Color.fromARGB(255, 134, 134, 134),
-              ),
-              tooltip: 'Filtrar',
-            ),
-          ),
-        ],
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Buscar productos...',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    _applyFilters();
+                  },
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -213,177 +243,166 @@ class _ProductScreenState extends State<ProductScreen> {
             minChildSize: 0.5,
             maxChildSize: 0.9,
             builder: (context, scrollController) {
-              return StatefulBuilder(
-                // Agregamos StatefulBuilder aquí
-                builder: (context, setModalState) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141A2F),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(20),
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141A2F),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 8, bottom: 8),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(top: 8, bottom: 8),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => Navigator.pop(context),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Filtrar productos',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontFamily: 'Satoshi',
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const Spacer(),
-                              TextButton(
-                                onPressed: () {
-                                  _clearFilters();
-                                  setModalState(() {}); // Refrescar el modal
-                                },
-                                child: const Text('Limpiar'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFFD6B68A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: FutureBuilder(
-                            future: Future.wait([
-                              _productosService.getCategorias(),
-                              _productosService.getSubcategorias(),
-                              _productosService.getMarcas(),
-                            ]),
-                            builder:
-                                (
-                                  context,
-                                  AsyncSnapshot<List<dynamic>> snapshot,
-                                ) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(),
-                                    );
-                                  }
-                                  if (snapshot.hasError) {
-                                    return const Center(
-                                      child: Text('Error al cargar filtros'),
-                                    );
-                                  }
 
-                                  final categorias =
-                                      snapshot.data?[0]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
-                                  final subcategorias =
-                                      snapshot.data?[1]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
-                                  final marcas =
-                                      snapshot.data?[2]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
 
-                                  return SingleChildScrollView(
-                                    controller: scrollController,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.close),
+
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Filtrar productos',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.bold,
+                              color: Color.fromARGB(255, 255, 255, 255),
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: _clearFilters,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFD6B68A),
+                            ),
+                            child: const Text('Limpiar'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Expanded(
+                      child: FutureBuilder(
+                        future: Future.wait([
+                          _productosService.getCategorias(),
+                          _productosService.getSubcategorias(),
+                          _productosService.getMarcas(),
+                        ]),
+                        builder:
+                            (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+
+                              if (snapshot.hasError) {
+                                return const Center(
+                                  child: Text('Error al cargar filtros'),
+                                );
+                              }
+
+                              final categorias =
+                                  snapshot.data?[0]
+                                      as List<Map<String, dynamic>>? ??
+                                  [];
+                              final subcategorias =
+                                  snapshot.data?[1]
+                                      as List<Map<String, dynamic>>? ??
+                                  [];
+                              final marcas =
+                                  snapshot.data?[2]
+                                      as List<Map<String, dynamic>>? ??
+                                  [];
+
+                              return SingleChildScrollView(
+                                controller: scrollController,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      _buildFilterSection(
+                                        'Categorías',
+                                        Icons.category,
+                                        categorias,
+                                        'cate_Id',
+                                        'cate_Descripcion',
+                                        'categorias',
                                       ),
-                                      child: Column(
-                                        children: [
-                                          _buildFilterSection(
-                                            'Categorías',
-                                            Icons.category,
-                                            categorias,
-                                            'cate_Id',
-                                            'cate_Descripcion',
-                                            'categorias',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          _buildFilterSection(
-                                            'Subcategorías',
-                                            Icons.list,
-                                            subcategorias,
-                                            'subc_Id',
-                                            'subc_Descripcion',
-                                            'subcategorias',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          _buildFilterSection(
-                                            'Marcas',
-                                            Icons.branding_watermark,
-                                            marcas,
-                                            'marc_Id',
-                                            'marc_Descripcion',
-                                            'marcas',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          const SizedBox(height: 24),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              onPressed: () {
-                                                _applyFilters();
-                                                Navigator.pop(context);
-                                              },
-                                              child: const Text(
-                                                'Aplicar filtros',
-                                              ),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(
-                                                  0xFF141A2F,
-                                                ),
-                                                side: const BorderSide(
-                                                  color: Color(0xFFD6B68A),
-                                                ),
-                                                elevation: 0,
-                                                foregroundColor: const Color(
-                                                  0xFFD6B68A,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 16,
-                                                    ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                ),
-                                              ),
+
+                                      _buildFilterSection(
+                                        'Subcategorías',
+                                        Icons.list,
+                                        subcategorias,
+                                        'subc_Id',
+                                        'subc_Descripcion',
+                                        'subcategorias',
+                                      ),
+
+                                      _buildFilterSection(
+                                        'Marcas',
+                                        Icons.branding_watermark,
+                                        marcas,
+                                        'marc_Id',
+                                        'marc_Descripcion',
+                                        'marcas',
+                                      ),
+
+                                      const SizedBox(height: 24),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            _applyFilters();
+                                            Navigator.pop(context);
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF141A2F,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFFD6B68A),
+                                            ),
+                                            elevation: 0,
+                                            foregroundColor: const Color(
+                                              0xFFD6B68A,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 16,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
                                             ),
                                           ),
-                                          const SizedBox(height: 16),
-                                        ],
+                                          child: const Text('Aplicar filtros'),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                          ),
-                        ),
-                      ],
+                                      const SizedBox(height: 16),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                      ),
                     ),
-                  );
-                },
+                  ],
+                ),
               );
             },
           ),
@@ -399,11 +418,11 @@ class _ProductScreenState extends State<ProductScreen> {
     String idKey,
     String nameKey,
     String filterType,
-    StateSetter setModalState, // Agregamos este parámetro
   ) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
+
       decoration: BoxDecoration(
         color: const Color(0xFF141A2F),
         borderRadius: BorderRadius.circular(12),
@@ -413,7 +432,12 @@ class _ProductScreenState extends State<ProductScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: Colors.white),
+              Icon(
+                icon,
+                size: 20,
+                color: const Color.fromARGB(255, 255, 255, 255),
+              ),
+
               const SizedBox(width: 8),
               Text(
                 title,
@@ -438,22 +462,28 @@ class _ProductScreenState extends State<ProductScreen> {
                 label: Text(
                   name,
                   style: TextStyle(
-                    color: isSelected ? Colors.black : Colors.white,
+                    color: isSelected
+                        ? const Color.fromARGB(255, 0, 0, 0)
+                        : const Color.fromARGB(255, 255, 255, 255),
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: const Color(0xFFD6B68A),
-                backgroundColor: const Color(0xFF141A2F),
+                selectedColor: const Color(
+                  0xFFD6B68A,
+                ), //cuando está seleccionado
+                backgroundColor: const Color(
+                  0xFF141A2F,
+                ), //  cuando no está seleccionado
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected ? Colors.white : const Color(0xFFD6B68A),
+                    color: isSelected
+                        ? const Color.fromARGB(255, 255, 255, 255)
+                        : const Color(0xFFD6B68A),
                   ),
                 ),
-                onSelected: (selected) {
-                  _toggleFilterSelection(filterType, id);
-                  setModalState(() {}); // Refrescamos el modal inmediatamente
-                },
+                onSelected: (selected) =>
+                    _toggleFilterSelection(filterType, id),
               );
             }).toList(),
           ),
@@ -533,26 +563,18 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
+              // Imagen del producto mejorada
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
-                child: Image.network(
-                  product.prod_Imagen ?? '',
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.image, color: Colors.grey),
-                  ),
-                ),
+                child: _buildProductImage(product),
               ),
               const SizedBox(width: 16),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Nombre del producto con flecha al lado
                     Row(
                       children: [
                         Expanded(
@@ -569,8 +591,11 @@ class _ProductScreenState extends State<ProductScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+
+                    // Fila para marca y categoría
                     Row(
                       children: [
+                        // Marca
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -593,6 +618,8 @@ class _ProductScreenState extends State<ProductScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
+
+                        // Categoría
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -618,8 +645,10 @@ class _ProductScreenState extends State<ProductScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+
+                    // Precio
                     Text(
-                      'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
+                      'L. ${product.prod_PrecioUnitario.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -732,12 +761,19 @@ class _ProductScreenState extends State<ProductScreen> {
                 Center(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12.0),
-                    child: Image.network(
-                      product.prod_Imagen ?? '',
+                    child: CachedNetworkImage(
+                      imageUrl: product.prod_Imagen ?? '',
                       width: double.infinity,
                       height: 300,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(
+                      placeholder: (context, url) => Container(
+                        height: 300,
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         height: 300,
                         color: Colors.grey[200],
                         child: const Center(
@@ -757,7 +793,7 @@ class _ProductScreenState extends State<ProductScreen> {
                     fontSize: 26,
                     fontFamily: 'Satoshi',
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: Color.fromARGB(255, 0, 0, 0),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -767,7 +803,7 @@ class _ProductScreenState extends State<ProductScreen> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'Satoshi',
-                    color: Colors.grey,
+                    color: Color.fromARGB(255, 143, 141, 141),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -784,7 +820,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: const Color.fromARGB(255, 255, 255, 255),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -792,10 +828,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Cierra el modal de detalle
-                      _openRecargaModal(product); // Abre el modal de recarga
-                    },
+                    onPressed: () {},
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF141A2F),
                       foregroundColor: const Color(0xFFD6B68A),
@@ -823,19 +856,75 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
-  void _openRecargaModal(Productos product) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) {
-          return _RecargaBottomSheetWrapper(initialProduct: product);
-        },
+  /// Widget mejorado para mostrar imágenes de productos con manejo robusto de errores
+  Widget _buildProductImage(Productos product) {
+    final imageUrl = product.prod_Imagen;
+    
+    // Si no hay URL de imagen, mostrar placeholder
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Container(
+        width: 80,
+        height: 80,
+        color: Colors.grey[200],
+        child: const Icon(
+          Icons.image_not_supported,
+          color: Colors.grey,
+          size: 32,
+        ),
+      );
+    }
+    
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        width: 80,
+        height: 80,
+        color: Colors.grey[200],
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+          ),
+        ),
       ),
+      errorWidget: (context, url, error) {
+        debugPrint('❌ Error cargando imagen: $url - Error: $error');
+        return Container(
+          width: 80,
+          height: 80,
+          color: Colors.grey[200],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.broken_image,
+                color: Colors.grey,
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Error',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      // Configuración adicional para mejorar el rendimiento
+      memCacheWidth: 160, // 2x el tamaño de display para pantallas de alta densidad
+      memCacheHeight: 160,
+      maxWidthDiskCache: 160,
+      maxHeightDiskCache: 160,
     );
   }
 
@@ -849,8 +938,8 @@ class _ProductScreenState extends State<ProductScreen> {
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: const Color.fromARGB(255, 0, 0, 0),
                 fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w800,
               ),
@@ -863,275 +952,6 @@ class _ProductScreenState extends State<ProductScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RecargaBottomSheetWrapper extends StatefulWidget {
-  final Productos initialProduct;
-
-  const _RecargaBottomSheetWrapper({required this.initialProduct});
-
-  @override
-  State<_RecargaBottomSheetWrapper> createState() =>
-      _RecargaBottomSheetWrapperState();
-}
-
-class _RecargaBottomSheetWrapperState
-    extends State<_RecargaBottomSheetWrapper> {
-  final ProductosService _productosService = ProductosService();
-  final RecargasService _recargasService = RecargasService();
-  final PerfilUsuarioService _perfilService = PerfilUsuarioService();
-
-  List<Productos> _productos = [];
-  Map<int, int> _cantidades = {};
-  String search = '';
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _cantidades[widget.initialProduct.prod_Id] = 1;
-    _fetchProductos();
-  }
-
-  Future<void> _fetchProductos() async {
-    try {
-      final productos = await _productosService.getProductos();
-      setState(() {
-        _productos = productos;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _productos.where((p) {
-      final nombre = (p.prod_DescripcionCorta ?? '').toLowerCase();
-      return nombre.contains(search.toLowerCase());
-    }).toList();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12,
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Solicitud de recarga',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Buscar producto',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 12,
-                  ),
-                ),
-                onChanged: (v) => setState(() => search = v),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final producto = filtered[i];
-                        final cantidad = _cantidades[producto.prod_Id] ?? 0;
-                        return _buildProducto(producto, cantidad);
-                      },
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  backgroundColor: const Color(0xFF141A2F),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
-                onPressed: () async {
-                  final userData = await _perfilService.obtenerDatosUsuario();
-                  if (userData == null || userData['usua_Id'] == null) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "No se pudo obtener el usuario logueado.",
-                          ),
-                        ),
-                      );
-                    }
-                    return;
-                  }
-
-                  final int usuaId = userData['usua_Id'] is String
-                      ? int.tryParse(userData['usua_Id']) ?? 0
-                      : userData['usua_Id'] ?? 0;
-
-                  if (usuaId == 0) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("ID de usuario inválido."),
-                        ),
-                      );
-                    }
-                    return;
-                  }
-
-                  final detalles = _cantidades.entries
-                      .where((e) => e.value > 0)
-                      .map(
-                        (e) => {
-                          "prod_Id": e.key,
-                          "reDe_Cantidad": e.value,
-                          "reDe_Observaciones": "N/A",
-                        },
-                      )
-                      .toList();
-
-                  if (detalles.isEmpty) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Selecciona al menos un producto."),
-                        ),
-                      );
-                    }
-                    return;
-                  }
-
-                  final ok = await _recargasService.insertarRecarga(
-                    usuaCreacion: usuaId,
-                    detalles: detalles,
-                  );
-
-                  if (mounted) {
-                    if (ok) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Recarga enviada correctamente"),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                      Navigator.of(context).pop();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Error al enviar la recarga"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                icon: const Icon(Icons.send, color: Colors.white),
-                label: const Text(
-                  'Solicitar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProducto(Productos producto, int cantidad) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child:
-                  producto.prod_Imagen != null &&
-                      producto.prod_Imagen!.isNotEmpty
-                  ? Image.network(
-                      producto.prod_Imagen!,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image, size: 48),
-                    )
-                  : const Icon(Icons.image, size: 48),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                producto.prod_DescripcionCorta ?? '-',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: cantidad > 0
-                      ? () {
-                          setState(() {
-                            _cantidades[producto.prod_Id] = cantidad - 1;
-                          });
-                        }
-                      : null,
-                ),
-                Text('$cantidad', style: const TextStyle(fontSize: 16)),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      _cantidades[producto.prod_Id] = cantidad + 1;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -3,7 +3,6 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/RecargasViewModel.dart'; 
-import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 class RecargasService 
 {
@@ -12,7 +11,7 @@ class RecargasService
 
   Future<List<RecargasViewModel>> getRecargas(int personaId) async 
   {
-    //final url = Uri.parse('$_apiServer/Recargas/Listar');
+    // Usar la URL específica para listar por vendedor
     final url = Uri.parse('$_apiServer/Recargas/ListarVendedor/$personaId');
 
     try
@@ -71,14 +70,12 @@ class RecargasService
   }
 
   Future<bool> insertarRecarga({required int usuaCreacion, required List<Map<String, dynamic>> detalles}) async {
-    final userData = await PerfilUsuarioService().obtenerDatosUsuario();
-    final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
     final url = Uri.parse('$_apiServer/Recargas/Insertar'); // Ajusta la ruta si es necesario
     final now = DateTime.now();
     final fechaString = now.toIso8601String();
 
     final body = {
-      "vend_Id": personaId,
+      "vend_Id": 1,
       "bode_Id": 8,
       "reca_Fecha": fechaString,
       "reca_observaciones": "N/A",

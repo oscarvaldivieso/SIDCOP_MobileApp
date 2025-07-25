@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/ConfiguracionSerivice.Dart';
 import '../../widgets/OfflineConfigWidget.dart';
+import '../../widgets/ProductPreloadDemo.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   @override
@@ -206,6 +207,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       
                       // Widget de configuración offline
                       const OfflineConfigWidget(),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Widget de demostración de precarga de productos
+                      const ProductPreloadDemo(),
                       
                       const SizedBox(height: 24),
                       
