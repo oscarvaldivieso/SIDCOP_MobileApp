@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
-import 'ui/screens/accesos/configuracion_screen.dart';
-import 'ui/screens/accesos/UserInfoScreen.dart';
+import 'ui/screens/home_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -20,6 +19,8 @@ class MyApp extends StatelessWidget {
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
       //home: UserInfoScreen(), // Widget correcto
+      //home: const HomeScreen(),
+      // home: UserInfoScreen(), // Widget correcto
       home: const OnboardingScreen(),
     );
   }

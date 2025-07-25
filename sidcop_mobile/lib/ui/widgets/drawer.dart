@@ -1,23 +1,82 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
-import 'package:sidcop_mobile/ui/screens/general/client_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
+import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
+import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
+import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
+import '../../services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
-  const CustomDrawer({super.key});
+  final List<dynamic> permisos;
+  const CustomDrawer({Key? key, required this.permisos}) : super(key: key);
 
   @override
   State<CustomDrawer> createState() => _CustomDrawerState();
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+
+  String _nombreUsuario = 'Cargando...';
+  String _cargoUsuario = 'Cargando...';
+  String? _imagenUsuario;
+  String? _imagenVendedor;
+  int? _usuaIdPersona;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    _cargarDatosUsuario();
+  }
+
+  Future<void> _cargarDatosUsuario() async {
+    try {
+      final nombreCompleto = await _perfilUsuarioService
+          .obtenerNombreCompleto();
+      final cargo = await _perfilUsuarioService.obtenerCargo();
+      final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+
+      // Obtener usuaIdPersona desde los datos guardados
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final usuaIdPersona = userData?['personaId'] as int?;
+      final imagenVendedor = userData?['imagen'] as String?;
+
+      if (mounted) {
+        setState(() {
+          _nombreUsuario = nombreCompleto;
+          _cargoUsuario = cargo;
+          _imagenUsuario = imagenUsuario;
+          _usuaIdPersona = usuaIdPersona;
+          _imagenVendedor = imagenVendedor;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nombreUsuario = 'Usuario';
+          _cargoUsuario = 'Sin cargo';
+          _imagenUsuario = null;
+          _imagenVendedor = null;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  bool tienePermiso(int pantId) {
+    return widget.permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
   @override
@@ -39,9 +98,17 @@ class _CustomDrawerState extends State<CustomDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Imagen de usuario arriba
-                CircleAvatar(
-                  radius: 32,
-                  backgroundImage: const AssetImage('assets/user.jpg'),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context); // Cerrar el drawer primero
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserInfoScreen(),
+                      ),
+                    );
+                  },
+                  child: _buildProfileAvatar(),
                 ),
                 const SizedBox(height: 12),
                 // Nombre/cargo y logout en una fila
@@ -54,7 +121,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Usuario Demo',
+                            _nombreUsuario,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -64,7 +131,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'Cargo del usuario',
+                            _cargoUsuario,
                             style: const TextStyle(
                               color: Color(0xFFD6B68A),
                               fontSize: 14,
@@ -86,8 +153,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                       ),
                       tooltip: 'Cerrar sesión',
-                      onPressed: () {
-                        // Acción de logout aquí
+                      onPressed: () async {
+                        await _perfilUsuarioService.limpiarDatosUsuario();
+                        if (!mounted) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (context) => const OnboardingScreen(),
+                          ),
+                          (route) => false,
+                        );
                       },
                     ),
                   ],
@@ -96,6 +170,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
           ),
           const SizedBox(height: 10),
+
           ListTile(
             leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
             title: const Text(
@@ -107,93 +182,89 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const DashboardInicioScreen(),
-              //     ),
-              //   );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Ruta',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const InsertarCarroScreen(),
-              //     ),
-              //   );
-            },
-          ),
-          ListTile(
-            leading: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFFD6B68A),
-            ),
-            title: const Text(
-              'Productos',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            onTap: () {
-              Navigator.push(
+              Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const ProductScreen()),
+                MaterialPageRoute(builder: (context) => HomeScreen()),
+                (route) => false,
               );
             },
           ),
-          //   if (usuario != null && usuario!.usua_Clie == true)
-          ListTile(
-            leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Metas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          // Accesos móviles según permisos
+          if (tienePermiso(48)) // MRuta
+            ListTile(
+              leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+              title: const Text(
+                'Ruta',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
               ),
+              onTap: () {
+                // Navegar a MRuta
+              },
             ),
-            onTap: () {
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const RentasClienteScreen(),
-              //   ),
-              // );
-            },
-          ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            leading: const Icon(Icons.sell_outlined, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Ventas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          if (tienePermiso(49)) // MProductos
+            ListTile(
+              leading: const Icon(
+                Icons.inventory_2_outlined,
+                color: Color(0xFFD6B68A),
               ),
+              title: const Text(
+                'Productos',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProductScreen(),
+                  ),
+                );
+              },
             ),
-            onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) => const InsertarCarroScreen(),
-              //     ),
-              //   );
-            },
-          ),
+          if (tienePermiso(50)) // MMetas
+            ListTile(
+              leading: const Icon(
+                Icons.speed_outlined,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Metas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                // Navegar a MMetas
+              },
+            ),
+          if (tienePermiso(51)) // MVentas
+            ListTile(
+              leading: const Icon(
+                Icons.sell_outlined,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Ventas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                // Navegar a MVentas
+              },
+            ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
           ListTile(
             leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
@@ -206,95 +277,138 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const DashboardRentaScreen(),
-              //   ),
-              // );
-            },
-          ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            leading: const Icon(Icons.person_outline, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Clientes',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-
-              Navigator.pushAndRemoveUntil(
+              Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const clientScreen()),
-                (route) => false,
+                MaterialPageRoute(builder: (context) => ConfiguracionScreen()),
               );
-
-              print("tiene acceso");
             },
           ),
-          //   if(pantallas!=null && pantallas.contains("DashBoard Supervisor") && !usuario!.usua_Admin)
-          ListTile(
-            leading: Transform.flip(
-              flipX: true,
-              child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
-            ),
-            title: const Text(
-              'Recargas',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+          if (tienePermiso(52)) // MClientes
+            ListTile(
+              leading: const Icon(
+                Icons.person_outline,
+                color: Color(0xFFD6B68A),
               ),
-            ),
-            onTap: () {
-              // await UsuarioService().cerrarSesion();
-
-              Navigator.pop(context);
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const RechargesScreen(),
+              title: const Text(
+                'Clientes',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
                 ),
-                (route) => false,
-              );
-              print("tiene acceso 2");
-            },
-          ),
-          //   if(usuario!.usua_Admin)
-          ListTile(
-            // leading: const Icon(Icons.logout, color: Color(0xFFD6B68A)),
-            leading: const Icon(
-              Icons.assignment_turned_in_outlined,
-              color: Color(0xFFD6B68A),
-            ),
-            title: const Text(
-              'Inventario',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
               ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const clientScreen()),
+                  (route) => false,
+                );
+              },
             ),
-            onTap: () async {
-              //   await UsuarioService().cerrarSesion();
-
-              //   Navigator.pop(context);
-
-              //   Navigator.pushAndRemoveUntil(
-              //     context,
-              //     MaterialPageRoute(builder: (context) => const LoginScreen()),
-              //     (route) => false,
-              //   );
-            },
-          ),
+          if (tienePermiso(53)) // MRecargas
+            ListTile(
+              leading: Transform.flip(
+                flipX: true,
+                child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
+              ),
+              title: const Text(
+                'Recargas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RechargesScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
+            ),
+          //   if(usuario!.usua_Admin)
+          if (tienePermiso(54)) // MInventario
+            ListTile(
+              leading: const Icon(
+                Icons.assignment_turned_in_outlined,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Inventario',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () async {
+                // Navegar a MInventario
+              },
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProfileAvatar() {
+    if (_isLoading) {
+      return CircleAvatar(
+        radius: 32,
+        backgroundColor: Colors.grey[300],
+        child: const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
+      // Si la imagen es una URL (comienza con http)
+      if (_imagenUsuario!.startsWith('http')) {
+        return CircleAvatar(
+          radius: 32,
+          backgroundImage: NetworkImage(_imagenUsuario!),
+          onBackgroundImageError: (exception, stackTrace) {
+            // En caso de error, se mostrará el avatar por defecto
+          },
+          child: null,
+        );
+      } else {
+        // Si es una imagen en base64 o otro formato
+        try {
+          return CircleAvatar(
+            radius: 32,
+            backgroundImage: MemoryImage(
+              const Base64Decoder().convert(_imagenUsuario!),
+            ),
+            onBackgroundImageError: (exception, stackTrace) {
+              // En caso de error, se mostrará el avatar por defecto
+            },
+          );
+        } catch (e) {
+          return _buildDefaultAvatar();
+        }
+      }
+    }
+
+    // Avatar por defecto si no hay imagen del usuario
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: const Color(0xFFD6B68A),
+      child: const Icon(Icons.person, size: 32, color: Colors.white),
     );
   }
 }

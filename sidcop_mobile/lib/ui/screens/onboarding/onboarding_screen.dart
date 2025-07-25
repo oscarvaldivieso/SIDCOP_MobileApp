@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import '../../widgets/drawer.dart';
 import '../../widgets/auth_background.dart';
 import '../auth/login_screen.dart';
 
@@ -17,7 +15,7 @@ class _LoginBottomSheet extends StatelessWidget {
       builder: (_, controller) {
         return Container(
           decoration: const BoxDecoration(
-            color: Color.fromARGB(255, 238, 238, 238),
+            color: Color.fromARGB(255, 254, 247, 255),
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
           child: Column(

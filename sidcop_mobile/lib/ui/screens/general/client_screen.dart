@@ -1,29 +1,161 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
 }
 
 class _clientScreenState extends State<clientScreen> {
+  List<dynamic> permisos = [];
   late Future<List<dynamic>> clientesList;
+  List<dynamic> filteredClientes = [];
+  final TextEditingController _searchController = TextEditingController();
+  bool isSearching = false;
 
   @override
   void initState() {
     super.initState();
+    _loadPermisos();
     clientesList = ClientesService().getClientes();
+    clientesList.then((clientes) {
+      setState(() {
+        filteredClientes = clientes;
+      });
+    });
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+      try {
+        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
+  }
+  
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+  
+  void _filterClientes(String query) {
+    clientesList.then((clientes) {
+      setState(() {
+        if (query.isEmpty) {
+          filteredClientes = clientes;
+        } else {
+          filteredClientes = clientes.where((cliente) {
+            final nombreNegocio = cliente['clie_NombreNegocio']?.toString().toLowerCase() ?? '';
+            final direccion = cliente['clie_DireccionExacta']?.toString().toLowerCase() ?? '';
+            final searchLower = query.toLowerCase();
+            return nombreNegocio.contains(searchLower) || direccion.contains(searchLower);
+          }).toList();
+        }
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Clientes')),
-      body: FutureBuilder<List<dynamic>>(
-        future: clientesList,
-        builder: (context, snapshot) {
+      appBar: const AppBarWidget(),
+      drawer: CustomDrawer(permisos: permisos),
+      backgroundColor: const Color(0xFFF6F6F6),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF141A2F),
+        onPressed: () {
+          // Acción para agregar un nuevo cliente
+        },
+        shape: const CircleBorder(),
+        elevation: 4.0,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+            child: Container(
+              width: double.infinity,
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141A2F),
+                borderRadius: BorderRadius.circular(16),
+                image: const DecorationImage(
+                  image: AssetImage('assets/asset-breadcrumb.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Clientes',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                      ),
+                    ),
+                    Icon(Icons.people, color: Colors.white, size: 30),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _filterClientes,
+                decoration: InputDecoration(
+                  hintText: 'Filtrar por nombre...',
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterClientes('');
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<dynamic>>(
+              future: clientesList,
+              builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
@@ -31,16 +163,23 @@ class _clientScreenState extends State<clientScreen> {
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No hay clientes'));
           } else {
-            final clientes = snapshot.data!;
-            return ListView.builder(
-              itemCount: clientes.length,
-              itemBuilder: (context, index) {
+            // Usar la lista filtrada en lugar de la original
+            final clientes = filteredClientes.isEmpty && _searchController.text.isEmpty ? snapshot.data! : filteredClientes;
+            
+            if (clientes.isEmpty) {
+              return const Center(child: Text('No se encontraron clientes con ese criterio'));
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: ListView.builder(
+                itemCount: clientes.length,
+                itemBuilder: (context, index) {
                 final cliente = clientes[index];
                 return Card(
                   margin: const EdgeInsets.all(8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 4,
-                  child: Container(
+                  child: SizedBox(
                     height: 140,
                     child: Row(
                       children: [
@@ -88,14 +227,12 @@ class _clientScreenState extends State<clientScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          cliente['clie_DireccionExacta'] ?? 'Direccion no disponible',
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.black54,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                    cliente['clie_DireccionExacta'] ?? 'Sin dirección',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                       ],
                                     ),
                                     const SizedBox(height: 8),
@@ -158,9 +295,13 @@ class _clientScreenState extends State<clientScreen> {
                   ),
                 );
               },
+            ),
             );
           }
         },
+      ),
+          ),
+        ],
       ),
     );
   }
@@ -172,4 +313,6 @@ class _clientScreenState extends State<clientScreen> {
     if (value >= 1700) return Colors.orange;
     return Colors.red;
   }
+  
+
 }
