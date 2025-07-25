@@ -85,7 +85,8 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           style: TextStyle(
             color: Colors.white,
             fontSize: 22,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Satoshi',
           ),
         ),
         centerTitle: false,
@@ -145,11 +146,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                   top: 190,
                   child: Text(
                     _isLoading ? 'Cargando...' : _nombreCompleto,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
+                    style: TextStyle(
+                      fontSize: 24,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
                     ),
                   ),
                 ),
@@ -159,11 +160,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
             // Nombre
             Text(
               _isLoading ? 'Cargando...' : _nombreCompleto,
-              style: const TextStyle(
-                color: Color(0xFF1a1d3a),
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
+                color: Color(0xFF1a1d3a),
+                fontFamily: 'Satoshi',
               ),
             ),
             const SizedBox(height: 18),
@@ -234,10 +235,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           const SizedBox(width: 10),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: Color(0xFF1a1d3a),
+              fontFamily: 'Satoshi',
             ),
           ),
         ],
@@ -259,6 +261,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 fontSize: 13,
                 color: Color(0xFF2d2d2d),
                 fontWeight: FontWeight.w600,
+                fontFamily: 'Satoshi',
               ),
             ),
           ),
@@ -269,6 +272,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 fontSize: 13,
                 color: Color(0xFF2d2d2d),
                 fontWeight: FontWeight.w400,
+                fontFamily: 'Satoshi',
               ),
             ),
           ),
