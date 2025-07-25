@@ -11,8 +11,8 @@ class RecargasService
 
   Future<List<RecargasViewModel>> getRecargas(int personaId) async 
   {
-    final url = Uri.parse('$_apiServer/Recargas/Listar');
-  //  final url = Uri.parse('https://$_apiServer/Recargas/ListarVendedor/$personaId');
+    //final url = Uri.parse('$_apiServer/Recargas/Listar');
+    final url = Uri.parse('$_apiServer/Recargas/ListarVendedor/$personaId');
 
     try
     {
@@ -70,7 +70,7 @@ class RecargasService
   }
 
   Future<bool> insertarRecarga({required int usuaCreacion, required List<Map<String, dynamic>> detalles}) async {
-    final url = Uri.parse('https://$_apiServer/Recargas/Insertar'); // Ajusta la ruta si es necesario
+    final url = Uri.parse('$_apiServer/Recargas/Insertar'); // Ajusta la ruta si es necesario
     final now = DateTime.now();
     final fechaString = now.toIso8601String();
 
