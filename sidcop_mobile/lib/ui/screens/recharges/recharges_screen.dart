@@ -55,7 +55,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const RecargaBottomSheet(),
-    );
+    ).then((value) {
+      if (value == true) {
+        setState(() {}); // Refresca la lista de recargas
+      }
+    });
   }
 
   @override
@@ -510,7 +514,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   if (mounted) {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Recarga enviada correctamente"), backgroundColor: Colors.green));
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar la recarga"), backgroundColor: Colors.red));
     }
