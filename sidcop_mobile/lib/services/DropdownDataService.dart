@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class DropdownDataService {
   // final String _baseUrl = 'https://localhost:7071';
   final String _baseUrl = 'http://200.59.27.115:8091';
+  // final String _baseUrl = '$apiServer';
   final String _apiKey = 'bdccf3f3-d486-4e1e-ab44-74081aefcdbc';
 
   Future<List<dynamic>> getCanales() async {

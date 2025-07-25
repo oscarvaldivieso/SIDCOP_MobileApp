@@ -85,6 +85,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
             child: Text(
               label,
               style: const TextStyle(
+                fontFamily: 'Satoshi',
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
                 fontSize: 14,
@@ -96,6 +97,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
             child: Text(
               displayValue,
               style: const TextStyle(
+                fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
@@ -125,9 +127,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
-                    ? Center(child: Text(_errorMessage))
+                    ? Center(child: Text(_errorMessage, style: const TextStyle(fontFamily: 'Satoshi')))
                     : _cliente == null
-                        ? const Center(child: Text('No se encontró información del cliente'))
+                        ? const Center(child: Text('No se encontró información del cliente', style: const TextStyle(fontFamily: 'Satoshi')))
                         : SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,6 +140,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                               child: Text(
                                 '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
                                 style: const TextStyle(
+                                  fontFamily: 'Satoshi',
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -208,6 +211,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   const Text(
                                     'Información del Negocio',
                                     style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Color(0xFF141A2F),
@@ -243,6 +247,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   const Text(
                                     'Información del Cliente',
                                     style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Color(0xFF141A2F),

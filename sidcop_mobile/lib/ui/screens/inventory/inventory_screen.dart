@@ -187,23 +187,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ),
                 ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC2AF86),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Turno Mañana',
-                  style: TextStyle(
-                    color: Color(0xFF141A2F),
-                    fontFamily: 'Satoshi',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+              )
             ],
           ),
           const SizedBox(height: 16),
@@ -307,46 +291,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
           
           const SizedBox(height: 16),
-          
-          // Información adicional
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildInfoItem(
-                  icon: Icons.access_time,
-                  label: 'Inicio',
-                  value: '08:30 AM',
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-                _buildInfoItem(
-                  icon: Icons.timer,
-                  label: 'Tiempo',
-                  value: '2h 15m',
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-                _buildInfoItem(
-                  icon: Icons.my_location,
-                  label: 'Ubicación',
-                  value: 'Activa',
-                  valueColor: Colors.green,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
