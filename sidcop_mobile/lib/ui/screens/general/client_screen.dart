@@ -599,7 +599,7 @@ class _clientScreenState extends State<clientScreen> {
     // Verificar si tiene alguna cuenta vencida
     final now = DateTime.now();
     bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print('DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}');
+      print('DEBUG _getBadgeColor: cuenta fecha vencimiento=${cuenta['cpCo_FechaVencimiento']}');
       if (cuenta['cpCo_FechaVencimiento'] == null) return false;
       
       final fechaVencimiento = DateTime.tryParse(cuenta['cpCo_FechaVencimiento'].toString());

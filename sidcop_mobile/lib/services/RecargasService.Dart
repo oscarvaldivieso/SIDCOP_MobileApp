@@ -12,7 +12,7 @@ class RecargasService
   Future<List<RecargasViewModel>> getRecargas(int personaId) async 
   {
     final url = Uri.parse('$_apiServer/Recargas/Listar');
-    final url = Uri.parse('https://$_apiServer/Recargas/ListarVendedor/$personaId');
+  //  final url = Uri.parse('https://$_apiServer/Recargas/ListarVendedor/$personaId');
 
     try
     {
