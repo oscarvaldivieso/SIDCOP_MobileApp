@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
@@ -10,6 +14,7 @@ class clientScreen extends StatefulWidget {
 }
 
 class _clientScreenState extends State<clientScreen> {
+  List<dynamic> permisos = [];
   late Future<List<dynamic>> clientesList;
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController();

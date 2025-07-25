@@ -30,18 +30,5 @@ class ConfiguracionService {
     }
   }
   
-  /// Limpia solo el caché expirado
-  static Future<bool> limpiarCacheExpirado() async {
-    try {
-      developer.log('Limpiando caché expirado desde ConfiguracionService');
-      
-      await CacheService.clearExpiredCache();
-      
-      developer.log('Caché expirado limpiado exitosamente');
-      return true;
-    } catch (e) {
-      developer.log('Error al limpiar caché expirado: $e');
-      return false;
-    }
-  }
+
 }
