@@ -367,7 +367,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               onTap: () async {
                 // Navegar a MInventario
-              },
+                Navigator.pop(context);
+                
+                if (_usuaIdPersona != null) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryScreen(usuaIdPersona: _usuaIdPersona!)
+                  ),
+                  (route) => false,
+                );
+                print("Navegando a inventario con usuaIdPersona: $_usuaIdPersona");
+              } else {
+                // Mostrar error si no hay usuaIdPersona
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: No se pudo obtener la información del usuario'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
             ),
         ],
       ),
