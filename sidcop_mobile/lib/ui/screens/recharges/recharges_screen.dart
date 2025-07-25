@@ -1,17 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/models/RecargasViewModel.dart';
-import 'package:sidcop_mobile/services/RecargasService.Dart';
-import 'package:sidcop_mobile/services/ProductosService.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 
-import 'dart:convert';
-
-class RechargesScreen extends StatefulWidget {
+class RechargesScreen extends StatelessWidget {
   const RechargesScreen({super.key});
 
   @override
+  Widget build(BuildContext context) {
+    return const Placeholder();
   State<RechargesScreen> createState() => _RechargesScreenState();
 }
 
