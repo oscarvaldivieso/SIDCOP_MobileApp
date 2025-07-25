@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/PerfilUsuarioService.Dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class UserInfoScreen extends StatefulWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
@@ -298,31 +299,26 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
     if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
       // Si la imagen es una URL (comienza con http)
       if (_imagenUsuario!.startsWith('http')) {
-        return Image.network(
-          _imagenUsuario!,
+        return CachedNetworkImage(
+          imageUrl: _imagenUsuario!,
           fit: BoxFit.cover,
           width: 90,
           height: 90,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              width: 90,
-              height: 90,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey,
+          placeholder: (context, url) => Container(
+            width: 90,
+            height: 90,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey,
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 2,
               ),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 2,
-                ),
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return _buildDefaultProfileImage();
-          },
+            ),
+          ),
+          errorWidget: (context, url, error) => _buildDefaultProfileImage(),
         );
       } else {
         // Si es una imagen en base64 o otro formato

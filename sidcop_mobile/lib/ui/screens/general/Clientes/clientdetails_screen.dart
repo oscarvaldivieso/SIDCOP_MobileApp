@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -167,12 +168,19 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(14),
                                   child: _cliente!['clie_ImagenDelNegocio'] != null
-                                      ? Image.network(
-                                          _cliente!['clie_ImagenDelNegocio'],
+                                      ? CachedNetworkImage(
+                                          imageUrl: _cliente!['clie_ImagenDelNegocio'],
                                           width: double.infinity,
                                           height: double.infinity,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+                                          placeholder: (context, url) => const Center(
+                                            child: SizedBox(
+                                              width: 40,
+                                              height: 40,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) => _buildDefaultAvatar(),
                                         )
                                       : _buildDefaultAvatar(),
                                 ),

@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({Key? key}) : super(key: key);
@@ -243,16 +244,21 @@ class _clientScreenState extends State<clientScreen> {
                                     topLeft: Radius.circular(16),
                                     bottomLeft: Radius.circular(16),
                                   ),
-                                  child: Image.network(
-                                    cliente['clie_ImagenDelNegocio'] ?? '',
+                                  child: CachedNetworkImage(
+                                    imageUrl: cliente['clie_ImagenDelNegocio'] ?? '',
                                     width: 140,
                                     height: double.infinity,
                                     fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              width: 140,
-                                              color: Colors.grey[200],
+                                    placeholder: (context, url) => Container(
+                                      width: 140,
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) => Container(
+                                      width: 140,
+                                      color: Colors.grey[200],
                                               child: const Icon(
                                                 Icons.person,
                                                 size: 40,

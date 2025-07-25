@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/models/RecargasViewModel.dart';
 import 'package:sidcop_mobile/services/RecargasService.Dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 
@@ -520,12 +521,19 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
-                  ? Image.network(
-                      producto.prod_Imagen!,
+                  ? CachedNetworkImage(
+                      imageUrl: producto.prod_Imagen!,
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                      placeholder: (context, url) => const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
                     )
                   : const Icon(Icons.image, size: 48),
             ),

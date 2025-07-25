@@ -3,6 +3,7 @@ import '../../widgets/appBackground.dart';
 import '../../../models/inventory_item.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/PerfilUsuarioService.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -518,27 +519,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
     Widget productImage = item.prodImagen.isNotEmpty
         ? ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              item.prodImagen,
+            child: CachedNetworkImage(
+              imageUrl: item.prodImagen,
               width: 55,
               height: 55,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
+              placeholder: (context, url) => Center(
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+              errorWidget: (context, url, error) {
                 // Fallback icon si la imagen falla
                 return _getProductIcon(item.subcDescripcion);
-              },
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Center(
-                  child: CircularProgressIndicator(
-                    value: loadingProgress.expectedTotalBytes != null
-                        ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
-                        : null,
-                    color: const Color(0xFF141A2F),
-                    strokeWidth: 2,
-                  ),
-                );
               },
             ),
           )

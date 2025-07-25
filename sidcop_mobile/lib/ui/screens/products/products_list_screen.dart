@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -525,12 +526,18 @@ class _ProductScreenState extends State<ProductScreen> {
               // Imagen del producto
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
-                child: Image.network(
-                  product.prod_Imagen ?? '',
+                child: CachedNetworkImage(
+                  imageUrl: product.prod_Imagen ?? '',
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  placeholder: (context, url) => Container(
+                    width: 80,
+                    height: 80,
+                    color: Colors.grey[200],
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 80,
                     color: Colors.grey[200],
@@ -731,12 +738,19 @@ class _ProductScreenState extends State<ProductScreen> {
                 Center(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12.0),
-                    child: Image.network(
-                      product.prod_Imagen ?? '',
+                    child: CachedNetworkImage(
+                      imageUrl: product.prod_Imagen ?? '',
                       width: double.infinity,
                       height: 300,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(
+                      placeholder: (context, url) => Container(
+                        height: 300,
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         height: 300,
                         color: Colors.grey[200],
                         child: const Center(
