@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/services/RecargasService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -54,9 +57,8 @@ class _ProductScreenState extends State<ProductScreen> {
         final matchesSearch =
             searchTerm.isEmpty ||
             (product.prod_Descripcion?.toLowerCase().contains(searchTerm) ??
-                false ||
-                    (product.prod_Codigo?.toLowerCase().contains(searchTerm) ??
-                        false));
+                false) ||
+            (product.prod_Codigo?.toLowerCase().contains(searchTerm) ?? false);
 
         // Filtros por categorías, subcategorías y marcas
         final matchesFilters = _selectedFilters.entries.every((entry) {
@@ -121,8 +123,7 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
           child: Column(
             children: [
-              _buildSearchBar(),
-              _buildFilterButton(),
+              _buildSearchBar(), // Ahora incluye el ícono de filtrar
               _buildResultsCount(),
               _buildProductList(),
             ],
@@ -135,22 +136,42 @@ class _ProductScreenState extends State<ProductScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Buscar productos...',
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    _applyFilters();
-                  },
-                )
-              : null,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar productos...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _applyFilters();
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+            child: IconButton(
+              onPressed: _showFiltersPanel,
+              icon: const Icon(
+                Icons.filter_list,
+                color: Color.fromARGB(255, 134, 134, 134),
+              ),
+              tooltip: 'Filtrar',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -192,158 +213,177 @@ class _ProductScreenState extends State<ProductScreen> {
             minChildSize: 0.5,
             maxChildSize: 0.9,
             builder: (context, scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141A2F),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 8),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
+              return StatefulBuilder(
+                // Agregamos StatefulBuilder aquí
+                builder: (context, setModalState) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141A2F),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
+                    child: Column(
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Filtrar productos',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontFamily: 'Satoshi',
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Filtrar productos',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontFamily: 'Satoshi',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  _clearFilters();
+                                  setModalState(() {}); // Refrescar el modal
+                                },
+                                child: const Text('Limpiar'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD6B68A),
+                                ),
+                              ),
+                            ],
                           ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: _clearFilters,
-                            child: const Text('Limpiar'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFD6B68A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: FutureBuilder(
-                        future: Future.wait([
-                          _productosService.getCategorias(),
-                          _productosService.getSubcategorias(),
-                          _productosService.getMarcas(),
-                        ]),
-                        builder:
-                            (context, AsyncSnapshot<List<dynamic>> snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
-                              if (snapshot.hasError) {
-                                return const Center(
-                                  child: Text('Error al cargar filtros'),
-                                );
-                              }
+                        ),
+                        Expanded(
+                          child: FutureBuilder(
+                            future: Future.wait([
+                              _productosService.getCategorias(),
+                              _productosService.getSubcategorias(),
+                              _productosService.getMarcas(),
+                            ]),
+                            builder:
+                                (
+                                  context,
+                                  AsyncSnapshot<List<dynamic>> snapshot,
+                                ) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                  if (snapshot.hasError) {
+                                    return const Center(
+                                      child: Text('Error al cargar filtros'),
+                                    );
+                                  }
 
-                              final categorias =
-                                  snapshot.data?[0]
-                                      as List<Map<String, dynamic>>? ??
-                                  [];
-                              final subcategorias =
-                                  snapshot.data?[1]
-                                      as List<Map<String, dynamic>>? ??
-                                  [];
-                              final marcas =
-                                  snapshot.data?[2]
-                                      as List<Map<String, dynamic>>? ??
-                                  [];
+                                  final categorias =
+                                      snapshot.data?[0]
+                                          as List<Map<String, dynamic>>? ??
+                                      [];
+                                  final subcategorias =
+                                      snapshot.data?[1]
+                                          as List<Map<String, dynamic>>? ??
+                                      [];
+                                  final marcas =
+                                      snapshot.data?[2]
+                                          as List<Map<String, dynamic>>? ??
+                                      [];
 
-                              return SingleChildScrollView(
-                                controller: scrollController,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      _buildFilterSection(
-                                        'Categorías',
-                                        Icons.category,
-                                        categorias,
-                                        'cate_Id',
-                                        'cate_Descripcion',
-                                        'categorias',
+                                  return SingleChildScrollView(
+                                    controller: scrollController,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
                                       ),
-                                      _buildFilterSection(
-                                        'Subcategorías',
-                                        Icons.list,
-                                        subcategorias,
-                                        'subc_Id',
-                                        'subc_Descripcion',
-                                        'subcategorias',
-                                      ),
-                                      _buildFilterSection(
-                                        'Marcas',
-                                        Icons.branding_watermark,
-                                        marcas,
-                                        'marc_Id',
-                                        'marc_Descripcion',
-                                        'marcas',
-                                      ),
-                                      const SizedBox(height: 24),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          onPressed: () {
-                                            _applyFilters();
-                                            Navigator.pop(context);
-                                          },
-                                          child: const Text('Aplicar filtros'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF141A2F,
-                                            ),
-                                            side: const BorderSide(
-                                              color: Color(0xFFD6B68A),
-                                            ),
-                                            elevation: 0,
-                                            foregroundColor: const Color(
-                                              0xFFD6B68A,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 16,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
+                                      child: Column(
+                                        children: [
+                                          _buildFilterSection(
+                                            'Categorías',
+                                            Icons.category,
+                                            categorias,
+                                            'cate_Id',
+                                            'cate_Descripcion',
+                                            'categorias',
+                                            setModalState, // Pasamos la función
+                                          ),
+                                          _buildFilterSection(
+                                            'Subcategorías',
+                                            Icons.list,
+                                            subcategorias,
+                                            'subc_Id',
+                                            'subc_Descripcion',
+                                            'subcategorias',
+                                            setModalState, // Pasamos la función
+                                          ),
+                                          _buildFilterSection(
+                                            'Marcas',
+                                            Icons.branding_watermark,
+                                            marcas,
+                                            'marc_Id',
+                                            'marc_Descripcion',
+                                            'marcas',
+                                            setModalState, // Pasamos la función
+                                          ),
+                                          const SizedBox(height: 24),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton(
+                                              onPressed: () {
+                                                _applyFilters();
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text(
+                                                'Aplicar filtros',
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFF141A2F,
+                                                ),
+                                                side: const BorderSide(
+                                                  color: Color(0xFFD6B68A),
+                                                ),
+                                                elevation: 0,
+                                                foregroundColor: const Color(
+                                                  0xFFD6B68A,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 16,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                          const SizedBox(height: 16),
+                                        ],
                                       ),
-                                      const SizedBox(height: 16),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                      ),
+                                    ),
+                                  );
+                                },
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           ),
@@ -359,6 +399,7 @@ class _ProductScreenState extends State<ProductScreen> {
     String idKey,
     String nameKey,
     String filterType,
+    StateSetter setModalState, // Agregamos este parámetro
   ) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -409,8 +450,10 @@ class _ProductScreenState extends State<ProductScreen> {
                     color: isSelected ? Colors.white : const Color(0xFFD6B68A),
                   ),
                 ),
-                onSelected: (selected) =>
-                    _toggleFilterSelection(filterType, id),
+                onSelected: (selected) {
+                  _toggleFilterSelection(filterType, id);
+                  setModalState(() {}); // Refrescamos el modal inmediatamente
+                },
               );
             }).toList(),
           ),
@@ -780,7 +823,7 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
-  void _openRecargaModal(Productos producto) {
+  void _openRecargaModal(Productos product) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -790,7 +833,7 @@ class _ProductScreenState extends State<ProductScreen> {
         minChildSize: 0.5,
         maxChildSize: 0.95,
         builder: (context, scrollController) {
-          return RecargaBottomSheetWithProduct(productoInicial: producto);
+          return _RecargaBottomSheetWrapper(initialProduct: product);
         },
       ),
     );
@@ -825,22 +868,22 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 }
 
-class RecargaBottomSheetWithProduct extends StatefulWidget {
-  final Productos productoInicial;
+class _RecargaBottomSheetWrapper extends StatefulWidget {
+  final Productos initialProduct;
 
-  const RecargaBottomSheetWithProduct({
-    super.key,
-    required this.productoInicial,
-  });
+  const _RecargaBottomSheetWrapper({required this.initialProduct});
 
   @override
-  State<RecargaBottomSheetWithProduct> createState() =>
-      _RecargaBottomSheetWithProductState();
+  State<_RecargaBottomSheetWrapper> createState() =>
+      _RecargaBottomSheetWrapperState();
 }
 
-class _RecargaBottomSheetWithProductState
-    extends State<RecargaBottomSheetWithProduct> {
+class _RecargaBottomSheetWrapperState
+    extends State<_RecargaBottomSheetWrapper> {
   final ProductosService _productosService = ProductosService();
+  final RecargasService _recargasService = RecargasService();
+  final PerfilUsuarioService _perfilService = PerfilUsuarioService();
+
   List<Productos> _productos = [];
   Map<int, int> _cantidades = {};
   String search = '';
@@ -849,7 +892,7 @@ class _RecargaBottomSheetWithProductState
   @override
   void initState() {
     super.initState();
-    _cantidades[widget.productoInicial.prod_Id] = 1;
+    _cantidades[widget.initialProduct.prod_Id] = 1;
     _fetchProductos();
   }
 
@@ -874,87 +917,163 @@ class _RecargaBottomSheetWithProductState
       return nombre.contains(search.toLowerCase());
     }).toList();
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Solicitud de recarga',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Buscar producto',
-                border: OutlineInputBorder(),
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 12,
-                ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12,
               ),
-              onChanged: (v) => setState(() => search = v),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, i) {
-                      final producto = filtered[i];
-                      final cantidad = _cantidades[producto.prod_Id] ?? 0;
-                      return _buildProducto(producto, cantidad);
-                    },
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
                   ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // Lógica para enviar la recarga
-                  Navigator.pop(context); // Cierra el modal
-                },
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Solicitud de recarga',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Buscar producto',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
+                ),
+                onChanged: (v) => setState(() => search = v),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final producto = filtered[i];
+                        final cantidad = _cantidades[producto.prod_Id] ?? 0;
+                        return _buildProducto(producto, cantidad);
+                      },
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
                   backgroundColor: const Color(0xFF141A2F),
-                  foregroundColor: const Color(0xFFD6B68A),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text(
-                  'Solicitar recarga',
+                onPressed: () async {
+                  final userData = await _perfilService.obtenerDatosUsuario();
+                  if (userData == null || userData['usua_Id'] == null) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "No se pudo obtener el usuario logueado.",
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  final int usuaId = userData['usua_Id'] is String
+                      ? int.tryParse(userData['usua_Id']) ?? 0
+                      : userData['usua_Id'] ?? 0;
+
+                  if (usuaId == 0) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("ID de usuario inválido."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  final detalles = _cantidades.entries
+                      .where((e) => e.value > 0)
+                      .map(
+                        (e) => {
+                          "prod_Id": e.key,
+                          "reDe_Cantidad": e.value,
+                          "reDe_Observaciones": "N/A",
+                        },
+                      )
+                      .toList();
+
+                  if (detalles.isEmpty) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Selecciona al menos un producto."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  final ok = await _recargasService.insertarRecarga(
+                    usuaCreacion: usuaId,
+                    detalles: detalles,
+                  );
+
+                  if (mounted) {
+                    if (ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Recarga enviada correctamente"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      Navigator.of(context).pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Error al enviar la recarga"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.send, color: Colors.white),
+                label: const Text(
+                  'Solicitar',
                   style: TextStyle(
-                    fontSize: 16,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'Satoshi',
-                    color: Color(0xFFD6B68A),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
