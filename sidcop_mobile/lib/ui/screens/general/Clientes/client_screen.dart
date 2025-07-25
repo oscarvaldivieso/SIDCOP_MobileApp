@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
@@ -37,9 +37,12 @@ class _clientScreenState extends State<clientScreen> {
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
       try {
-        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
         permisos = jsonDecode(permisosJson);
       } catch (_) {
         permisos = [];
@@ -98,9 +101,9 @@ class _clientScreenState extends State<clientScreen> {
             });
           }
         },
-        child: const Icon(Icons.add, color: Colors.white),
         shape: const CircleBorder(),
         elevation: 4.0,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
@@ -245,7 +248,8 @@ class _clientScreenState extends State<clientScreen> {
                                     bottomLeft: Radius.circular(16),
                                   ),
                                   child: CachedNetworkImage(
-                                    imageUrl: cliente['clie_ImagenDelNegocio'] ?? '',
+                                    imageUrl:
+                                        cliente['clie_ImagenDelNegocio'] ?? '',
                                     width: 140,
                                     height: double.infinity,
                                     fit: BoxFit.cover,
@@ -253,18 +257,21 @@ class _clientScreenState extends State<clientScreen> {
                                       width: 140,
                                       color: Colors.grey[200],
                                       child: const Center(
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       ),
                                     ),
-                                    errorWidget: (context, url, error) => Container(
-                                      width: 140,
-                                      color: Colors.grey[200],
-                                              child: const Icon(
-                                                Icons.person,
-                                                size: 40,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
+                                    errorWidget: (context, url, error) =>
+                                        Container(
+                                          width: 140,
+                                          color: Colors.grey[200],
+                                          child: const Icon(
+                                            Icons.person,
+                                            size: 40,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
                                   ),
                                 ),
                                 // Content on the right

@@ -9,7 +9,7 @@ import '../../services/PerfilUsuarioService.Dart';
 import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -27,15 +27,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    _gaugeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 0.75, // 75%
-    ).animate(
-      CurvedAnimation(
-        parent: _gaugeAnimationController,
-        curve: Curves.easeInOutCubic,
-      ),
-    );
+    _gaugeAnimation =
+        Tween<double>(
+          begin: 0.0,
+          end: 0.75, // 75%
+        ).animate(
+          CurvedAnimation(
+            parent: _gaugeAnimationController,
+            curve: Curves.easeInOutCubic,
+          ),
+        );
     // Iniciar la animación después de un pequeño delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -54,9 +55,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
       try {
-        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
         permisos = jsonDecode(permisosJson);
       } catch (_) {
         permisos = [];
@@ -565,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        '\L.5,000.00',
+                        'L.5,000.00',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -611,7 +615,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        '\L.3,750.00',
+                        'L.3,750.00',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

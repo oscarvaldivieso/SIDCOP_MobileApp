@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'ui/screens/splash/sync_splash_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
@@ -12,18 +14,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    navigatorKey:
+    NavigationService.navigatorKey; // Necesario para precarga de imágenes
     final apiUrl = dotenv.env['API_URL'] ?? 'api no definida';
     final apiKey = dotenv.env['API_KEY'] ?? 'api key no definida';
 
     return MaterialApp(
-      navigatorKey: NavigationService.navigatorKey, // Necesario para precarga de imágenes
+      navigatorKey:
+          NavigationService.navigatorKey, // Necesario para precarga de imágenes
       debugShowCheckedModeBanner: false,
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
       //home: UserInfoScreen(), // Widget correcto
       //home: const HomeScreen(),
+
       // home: UserInfoScreen(), // Widget correcto
-      home: const OnboardingScreen(),
+      // home: const OnboardingScreen(), // Ahora se llama desde SyncSplashScreen
+      home: const SyncSplashScreen(), // Pantalla de sincronización automática
     );
   }
 }

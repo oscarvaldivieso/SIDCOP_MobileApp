@@ -8,19 +8,20 @@ import 'package:url_launcher/url_launcher.dart';
 class ClientLocationScreen extends StatefulWidget {
   final List<Map<String, dynamic>> locations;
   final String clientName;
-  
+
   const ClientLocationScreen({
-    Key? key,
+    super.key,
     required this.locations,
     required this.clientName,
-  }) : super(key: key);
+  });
 
   @override
   State<ClientLocationScreen> createState() => _ClientLocationScreenState();
 }
 
 class _ClientLocationScreenState extends State<ClientLocationScreen> {
-  final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
+  final Completer<GoogleMapController> _controller =
+      Completer<GoogleMapController>();
   late Map<String, dynamic> _selectedLocation;
   final Set<Marker> _markers = {};
   bool _isLoading = true;
@@ -43,7 +44,7 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
   void _updateMap() {
     final lat = _selectedLocation['diCl_Latitud'];
     final lng = _selectedLocation['diCl_Longitud'];
-    
+
     if (lat == null || lng == null) {
       setState(() {
         _isLoading = false;
@@ -55,7 +56,7 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
       _selectedLocation['diCl_Latitud']?.toDouble() ?? 0.0,
       _selectedLocation['diCl_Longitud']?.toDouble() ?? 0.0,
     );
-    
+
     setState(() {
       _markers.clear();
       _markers.add(
@@ -64,7 +65,8 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
           position: clientLocation,
           infoWindow: InfoWindow(
             title: widget.clientName,
-            snippet: _selectedLocation['diCl_DireccionExacta'] ?? 'Sin dirección',
+            snippet:
+                _selectedLocation['diCl_DireccionExacta'] ?? 'Sin dirección',
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),
@@ -74,9 +76,7 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
 
     // Mover la cámara a la ubicación seleccionada
     _controller.future.then((controller) {
-      controller.animateCamera(
-        CameraUpdate.newLatLngZoom(clientLocation, 15),
-      );
+      controller.animateCamera(CameraUpdate.newLatLngZoom(clientLocation, 15));
     });
   }
 
@@ -100,23 +100,34 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF141A2F), width: 1.0),
+                  border: Border.all(
+                    color: const Color(0xFF141A2F),
+                    width: 1.0,
+                  ),
                   borderRadius: BorderRadius.circular(8.0),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<Map<String, dynamic>>(
                     value: _selectedLocation,
                     isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF141A2F)),
-                    items: widget.locations.map<DropdownMenuItem<Map<String, dynamic>>>((location) {
-                      return DropdownMenuItem<Map<String, dynamic>>(
-                        value: location,
-                        child: Text(
-                          location['diCl_DireccionExacta'] ?? 'Sin dirección',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: Color(0xFF141A2F),
+                    ),
+                    items: widget.locations
+                        .map<DropdownMenuItem<Map<String, dynamic>>>((
+                          location,
+                        ) {
+                          return DropdownMenuItem<Map<String, dynamic>>(
+                            value: location,
+                            child: Text(
+                              location['diCl_DireccionExacta'] ??
+                                  'Sin dirección',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        })
+                        .toList(),
                     onChanged: (Map<String, dynamic>? newValue) {
                       if (newValue != null) {
                         setState(() {
@@ -132,6 +143,15 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
           // Mapa o mensaje de carga
           Expanded(child: _buildBody()),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).pop(),
+        backgroundColor: const Color(0xFF141A2F),
+        label: const Text(
+          'Volver al listado',
+          style: TextStyle(color: Colors.white),
+        ),
+        icon: const Icon(Icons.list, color: Colors.white),
       ),
     );
   }
@@ -155,7 +175,10 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF141A2F),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               child: const Text('Abrir en Google Maps'),
             ),
@@ -200,7 +223,10 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF141A2F),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               child: const Text('Abrir en Google Maps'),
             ),
@@ -213,10 +239,10 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
   Future<void> _openInGoogleMaps() async {
     final lat = _selectedLocation['diCl_Latitud']?.toDouble() ?? 0.0;
     final lng = _selectedLocation['diCl_Longitud']?.toDouble() ?? 0.0;
-    
+
     final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     final uri = Uri.parse(url);
-    
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {

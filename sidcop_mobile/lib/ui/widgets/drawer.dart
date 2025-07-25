@@ -6,7 +6,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
-import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
+import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
@@ -19,7 +19,7 @@ import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
-  const CustomDrawer({Key? key, required this.permisos}) : super(key: key);
+  const CustomDrawer({super.key, required this.permisos});
 
   @override
   State<CustomDrawer> createState() => _CustomDrawerState();
@@ -35,30 +35,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String? _imagenVendedor;
   int? _usuaIdPersona;
   bool _isLoading = true;
-  List<dynamic> permisos = [];
 
   @override
   void initState() {
     super.initState();
     _cargarDatosUsuario();
-    _loadPermisos();
-  }
-
-  Future<void> _loadPermisos() async {
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null &&
-        (userData['PermisosJson'] != null ||
-            userData['permisosJson'] != null)) {
-      try {
-        final permisosJson =
-            userData['PermisosJson'] ?? userData['permisosJson'];
-        permisos = jsonDecode(permisosJson);
-      } catch (_) {
-        permisos = [];
-      }
-    }
-    setState(() {});
   }
 
   Future<void> _cargarDatosUsuario() async {
@@ -97,7 +78,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   }
 
   bool tienePermiso(int pantId) {
-    return permisos.any((p) => p['Pant_Id'] == pantId);
+    return widget.permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
   @override
@@ -177,10 +158,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       onPressed: () async {
                         // Limpiar datos del usuario
                         await _perfilUsuarioService.limpiarDatosUsuario();
-                        
+
                         // Limpiar contraseña almacenada para modo offline
                         await _usuarioService.limpiarContrasenaOffline();
-                        
+
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
@@ -374,27 +355,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               onTap: () async {
                 // Navegar a MInventario
-                Navigator.pop(context);
-                
-                if (_usuaIdPersona != null) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InventoryScreen(usuaIdPersona: _usuaIdPersona!)
-                  ),
-                  (route) => false,
-                );
-                print("Navegando a inventario con usuaIdPersona: $_usuaIdPersona");
-              } else {
-                // Mostrar error si no hay usuaIdPersona
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Error: No se pudo obtener la información del usuario'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
+              },
             ),
         ],
       ),

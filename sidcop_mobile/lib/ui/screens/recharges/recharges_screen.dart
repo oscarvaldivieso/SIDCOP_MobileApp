@@ -6,7 +6,6 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
-import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
 
 import 'dart:convert';
 
@@ -18,15 +17,19 @@ class RechargesScreen extends StatefulWidget {
 }
 
 class _RechargesScreenState extends State<RechargesScreen> {
-  bool _verTodasLasRecargas = false;
   Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
+    final personaId =
+        userData?['personaId'] ??
+        userData?['usua_IdPersona'] ??
+        userData?['idPersona'];
     if (personaId == null) {
       throw Exception('No se encontró personaId en los datos de usuario');
     }
-    return RecargasService().getRecargas(personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0);
+    return RecargasService().getRecargas(
+      personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
+    );
   }
 
   List<dynamic> permisos = [];
@@ -40,9 +43,12 @@ class _RechargesScreenState extends State<RechargesScreen> {
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
       try {
-        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
         permisos = jsonDecode(permisosJson);
       } catch (_) {
         permisos = [];
@@ -50,17 +56,14 @@ class _RechargesScreenState extends State<RechargesScreen> {
     }
     setState(() {});
   }
+
   void _openRecargaModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const RecargaBottomSheet(),
-    ).then((value) {
-      if (value == true) {
-        setState(() {}); // Refresca la lista de recargas
-      }
-    });
+    );
   }
 
   @override
@@ -88,14 +91,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _verTodasLasRecargas = !_verTodasLasRecargas;
-                      });
-                    },
-                    child: Text(
-                      _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
-                      style: const TextStyle(
+                    onPressed:
+                        () {}, // Restaurar botón 'Ver más' a su estado original
+                    child: const Text(
+                      'Ver mas',
+                      style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 16,
                         fontFamily: 'Satoshi',
@@ -124,11 +124,8 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   if (agrupadas.isEmpty) {
                     return const Center(child: Text('No hay recargas.'));
                   }
-                  final entriesList = agrupadas.entries.toList();
-                  final mostrarTodas = _verTodasLasRecargas;
-                  final itemsToShow = mostrarTodas ? entriesList : entriesList.take(3).toList();
                   return Column(
-                    children: itemsToShow.map((entry) {
+                    children: agrupadas.entries.take(3).map((entry) {
                       final recaId = entry.key;
                       final recargasGrupo = entry.value;
                       final recarga = recargasGrupo.first;
@@ -137,8 +134,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
                         r,
                       ) {
                         if (r.reDe_Cantidad == null) return sum;
-                        if (r.reDe_Cantidad is int)
+                        if (r.reDe_Cantidad is int) {
                           return sum + (r.reDe_Cantidad as int);
+                        }
                         return sum +
                             (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
                       });
@@ -150,7 +148,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                               )
                             : '-',
                         totalCantidad,
-                        recargasGrupo: recargasGrupo,
                       );
                     }).toList(),
                   );
@@ -215,9 +212,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
   String _formatFechaFromApi(String fechaIso) {
     try {
       final date = DateTime.parse(fechaIso);
-      return "${date.day} de " +
-          _mesEnEspanol(date.month) +
-          " del ${date.year}";
+      return "${date.day} de ${_mesEnEspanol(date.month)} del ${date.year}";
     } catch (_) {
       return fechaIso;
     }
@@ -246,7 +241,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     String estado,
     String fecha,
     int cantidadProductos,
-    {required List<RecargasViewModel> recargasGrupo}
   ) {
     Color textColor;
     String label;
@@ -268,17 +262,8 @@ class _RechargesScreenState extends State<RechargesScreen> {
         label = estado;
         textColor = Colors.grey.shade700;
     }
-    return GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => RecargaDetalleBottomSheet(recargasGrupo: recargasGrupo),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -358,11 +343,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
           ),
         ],
       ),
-      ),
     );
   }
 }
-  // <- aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
   const RecargaBottomSheet({super.key});
@@ -374,7 +357,7 @@ class RecargaBottomSheet extends StatefulWidget {
 class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
-  Map<int, int> _cantidades = {}; // prod_Id -> cantidad
+  final Map<int, int> _cantidades = {}; // prod_Id -> cantidad
   String search = '';
   bool _isLoading = true;
 
@@ -474,53 +457,82 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   ),
                 ),
                 onPressed: () async {
-  // 1. Obtener usuario logueado
-  final perfilService = PerfilUsuarioService();
-  final userData = await perfilService.obtenerDatosUsuario();
-  if (userData == null || userData['usua_Id'] == null) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No se pudo obtener el usuario logueado.")));
-    }
-    return;
-  }
-  final int usuaId = userData['usua_Id'] is String
-      ? int.tryParse(userData['usua_Id']) ?? 0
-      : userData['usua_Id'] ?? 0;
-  if (usuaId == 0) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ID de usuario inválido.")));
-    }
-    return;
-  }
+                  // 1. Obtener usuario logueado
+                  final perfilService = PerfilUsuarioService();
+                  final userData = await perfilService.obtenerDatosUsuario();
+                  if (userData == null || userData['usua_Id'] == null) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "No se pudo obtener el usuario logueado.",
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  final int usuaId = userData['usua_Id'] is String
+                      ? int.tryParse(userData['usua_Id']) ?? 0
+                      : userData['usua_Id'] ?? 0;
+                  if (usuaId == 0) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("ID de usuario inválido."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
-  // 2. Construir detalles
-  final detalles = _cantidades.entries
-      .where((e) => e.value > 0)
-      .map((e) => {
-            "prod_Id": e.key,
-            "reDe_Cantidad": e.value,
-            "reDe_Observaciones": "N/A",
-          })
-      .toList();
-  if (detalles.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selecciona al menos un producto.")));
-    }
-    return;
-  }
+                  // 2. Construir detalles
+                  final detalles = _cantidades.entries
+                      .where((e) => e.value > 0)
+                      .map(
+                        (e) => {
+                          "prod_Id": e.key,
+                          "reDe_Cantidad": e.value,
+                          "reDe_Observaciones": "N/A",
+                        },
+                      )
+                      .toList();
+                  if (detalles.isEmpty) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Selecciona al menos un producto."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
-  // 3. Llamar a RecargasService
-  final recargaService = RecargasService();
-  final ok = await recargaService.insertarRecarga(usuaCreacion: usuaId, detalles: detalles);
-  if (mounted) {
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Recarga enviada correctamente"), backgroundColor: Colors.green));
-      Navigator.of(context).pop(true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar la recarga"), backgroundColor: Colors.red));
-    }
-  }
-},
+                  // 3. Llamar a RecargasService
+                  final recargaService = RecargasService();
+                  final ok = await recargaService.insertarRecarga(
+                    usuaCreacion: usuaId,
+                    detalles: detalles,
+                  );
+                  if (mounted) {
+                    if (ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Recarga enviada correctamente"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      Navigator.of(context).pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Error al enviar la recarga"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
                 icon: const Icon(Icons.send, color: Colors.white),
                 label: const Text(
                   'Solicitar',
@@ -546,7 +558,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
+              child:
+                  producto.prod_Imagen != null &&
+                      producto.prod_Imagen!.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: producto.prod_Imagen!,
                       width: 48,
@@ -559,7 +573,8 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
+                      errorWidget: (context, url, error) =>
+                          const Icon(Icons.broken_image, size: 48),
                     )
                   : const Icon(Icons.image, size: 48),
             ),
@@ -582,10 +597,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                         }
                       : null,
                 ),
-                Text(
-                  '$cantidad',
-                  style: const TextStyle(fontSize: 16),
-                ),
+                Text('$cantidad', style: const TextStyle(fontSize: 16)),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {

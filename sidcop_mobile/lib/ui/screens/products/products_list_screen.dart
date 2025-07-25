@@ -41,12 +41,12 @@ class _ProductScreenState extends State<ProductScreen> {
       // Usar SyncService.getProducts() en lugar de _productosService.getProductos()
       // para aprovechar la funcionalidad offline
       final productsData = await SyncService.getProducts();
-      
+
       // Convertir List<Map<String, dynamic>> a List<Productos>
-      _allProducts = productsData.map((productMap) => 
-        Productos.fromJson(productMap)
-      ).toList();
-      
+      _allProducts = productsData
+          .map((productMap) => Productos.fromJson(productMap))
+          .toList();
+
       _filteredProducts = List.from(_allProducts);
       debugPrint('Productos cargados: ${_allProducts.length}');
     } catch (e) {
@@ -243,10 +243,10 @@ class _ProductScreenState extends State<ProductScreen> {
                           const Spacer(),
                           TextButton(
                             onPressed: _clearFilters,
-                            child: const Text('Limpiar'),
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFFD6B68A),
                             ),
+                            child: const Text('Limpiar'),
                           ),
                         ],
                       ),
@@ -331,7 +331,6 @@ class _ProductScreenState extends State<ProductScreen> {
                                             _applyFilters();
                                             Navigator.pop(context);
                                           },
-                                          child: const Text('Aplicar filtros'),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: const Color(
                                               0xFF141A2F,
@@ -351,6 +350,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                                   BorderRadius.circular(16),
                                             ),
                                           ),
+                                          child: const Text('Aplicar filtros'),
                                         ),
                                       ),
                                       const SizedBox(height: 16),
@@ -439,7 +439,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   side: BorderSide(
                     color: isSelected
                         ? const Color.fromARGB(255, 255, 255, 255)
-                        : const Color(0xFFD6B68A)!,
+                        : const Color(0xFFD6B68A),
                   ),
                 ),
                 onSelected: (selected) =>
@@ -625,7 +625,7 @@ class _ProductScreenState extends State<ProductScreen> {
 
                     // Precio
                     Text(
-                      'L. ${product.prod_PrecioUnitario?.toStringAsFixed(2) ?? '0.00'}',
+                      'L. ${product.prod_PrecioUnitario.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
