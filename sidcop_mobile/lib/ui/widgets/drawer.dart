@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
-import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
@@ -348,7 +348,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               onTap: () async {
                 // Navegar a MInventario
-              },
+                Navigator.pop(context);
+                
+                if (_usuaIdPersona != null) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryScreen(usuaIdPersona: _usuaIdPersona!)
+                  ),
+                  (route) => false,
+                );
+                print("Navegando a inventario con usuaIdPersona: $_usuaIdPersona");
+              } else {
+                // Mostrar error si no hay usuaIdPersona
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: No se pudo obtener la información del usuario'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
             ),
         ],
       ),
