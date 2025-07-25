@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
 import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
@@ -496,7 +498,16 @@ class _clientScreenState extends State<clientScreen> {
                                           horizontal: 8,
                                         ),
                                       ),
-                                      onPressed: () {},
+                                      onPressed: () async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ClientdetailsScreen(
+        clienteId: cliente['clie_Id'],
+      ),
+    ),
+  );
+                                      },
                                       child: const Text(
                                         'Detalles',
                                         style: TextStyle(
@@ -570,19 +581,43 @@ class _clientScreenState extends State<clientScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Clientes',
-      icon: Icons.people,
-      child: Column(
-        children: [
-          _buildSearchBar(),
-          const SizedBox(height: 12),
-          _buildFilterAndCount(),
-          const SizedBox(height: 16),
-          _buildClientesList(),
-        ],
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: AppBackground(
+        title: 'Clientes',
+        icon: Icons.people,
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            const SizedBox(height: 12),
+            _buildFilterAndCount(),
+            const SizedBox(height: 16),
+            _buildClientesList(),
+          ],
+        ),
       ),
-      // FloatingActionButton se mantiene fuera del AppBackground
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF141A2F),
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ClientCreateScreen()),
+          );
+
+          if (result == true) {
+            // Refresh the client list if a new client was added
+            setState(() {
+              clientesList = ClientesService().getClientes();
+              clientesList.then((clientes) {
+                _filterClientes(_searchController.text);
+              });
+            });
+          }
+        },
+        child: const Icon(Icons.add, color: Colors.white),
+        shape: const CircleBorder(),
+        elevation: 4.0,
+      ),
     );
   }
 

@@ -90,7 +90,6 @@ class ClientesService {
   }
 
   Future<List<dynamic>> getCuentasPorCobrar() async {
-
     final url = Uri.parse('$_apiServer/CuentasPorCobrar/Listar');
     developer.log('Get CuentasPorCobrar Request URL: $url');
     try {
@@ -99,15 +98,24 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get CuentasPorCobrar Response Status: ${response.statusCode}');
+      developer.log('Get CuentasPorCobrar Response Status: [33m[1m${response.statusCode}[0m');
       developer.log('Get CuentasPorCobrar Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> cuentasPorCobrarList = jsonDecode(response.body);
-        return cuentasPorCobrarList;
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+          final data = decoded['data'];
+          if (data is List) {
+            return data;
+          } else {
+            throw Exception('La clave "data" no es una lista.');
+          }
+        } else {
+          throw Exception('Respuesta inesperada del servidor: falta la clave "data".');
+        }
       } else {
         throw Exception(
-          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+          'Error en la solicitud: Código [33m[1m${response.statusCode}[0m, Respuesta: ${response.body}',
         );
       }
     } catch (e) {
