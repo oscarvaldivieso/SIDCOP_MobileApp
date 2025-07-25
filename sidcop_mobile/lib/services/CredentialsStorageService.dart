@@ -120,6 +120,7 @@ class CredentialsStorageService {
       // Actualizar tokens
       await saveCredentials(
         username: credentials['username'] ?? '',
+        usuaId: credentials['usuaId'] ?? '',
         password: credentials['password'] ?? '',
         token: token ?? credentials['token'],
         refreshToken: refreshToken ?? credentials['refreshToken'],
