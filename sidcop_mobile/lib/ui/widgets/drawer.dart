@@ -33,11 +33,30 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String? _imagenVendedor;
   int? _usuaIdPersona;
   bool _isLoading = true;
+  List<dynamic> permisos = [];
 
   @override
   void initState() {
     super.initState();
     _cargarDatosUsuario();
+    _loadPermisos();
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
+      try {
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
   }
 
   Future<void> _cargarDatosUsuario() async {
@@ -76,7 +95,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   }
 
   bool tienePermiso(int pantId) {
-    return widget.permisos.any((p) => p['Pant_Id'] == pantId);
+    return permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
   @override
