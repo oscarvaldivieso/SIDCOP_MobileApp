@@ -133,12 +133,6 @@ class _ClientLocationScreenState extends State<ClientLocationScreen> {
           Expanded(child: _buildBody()),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).pop(),
-        backgroundColor: const Color(0xFF141A2F),
-        label: const Text('Volver al listado', style: TextStyle(color: Colors.white)),
-        icon: const Icon(Icons.list, color: Colors.white),
-      ),
     );
   }
 
