@@ -70,7 +70,7 @@ class CredentialsStorageService {
       // Convertir todos los valores a String o null
       final Map<String, String> result = {};
       credentials.forEach((key, value) {
-        result[key] = value?.toString();
+        result[key] = value?.toString() ?? '';
       });
       
       return result;
@@ -88,20 +88,6 @@ class CredentialsStorageService {
     } catch (e) {
       developer.log('Error verificando existencia de credenciales: $e');
       return false;
-    }
-  }
-  
-  /// Elimina las credenciales almacenadas
-  static Future<void> clearCredentials() async {
-    try {
-      final file = await _getCredentialsFile();
-      if (await file.exists()) {
-        await file.delete();
-        developer.log('Credenciales eliminadas correctamente');
-      }
-    } catch (e) {
-      developer.log('Error eliminando credenciales: $e');
-      throw Exception('Error al eliminar credenciales: $e');
     }
   }
   
@@ -130,6 +116,25 @@ class CredentialsStorageService {
     } catch (e) {
       developer.log('Error actualizando tokens: $e');
       throw Exception('Error al actualizar tokens: $e');
+    }
+  }
+  
+  /// Elimina las credenciales cifradas almacenadas
+  static Future<bool> clearCredentials() async {
+    try {
+      final file = await _getCredentialsFile();
+      
+      if (await file.exists()) {
+        await file.delete();
+        developer.log('Credenciales cifradas eliminadas exitosamente');
+      } else {
+        developer.log('No hay credenciales para eliminar');
+      }
+      
+      return true;
+    } catch (e) {
+      developer.log('Error eliminando credenciales cifradas: $e');
+      return false;
     }
   }
   

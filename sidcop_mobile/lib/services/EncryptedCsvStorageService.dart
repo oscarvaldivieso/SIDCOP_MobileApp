@@ -319,4 +319,51 @@ class EncryptedCsvStorageService {
       return false;
     }
   }
+
+  // MÉTODOS GENÉRICOS PARA COMPATIBILIDAD CON OTROS SERVICIOS
+
+  /// Guarda datos genéricos en un archivo CSV cifrado
+  static Future<bool> saveData(
+    String fileName,
+    List<Map<String, dynamic>> data,
+  ) async {
+    return await _saveEncryptedCsvData(fileName, data, 'Datos genéricos');
+  }
+
+  /// Carga datos genéricos desde un archivo CSV cifrado
+  static Future<List<Map<String, dynamic>>> loadData(String fileName) async {
+    return await _loadEncryptedCsvData(fileName, 'Datos genéricos');
+  }
+
+  /// Elimina un archivo CSV cifrado específico
+  static Future<bool> deleteFile(String fileName) async {
+    try {
+      final directory = await _getAppDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      
+      if (await file.exists()) {
+        await file.delete();
+        developer.log('Archivo $fileName eliminado exitosamente');
+        return true;
+      } else {
+        developer.log('Archivo $fileName no existe');
+        return true; // No es error si no existe
+      }
+    } catch (e) {
+      developer.log('Error eliminando archivo $fileName: $e');
+      return false;
+    }
+  }
+
+  /// Verifica si un archivo CSV cifrado existe
+  static Future<bool> fileExists(String fileName) async {
+    try {
+      final directory = await _getAppDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      return await file.exists();
+    } catch (e) {
+      developer.log('Error verificando existencia del archivo $fileName: $e');
+      return false;
+    }
+  }
 }
