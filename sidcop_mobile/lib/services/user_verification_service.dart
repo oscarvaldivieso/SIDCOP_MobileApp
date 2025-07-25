@@ -35,7 +35,6 @@ class UserVerificationService {
   /// Throws an exception if the request fails
   static Future<UserVerificationResponse?> verifyUser(String username) async {
     final url = Uri.parse('$_baseUrl/Usuarios/VerificarUsuario');
-
     try {
       final response = await http.post(
         url,
