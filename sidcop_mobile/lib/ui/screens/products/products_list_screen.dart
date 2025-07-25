@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -35,24 +36,63 @@ class _ProductScreenState extends State<ProductScreen> {
     _searchController.addListener(_applyFilters);
   }
 
+  /// Método optimizado para cargar productos usando precarga cuando esté disponible
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
+    
     try {
-      // Usar SyncService.getProducts() en lugar de _productosService.getProductos()
-      // para aprovechar la funcionalidad offline
+      // PASO 1: Verificar si los productos están precargados
+      if (ProductPreloadService.isPreloaded()) {
+        debugPrint('⚡ Usando productos precargados (carga instantánea)');
+        
+        // Obtener productos precargados directamente
+        _allProducts = ProductPreloadService.getPreloadedProducts();
+        _filteredProducts = List.from(_allProducts);
+        
+        debugPrint('✅ Productos cargados instantáneamente: ${_allProducts.length}');
+        
+        // Actualizar UI inmediatamente
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      // PASO 2: Si no están precargados, cargar normalmente
+      debugPrint('🔄 Productos no precargados, cargando desde servidor/caché...');
+      
+      // Usar SyncService.getProducts() para aprovechar funcionalidad offline
       final productsData = await SyncService.getProducts();
-
+      
       // Convertir List<Map<String, dynamic>> a List<Productos>
-      _allProducts = productsData
-          .map((productMap) => Productos.fromJson(productMap))
-          .toList();
-
+      _allProducts = productsData.map((productMap) => 
+        Productos.fromJson(productMap)
+      ).toList();
+      
       _filteredProducts = List.from(_allProducts);
-      debugPrint('Productos cargados: ${_allProducts.length}');
+      debugPrint('✅ Productos cargados desde servidor/caché: ${_allProducts.length}');
+      
+      // PASO 3: Iniciar precarga en segundo plano para próximas veces
+      if (!ProductPreloadService.isPreloading()) {
+        debugPrint('🚀 Iniciando precarga en segundo plano para futuras cargas...');
+        ProductPreloadService.preloadInBackground();
+      }
+      
     } catch (e) {
-      debugPrint('Error cargando productos: $e');
+      debugPrint('❌ Error cargando productos: $e');
+      
+      // Mostrar mensaje de error al usuario
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error cargando productos: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -523,27 +563,10 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              // Imagen del producto
+              // Imagen del producto mejorada
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.0),
-                child: CachedNetworkImage(
-                  imageUrl: product.prod_Imagen ?? '',
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey[200],
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.image, color: Colors.grey),
-                  ),
-                ),
+                child: _buildProductImage(product),
               ),
               const SizedBox(width: 16),
 
@@ -830,6 +853,78 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Widget mejorado para mostrar imágenes de productos con manejo robusto de errores
+  Widget _buildProductImage(Productos product) {
+    final imageUrl = product.prod_Imagen;
+    
+    // Si no hay URL de imagen, mostrar placeholder
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Container(
+        width: 80,
+        height: 80,
+        color: Colors.grey[200],
+        child: const Icon(
+          Icons.image_not_supported,
+          color: Colors.grey,
+          size: 32,
+        ),
+      );
+    }
+    
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        width: 80,
+        height: 80,
+        color: Colors.grey[200],
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+          ),
+        ),
+      ),
+      errorWidget: (context, url, error) {
+        debugPrint('❌ Error cargando imagen: $url - Error: $error');
+        return Container(
+          width: 80,
+          height: 80,
+          color: Colors.grey[200],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.broken_image,
+                color: Colors.grey,
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Error',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      // Configuración adicional para mejorar el rendimiento
+      memCacheWidth: 160, // 2x el tamaño de display para pantallas de alta densidad
+      memCacheHeight: 160,
+      maxWidthDiskCache: 160,
+      maxHeightDiskCache: 160,
     );
   }
 

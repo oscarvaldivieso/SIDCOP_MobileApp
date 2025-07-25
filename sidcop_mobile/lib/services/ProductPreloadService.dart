@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -102,7 +103,7 @@ class ProductPreloadService {
     developer.log('Precarga de imágenes completada. Total precargadas: $imagesPreloaded, Total omitidas: $imagesSkipped');
   }
 
-  /// Precarga una imagen individual
+  /// Precarga una imagen individual usando método robusto
   static Future<bool> _preloadSingleImage(Productos product) async {
     try {
       final imageUrl = product.prod_Imagen;
@@ -111,23 +112,80 @@ class ProductPreloadService {
         return false; // No hay imagen que precargar
       }
       
-      // Usar CachedNetworkImage para precargar la imagen
-      // Esto la descargará y almacenará en caché automáticamente
-      final imageProvider = CachedNetworkImageProvider(imageUrl);
-      
-      // Obtener el contexto actual de forma segura
-      final context = NavigationService.navigatorKey.currentContext;
-      if (context != null) {
-        await precacheImage(imageProvider, context);
-      } else {
-        // Fallback: solo crear el provider para que se descargue
-        imageProvider.resolve(const ImageConfiguration());
+      // Validar que la URL sea válida
+      if (!_isValidImageUrl(imageUrl)) {
+        developer.log('URL de imagen inválida para producto ${product.prod_Id}: $imageUrl');
+        return false;
       }
       
-      return true;
+      developer.log('Precargando imagen: $imageUrl');
+      
+      // Método 1: Intentar con precacheImage si hay contexto
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          final imageProvider = CachedNetworkImageProvider(imageUrl);
+          await precacheImage(imageProvider, context);
+          developer.log('✅ Imagen precargada con contexto: ${product.prod_Id}');
+          return true;
+        } catch (e) {
+          developer.log('⚠️ Error con precacheImage, intentando fallback: $e');
+        }
+      }
+      
+      // Método 2: Fallback - forzar descarga directa
+      try {
+        final imageProvider = CachedNetworkImageProvider(imageUrl);
+        final completer = Completer<bool>();
+        
+        // Resolver la imagen para forzar la descarga
+        final imageStream = imageProvider.resolve(const ImageConfiguration());
+        
+        late ImageStreamListener listener;
+        listener = ImageStreamListener(
+          (ImageInfo image, bool synchronousCall) {
+            developer.log('✅ Imagen descargada exitosamente: ${product.prod_Id}');
+            imageStream.removeListener(listener);
+            if (!completer.isCompleted) completer.complete(true);
+          },
+          onError: (exception, stackTrace) {
+            developer.log('❌ Error descargando imagen ${product.prod_Id}: $exception');
+            imageStream.removeListener(listener);
+            if (!completer.isCompleted) completer.complete(false);
+          },
+        );
+        
+        imageStream.addListener(listener);
+        
+        // Timeout de 10 segundos
+        return await completer.future.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            imageStream.removeListener(listener);
+            developer.log('⏰ Timeout precargando imagen: ${product.prod_Id}');
+            return false;
+          },
+        );
+        
+      } catch (e) {
+        developer.log('❌ Error en fallback para imagen ${product.prod_Id}: $e');
+        return false;
+      }
       
     } catch (e) {
-      developer.log('Error precargando imagen para producto ${product.prod_Id}: $e');
+      developer.log('❌ Error general precargando imagen para producto ${product.prod_Id}: $e');
+      return false;
+    }
+  }
+  
+  /// Valida si una URL de imagen es válida
+  static bool _isValidImageUrl(String url) {
+    if (url.isEmpty) return false;
+    
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https');
+    } catch (e) {
       return false;
     }
   }
