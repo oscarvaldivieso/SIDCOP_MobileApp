@@ -507,8 +507,7 @@ class _clientScreenState extends State<clientScreen> {
                               right: 0,
                               child: Builder(builder: (context) {
                                 final amount = _getBadgeAmount(cliente['clie_Id'], cliente['clie_LimiteCredito']);
-                                final isZero = amount == 0;
-                                
+final isZero = amount == 0;
                                 return Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
@@ -517,7 +516,7 @@ class _clientScreenState extends State<clientScreen> {
                                   decoration: BoxDecoration(
                                     color: _getBadgeColor(
                                       cliente['clie_Id'],
-                                      amount: amount,
+                                      cliente['clie_LimiteCredito'],
                                     ),
                                     borderRadius:
                                         const BorderRadius.only(
@@ -574,69 +573,62 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
-  Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+  Color _getBadgeColor(dynamic clienteId, dynamic limiteCredito) {
     if (clienteId == null) return Colors.grey;
-    
-    // Si el monto es 0, mostrar gris (sin crédito)
-    if (amount != null && amount == 0) {
+
+    // Buscar cuentas por cobrar activas (no anuladas y no saldadas)
+    final cuentasCliente = _cuentasPorCobrar.where((cuenta) =>
+      cuenta['clie_Id'] == clienteId &&
+      cuenta['cpCo_Anulado'] == false &&
+      cuenta['cpCo_Saldada'] == false
+    ).toList();
+
+    if (cuentasCliente.isEmpty) {
       return Colors.grey;
     }
-    
-    // Buscar cuentas por cobrar del cliente
-    final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
-      cuenta['clie_Id'] == clienteId && 
-      cuenta['cpCo_Anulado'] == false && 
-      cuenta['cpCo_Saldada'] == false
-    ).toList();
-    
-    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
-    if (cuentasCliente.isEmpty) {
-      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
-      return Colors.green;
+
+    // Si el saldo total de las cuentas activas es 0, badge rojo (sin crédito)
+    final saldoTotal = cuentasCliente.fold<double>(0, (sum, cuenta) => sum + (double.tryParse(cuenta['clie_Saldo']?.toString() ?? '0') ?? 0));
+    if (saldoTotal == 0) {
+      return Colors.red;
     }
-    
-    // Verificar si tiene alguna cuenta vencida
+
     final now = DateTime.now();
-    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print('DEBUG _getBadgeColor: cuenta fecha vencimiento=${cuenta['cpCo_FechaVencimiento']}');
-      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
-      
-      final fechaVencimiento = DateTime.tryParse(cuenta['cpCo_FechaVencimiento'].toString());
+    final tieneVencida = cuentasCliente.any((cuenta) {
+      final fechaVencimiento = DateTime.tryParse(cuenta['cpCo_FechaVencimiento']?.toString() ?? '');
       if (fechaVencimiento == null) return false;
-      
       return fechaVencimiento.isBefore(now);
     });
-    
-    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
-    print('DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color');
-    return color;
+    if (tieneVencida) {
+      return Colors.red;
+    }
+    return Colors.amber;
   }
-  
+
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
     if (clienteId == null) return 0;
-    
-    // Buscar cuentas por cobrar del cliente
-    final cuentasCliente = _cuentasPorCobrar.where((cuenta) => 
-      cuenta['clie_Id'] == clienteId && 
-      cuenta['cpCo_Anulado'] == false && 
+
+    // Buscar cuentas por cobrar activas (no anuladas y no saldadas)
+    final cuentasCliente = _cuentasPorCobrar.where((cuenta) =>
+      cuenta['clie_Id'] == clienteId &&
+      cuenta['cpCo_Anulado'] == false &&
       cuenta['cpCo_Saldada'] == false
     ).toList();
-    
-    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+
+    // Si no tiene cuentas por cobrar activas, mostrar el límite de crédito
     if (cuentasCliente.isEmpty) {
       return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
     }
 
-    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
-    cuentasCliente.sort((a, b) {
-      final fechaA = DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ?? DateTime(1970);
-      final fechaB = DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ?? DateTime(1970);
-      return fechaB.compareTo(fechaA);
-    });
-    final saldoReciente = double.tryParse(cuentasCliente.first['clie_Saldo']?.toString() ?? '0') ?? 0;
-    return saldoReciente;
+    // Si el saldo total de las cuentas activas es 0, mostrar 0 (sin crédito)
+    final saldoTotal = cuentasCliente.fold<double>(0, (sum, cuenta) => sum + (double.tryParse(cuenta['clie_Saldo']?.toString() ?? '0') ?? 0));
+    if (saldoTotal == 0) {
+      return 0;
+    }
+
+    // Si hay saldo, mostrar negativo de la diferencia con el límite
+    final limite = double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    return -(limite - saldoTotal);
   }
 
   // --- Ubicaciones networking y UI ---
