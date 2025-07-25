@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/RecargasService.Dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
 
 import 'dart:convert';
 
@@ -16,6 +17,7 @@ class RechargesScreen extends StatefulWidget {
 }
 
 class _RechargesScreenState extends State<RechargesScreen> {
+  bool _verTodasLasRecargas = false;
   Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
@@ -81,10 +83,14 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {}, // Restaurar botón 'Ver más' a su estado original
-                    child: const Text(
-                      'Ver mas',
-                      style: TextStyle(
+                    onPressed: () {
+                      setState(() {
+                        _verTodasLasRecargas = !_verTodasLasRecargas;
+                      });
+                    },
+                    child: Text(
+                      _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
+                      style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 16,
                         fontFamily: 'Satoshi',
@@ -113,8 +119,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   if (agrupadas.isEmpty) {
                     return const Center(child: Text('No hay recargas.'));
                   }
+                  final entriesList = agrupadas.entries.toList();
+                  final mostrarTodas = _verTodasLasRecargas;
+                  final itemsToShow = mostrarTodas ? entriesList : entriesList.take(3).toList();
                   return Column(
-                    children: agrupadas.entries.take(3).map((entry) {
+                    children: itemsToShow.map((entry) {
                       final recaId = entry.key;
                       final recargasGrupo = entry.value;
                       final recarga = recargasGrupo.first;
@@ -136,6 +145,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                               )
                             : '-',
                         totalCantidad,
+                        recargasGrupo: recargasGrupo,
                       );
                     }).toList(),
                   );
@@ -231,6 +241,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     String estado,
     String fecha,
     int cantidadProductos,
+    {required List<RecargasViewModel> recargasGrupo}
   ) {
     Color textColor;
     String label;
@@ -252,8 +263,17 @@ class _RechargesScreenState extends State<RechargesScreen> {
         label = estado;
         textColor = Colors.grey.shade700;
     }
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => RecargaDetalleBottomSheet(recargasGrupo: recargasGrupo),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -333,9 +353,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 }
+  // <- aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
   const RecargaBottomSheet({super.key});
