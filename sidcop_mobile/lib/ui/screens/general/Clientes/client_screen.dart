@@ -1,50 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
-import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
 import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
-  const clientScreen({Key? key}) : super(key: key);
+  const clientScreen({super.key});
 
   @override
   State<clientScreen> createState() => _clientScreenState();
 }
 
 class _clientScreenState extends State<clientScreen> {
+  List<dynamic> permisos = [];
   late Future<List<dynamic>> clientesList;
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
-  List<dynamic> permisos = [];
+  final ClientesService _clienteService = ClientesService();
+
+  // --- Ubicaciones: Departamentos, Municipios, Colonias ---
+  List<dynamic> _departamentos = [];
+  List<dynamic> _municipios = [];
+  List<dynamic> _colonias = [];
+  List<dynamic> _direccionesPorCliente = [];
+  List<dynamic> _cuentasPorCobrar = [];
+
+  String? _selectedDepa;
+  String? _selectedMuni;
+  int? _selectedColo;
 
   @override
   void initState() {
     super.initState();
-    _loadPermisos();
-    clientesList = ClientesService().getClientes();
-    clientesList.then((clientes) {
+    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
+    _clienteService.getDireccionesPorCliente().then((direcciones) {
       setState(() {
-        filteredClientes = clientes;
+        _direccionesPorCliente = direcciones;
+      });
+      clientesList.then((clientes) {
+        setState(() {
+          filteredClientes = clientes;
+        });
       });
     });
-  }
 
-  Future<void> _loadPermisos() async {
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
-      try {
-        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
-        permisos = jsonDecode(permisosJson);
-      } catch (_) {
-        permisos = [];
-      }
-    }
-    setState(() {});
+    clientesList = ClientesService().getClientes();
+    // Cargar TODOS los datos de ubicación al inicializar
+    _loadAllLocationData();
+
+    // Cargar cuentas por cobrar
+    _clienteService.getCuentasPorCobrar().then((cuentas) {
+      setState(() {
+        print('Cuentas por cobrarrr: ${cuentas}');
+        _cuentasPorCobrar = cuentas;
+      });
+    });
   }
 
   @override
@@ -54,31 +69,533 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   void _filterClientes(String query) {
+    setState(() {
+      _applyAllFilters(query);
+    });
+  }
+
+  void _applyAllFilters(String query) async {
+    print('--- FILTRO APLICADO ---');
+    print('Texto buscado: "' + query + '"');
+    print('Depa seleccionado: ${_selectedDepa}');
+    print('Muni seleccionado: ${_selectedMuni}');
+    print('Colo seleccionado: ${_selectedColo}');
+
+    // Verificar datos cargados
+    print(
+      'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',
+    );
+
+    // Si hay municipio seleccionado, mostrar colonias de ese municipio
+    if (_selectedMuni != null) {
+      final coloniasDelMunicipio = _colonias
+          .where((c) => c['muni_Codigo'] == _selectedMuni)
+          .toList();
+      print(
+        'Colonias en municipio $_selectedMuni: ${coloniasDelMunicipio.length}',
+      );
+      if (coloniasDelMunicipio.isNotEmpty) {
+        print('Ejemplo de colonia: ${coloniasDelMunicipio.first}');
+      }
+    }
+
+    final searchLower = query.toLowerCase();
+
     clientesList.then((clientes) {
       setState(() {
-        if (query.isEmpty) {
-          filteredClientes = clientes;
-        } else {
-          filteredClientes = clientes.where((cliente) {
-            final nombreNegocio =
-                cliente['clie_NombreNegocio']?.toString().toLowerCase() ?? '';
-            final direccion =
-                cliente['clie_DireccionExacta']?.toString().toLowerCase() ?? '';
-            final searchLower = query.toLowerCase();
-            return nombreNegocio.contains(searchLower) ||
-                direccion.contains(searchLower);
-          }).toList();
+        filteredClientes = clientes.where((cliente) {
+          print('\n--- Analizando cliente ---');
+          print(
+            'ID: ${cliente['clie_Id']}, Nombre: ${cliente['clie_NombreNegocio']}, Dirección: ${cliente['clie_DireccionExacta']}',
+          );
+
+          // Filtro por texto
+          final nombreNegocio =
+              cliente['clie_NombreNegocio']?.toString().toLowerCase() ?? '';
+          final direccion =
+              cliente['clie_DireccionExacta']?.toString().toLowerCase() ?? '';
+          final matchesText =
+              searchLower.isEmpty ||
+              nombreNegocio.contains(searchLower) ||
+              direccion.contains(searchLower);
+
+          // Si no hay filtros de ubicación, solo aplicar filtro de texto
+          if (_selectedDepa == null &&
+              _selectedMuni == null &&
+              _selectedColo == null) {
+            print(
+              'Sin filtro de ubicación, solo texto: ${matchesText ? "INCLUIDO" : "EXCLUIDO"}',
+            );
+            return matchesText;
+          }
+
+          // Obtener todas las direcciones del cliente desde _direccionesPorCliente
+          final direccionesCliente = _direccionesPorCliente
+              .where((d) => d['clie_Id'] == cliente['clie_Id'])
+              .toList();
+
+          if (direccionesCliente.isEmpty) {
+            print(
+              'Cliente sin dirección en direccionesPorCliente, EXCLUIDO por filtro de ubicación',
+            );
+            return false;
+          }
+
+          // FILTRO POR COLONIA - Esta es la parte corregida
+          if (_selectedColo != null) {
+            // Verificar si alguna de las direcciones del cliente tiene la colonia seleccionada
+            final bool clienteTieneColoniaSeleccionada = direccionesCliente.any(
+              (direccion) {
+                return direccion['colo_Id'] == _selectedColo;
+              },
+            );
+
+            print(
+              'Filtro por colonia: Cliente clie_Id=${cliente['clie_Id']} tiene colonia $_selectedColo? ' +
+                  (clienteTieneColoniaSeleccionada ? 'SI' : 'NO'),
+            );
+
+            return matchesText && clienteTieneColoniaSeleccionada;
+          }
+
+          // FILTRO POR MUNICIPIO
+          if (_selectedMuni != null) {
+            // Verificar si alguna dirección del cliente pertenece al municipio seleccionado
+            final bool
+            clienteTieneMunicipioSeleccionado = direccionesCliente.any((
+              direccionCliente,
+            ) {
+              final int? coloId = direccionCliente['colo_Id'] as int?;
+              if (coloId == null) return false;
+
+              // Buscar la colonia en la lista de colonias
+              dynamic colonia;
+              try {
+                colonia = _colonias.firstWhere(
+                  (c) => c['colo_Id'] == coloId,
+                  orElse: () => <String, dynamic>{},
+                );
+              } catch (e) {
+                print('Error al buscar colonia $coloId: $e');
+                return false;
+              }
+
+              if (colonia.isEmpty) {
+                print(
+                  'No se encontró la colonia $coloId para el cliente ${cliente['clie_Id']}',
+                );
+                return false;
+              }
+
+              // Verificar si la colonia pertenece al municipio seleccionado
+              final String? muniCodigo = colonia['muni_Codigo'];
+              final bool coincideMunicipio = muniCodigo == _selectedMuni;
+
+              if (coincideMunicipio) {
+                print(
+                  'Cliente ${cliente['clie_Id']} tiene dirección en colonia $coloId que pertenece al municipio $_selectedMuni',
+                );
+              }
+
+              return coincideMunicipio;
+            });
+
+            print(
+              'Filtro por municipio: Cliente tiene municipio $_selectedMuni? ' +
+                  (clienteTieneMunicipioSeleccionado ? 'SI' : 'NO'),
+            );
+
+            return matchesText && clienteTieneMunicipioSeleccionado;
+          }
+
+          // FILTRO POR DEPARTAMENTO
+          if (_selectedDepa != null) {
+            // Verificar si alguna dirección del cliente pertenece al departamento seleccionado
+            final bool
+            clienteTieneDepartamentoSeleccionado = direccionesCliente.any((
+              direccionCliente,
+            ) {
+              final int? coloId = direccionCliente['colo_Id'] as int?;
+              if (coloId == null) return false;
+
+              // Buscar la colonia
+              dynamic colonia;
+              try {
+                colonia = _colonias.firstWhere(
+                  (c) => c['colo_Id'] == coloId,
+                  orElse: () => <String, dynamic>{},
+                );
+              } catch (e) {
+                print(
+                  'Error al buscar colonia $coloId para filtro de departamento: $e',
+                );
+                return false;
+              }
+
+              if (colonia.isEmpty) {
+                print(
+                  'No se encontró la colonia $coloId para el cliente ${cliente['clie_Id']} en filtro de departamento',
+                );
+                return false;
+              }
+
+              final String? muniCodigo = colonia['muni_Codigo'];
+              if (muniCodigo == null) return false;
+
+              // Buscar el municipio
+              dynamic municipio;
+              try {
+                municipio = _municipios.firstWhere(
+                  (m) => m['muni_Codigo'] == muniCodigo,
+                  orElse: () => <String, dynamic>{},
+                );
+              } catch (e) {
+                print('Error al buscar municipio $muniCodigo: $e');
+                return false;
+              }
+
+              if (municipio.isEmpty) {
+                print(
+                  'No se encontró el municipio $muniCodigo para el cliente ${cliente['clie_Id']}',
+                );
+                return false;
+              }
+
+              final String? depaCodigo = municipio['depa_Codigo'];
+              final bool coincideDepartamento = depaCodigo == _selectedDepa;
+
+              if (coincideDepartamento) {
+                print(
+                  'Cliente ${cliente['clie_Id']} tiene dirección en colonia $coloId, municipio $muniCodigo que pertenece al departamento $_selectedDepa',
+                );
+              }
+
+              return coincideDepartamento;
+            });
+
+            print(
+              'Filtro por departamento: Cliente tiene departamento $_selectedDepa? ' +
+                  (clienteTieneDepartamentoSeleccionado ? 'SI' : 'NO'),
+            );
+
+            return matchesText && clienteTieneDepartamentoSeleccionado;
+          }
+
+          // Si llegamos aquí, no hay filtros activos, devolver solo el filtro de texto
+          return matchesText;
+        }).toList();
+
+        // Remover duplicados basados en clie_Id (por si acaso)
+        final Map<dynamic, dynamic> uniqueClientes = {};
+        for (var cliente in filteredClientes) {
+          uniqueClientes[cliente['clie_Id']] = cliente;
         }
+        filteredClientes = uniqueClientes.values.toList();
+
+        print('Total clientes después del filtro: ${filteredClientes.length}');
       });
     });
+  }
+
+  // Método para construir la barra de búsqueda
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _filterClientes,
+          decoration: InputDecoration(
+            hintText: 'Filtrar por nombre...',
+            prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
+                    onPressed: () {
+                      _searchController.clear();
+                      _filterClientes('');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Método para construir el botón de filtro y mostrar el contador de resultados
+  Widget _buildFilterAndCount() {
+    final bool hasTextFilter = _searchController.text.isNotEmpty;
+    final bool hasLocationFilter =
+        _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
+    final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+
+    // Usar la lista filtrada si hay algún filtro activo
+    final int resultCount = filteredClientes.length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0.0),
+      child: Row(
+        children: [
+          // Contador de resultados
+          Text(
+            '$resultCount resultados',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const Spacer(),
+          const SizedBox(width: 8),
+          // Botón de filtrar
+          ElevatedButton.icon(
+            onPressed: _showLocationFilters,
+            icon: const Icon(Icons.filter_list),
+            label: const Text('Filtrar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF141A2F),
+              foregroundColor: const Color(0xFFD6B68A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClientesList() {
+    return FutureBuilder<List<dynamic>>(
+      future: clientesList,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No hay clientes'));
+        } else {
+          // Verificar si hay algún filtro activo (texto o ubicación)
+          final bool hasTextFilter = _searchController.text.isNotEmpty;
+          final bool hasLocationFilter =
+              _selectedDepa != null ||
+              _selectedMuni != null ||
+              _selectedColo != null;
+          final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+
+          // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
+          final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
+
+          if (clientes.isEmpty) {
+            return const Center(
+              child: Text('No se encontraron clientes con ese criterio'),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: clientes.length,
+            itemBuilder: (context, index) {
+              final cliente = clientes[index];
+              return Card(
+                margin: const EdgeInsets.all(8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 4,
+                child: SizedBox(
+                  height: 140,
+                  child: Row(
+                    children: [
+                      // Image on the left
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                        ),
+                        child: Image.network(
+                          '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                          height: 140,
+                          width: 140, // Fixed width for the image
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                height: 140,
+                                width: 140,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                        ),
+                      ),
+                      // Content on the right
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        '${cliente['clie_NombreNegocio'] ?? ''}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        cliente['clie_Nombres'] +
+                                                ' ' +
+                                                cliente['clie_Apellidos'] ??
+                                            'Sin dirección',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 40,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                        ),
+                                      ),
+                                      onPressed: () async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ClientdetailsScreen(
+        clienteId: cliente['clie_Id'],
+      ),
+    ),
+  );
+                                      },
+                                      child: const Text(
+                                        'Detalles',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Color(0xFFD6B68A),
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Badge de monto
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Builder(
+                                builder: (context) {
+                                  final amount = _getBadgeAmount(
+                                    cliente['clie_Id'],
+                                    cliente['clie_LimiteCredito'],
+                                  );
+                                  final isZero = amount == 0;
+
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getBadgeColor(
+                                        cliente['clie_Id'],
+                                        amount: amount,
+                                      ),
+                                      borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(16),
+                                        bottomLeft: Radius.circular(16),
+                                        topLeft: Radius.circular(0),
+                                        bottomRight: Radius.circular(0),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      isZero
+                                          ? 'Sin crédito'
+                                          : 'L. ${amount.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppBarWidget(),
-      drawer: CustomDrawer(permisos: permisos),
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: Colors.transparent,
+      body: AppBackground(
+        title: 'Clientes',
+        icon: Icons.people,
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            const SizedBox(height: 12),
+            _buildFilterAndCount(),
+            const SizedBox(height: 16),
+            _buildClientesList(),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF141A2F),
         onPressed: () async {
@@ -101,296 +618,454 @@ class _clientScreenState extends State<clientScreen> {
         shape: const CircleBorder(),
         elevation: 4.0,
       ),
-      body: Column(
+    );
+  }
+
+  Color _getBadgeColor(dynamic clienteId, {double? amount}) {
+    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    if (clienteId == null) return Colors.grey;
+
+    // Si el monto es 0, mostrar gris (sin crédito)
+    if (amount != null && amount == 0) {
+      return Colors.grey;
+    }
+
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar
+        .where(
+          (cuenta) =>
+              cuenta['clie_Id'] == clienteId &&
+              cuenta['cpCo_Anulado'] == false &&
+              cuenta['cpCo_Saldada'] == false,
+        )
+        .toList();
+
+    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
+    if (cuentasCliente.isEmpty) {
+      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
+      return Colors.green;
+    }
+
+    // Verificar si tiene alguna cuenta vencida
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      print(
+        'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
+      );
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+
+      final fechaVencimiento = DateTime.tryParse(
+        cuenta['cpCo_FechaVencimiento'].toString(),
+      );
+      if (fechaVencimiento == null) return false;
+
+      return fechaVencimiento.isBefore(now);
+    });
+
+    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
+    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
+    print(
+      'DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color',
+    );
+    return color;
+  }
+
+  double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
+    if (clienteId == null) return 0;
+
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar
+        .where(
+          (cuenta) =>
+              cuenta['clie_Id'] == clienteId &&
+              cuenta['cpCo_Anulado'] == false &&
+              cuenta['cpCo_Saldada'] == false,
+        )
+        .toList();
+
+    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+    if (cuentasCliente.isEmpty) {
+      return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    }
+
+    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
+    cuentasCliente.sort((a, b) {
+      final fechaA =
+          DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      final fechaB =
+          DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      return fechaB.compareTo(fechaA);
+    });
+    final saldoReciente =
+        double.tryParse(
+          cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
+        ) ??
+        0;
+    return saldoReciente;
+  }
+
+  // --- Ubicaciones networking y UI ---
+  Future<void> _loadAllLocationData() async {
+    try {
+      // Cargar todos los datos en paralelo
+      final results = await Future.wait([
+        _clienteService.getDepartamentos(),
+        _clienteService.getMunicipios(),
+        _clienteService.getColonias(),
+      ]);
+      setState(() {
+        _departamentos = results[0];
+        _municipios = results[1]; // TODOS los municipios
+        _colonias = results[2]; // TODAS las colonias
+      });
+      print(
+        'Datos cargados - Departamentos: \\${_departamentos.length}, Municipios: \\${_municipios.length}, Colonias: \\${_colonias.length}',
+      );
+    } catch (e) {
+      print('Error loading location data: $e');
+    }
+  }
+
+  Future<void> _loadMunicipios(String depaCodigo) async {
+    try {
+      final list = await _clienteService.getMunicipios();
+      setState(
+        () => _municipios = list
+            .where((m) => m['depa_Codigo'] == depaCodigo)
+            .toList(),
+      );
+    } catch (e) {
+      print('Error loading municipios: $e');
+    }
+  }
+
+  Future<void> _loadColonias(String muniCodigo) async {
+    try {
+      final list = await _clienteService.getColonias();
+      setState(
+        () => _colonias = list
+            .where((c) => c['muni_Codigo'] == muniCodigo)
+            .toList(),
+      );
+    } catch (e) {
+      print('Error loading colonias: $e');
+    }
+  }
+
+  Widget _buildFilterSection(
+    String title,
+    IconData icon,
+    List<dynamic> items,
+    String idKey,
+    String nameKey,
+    String? selectedValue,
+    Function(String) onSelected,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A2F),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 16.0,
-            ),
-            child: Container(
-              width: double.infinity,
-              height: 100,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141A2F),
-                borderRadius: BorderRadius.circular(16),
-                image: const DecorationImage(
-                  image: AssetImage('assets/asset-breadcrumb.png'),
-                  fit: BoxFit.cover,
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: const Color.fromARGB(255, 255, 255, 255),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Clientes',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                      ),
-                    ),
-                    const Icon(Icons.people, color: Colors.white, size: 30),
-                  ],
-                ),
-              ),
-            ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _filterClientes,
-                decoration: InputDecoration(
-                  hintText: 'Filtrar por nombre...',
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: Color(0xFF141A2F),
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear,
-                            color: Color(0xFF141A2F),
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            _filterClientes('');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: clientesList,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No hay clientes'));
-                } else {
-                  // Usar la lista filtrada en lugar de la original
-                  final clientes =
-                      filteredClientes.isEmpty && _searchController.text.isEmpty
-                      ? snapshot.data!
-                      : filteredClientes;
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: items.map((item) {
+              final id = item[idKey].toString();
+              final name = item[nameKey] as String? ?? 'Sin nombre';
+              final isSelected = selectedValue == id;
 
-                  if (clientes.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No se encontraron clientes con ese criterio',
-                      ),
-                    );
+              return ChoiceChip(
+                label: Text(
+                  name,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color.fromARGB(255, 0, 0, 0)
+                        : const Color.fromARGB(255, 255, 255, 255),
+                    fontSize: 13,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: const Color(
+                  0xFFD6B68A,
+                ), // cuando está seleccionado
+                backgroundColor: const Color(0xFF141A2F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSelected
+                        ? const Color.fromARGB(255, 255, 255, 255)
+                        : const Color(0xFFD6B68A),
+                  ),
+                ),
+                onSelected: (selected) {
+                  if (selected) {
+                    onSelected(id);
+                  } else {
+                    onSelected('');
                   }
-
-                  return ListView.builder(
-                    itemCount: clientes.length,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8.0,
-                    ),
-                    itemBuilder: (context, index) {
-                      final cliente = clientes[index];
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ClientdetailsScreen(
-                                clienteId: cliente['clie_Id'],
-                              ),
-                            ),
-                          );
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 16.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 4,
-                          child: SizedBox(
-                            height: 140,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Image on the left
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    bottomLeft: Radius.circular(16),
-                                  ),
-                                  child: Image.network(
-                                    cliente['clie_ImagenDelNegocio'] ?? '',
-                                    width: 140,
-                                    height: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              width: 140,
-                                              color: Colors.grey[200],
-                                              child: const Icon(
-                                                Icons.person,
-                                                size: 40,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                  ),
-                                ),
-                                // Content on the right
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12.0),
-                                    child: Stack(
-                                      children: [
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              cliente['clie_NombreNegocio'] ??
-                                                  'Sin nombre',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              cliente['clie_DireccionExacta'] ??
-                                                  'Sin dirección',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const Spacer(),
-                                            SizedBox(
-                                              width: double.infinity,
-                                              height: 36,
-                                              child: ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color(
-                                                    0xFF141A2F,
-                                                  ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                  padding: EdgeInsets.zero,
-                                                ),
-                                                onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          ClientdetailsScreen(
-                                                            clienteId:
-                                                                cliente['clie_Id'],
-                                                          ),
-                                                    ),
-                                                  );
-                                                },
-                                                child: const Text(
-                                                  'Detalles',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: Color(0xFFD6B68A),
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        // Badge de monto
-                                        Positioned(
-                                          top: 0,
-                                          right: 0,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: _getBadgeColor(
-                                                cliente['clie_Monto'],
-                                              ),
-                                              borderRadius:
-                                                  const BorderRadius.only(
-                                                    bottomLeft: Radius.circular(
-                                                      8,
-                                                    ),
-                                                    topRight: Radius.circular(
-                                                      16,
-                                                    ),
-                                                  ),
-                                            ),
-                                            child: Text(
-                                              'L. ${(cliente['clie_Monto'] ?? 0).toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                }
-              },
-            ),
+                },
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Color _getBadgeColor(dynamic monto) {
-    if (monto == null) return Colors.grey;
-    final value = double.tryParse(monto.toString()) ?? 0;
-    if (value >= 5000) return Colors.green;
-    if (value >= 1700) return Colors.orange;
-    return Colors.red;
+  void _showLocationFilters() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            // Listas filtradas para los dropdowns
+            final municipiosFiltrados = _selectedDepa == null
+                ? <dynamic>[]
+                : _municipios
+                      .where((m) => m['depa_Codigo'] == _selectedDepa)
+                      .toList();
+            final coloniasFiltradas = _selectedMuni == null
+                ? <dynamic>[]
+                : _colonias
+                      .where((c) => c['muni_Codigo'] == _selectedMuni)
+                      .toList();
+
+            return GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.7,
+                minChildSize: 0.5,
+                maxChildSize: 0.9,
+                builder: (context, scrollController) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF141A2F),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Drag handle
+                        Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+
+                        // Header with title and close/clear buttons
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Filtrar clientes',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontFamily: 'Satoshi',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  setModalState(() {
+                                    _selectedDepa = null;
+                                    _selectedMuni = null;
+                                    _selectedColo = null;
+                                  });
+                                  setState(() {
+                                    _selectedDepa = null;
+                                    _selectedMuni = null;
+                                    _selectedColo = null;
+                                  });
+                                  _applyAllFilters(_searchController.text);
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD6B68A),
+                                ),
+                                child: const Text('Limpiar'),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Filter sections
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Column(
+                                children: [
+                                  // Departamento section
+                                  _buildFilterSection(
+                                    'Departamentos',
+                                    Icons.location_city,
+                                    _departamentos,
+                                    'depa_Codigo',
+                                    'depa_Descripcion',
+                                    _selectedDepa,
+                                    (value) {
+                                      setModalState(() {
+                                        _selectedDepa = value.isEmpty
+                                            ? null
+                                            : value;
+                                        _selectedMuni = null;
+                                        _selectedColo = null;
+                                      });
+                                      setState(() {
+                                        _selectedDepa = value.isEmpty
+                                            ? null
+                                            : value;
+                                        _selectedMuni = null;
+                                        _selectedColo = null;
+                                      });
+                                    },
+                                  ),
+
+                                  // Municipio section
+                                  _buildFilterSection(
+                                    'Municipios',
+                                    Icons.apartment,
+                                    municipiosFiltrados,
+                                    'muni_Codigo',
+                                    'muni_Descripcion',
+                                    _selectedMuni,
+                                    (value) {
+                                      setModalState(() {
+                                        _selectedMuni = value.isEmpty
+                                            ? null
+                                            : value;
+                                        _selectedColo = null;
+                                      });
+                                      setState(() {
+                                        _selectedMuni = value.isEmpty
+                                            ? null
+                                            : value;
+                                        _selectedColo = null;
+                                      });
+                                    },
+                                  ),
+
+                                  // Colonia section
+                                  _buildFilterSection(
+                                    'Colonias',
+                                    Icons.home_work,
+                                    coloniasFiltradas,
+                                    'colo_Id',
+                                    'colo_Descripcion',
+                                    _selectedColo?.toString(),
+                                    (value) {
+                                      final intValue = value.isEmpty
+                                          ? null
+                                          : int.tryParse(value);
+                                      setModalState(
+                                        () => _selectedColo = intValue,
+                                      );
+                                      setState(() => _selectedColo = intValue);
+                                    },
+                                  ),
+
+                                  // Apply button
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _applyAllFilters(
+                                          _searchController.text,
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFFD6B68A),
+                                        ),
+                                        elevation: 0,
+                                        foregroundColor: const Color(
+                                          0xFFD6B68A,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Aplicar filtros'),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        MediaQuery.of(
+                                          context,
+                                        ).viewInsets.bottom +
+                                        16,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
