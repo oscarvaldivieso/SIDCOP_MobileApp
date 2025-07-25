@@ -621,14 +621,10 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
+  // ✅ MÉTODO CORREGIDO - Evalúa vencimiento ANTES que monto cero
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    print('DEBUG _getBadgeColor: clienteId=$clienteId, amount=$amount');
     if (clienteId == null) return Colors.grey;
-
-    // Si el monto es 0, mostrar gris (sin crédito)
-    if (amount != null && amount == 0) {
-      return Colors.grey;
-    }
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -640,18 +636,23 @@ class _clientScreenState extends State<clientScreen> {
         )
         .toList();
 
-    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
+    // Si no tiene cuentas por cobrar
     if (cuentasCliente.isEmpty) {
+      // Si no tiene límite de crédito, mostrar gris
+      if (amount != null && amount == 0) {
+        print('DEBUG _getBadgeColor: Sin cuentas y sin crédito -> GRIS');
+        return Colors.grey;
+      }
+      // Si tiene límite de crédito disponible, mostrar verde
       print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
       return Colors.green;
     }
 
+    // ✅ EVALUAR VENCIMIENTO ANTES DE VERIFICAR MONTO CERO
     // Verificar si tiene alguna cuenta vencida
     final now = DateTime.now();
     bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print(
-        'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
-      );
+      print('DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}');
       if (cuenta['cpCo_FechaVencimiento'] == null) return false;
 
       final fechaVencimiento = DateTime.tryParse(
@@ -662,12 +663,24 @@ class _clientScreenState extends State<clientScreen> {
       return fechaVencimiento.isBefore(now);
     });
 
-    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
-    print(
-      'DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color',
-    );
-    return color;
+    // ✅ PRIORIDAD: Rojo si tiene cuenta vencida (sin importar el monto)
+    if (tieneCuentaVencida) {
+      print('DEBUG _getBadgeColor: CUENTA VENCIDA -> ROJO');
+      return Colors.red;
+    }
+
+    // Si tiene cuentas por cobrar pero no vencidas
+    // Solo aquí verificamos si el monto es cero para casos especiales
+    if (amount != null && amount == 0) {
+      // Caso raro: tiene cuenta por cobrar activa pero saldo 0
+      // Podrías decidir mostrar naranja o gris según tu lógica de negocio
+      print('DEBUG _getBadgeColor: Cuenta activa con saldo 0 -> NARANJA');
+      return Colors.orange; // o Colors.grey según prefieras
+    }
+
+    // Naranja si tiene cuenta por cobrar pero no vencida
+    print('DEBUG _getBadgeColor: Cuenta activa no vencida -> NARANJA');
+    return Colors.orange;
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
