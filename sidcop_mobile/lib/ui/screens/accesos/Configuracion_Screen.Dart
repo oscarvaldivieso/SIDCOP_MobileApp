@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/ConfiguracionSerivice.Dart';
 import '../../widgets/OfflineConfigWidget.dart';
-import '../../widgets/ProductPreloadDemo.dart';
+import '../../../services/UsuarioService.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   @override
@@ -205,8 +205,36 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       // Widget de configuración offline
                       const OfflineConfigWidget(),
                       
-                      // Widget de estado de precarga de productos (sin botones)
-                      const ProductPreloadDemo(),
+                      // Mensaje de éxito de precarga (solo visible cuando está online)
+                      FutureBuilder<bool>(
+                        future: Future.value(UsuarioService().productosEstanPrecargados()),
+                        builder: (context, snapshot) {
+                          final bool productosPrecargados = snapshot.data ?? false;
+                          return Visibility(
+                            visible: productosPrecargados,
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 8, bottom: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green[700], size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Datos sincronizados y productos precargados correctamente.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.green[700],
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       
                       const SizedBox(height: 24),
                       
