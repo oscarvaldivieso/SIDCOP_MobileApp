@@ -6,7 +6,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
-import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
+// Importación removida - archivo no existe
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';

@@ -183,9 +183,21 @@ class UsuarioService {
             );
             developer.log('Credenciales guardadas después del login exitoso');
             
-            // PASO 4: Iniciar precarga de productos e imágenes en segundo plano
-            developer.log('Iniciando precarga de productos e imágenes...');
-            ProductPreloadService.preloadInBackground();
+            // PASO 4: Iniciar precarga optimizada de productos e imágenes en segundo plano
+            developer.log('🚀 Iniciando precarga optimizada de productos e imágenes...');
+            // Usar método optimizado para descarga directa vía network y almacenamiento en caché local
+            Future.microtask(() async {
+              try {
+                await ProductPreloadService.preloadProductsWithDirectDownload();
+                developer.log('✅ Precarga optimizada completada después del login');
+                
+                // Opcional: obtener información del caché de imágenes
+                final cacheInfo = await ProductPreloadService.getLocalCacheInfo();
+                developer.log('📊 Estado del caché de imágenes: ${cacheInfo['filesCount']} archivos, ${cacheInfo['totalSizeMB']} MB');
+              } catch (e) {
+                developer.log('⚠️ Error en precarga optimizada: $e');
+              }
+            });
             
           } catch (e) {
             developer.log('Error guardando credenciales: $e');
