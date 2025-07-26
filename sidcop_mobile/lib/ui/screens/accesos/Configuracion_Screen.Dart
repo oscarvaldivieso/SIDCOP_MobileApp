@@ -95,26 +95,23 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Sección superior con fondo SVG como UserInfoScreen
+            // Sección superior con fondo azul oscuro
             Container(
               width: double.infinity,
-              height: 300,
+              height: 280,
               color: const Color(0xFF1a1d3a),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Imagen SVG de fondo con flip horizontal y opacidad (igual que UserInfoScreen)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 200,
-                    child: ClipRRect(
-                      child: Opacity(
-                        opacity: 0.4,
-                        child: Transform.flip(
-                          child: SvgPicture.asset(
-                            'assets/FondoNuevo2.svg',
-                            fit: BoxFit.cover,
-                          ),
+                  // Imagen SVG de fondo con flip horizontal y opacidad
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.7,
+                      child: Transform.flip(
+                        flipX: true,
+                        child: SvgPicture.asset(
+                          'assets/FondoNuevo2.svg',
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -140,14 +137,14 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       ),
                     ),
                   ),
-                  // AppBar personalizado integrado
+                  // AppBar personalizado integrado (al final para estar encima)
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: 60,
-                      color: const Color(0xFF1a1d3a),
+                      height: 80,
+                      color: Colors.transparent,
                       child: SafeArea(
                         child: Row(
                           children: [
@@ -208,9 +205,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       // Widget de configuración offline
                       const OfflineConfigWidget(),
                       
-                      const SizedBox(height: 16),
-                      
-                      // Widget de demostración de precarga de productos
+                      // Widget de estado de precarga de productos (sin botones)
                       const ProductPreloadDemo(),
                       
                       const SizedBox(height: 24),
@@ -259,7 +254,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       
                       const SizedBox(height: 24),
                       
-                      // Sección Almacenamiento y sincronización
+                      // Sección Almacenamiento
                       const Text(
                         'Almacenamiento',
                         style: TextStyle(
