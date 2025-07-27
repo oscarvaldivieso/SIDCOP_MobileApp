@@ -3,6 +3,7 @@ import '../../services/OfflineConfigService.dart';
 import '../../services/SyncService.dart';
 import '../../services/CacheService.dart';
 import '../../services/EncryptedCsvStorageService.dart';
+import '../../services/UsuarioService.dart';
 
 class OfflineConfigWidget extends StatefulWidget {
   const OfflineConfigWidget({super.key});
@@ -53,8 +54,20 @@ class _OfflineConfigWidgetState extends State<OfflineConfigWidget> {
           if (syncResult) {
             // Actualizar timestamp de última sincronización
             await OfflineConfigService.updateLastSyncDate();
+            
+            // Iniciar precarga automática de productos
+            final usuarioService = UsuarioService();
+            usuarioService.precargarProductos().then((success) {
+              if (success && mounted) {
+                _showSnackBar(
+                  'Datos sincronizados y productos precargados correctamente.',
+                  Colors.green,
+                );
+              }
+            });
+            
             _showSnackBar(
-              'Modo online activado. Datos sincronizados correctamente.',
+              'Modo online activado. Sincronizando datos...',
               Colors.green,
             );
           } else {

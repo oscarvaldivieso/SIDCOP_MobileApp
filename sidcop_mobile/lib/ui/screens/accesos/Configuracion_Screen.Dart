@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/ConfiguracionSerivice.Dart';
 import '../../widgets/OfflineConfigWidget.dart';
+import '../../../services/UsuarioService.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   @override
@@ -94,26 +95,23 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Sección superior con fondo SVG como UserInfoScreen
+            // Sección superior con fondo azul oscuro
             Container(
               width: double.infinity,
-              height: 300,
+              height: 280,
               color: const Color(0xFF1a1d3a),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Imagen SVG de fondo con flip horizontal y opacidad (igual que UserInfoScreen)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 200,
-                    child: ClipRRect(
-                      child: Opacity(
-                        opacity: 0.4,
-                        child: Transform.flip(
-                          child: SvgPicture.asset(
-                            'assets/FondoNuevo2.svg',
-                            fit: BoxFit.cover,
-                          ),
+                  // Imagen SVG de fondo con flip horizontal y opacidad
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.7,
+                      child: Transform.flip(
+                        flipX: true,
+                        child: SvgPicture.asset(
+                          'assets/FondoNuevo2.svg',
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -139,14 +137,14 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       ),
                     ),
                   ),
-                  // AppBar personalizado integrado
+                  // AppBar personalizado integrado (al final para estar encima)
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: 60,
-                      color: const Color(0xFF1a1d3a),
+                      height: 80,
+                      color: Colors.transparent,
                       child: SafeArea(
                         child: Row(
                           children: [
@@ -207,6 +205,37 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       // Widget de configuración offline
                       const OfflineConfigWidget(),
                       
+                      // Mensaje de éxito de precarga (solo visible cuando está online)
+                      FutureBuilder<bool>(
+                        future: Future.value(UsuarioService().productosEstanPrecargados()),
+                        builder: (context, snapshot) {
+                          final bool productosPrecargados = snapshot.data ?? false;
+                          return Visibility(
+                            visible: productosPrecargados,
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 8, bottom: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green[700], size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Datos sincronizados y productos precargados correctamente.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.green[700],
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      
                       const SizedBox(height: 24),
                       
                       // Sección Acerca de
@@ -253,7 +282,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       
                       const SizedBox(height: 24),
                       
-                      // Sección Almacenamiento y sincronización
+                      // Sección Almacenamiento
                       const Text(
                         'Almacenamiento',
                         style: TextStyle(

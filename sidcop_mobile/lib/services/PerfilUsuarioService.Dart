@@ -1,31 +1,56 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sidcop_mobile/services/EncryptionService.dart';
+import 'package:sidcop_mobile/services/EncryptedCsvStorageService.dart';
 
 class PerfilUsuarioService {
   static const String _userDataKey = 'user_data';
+  static const String _userDataFileName = 'user_profile.csv.enc';
   
-  // Guardar datos del usuario después del login
+  // Guardar datos del usuario después del login (usando almacenamiento cifrado)
   Future<void> guardarDatosUsuario(Map<String, dynamic> userData) async {
     try {
+      // Guardar en SharedPreferences para compatibilidad hacia atrás
       final prefs = await SharedPreferences.getInstance();
       final userDataJson = jsonEncode(userData);
       await prefs.setString(_userDataKey, userDataJson);
-      developer.log('Datos de usuario guardados: $userDataJson');
+      
+      // Guardar en almacenamiento cifrado
+      await EncryptedCsvStorageService.saveData(
+        _userDataFileName,
+        [userData],
+      );
+      
+      developer.log('Datos de usuario guardados en ambos sistemas');
     } catch (e) {
       developer.log('Error guardando datos de usuario: $e');
     }
   }
   
-  // Obtener datos del usuario guardados
+  // Obtener datos del usuario guardados (con soporte para modo offline)
   Future<Map<String, dynamic>?> obtenerDatosUsuario() async {
     try {
+      // Intentar obtener de almacenamiento cifrado primero
+      try {
+        final dataList = await EncryptedCsvStorageService.loadData(_userDataFileName);
+        if (dataList.isNotEmpty) {
+          final userData = dataList[0] as Map<String, dynamic>;
+          developer.log('Datos de usuario obtenidos de almacenamiento cifrado');
+          return userData;
+        }
+      } catch (e) {
+        developer.log('No se pudo cargar desde almacenamiento cifrado: $e');
+        // Continuar con SharedPreferences como fallback
+      }
+      
+      // Fallback a SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final userDataJson = prefs.getString(_userDataKey);
       
       if (userDataJson != null) {
         final userData = jsonDecode(userDataJson) as Map<String, dynamic>;
-        developer.log('Datos de usuario obtenidos: $userData');
+        developer.log('Datos de usuario obtenidos de SharedPreferences');
         return userData;
       }
       
@@ -40,9 +65,14 @@ class PerfilUsuarioService {
   // Limpiar datos del usuario (para logout)
   Future<void> limpiarDatosUsuario() async {
     try {
+      // Limpiar de SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_userDataKey);
-      developer.log('Datos de usuario eliminados');
+      
+      // Limpiar de almacenamiento cifrado
+      await EncryptedCsvStorageService.deleteFile(_userDataFileName);
+      
+      developer.log('Datos de usuario eliminados de ambos sistemas');
     } catch (e) {
       developer.log('Error eliminando datos de usuario: $e');
     }
@@ -51,6 +81,12 @@ class PerfilUsuarioService {
   // Verificar si hay datos de usuario guardados
   Future<bool> tieneUsuarioLogueado() async {
     try {
+      // Verificar en almacenamiento cifrado primero
+      if (await EncryptedCsvStorageService.fileExists(_userDataFileName)) {
+        return true;
+      }
+      
+      // Fallback a SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       return prefs.containsKey(_userDataKey);
     } catch (e) {
