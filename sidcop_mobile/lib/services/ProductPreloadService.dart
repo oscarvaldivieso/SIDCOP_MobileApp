@@ -248,7 +248,7 @@ class ProductPreloadService {
     }
 
     _isPreloading = true;
-    developer.log('🚀 Iniciando precarga optimizada con descarga directa...');
+    developer.log('Iniciando precarga optimizada con descarga directa...');
 
     try {
       // PASO 1: Precargar datos de productos
@@ -449,14 +449,14 @@ class ProductPreloadService {
       
       if (await cacheDir.exists()) {
         await cacheDir.delete(recursive: true);
-        developer.log('🗑️ Caché local de imágenes limpiado');
+        developer.log(' Caché local de imágenes limpiado');
       }
       
       // También limpiar precarga en memoria
       clearPreload();
       
     } catch (e) {
-      developer.log('❌ Error limpiando caché local: $e');
+      developer.log(' Error limpiando caché local: $e');
     }
   }
 

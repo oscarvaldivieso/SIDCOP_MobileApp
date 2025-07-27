@@ -31,14 +31,23 @@ class CredentialsStorageService {
       // Convertir a JSON
       final jsonString = jsonEncode(credentials);
       
-      // Cifrar contenido
+      // Guardar en archivo (cifrado)
       final encryptedContent = EncryptionService.encriptar(jsonString);
-      
-      // Guardar en archivo
       final file = await _getCredentialsFile();
+      developer.log(' DEBUG CREDS - Intentando guardar credenciales en: ${file.path}');
+      developer.log(' DEBUG CREDS - Directorio existe: ${await Directory(file.parent.path).exists()}');
+      developer.log(' DEBUG CREDS - Tamaño del contenido cifrado: ${encryptedContent.length}');
       await file.writeAsString(encryptedContent);
       
-      developer.log('Credenciales guardadas en archivo cifrado: ${file.path}');
+      // Verificar que el archivo se creó correctamente
+      final fileExists = await file.exists();
+      developer.log(' DEBUG CREDS - Archivo creado exitosamente: $fileExists');
+      if (fileExists) {
+        final fileSize = await file.length();
+        developer.log(' DEBUG CREDS - Tamaño del archivo: $fileSize bytes');
+      }
+      developer.log('Credenciales guardadas exitosamente en: ${file.path}');
+      developer.log('Contenido guardado: $jsonString');
       return true;
     } catch (e) {
       developer.log('Error guardando credenciales cifradas: $e');
@@ -54,15 +63,15 @@ class CredentialsStorageService {
       
       // Verificar si el archivo existe
       if (!await file.exists()) {
-        developer.log('Archivo de credenciales no encontrado');
+        developer.log('Archivo de credenciales no encontrado en: ${file.path}');
         return null;
       }
+      developer.log('Archivo de credenciales encontrado en: ${file.path}');
       
-      // Leer contenido cifrado
+      // Leer contenido (descifrado)
       final encryptedContent = await file.readAsString();
-      
-      // Descifrar contenido
       final jsonString = EncryptionService.desencriptar(encryptedContent);
+      developer.log('Contenido leído: $jsonString');
       
       // Convertir de JSON a Map
       final Map<String, dynamic> credentials = jsonDecode(jsonString);
@@ -84,9 +93,22 @@ class CredentialsStorageService {
   static Future<bool> hasStoredCredentials() async {
     try {
       final file = await _getCredentialsFile();
-      return await file.exists();
+      developer.log('🔐 DEBUG CREDS - Verificando existencia de archivo: ${file.path}');
+      
+      final directoryExists = await Directory(file.parent.path).exists();
+      developer.log('🔐 DEBUG CREDS - Directorio existe: $directoryExists');
+      
+      final fileExists = await file.exists();
+      developer.log('🔐 DEBUG CREDS - El archivo existe: $fileExists');
+      
+      if (fileExists) {
+        final fileSize = await file.length();
+        developer.log('🔐 DEBUG CREDS - Tamaño del archivo: $fileSize bytes');
+      }
+      
+      return fileExists;
     } catch (e) {
-      developer.log('Error verificando existencia de credenciales: $e');
+      developer.log(' DEBUG CREDS - Error verificando existencia de credenciales: $e');
       return false;
     }
   }
