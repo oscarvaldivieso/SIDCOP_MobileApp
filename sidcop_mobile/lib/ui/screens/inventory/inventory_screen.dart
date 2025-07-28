@@ -228,25 +228,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Zona Norte - Ruta 15',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontFamily: 'Satoshi',
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),

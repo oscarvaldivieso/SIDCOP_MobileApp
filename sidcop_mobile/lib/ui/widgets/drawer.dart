@@ -197,7 +197,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -218,7 +218,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -236,7 +236,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -259,7 +259,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -277,7 +277,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -292,7 +292,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -313,7 +313,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -336,7 +336,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -362,7 +362,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () async {
