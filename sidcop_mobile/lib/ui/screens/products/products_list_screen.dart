@@ -133,41 +133,71 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  // Bloque 2: Modificación de la barra de búsqueda
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Buscar productos...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10.0),
+            child: Container(
+              height: 48, // Altura fija más pequeña
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar productos...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12, // Padding vertical reducido
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _applyFilters();
+                          },
+                        )
+                      : null,
                 ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applyFilters();
-                        },
-                      )
-                    : null,
               ),
             ),
           ),
           const SizedBox(width: 12),
           Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+            height: 48, // Misma altura que el TextField
+            width: 48, // Hacer el botón cuadrado
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                24,
+              ), // Completamente redondeado
+              border: Border.all(width: 1),
+            ),
             child: IconButton(
               onPressed: _showFiltersPanel,
-              icon: const Icon(
-                Icons.filter_list,
-                color: Color.fromARGB(255, 134, 134, 134),
-              ),
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
               tooltip: 'Filtrar',
             ),
           ),
@@ -522,12 +552,17 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  /// Bloque 1: Modificación de la Card del producto
   Widget _buildProductCard(Productos product) {
     return Card(
+      color: Colors.white, // Cambiado de rojo a blanco
       margin: const EdgeInsets.only(bottom: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+      elevation: 2, // Agregada elevación sutil
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+      ), // Más redondeada
       child: InkWell(
-        borderRadius: BorderRadius.circular(10.0),
+        borderRadius: BorderRadius.circular(12.0),
         onTap: () => _showProductDetail(product),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -562,14 +597,22 @@ class _ProductScreenState extends State<ProductScreen> {
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                               fontFamily: 'Satoshi',
+                              color: Color(
+                                0xFF141A2F,
+                              ), // Color más oscuro para contraste
                             ),
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Colors.black),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF141A2F),
+                        ), // Color consistente
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -589,10 +632,10 @@ class _ProductScreenState extends State<ProductScreen> {
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontFamily: 'Satoshi',
+                              fontSize: 12,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
