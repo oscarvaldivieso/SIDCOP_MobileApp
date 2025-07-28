@@ -95,6 +95,22 @@ class _clientScreenState extends State<clientScreen> {
       }
     }
 
+//  Future<void> _loadPermisos() async {
+//     final perfilService = PerfilUsuarioService();
+//     final userData = await perfilService.obtenerDatosUsuario();
+//     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+//       try {
+//         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+//         permisos = jsonDecode(permisosJson);
+//       } catch (_) {
+//         permisos = [];
+//       }
+//     }
+//     setState(() {});
+//   }
+
+
+
     final searchLower = query.toLowerCase();
 
     clientesList.then((clientes) {
@@ -453,7 +469,7 @@ class _clientScreenState extends State<clientScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 10),
+                                      const SizedBox(height: 8),
                                       Text(
                                         '${cliente['clie_NombreNegocio'] ?? ''}',
                                         style: const TextStyle(
@@ -463,7 +479,7 @@ class _clientScreenState extends State<clientScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
                                         cliente['clie_Nombres'] +
                                                 ' ' +
@@ -471,6 +487,16 @@ class _clientScreenState extends State<clientScreen> {
                                             'Sin dirección',
                                         style: const TextStyle(
                                           fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        cliente['clie_Telefono']
+                                                ??
+                                            'Sin teléfono',
+                                        style: const TextStyle(
+                                          fontSize: 11,
                                           color: Colors.grey,
                                         ),
                                       ),
@@ -533,7 +559,7 @@ class _clientScreenState extends State<clientScreen> {
                                     amount: amount,
                                   );
                                   final isRed = badgeColor == Colors.red;
-                                  
+
                                   // -  Para cuentas rojas (vencidas), mostrar el monto incluso si es 0 o negativo
                                   // Para otras, solo mostrar "Sin crédito" si es 0 Y no es roja
                                   final shouldShowSinCredito = amount == 0 && !isRed;
@@ -555,7 +581,7 @@ class _clientScreenState extends State<clientScreen> {
                                     child: Text(
                                       shouldShowSinCredito
                                           ? 'Sin crédito'
-                                          : isRed 
+                                          : isRed
                                               ? ' L. ${amount.toStringAsFixed(2)}'
                                               : 'L. ${amount.toStringAsFixed(2)}',
                                       style: const TextStyle(
@@ -585,6 +611,7 @@ class _clientScreenState extends State<clientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //drawer: CustomDrawer(permisos: permisos),
       backgroundColor: Colors.transparent,
       body: AppBackground(
         title: 'Clientes',
@@ -670,7 +697,7 @@ class _clientScreenState extends State<clientScreen> {
       print('DEBUG _getBadgeColor: Sin cuentas y sin crédito -> GRIS');
       return Colors.grey;
     }
-    
+
     // Si tiene límite de crédito disponible -> VERDE
     print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
     return Colors.green;
@@ -706,7 +733,7 @@ class _clientScreenState extends State<clientScreen> {
           DateTime(1970);
       return fechaB.compareTo(fechaA);
     });
-    
+
     final saldoReciente =
         double.tryParse(
           cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
