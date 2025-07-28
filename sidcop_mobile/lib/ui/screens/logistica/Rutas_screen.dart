@@ -4,7 +4,34 @@ import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+class RutaMapScreen extends StatelessWidget {
+  final double lat;
+  final double lng;
+  final String? descripcion;
+  const RutaMapScreen({super.key, required this.lat, required this.lng, this.descripcion});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(  
+      appBar: AppBar(title: Text(descripcion ?? 'Ubicación Ruta')),
+      body: GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: LatLng(lat, lng),
+          zoom: 15,
+        ),
+        markers: {
+          Marker(
+            markerId: const MarkerId('ruta'),
+            position: LatLng(lat, lng),
+            infoWindow: InfoWindow(title: descripcion),
+          ),
+        },
+      ),
+    );
+  }
+}
 
 class RutasScreen extends StatefulWidget {
   @override
@@ -31,7 +58,7 @@ class _RutasScreenState extends State<RutasScreen> {
         _rutas = rutasJson.map<Ruta>((json) => Ruta.fromJson(json)).toList();
         _isLoading = false;
       });
-      print('Rutas fetched successfully: ${_rutas.length} rutas loaded.');
+      print('Rutas ${_rutas.length} ');
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -93,53 +120,67 @@ class _RutasScreenState extends State<RutasScreen> {
                         final ruta = _rutas[index];
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: ListTile(
-                    title: Text(ruta.ruta_Descripcion ?? 'Sin descripción'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-                        Image.network(
-                          'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            height: 120,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.map, size: 40, color: Colors.grey),
-                          ),
-                        ),
-                        Text('Código: ${(ruta.ruta_Codigo ?? "-").toString()}'),
-                        Text('Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}'),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 40, 
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF141A2F),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: ListTile(
+                            title: Text(ruta.ruta_Descripcion ?? 'Sin descripción'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => RutaMapScreen(
+                                          lat: 15.525585,
+                                          lng: -88.013512,
+                                          descripcion: ruta.ruta_Descripcion,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Image.network(
+                                    'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
+                                    height: 120,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      height: 120,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.map, size: 40, color: Colors.grey),
+                                    ),
+                                  ),
+                                ),
+                                Text('Código: ${(ruta.ruta_Codigo ?? "-").toString()}'),
+                                Text('Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}'),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 40, 
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF141A2F),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    ),
+                                    onPressed: () {},
+                                    child: const Text(
+                                      'Detalles',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Color(0xFFD6B68A),
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            onPressed: () {},
-                            child: const Text(
-                              'Detalles',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFFD6B68A),
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
+                            
                           ),
-                        ),
-                      ],
-                    ),
-                    
-                  ),
                           
                         );
                       },
