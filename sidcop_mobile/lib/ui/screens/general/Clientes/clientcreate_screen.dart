@@ -59,6 +59,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final _nombreNegocioController = TextEditingController();
   final List<DireccionCliente> _direcciones = [];
 
+  // Error text states
+  String? _nombresError;
+  String? _apellidosError;
+  String? _dniError;
+  String? _nombreNegocioError;
+
   @override
   void dispose() {
     _nombresController.dispose();
@@ -66,6 +72,16 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     _dniController.dispose();
     _nombreNegocioController.dispose();
     super.dispose();
+  }
+
+  bool _validateFields() {
+    setState(() {
+      _nombresError = _nombresController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+      _apellidosError = _apellidosController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+      _dniError = _dniController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+      _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+    });
+    return _nombresError == null && _apellidosError == null && _dniError == null && _nombreNegocioError == null;
   }
 
   Future<void> _agregarUbicacion() async {
@@ -102,7 +118,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateFields()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -378,7 +394,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     required String hint,
     bool isRequired = false,
     TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
+    String? errorText,
+    void Function(String)? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -387,7 +404,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         hint: hint,
         controller: controller,
         keyboardType: keyboardType,
-        errorText: validator?.call(controller.text) == null ? null : validator!(controller.text),
+        errorText: errorText,
+        onChanged: onChanged,
       ),
     );
   }
@@ -481,6 +499,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   controller: _nombresController,
                   hint: 'Ingrese los nombres',
                   isRequired: true,
+                  errorText: _nombresError,
+                  onChanged: (value) {
+                    if (_nombresError != null) {
+                      setState(() {
+                        _nombresError = null;
+                      });
+                    }
+                  },
                 ),
                 
                 // Apellidos
@@ -489,6 +515,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   controller: _apellidosController,
                   hint: 'Ingrese los apellidos',
                   isRequired: true,
+                  errorText: _apellidosError,
+                  onChanged: (value) {
+                    if (_apellidosError != null) {
+                      setState(() {
+                        _apellidosError = null;
+                      });
+                    }
+                  },
                 ),
                 
                 // Identidad
@@ -498,6 +532,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   hint: 'Ej: 0501-2009-2452',
                   isRequired: true,
                   keyboardType: TextInputType.number,
+                  errorText: _dniError,
+                  onChanged: (value) {
+                    if (_dniError != null) {
+                      setState(() {
+                        _dniError = null;
+                      });
+                    }
+                  },
                 ),
                 
                 // Nombre del Negocio
@@ -506,6 +548,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   controller: _nombreNegocioController,
                   hint: 'Ingrese el nombre del negocio',
                   isRequired: true,
+                  errorText: _nombreNegocioError,
+                  onChanged: (value) {
+                    if (_nombreNegocioError != null) {
+                      setState(() {
+                        _nombreNegocioError = null;
+                      });
+                    }
+                  },
                 ),
                 
                 const SizedBox(height: 16),
