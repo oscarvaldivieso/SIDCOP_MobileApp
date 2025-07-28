@@ -80,11 +80,7 @@ class _clientScreenState extends State<clientScreen> {
     print('Depa seleccionado: ${_selectedDepa}');
     print('Muni seleccionado: ${_selectedMuni}');
     print('Colo seleccionado: ${_selectedColo}');
-
-    // Verificar datos cargados
-    print(
-      'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',
-    );
+    //print( 'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',);
 
     // Si hay municipio seleccionado, mostrar colonias de ese municipio
     if (_selectedMuni != null) {
@@ -98,6 +94,22 @@ class _clientScreenState extends State<clientScreen> {
         print('Ejemplo de colonia: ${coloniasDelMunicipio.first}');
       }
     }
+
+//  Future<void> _loadPermisos() async {
+//     final perfilService = PerfilUsuarioService();
+//     final userData = await perfilService.obtenerDatosUsuario();
+//     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+//       try {
+//         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+//         permisos = jsonDecode(permisosJson);
+//       } catch (_) {
+//         permisos = [];
+//       }
+//     }
+//     setState(() {});
+//   }
+
+
 
     final searchLower = query.toLowerCase();
 
@@ -457,7 +469,7 @@ class _clientScreenState extends State<clientScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 10),
+                                      const SizedBox(height: 8),
                                       Text(
                                         '${cliente['clie_NombreNegocio'] ?? ''}',
                                         style: const TextStyle(
@@ -467,7 +479,7 @@ class _clientScreenState extends State<clientScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
                                         cliente['clie_Nombres'] +
                                                 ' ' +
@@ -475,6 +487,16 @@ class _clientScreenState extends State<clientScreen> {
                                             'Sin dirección',
                                         style: const TextStyle(
                                           fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        cliente['clie_Telefono']
+                                                ??
+                                            'Sin teléfono',
+                                        style: const TextStyle(
+                                          fontSize: 11,
                                           color: Colors.grey,
                                         ),
                                       ),
@@ -532,7 +554,15 @@ class _clientScreenState extends State<clientScreen> {
                                     cliente['clie_Id'],
                                     cliente['clie_LimiteCredito'],
                                   );
-                                  final isZero = amount == 0;
+                                  final badgeColor = _getBadgeColor(
+                                    cliente['clie_Id'],
+                                    amount: amount,
+                                  );
+                                  final isRed = badgeColor == Colors.red;
+
+                                  // -  Para cuentas rojas (vencidas), mostrar el monto incluso si es 0 o negativo
+                                  // Para otras, solo mostrar "Sin crédito" si es 0 Y no es roja
+                                  final shouldShowSinCredito = amount == 0 && !isRed;
 
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
@@ -540,10 +570,7 @@ class _clientScreenState extends State<clientScreen> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _getBadgeColor(
-                                        cliente['clie_Id'],
-                                        amount: amount,
-                                      ),
+                                      color: badgeColor,
                                       borderRadius: const BorderRadius.only(
                                         topRight: Radius.circular(16),
                                         bottomLeft: Radius.circular(16),
@@ -552,9 +579,11 @@ class _clientScreenState extends State<clientScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      isZero
+                                      shouldShowSinCredito
                                           ? 'Sin crédito'
-                                          : 'L. ${amount.toStringAsFixed(2)}',
+                                          : isRed
+                                              ? ' L. ${amount.toStringAsFixed(2)}'
+                                              : 'L. ${amount.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -582,6 +611,7 @@ class _clientScreenState extends State<clientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //drawer: CustomDrawer(permisos: permisos),
       backgroundColor: Colors.transparent,
       body: AppBackground(
         title: 'Clientes',
@@ -621,14 +651,10 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
+  // -  MÉTODO CORREGIDO - Evalúa vencimiento ANTES que monto cero
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    print('DEBUG _getBadgeColor: clienteId=$clienteId, amount=$amount');
     if (clienteId == null) return Colors.grey;
-
-    // Si el monto es 0, mostrar gris (sin crédito)
-    if (amount != null && amount == 0) {
-      return Colors.grey;
-    }
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -640,38 +666,47 @@ class _clientScreenState extends State<clientScreen> {
         )
         .toList();
 
-    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
-    if (cuentasCliente.isEmpty) {
-      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
-      return Colors.green;
+    // -  EVALUAR VENCIMIENTO PRIMERO (antes de verificar si tiene cuentas)
+    if (cuentasCliente.isNotEmpty) {
+      final now = DateTime.now();
+      bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+        print('DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}');
+        if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+
+        final fechaVencimiento = DateTime.tryParse(
+          cuenta['cpCo_FechaVencimiento'].toString(),
+        );
+        if (fechaVencimiento == null) return false;
+
+        return fechaVencimiento.isBefore(now);
+      });
+
+      // -  PRIORIDAD MÁXIMA: Rojo si tiene cuenta vencida (sin importar el monto)
+      if (tieneCuentaVencida) {
+        print('DEBUG _getBadgeColor: CUENTA VENCIDA -> ROJO (monto: $amount)');
+        return Colors.red;
+      }
+
+      // Si tiene cuentas activas pero no vencidas -> NARANJA
+      print('DEBUG _getBadgeColor: Cuenta activa no vencida -> NARANJA');
+      return Colors.orange;
     }
 
-    // Verificar si tiene alguna cuenta vencida
-    final now = DateTime.now();
-    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print(
-        'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
-      );
-      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+    // Si no tiene cuentas por cobrar
+    if (amount != null && amount == 0) {
+      print('DEBUG _getBadgeColor: Sin cuentas y sin crédito -> GRIS');
+      return Colors.grey;
+    }
 
-      final fechaVencimiento = DateTime.tryParse(
-        cuenta['cpCo_FechaVencimiento'].toString(),
-      );
-      if (fechaVencimiento == null) return false;
-
-      return fechaVencimiento.isBefore(now);
-    });
-
-    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
-    print(
-      'DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color',
-    );
-    return color;
+    // Si tiene límite de crédito disponible -> VERDE
+    print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
+    return Colors.green;
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
     if (clienteId == null) return 0;
+
+    final limiteCredito_double = double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -685,10 +720,10 @@ class _clientScreenState extends State<clientScreen> {
 
     // Si no tiene cuentas por cobrar, mostrar el límite de crédito
     if (cuentasCliente.isEmpty) {
-      return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+      return limiteCredito_double;
     }
 
-    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
+    // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
     cuentasCliente.sort((a, b) {
       final fechaA =
           DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
@@ -698,11 +733,32 @@ class _clientScreenState extends State<clientScreen> {
           DateTime(1970);
       return fechaB.compareTo(fechaA);
     });
+
     final saldoReciente =
         double.tryParse(
           cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
-        ) ??
-        0;
+        ) ?? 0;
+
+    // -  VERIFICAR SI TIENE CUENTA VENCIDA para calcular deuda real
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+      final fechaVencimiento = DateTime.tryParse(
+        cuenta['cpCo_FechaVencimiento'].toString(),
+      );
+      if (fechaVencimiento == null) return false;
+      return fechaVencimiento.isBefore(now);
+    });
+
+    // Si tiene cuenta vencida, mostrar la deuda real: saldo - límite de crédito
+    if (tieneCuentaVencida) {
+      final deudaReal = saldoReciente - limiteCredito_double;
+      print('DEBUG _getBadgeAmount: CUENTA VENCIDA - Saldo: $saldoReciente, Límite: $limiteCredito_double, Deuda Real: $deudaReal');
+      // -  PERMITIR VALORES NEGATIVOS para cuentas vencidas
+      return deudaReal;
+    }
+
+    // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
     return saldoReciente;
   }
 
