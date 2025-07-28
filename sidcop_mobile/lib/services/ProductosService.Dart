@@ -12,7 +12,7 @@ class ProductosService {
 Future<List<Productos>> getProductos() async {
 
 
-    final url = Uri.parse('https://$_apiServer/Productos/Listar');
+    final url = Uri.parse('$_apiServer/Productos/Listar');
     developer.log('Get Productos Request URL: $url');
 
     try {
@@ -51,7 +51,7 @@ Future<List<Productos>> getProductos() async {
   }
 
   Future<List<Map<String, dynamic>>> getCategorias() async {
-    final url = Uri.parse('https://$_apiServer/Categorias/Listar');
+    final url = Uri.parse('$_apiServer/Categorias/Listar');
     developer.log('Get Categorias Request URL: $url');
     
     try {
@@ -86,7 +86,7 @@ Future<List<Productos>> getProductos() async {
   }
 
   Future<List<Map<String, dynamic>>> getMarcas() async {
-    final url = Uri.parse('https://$_apiServer/Marcas/Listar');
+    final url = Uri.parse('$_apiServer/Marcas/Listar');
     developer.log('Get Marcas Request URL: $url');
     
     try {
@@ -121,7 +121,7 @@ Future<List<Productos>> getProductos() async {
   }
 
   Future<List<Map<String, dynamic>>> getSubcategorias() async {
-    final url = Uri.parse('https://$_apiServer/Subcategoria/Listar');
+    final url = Uri.parse('$_apiServer/Subcategoria/Listar');
     developer.log('Get Subcategorias Request URL: $url');
 
     try {
