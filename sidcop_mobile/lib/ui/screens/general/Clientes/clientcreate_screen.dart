@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/add_address_screen.dart';
@@ -10,7 +11,30 @@ import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/DropdownDataService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
-import 'package:flutter/services.dart';
+import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+
+// Text style constants for consistent typography
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
+final TextStyle _labelStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+);
+
+final TextStyle _buttonTextStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontWeight: FontWeight.w600,
+);
+
+final TextStyle _hintStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  color: Colors.grey,
+);
 
 class ClientCreateScreen extends StatefulWidget {
   const ClientCreateScreen({Key? key}) : super(key: key);
@@ -61,7 +85,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dirección agregada exitosamente')),
+        SnackBar(
+          content: Text(
+            'Dirección agregada exitosamente',
+            style: _labelStyle,
+          ),
+        ),
       );
     }
   }
@@ -75,7 +104,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor complete todos los campos requeridos')),
+        SnackBar(
+          content: Text(
+            'Por favor complete todos los campos requeridos',
+            style: _labelStyle,
+          ),
+        ),
       );
       return;
     }
@@ -85,16 +119,19 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Sin direcciones'),
-          content: const Text('¿Desea continuar sin agregar una dirección al cliente?'),
+          title: Text('Sin direcciones', style: _titleStyle),
+          content: Text(
+            '¿Desea continuar sin agregar una dirección al cliente?',
+            style: _labelStyle,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
+              child: Text('Cancelar', style: _buttonTextStyle),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continuar'),
+              child: Text('Continuar', style: _buttonTextStyle),
             ),
           ],
         ),
@@ -359,9 +396,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'Direcciones del Cliente',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: _titleStyle.copyWith(fontSize: 16),
         ),
         const SizedBox(height: 8),
         ..._direcciones.asMap().entries.map((entry) {
@@ -375,11 +412,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                 direccion.direccionExacta,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: _labelStyle,
               ),
               subtitle: Text(
                 direccion.observaciones ?? 'Sin observaciones',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: _labelStyle,
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
@@ -390,7 +429,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }).toList(),
         const SizedBox(height: 8),
         CustomButton(
-          text: 'Agregar Dirección',
+          text: 'Agregar Ubicacion',
           onPressed: _agregarUbicacion,
           icon: const Icon(Icons.add_location, color: Colors.white),
         ),
@@ -399,7 +438,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
               'No se han agregado direcciones',
-              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi'),
               textAlign: TextAlign.center,
             ),
           ),
@@ -408,126 +447,136 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nuevo Cliente'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Basic Information Section
-              const Text(
-                'Información Básica',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              
-              // Nombres
-              _buildTextField(
-                label: 'Nombres',
-                controller: _nombresController,
-                hint: 'Ingrese los nombres',
-                isRequired: true,
-              ),
-              
-              // Apellidos
-              _buildTextField(
-                label: 'Apellidos',
-                controller: _apellidosController,
-                hint: 'Ingrese los apellidos',
-                isRequired: true,
-              ),
-              
-              // Identidad
-              _buildTextField(
-                label: 'Identidad',
-                controller: _dniController,
-                hint: 'Ej: 0501-2009-2452',
-                isRequired: true,
-                keyboardType: TextInputType.number,
-              ),
-              
-              // Nombre del Negocio
-              _buildTextField(
-                label: 'Nombre del Negocio',
-                controller: _nombreNegocioController,
-                hint: 'Ingrese el nombre del negocio',
-                isRequired: true,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Image Picker
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Imagen del Negocio',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      height: 150,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _selectedImage != null || _selectedImageBytes != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: kIsWeb
-                                  ? Image.memory(
-                                      _selectedImageBytes!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.file(
-                                      _selectedImage!,
-                                      fit: BoxFit.cover,
-                                    ),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text('Toca para seleccionar una imagen')
-                              ],
-                            ),
+      body: AppBackground(
+        title: 'Agregar Cliente',
+        icon: Icons.person_add,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Basic Information Section with Back Button
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, size: 20, color: Color(0xFF141A2F)),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  if (_selectedImage != null || _selectedImageBytes != null) ...[  
-                    const SizedBox(height: 8),
                     Text(
-                      'Imagen seleccionada: ${kIsWeb ? 'Imagen web' : _selectedImage!.path.split('/').last}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      'Información del Cliente',
+                      style: _titleStyle.copyWith(fontSize: 18),
                     ),
                   ],
-                ],
-              ),
-              
-              // Agregar Ubicación Button
-              _buildLocationButton(),
-              
-              // Submit Button
-              const SizedBox(height: 24),
-              CustomButton(
-                text: 'Guardar Cliente',
-                onPressed: _isSubmitting ? null : _submitForm,
-              ),
-              const SizedBox(height: 16),
-            ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Nombres
+                _buildTextField(
+                  label: 'Nombres',
+                  controller: _nombresController,
+                  hint: 'Ingrese los nombres',
+                  isRequired: true,
+                ),
+                
+                // Apellidos
+                _buildTextField(
+                  label: 'Apellidos',
+                  controller: _apellidosController,
+                  hint: 'Ingrese los apellidos',
+                  isRequired: true,
+                ),
+                
+                // Identidad
+                _buildTextField(
+                  label: 'Identidad',
+                  controller: _dniController,
+                  hint: 'Ej: 0501-2009-2452',
+                  isRequired: true,
+                  keyboardType: TextInputType.number,
+                ),
+                
+                // Nombre del Negocio
+                _buildTextField(
+                  label: 'Nombre del Negocio',
+                  controller: _nombreNegocioController,
+                  hint: 'Ingrese el nombre del negocio',
+                  isRequired: true,
+                ),
+                
+                const SizedBox(height: 16),
+                _buildLocationButton(),
+                const SizedBox(height: 8),
+                // Image Picker
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Imagen del Negocio',
+                      style: _titleStyle.copyWith(fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        height: 150,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: _selectedImage != null || _selectedImageBytes != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: kIsWeb
+                                    ? Image.memory(
+                                        _selectedImageBytes!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Image.file(
+                                        _selectedImage!,
+                                        fit: BoxFit.cover,
+                                      ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Toca para seleccionar una imagen',
+                                    style: _hintStyle,
+                                  )
+                                ],
+                              ),
+                      ),
+                    ),
+                    if (_selectedImage != null || _selectedImageBytes != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Imagen seleccionada: ${kIsWeb ? 'Imagen web' : _selectedImage!.path.split('/').last}',
+                        style: _hintStyle.copyWith(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 24),
+                CustomButton(
+                  text: 'Enviar Solicitud',
+                  onPressed: _isSubmitting ? null : _submitForm,
+                  height: 50,
+                  fontSize: 14,
+                  icon: const Icon(Icons.send, size: 20, color: Colors.white),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
