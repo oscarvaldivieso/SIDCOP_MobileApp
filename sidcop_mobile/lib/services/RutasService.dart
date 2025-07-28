@@ -8,7 +8,7 @@ class RutasService {
   final String _apiKey = apikey;
 
   Future<List<dynamic>> getRutas() async {
-    final url = Uri.parse('https://$_apiServer/Rutas/Listar');
+    final url = Uri.parse('$_apiServer/Rutas/Listar');
     developer.log('Get Rutas Request URL: $url');
     try {
       final response = await http.get(
@@ -33,7 +33,7 @@ class RutasService {
     }
   }
   Future<List<dynamic>> createRuta(Map<String, dynamic> rutaData) async {
-    final url = Uri.parse('https://$_apiServer/Rutas/Crear');
+    final url = Uri.parse('$_apiServer/Rutas/Crear');
     developer.log('Create Ruta Request URL: $url');
     try {
       final response = await http.post(
@@ -59,7 +59,7 @@ class RutasService {
     }
   }
   Future<List<dynamic>> updateRuta(int rutaId , Map<String, dynamic> rutaData) async {
-    final url = Uri.parse('https://$_apiServer/Rutas/Modificar/$rutaId');
+    final url = Uri.parse('$_apiServer/Rutas/Modificar/$rutaId');
     developer.log('Update Ruta Request URL: $url');
     try {
       final response = await http.put(
