@@ -524,7 +524,7 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildProductCard(Productos product) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
       child: InkWell(
         borderRadius: BorderRadius.circular(10.0),
@@ -568,7 +568,7 @@ class _ProductScreenState extends State<ProductScreen> {
                         const Icon(Icons.chevron_right, color: Colors.black),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Container(
@@ -592,7 +592,7 @@ class _ProductScreenState extends State<ProductScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -611,7 +611,7 @@ class _ProductScreenState extends State<ProductScreen> {
                             style: TextStyle(
                               color: Colors.blue[800],
                               fontFamily: 'Satoshi',
-                              fontSize: 12,
+                              fontSize: 10,
                             ),
                           ),
                         ),
