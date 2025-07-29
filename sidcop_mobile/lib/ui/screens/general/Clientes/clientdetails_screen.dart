@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -72,52 +73,37 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     }
   }
 
-  Widget _buildInfoRow(String label, String? value) {
-    final displayValue = value?.isNotEmpty == true ? value! : 'No especificado';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
+  // Build a field with label above value
+  Widget _buildInfoField({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF141A2F),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              displayValue,
-              style: const TextStyle(
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF6B7280),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF141A2F)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
       body: Stack(
         children: [
           AppBackground(
@@ -133,32 +119,39 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Client Name
+                            // Client Name with Back Button
                             Padding(
                               padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                              child: Text(
-                                '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
-                                style: const TextStyle(
-                                  fontFamily: 'Satoshi',
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
+                              child: Row(
+                                children: [
+                                  InkWell(
+                                    onTap: () => Navigator.of(context).pop(),
+                                    child: const Icon(Icons.arrow_back_ios, size: 24, color: Color(0xFF141A2F)),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Text(
+                                      '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
 
                             // Client Image
-                            Center(
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                               child: Container(
-                                width: MediaQuery.of(context).size.width * 0.9,
+                                width: double.infinity,
                                 height: 200,
                                 margin: const EdgeInsets.only(bottom: 20),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: const Color(0xFF141A2F),
-                                    width: 2,
-                                  ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.1),
@@ -182,118 +175,91 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                               ),
                             ),
 
-                            // Business Info
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
+                            // Client Information
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Información del Negocio',
-                                    style: TextStyle(
-                                      fontFamily: 'Satoshi',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF141A2F),
+                                  // Cliente
+                                  _buildInfoField(
+                                    label: 'Cliente:',
+                                    value: '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  
+                                  // RTN
+                                  if (_cliente!['clie_RTN'] != null && _cliente!['clie_RTN'].toString().isNotEmpty)
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildInfoField(
+                                          label: 'RTN:',
+                                          value: _cliente!['clie_RTN'].toString(),
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
                                     ),
-                                  ),
-                                  const Divider(color: Colors.grey),
-                                  _buildInfoRow('Negocio:', _cliente!['clie_NombreNegocio']),
-                                  _buildInfoRow('Teléfono:', _cliente!['clie_Telefono']),
-                                  _buildInfoRow('Ruta:', _cliente!['ruta_Descripcion']),
-                                  if (_direcciones.isNotEmpty) ..._buildDirecciones(),
-                                ],
-                              ),
-                            ),
-
-                            // Client Details Card
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Información del Cliente',
-                                    style: TextStyle(
-                                      fontFamily: 'Satoshi',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF141A2F),
+                                  
+                                  // Correo
+                                  if (_cliente!['clie_Correo'] != null && _cliente!['clie_Correo'].toString().isNotEmpty)
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildInfoField(
+                                          label: 'Correo:',
+                                          value: _cliente!['clie_Correo'].toString(),
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
                                     ),
-                                  ),
-                                  const Divider(color: Colors.grey),
-                                  _buildInfoRow('Código:', _cliente!['clie_Codigo']),
-                                  _buildInfoRow('DNI:', _cliente!['clie_DNI']),
-                                  _buildInfoRow('RTN:', _cliente!['clie_RTN']),
-                                  _buildInfoRow('Correo:', _cliente!['clie_Correo']),
-                                  _buildInfoRow('Sexo:', _cliente!['clie_Sexo']),
-                                  _buildInfoRow('Límite de Crédito:', 
-                                      'L. ${(_cliente!['clie_LimiteCredito'] ?? 0).toStringAsFixed(2)}'),
-                                  _buildInfoRow('Días de Crédito:', 
-                                      '${_cliente!['clie_DiasCredito'] ?? '0'} días'),
+                                  
+                                  // Teléfono
+                                  if (_cliente!['clie_Telefono'] != null && _cliente!['clie_Telefono'].toString().isNotEmpty)
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildInfoField(
+                                          label: 'Teléfono:',
+                                          value: _cliente!['clie_Telefono'].toString(),
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
+                                    ),
+                                  
+                                  // Ruta
+                                  if (_cliente!['ruta_Descripcion'] != null && _cliente!['ruta_Descripcion'].toString().isNotEmpty)
+                                    _buildInfoField(
+                                      label: 'Ruta:',
+                                      value: _cliente!['ruta_Descripcion'].toString(),
+                                    ),
                                 ],
                               ),
                             ),
 
                             // Ir a la Ubicación Button
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _direcciones.isNotEmpty
-                                      ? () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => ClientLocationScreen(
-                                                locations: List<Map<String, dynamic>>.from(_direcciones),
-                                                clientName: _cliente?['clie_Nombre'] ?? 'Cliente',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      side: const BorderSide(color: Color(0xFF141A2F)),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.location_on, color: Color(0xFF141A2F)),
-                                  label: const Text(
-                                    'Ir a la ubicación',
-                                    style: TextStyle(
-                                      color: Color(0xFF141A2F),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                              child: Opacity(
+                                opacity: _direcciones.isNotEmpty ? 1.0 : 0.5,
+                                child: AbsorbPointer(
+                                  absorbing: _direcciones.isEmpty,
+                                  child: CustomButton(
+                                    text: 'IR A LA UBICACIÓN',
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ClientLocationScreen(
+                                            locations: List<Map<String, dynamic>>.from(_direcciones),
+                                            clientName: _cliente?['clie_Nombre'] ?? 'Cliente',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    height: 50,
+                                    fontSize: 14,
+                                    icon: const Icon(Icons.location_pin, color: Colors.white, size: 20),
                                   ),
                                 ),
                               ),
@@ -325,52 +291,26 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: CustomButton(
+                          text: 'VENDER',
                           onPressed: () {
                             // TODO: Implementar lógica de venta
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF141A2F),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
+                          height: 50,
+                          fontSize: 14,
                           icon: const Icon(Icons.shopping_cart, color: Colors.white, size: 20),
-                          label: const Text(
-                            'VENDER',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: CustomButton(
+                          text: 'COBRAR',
                           onPressed: () {
                             // TODO: Implementar lógica de cobro
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF141A2F),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
+                          height: 50,
+                          fontSize: 14,
                           icon: const Icon(Icons.monetization_on, color: Colors.white, size: 20),
-                          label: const Text(
-                            'COBRAR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
                         ),
                       ),
                     ],
@@ -381,18 +321,6 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
         ],
       ),
     );
-  }
-
-  List<Widget> _buildDirecciones() {
-    if (_direcciones.isEmpty) {
-      return [];
-    }
-    
-    // Tomar solo la primera dirección
-    final direccion = _direcciones.first;
-    return [
-      _buildInfoRow('Dirección:', direccion['diCl_DireccionExacta']?.toString() ?? 'No especificada')
-    ];
   }
 
   Widget _buildDefaultAvatar() {
@@ -407,4 +335,5 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
       ),
     );
   }
+
 }
