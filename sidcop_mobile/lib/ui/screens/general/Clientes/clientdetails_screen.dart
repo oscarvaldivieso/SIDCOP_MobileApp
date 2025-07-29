@@ -7,11 +7,8 @@ import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
-  
-  const ClientdetailsScreen({
-    super.key, 
-    required this.clienteId,
-  });
+
+  const ClientdetailsScreen({super.key, required this.clienteId});
 
   @override
   State<ClientdetailsScreen> createState() => _ClientdetailsScreenState();
@@ -50,15 +47,15 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
 
   Future<void> _loadDireccionesCliente() async {
     if (!mounted) return;
-    
+
     try {
       final direcciones = await _clientesService.getDireccionesPorCliente();
-      
+
       final direccionesFiltradas = direcciones.where((dir) {
         final clienteId = dir['clie_Id'];
         return clienteId == widget.clienteId;
       }).toList();
-      
+
       if (mounted) {
         setState(() {
           _direcciones = direccionesFiltradas;
@@ -112,162 +109,215 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
-                    ? Center(child: Text(_errorMessage, style: const TextStyle(fontFamily: 'Satoshi')))
-                    : _cliente == null
-                        ? const Center(child: Text('No se encontró información del cliente', style: const TextStyle(fontFamily: 'Satoshi')))
-                        : SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Client Name with Back Button
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                              child: Row(
-                                children: [
-                                  InkWell(
-                                    onTap: () => Navigator.of(context).pop(),
-                                    child: const Icon(Icons.arrow_back_ios, size: 24, color: Color(0xFF141A2F)),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Text(
-                                      '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
-                                      style: const TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                ? Center(
+                    child: Text(
+                      _errorMessage,
+                      style: const TextStyle(fontFamily: 'Satoshi'),
+                    ),
+                  )
+                : _cliente == null
+                ? const Center(
+                    child: Text(
+                      'No se encontró información del cliente',
+                      style: const TextStyle(fontFamily: 'Satoshi'),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Client Name with Back Button
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                          child: Row(
+                            children: [
+                              InkWell(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: const Icon(
+                                  Icons.arrow_back_ios,
+                                  size: 24,
+                                  color: Color(0xFF141A2F),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'
+                                      .trim(),
+                                  style: const TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                            // Client Image
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                              child: Container(
-                                width: double.infinity,
-                                height: 200,
-                                margin: const EdgeInsets.only(bottom: 20),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 5),
+                        // Client Image
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            height: 200,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: _cliente!['clie_ImagenDelNegocio'] != null
+                                  ? Image.network(
+                                      _cliente!['clie_ImagenDelNegocio'],
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildDefaultAvatar(),
+                                    )
+                                  : _buildDefaultAvatar(),
+                            ),
+                          ),
+                        ),
+
+                        // Client Information
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Cliente
+                              _buildInfoField(
+                                label: 'Cliente:',
+                                value:
+                                    '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'
+                                        .trim(),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // RTN
+                              if (_cliente!['clie_RTN'] != null &&
+                                  _cliente!['clie_RTN'].toString().isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoField(
+                                      label: 'RTN:',
+                                      value: _cliente!['clie_RTN'].toString(),
                                     ),
+                                    const SizedBox(height: 12),
                                   ],
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: _cliente!['clie_ImagenDelNegocio'] != null
-                                      ? Image.network(
-                                          _cliente!['clie_ImagenDelNegocio'],
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
-                                        )
-                                      : _buildDefaultAvatar(),
-                                ),
-                              ),
-                            ),
 
-                            // Client Information
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Cliente
-                                  _buildInfoField(
-                                    label: 'Cliente:',
-                                    value: '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  
-                                  // RTN
-                                  if (_cliente!['clie_RTN'] != null && _cliente!['clie_RTN'].toString().isNotEmpty)
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildInfoField(
-                                          label: 'RTN:',
-                                          value: _cliente!['clie_RTN'].toString(),
-                                        ),
-                                        const SizedBox(height: 12),
-                                      ],
-                                    ),
-                                  
-                                  // Correo
-                                  if (_cliente!['clie_Correo'] != null && _cliente!['clie_Correo'].toString().isNotEmpty)
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildInfoField(
-                                          label: 'Correo:',
-                                          value: _cliente!['clie_Correo'].toString(),
-                                        ),
-                                        const SizedBox(height: 12),
-                                      ],
-                                    ),
-                                  
-                                  // Teléfono
-                                  if (_cliente!['clie_Telefono'] != null && _cliente!['clie_Telefono'].toString().isNotEmpty)
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildInfoField(
-                                          label: 'Teléfono:',
-                                          value: _cliente!['clie_Telefono'].toString(),
-                                        ),
-                                        const SizedBox(height: 12),
-                                      ],
-                                    ),
-                                  
-                                  // Ruta
-                                  if (_cliente!['ruta_Descripcion'] != null && _cliente!['ruta_Descripcion'].toString().isNotEmpty)
+                              // Correo
+                              if (_cliente!['clie_Correo'] != null &&
+                                  _cliente!['clie_Correo']
+                                      .toString()
+                                      .isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     _buildInfoField(
-                                      label: 'Ruta:',
-                                      value: _cliente!['ruta_Descripcion'].toString(),
+                                      label: 'Correo:',
+                                      value: _cliente!['clie_Correo']
+                                          .toString(),
                                     ),
-                                ],
-                              ),
-                            ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ),
 
-                            // Ir a la Ubicación Button
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                              child: Opacity(
-                                opacity: _direcciones.isNotEmpty ? 1.0 : 0.5,
-                                child: AbsorbPointer(
-                                  absorbing: _direcciones.isEmpty,
-                                  child: CustomButton(
-                                    text: 'IR A LA UBICACIÓN',
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ClientLocationScreen(
-                                            locations: List<Map<String, dynamic>>.from(_direcciones),
-                                            clientName: _cliente?['clie_Nombre'] ?? 'Cliente',
+                              // Teléfono
+                              if (_cliente!['clie_Telefono'] != null &&
+                                  _cliente!['clie_Telefono']
+                                      .toString()
+                                      .isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoField(
+                                      label: 'Teléfono:',
+                                      value: _cliente!['clie_Telefono']
+                                          .toString(),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ),
+
+                              // Ruta
+                              if (_cliente!['ruta_Descripcion'] != null &&
+                                  _cliente!['ruta_Descripcion']
+                                      .toString()
+                                      .isNotEmpty)
+                                _buildInfoField(
+                                  label: 'Ruta:',
+                                  value: _cliente!['ruta_Descripcion']
+                                      .toString(),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        // Ir a la Ubicación Button
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Opacity(
+                            opacity: _direcciones.isNotEmpty ? 1.0 : 0.5,
+                            child: AbsorbPointer(
+                              absorbing: _direcciones.isEmpty,
+                              child: CustomButton(
+                                text: 'IR A LA UBICACIÓN',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ClientLocationScreen(
+                                            locations:
+                                                List<Map<String, dynamic>>.from(
+                                                  _direcciones,
+                                                ),
+                                            clientName:
+                                                _cliente?['clie_Nombre'] ??
+                                                'Cliente',
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    height: 50,
-                                    fontSize: 14,
-                                    icon: const Icon(Icons.location_pin, color: Colors.white, size: 20),
-                                  ),
+                                    ),
+                                  );
+                                },
+                                height: 50,
+                                fontSize: 14,
+                                icon: const Icon(
+                                  Icons.location_pin,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 100), // Espacio para los botones flotantes
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(
+                          height: 100,
+                        ), // Espacio para los botones flotantes
+                      ],
+                    ),
+                  ),
           ),
           // Sticky Action Buttons
           if (_cliente != null && !_isLoading && _errorMessage.isEmpty)
@@ -298,7 +348,11 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           },
                           height: 50,
                           fontSize: 14,
-                          icon: const Icon(Icons.shopping_cart, color: Colors.white, size: 20),
+                          icon: const Icon(
+                            Icons.shopping_cart,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -310,7 +364,11 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           },
                           height: 50,
                           fontSize: 14,
-                          icon: const Icon(Icons.monetization_on, color: Colors.white, size: 20),
+                          icon: const Icon(
+                            Icons.monetization_on,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
@@ -327,13 +385,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     return Container(
       color: Colors.grey[200],
       child: const Center(
-        child: Icon(
-          Icons.person,
-          size: 80,
-          color: Colors.grey,
-        ),
+        child: Icon(Icons.person, size: 80, color: Colors.grey),
       ),
     );
   }
-
 }
