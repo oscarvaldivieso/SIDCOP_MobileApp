@@ -1,7 +1,6 @@
 
 class Cliente {
-
-  final int clie_Id ;
+  final int clie_Id;
   final String? clie_Codigo;
   final String? clie_DNI;
   final String? clie_RTN;
@@ -13,27 +12,27 @@ class Cliente {
   final String? clie_Telefono;
   final String? clie_Correo;
   final String? clie_Sexo;
-  final DateTime clie_FechaNacimiento ;
-  final int cana_Id ;
-  final int colo_Id ;
-  final int esCv_Id ;
-  final double clie_Latitud ;
-  final double clie_Longitud ;
-  final int ruta_Id ;
-  final double clie_LimiteCredito ;
-  final int clie_DiasCredito ;
-  final double clie_Saldo ;
-  final bool clie_Vencido = true;
+  final DateTime clie_FechaNacimiento;
+  final int cana_Id;
+  final int colo_Id;
+  final int esCv_Id;
+  final double clie_Latitud;
+  final double clie_Longitud;
+  final int ruta_Id;
+  final double clie_LimiteCredito;
+  final int clie_DiasCredito;
+  final double clie_Saldo;
+  final bool clie_Vencido;
   final String? clie_Observaciones;
   final String? clie_ObservacionRetiro;
-  final bool clie_Confirmacion = true;
+  final bool clie_Confirmacion;
   final int TiVi_Id;
   final String? Clie_Nacionalidad;
-  final int usua_Creacion ;
-  final DateTime clie_FechaCreacion ;
-  final int usua_Modificacion ;
-  final DateTime clie_FechaModificacion ;
-  final bool clie_Estado = true;
+  final int usua_Creacion;
+  final DateTime clie_FechaCreacion;
+  final int usua_Modificacion;
+  final DateTime clie_FechaModificacion;
+  final bool clie_Estado;
   final String? usuarioCreacion;
   final String? usuarioModificacion;
   final String? cana_Descripcion;
@@ -64,17 +63,23 @@ class Cliente {
     required this.clie_LimiteCredito,
     required this.clie_DiasCredito,
     required this.clie_Saldo,
-    required this.clie_Vencido,
-    required this.clie_Observaciones,
-    required this.clie_ObservacionRetiro,
-    required this.clie_Confirmacion,
-    this.TiVi_Id = 1,
-    this.Clie_Nacionalidad = 'pdt',
+    this.clie_Vencido = true,
+    this.clie_Observaciones,
+    this.clie_ObservacionRetiro,
+    this.clie_Confirmacion = true,
+    required this.TiVi_Id,
+    required this.Clie_Nacionalidad,
     required this.usua_Creacion,
     required this.clie_FechaCreacion,
     required this.usua_Modificacion,
     required this.clie_FechaModificacion,
     required this.clie_Estado,
+    required this.usuarioCreacion,
+    required this.usuarioModificacion,
+    required this.cana_Descripcion,
+    required this.colo_Descripcion,
+    required this.esCv_Descripcion,
+    required this.ruta_Descripcion,
   });
 
   Map<String, dynamic> toJson() {
@@ -91,7 +96,7 @@ class Cliente {
       "clie_Telefono": clie_Telefono,
       "clie_Correo": clie_Correo,
       "clie_Sexo": clie_Sexo,
-      "clie_FechaNacimiento": clie_FechaNacimiento.toUtc().toIso8601String?(),
+      "clie_FechaNacimiento": clie_FechaNacimiento.toUtc().toIso8601String(),
       "cana_Id": cana_Id,
       "colo_Id": colo_Id,
       "esCv_Id": esCv_Id,
@@ -108,9 +113,9 @@ class Cliente {
       "TiVi_Id": TiVi_Id,
       "Clie_Nacionalidad": Clie_Nacionalidad,
       "usua_Creacion": usua_Creacion,
-      "clie_FechaCreacion": clie_FechaCreacion.toUtc().toIso8601String?(),
+      "clie_FechaCreacion": clie_FechaCreacion.toUtc().toIso8601String(),
       "usua_Modificacion": usua_Modificacion,
-      "clie_FechaModificacion": clie_FechaModificacion.toUtc().toIso8601String?(),
+      "clie_FechaModificacion": clie_FechaModificacion.toUtc().toIso8601String(),
       "clie_Estado": clie_Estado,
       "usuarioCreacion": usuarioCreacion,
       "usuarioModificacion": usuarioModificacion,
@@ -121,7 +126,7 @@ class Cliente {
     };
   }
 
-  factory Cliente.fromJson(Map<String?, dynamic> json) {
+  factory Cliente.fromJson(Map<String, dynamic> json) {
     return Cliente(
       clie_Id: json['clie_Id'],
       clie_Codigo: json['clie_Codigo'],
@@ -135,7 +140,7 @@ class Cliente {
       clie_Telefono: json['clie_Telefono'],
       clie_Correo: json['clie_Correo'],
       clie_Sexo: json['clie_Sexo'],
-      clie_FechaNacimiento: DateTime.parse(json['clie_FechaNacimiento']),
+      clie_FechaNacimiento: json['clie_FechaNacimiento'] != null ? DateTime.parse(json['clie_FechaNacimiento']) : DateTime.now(),
       cana_Id: json['cana_Id'],
       colo_Id: json['colo_Id'],
       esCv_Id: json['esCv_Id'],
@@ -145,7 +150,7 @@ class Cliente {
       clie_LimiteCredito: json['clie_LimiteCredito'],
       clie_DiasCredito: json['clie_DiasCredito'],
       clie_Saldo: json['clie_Saldo'],
-      clie_Vencido: json['clie_Vencido'],
+      clie_Vencido: json['clie_Vencido'] ?? true,
       clie_Observaciones: json['clie_Observaciones'],
       clie_ObservacionRetiro: json['clie_ObservacionRetiro'],
       clie_Confirmacion: json['clie_Confirmacion'] ?? true,
@@ -162,8 +167,9 @@ class Cliente {
       colo_Descripcion: json['colo_Descripcion'],
       esCv_Descripcion: json['esCv_Descripcion'],
       ruta_Descripcion: json['ruta_Descripcion'],
-    };
+    );
   }
+}
 
 
 
