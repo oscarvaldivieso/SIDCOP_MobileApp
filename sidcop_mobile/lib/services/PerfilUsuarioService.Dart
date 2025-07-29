@@ -133,7 +133,7 @@ class PerfilUsuarioService {
       
       developer.log('Buscar Vendedor Response Status: ${response.statusCode}');
       developer.log('Buscar Vendedor Response Body: ${response.body}');
-      print('response.body: $response');
+      print('response.body: $response.body');
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -148,6 +148,28 @@ class PerfilUsuarioService {
     }
   }
   
+  // Elimina campos de navegación y colecciones innecesarias
+  Map<String, dynamic> limpiarNavegaciones(Map<String, dynamic> data) {
+    final keysToRemove = data.keys.where((k) =>
+        (k.startsWith('tb') && k.endsWith('Navigation')) ||
+        (k.startsWith('inverse') && k.endsWith('Navigation')) ||
+        k == 'role' ||
+        k.endsWith('Navigation')
+    ).toList();
+
+    for (final key in keysToRemove) {
+      data.remove(key);
+    }
+
+    // Limpiar recursivamente en objetos anidados
+    data.forEach((key, value) {
+      if (value is Map<String, dynamic>) {
+        limpiarNavegaciones(value);
+      }
+    });
+    return data;
+  }
+
   // Guardar datos del usuario después del login
   Future<void> guardarDatosUsuario(Map<String, dynamic> userData) async {
     try {
@@ -162,9 +184,16 @@ class PerfilUsuarioService {
         // Obtener datos completos del usuario desde /Usuarios/Listar
         final datosCompletos = await obtenerDatosCompletoUsuario(usuaId);
         
+        // Guardar permisosJson original
+        final permisosOriginal = userData['permisosJson'];
+
         if (datosCompletos != null) {
           // Combinar los datos de sesión con los datos completos
           userData.addAll(datosCompletos);
+          // Restaurar permisosJson si existía originalmente
+          if (permisosOriginal != null) {
+            userData['permisosJson'] = permisosOriginal;
+          }
           developer.log('Datos completos del usuario obtenidos y combinados');
           
           // Ahora verificar si el usuario es vendedor
@@ -194,16 +223,19 @@ class PerfilUsuarioService {
         developer.log('No se encontró usua_Id en los datos de sesión');
       }
       
-      // Filtrar los datos antes de guardar para eliminar propiedades de navegación
-      final datosFiltrados = _filtrarDatosUsuario(userData);
-      
+      // Limpiar campos de navegación antes de guardar
+      final userDataLimpio = limpiarNavegaciones(Map<String, dynamic>.from(userData));
+      // Serializar permisosJson si es necesario
+      if (userDataLimpio.containsKey('permisosJson') &&
+          (userDataLimpio['permisosJson'] is Map || userDataLimpio['permisosJson'] is List)) {
+        userDataLimpio['permisosJson'] = jsonEncode(userDataLimpio['permisosJson']);
+      }
       final prefs = await SharedPreferences.getInstance();
-      final userDataJson = jsonEncode(datosFiltrados);
-      print('userDataJson final (filtrado): $userDataJson');
+      final userDataJson = jsonEncode(userDataLimpio);
+      print('userDataJson final (limpio): $userDataJson');
       await prefs.setString(_userDataKey, userDataJson);
-      developer.log('Datos de usuario filtrados y guardados');
-      developer.log('Tamaño original: ${jsonEncode(userData).length} caracteres');
-      developer.log('Tamaño filtrado: ${userDataJson.length} caracteres');
+      developer.log('Datos de usuario guardados (limpios)');
+      developer.log('Tamaño guardado: ${userDataJson.length} caracteres');
     } catch (e) {
       developer.log('Error guardando datos de usuario: $e');
     }
