@@ -352,39 +352,41 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                 child: SafeArea(
                   child: Row(
                     children: [
-                      Expanded(
-                        child: CustomButton(
-                          text: _vendTipo == "P"
-                              ? "PEDIDO"
-                              : _vendTipo == "V"
-                                  ? "VENTA"
-                                  : "ACCIÓN",
-                          onPressed: () {
-                            if (_vendTipo == "P") {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PedidosScreen(),
-                                ),
-                              );
-                            } else {
-                              // TODO: Implementar lógica de venta u otra acción
-                            }
-                          },
-                          height: 50,
-                          fontSize: 14,
-                          icon: Icon(
-                            _vendTipo == "P"
-                                ? Icons.assignment
+                      if (_vendTipo == "P" || _vendTipo == "V") ...[
+                        Expanded(
+                          child: CustomButton(
+                            text: _vendTipo == "P"
+                                ? "PEDIDO"
                                 : _vendTipo == "V"
-                                    ? Icons.shopping_cart
-                                    : Icons.help_outline,
-                            color: Colors.white,
-                            size: 20,
+                                    ? "VENTA"
+                                    : "ACCIÓN",
+                            onPressed: () {
+                              if (_vendTipo == "P") {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PedidosScreen(),
+                                  ),
+                                );
+                              } else {
+                                // TODO: Implementar lógica de venta u otra acción
+                              }
+                            },
+                            height: 50,
+                            fontSize: 14,
+                            icon: Icon(
+                              _vendTipo == "P"
+                                  ? Icons.assignment
+                                  : _vendTipo == "V"
+                                      ? Icons.shopping_cart
+                                      : Icons.help_outline,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
+                      ],
                       Expanded(
                         child: CustomButton(
                           text: 'COBRAR',
