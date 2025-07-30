@@ -9,7 +9,9 @@ class PedidosScreen extends StatelessWidget {
     return AppBackground(
       title: 'Pedidos',
       icon: Icons.assignment,
-      child: const Center(child: Text('Pantalla de Pedidos')),
+      child: SingleChildScrollView(
+        child: const Center(child: Text('Pantalla de Pedidos')),
+      ),
     );
   }
 }
