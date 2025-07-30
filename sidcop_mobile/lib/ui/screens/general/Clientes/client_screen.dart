@@ -95,21 +95,19 @@ class _clientScreenState extends State<clientScreen> {
       }
     }
 
-//  Future<void> _loadPermisos() async {
-//     final perfilService = PerfilUsuarioService();
-//     final userData = await perfilService.obtenerDatosUsuario();
-//     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
-//       try {
-//         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
-//         permisos = jsonDecode(permisosJson);
-//       } catch (_) {
-//         permisos = [];
-//       }
-//     }
-//     setState(() {});
-//   }
-
-
+    //  Future<void> _loadPermisos() async {
+    //     final perfilService = PerfilUsuarioService();
+    //     final userData = await perfilService.obtenerDatosUsuario();
+    //     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    //       try {
+    //         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+    //         permisos = jsonDecode(permisosJson);
+    //       } catch (_) {
+    //         permisos = [];
+    //       }
+    //     }
+    //     setState(() {});
+    //   }
 
     final searchLower = query.toLowerCase();
 
@@ -528,8 +526,7 @@ Widget _buildSearchBar() {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        cliente['clie_Telefono']
-                                                ??
+                                        cliente['clie_Telefono'] ??
                                             'Sin teléfono',
                                         style: const TextStyle(
                                           fontSize: 11,
@@ -557,14 +554,15 @@ Widget _buildSearchBar() {
                                         ),
                                       ),
                                       onPressed: () async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClientdetailsScreen(
-        clienteId: cliente['clie_Id'],
-      ),
-    ),
-  );
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ClientdetailsScreen(
+                                                  clienteId: cliente['clie_Id'],
+                                                ),
+                                          ),
+                                        );
                                       },
                                       child: const Text(
                                         'Detalles',
@@ -598,7 +596,8 @@ Widget _buildSearchBar() {
 
                                   // -  Para cuentas rojas (vencidas), mostrar el monto incluso si es 0 o negativo
                                   // Para otras, solo mostrar "Sin crédito" si es 0 Y no es roja
-                                  final shouldShowSinCredito = amount == 0 && !isRed;
+                                  final shouldShowSinCredito =
+                                      amount == 0 && !isRed;
 
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
@@ -618,8 +617,8 @@ Widget _buildSearchBar() {
                                       shouldShowSinCredito
                                           ? 'Sin crédito'
                                           : isRed
-                                              ? ' L. ${amount.toStringAsFixed(2)}'
-                                              : 'L. ${amount.toStringAsFixed(2)}',
+                                          ? ' L. ${amount.toStringAsFixed(2)}'
+                                          : 'L. ${amount.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -706,7 +705,9 @@ Widget _buildSearchBar() {
     if (cuentasCliente.isNotEmpty) {
       final now = DateTime.now();
       bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-        print('DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}');
+        print(
+          'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
+        );
         if (cuenta['cpCo_FechaVencimiento'] == null) return false;
 
         final fechaVencimiento = DateTime.tryParse(
@@ -742,7 +743,8 @@ Widget _buildSearchBar() {
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
     if (clienteId == null) return 0;
 
-    final limiteCredito_double = double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    final limiteCredito_double =
+        double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -773,7 +775,8 @@ Widget _buildSearchBar() {
     final saldoReciente =
         double.tryParse(
           cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
-        ) ?? 0;
+        ) ??
+        0;
 
     // -  VERIFICAR SI TIENE CUENTA VENCIDA para calcular deuda real
     final now = DateTime.now();
@@ -789,7 +792,9 @@ Widget _buildSearchBar() {
     // Si tiene cuenta vencida, mostrar la deuda real: saldo - límite de crédito
     if (tieneCuentaVencida) {
       final deudaReal = saldoReciente - limiteCredito_double;
-      print('DEBUG _getBadgeAmount: CUENTA VENCIDA - Saldo: $saldoReciente, Límite: $limiteCredito_double, Deuda Real: $deudaReal');
+      print(
+        'DEBUG _getBadgeAmount: CUENTA VENCIDA - Saldo: $saldoReciente, Límite: $limiteCredito_double, Deuda Real: $deudaReal',
+      );
       // -  PERMITIR VALORES NEGATIVOS para cuentas vencidas
       return deudaReal;
     }
