@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -20,11 +21,21 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   List<dynamic> _direcciones = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  String? _vendTipo;
 
   @override
   void initState() {
     super.initState();
     _loadCliente();
+    _loadTipoVendedor();
+  }
+
+  Future<void> _loadTipoVendedor() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    setState(() {
+      _vendTipo = userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+    });
   }
 
   Future<void> _loadCliente() async {
@@ -342,14 +353,22 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                     children: [
                       Expanded(
                         child: CustomButton(
-                          text: 'VENDER',
+                          text: _vendTipo == "P"
+                              ? "PEDIDO"
+                              : _vendTipo == "V"
+                                  ? "VENTA"
+                                  : "ACCIÓN",
                           onPressed: () {
-                            // TODO: Implementar lógica de venta
+                            // TODO: Implementar lógica de pedido o venta
                           },
                           height: 50,
                           fontSize: 14,
-                          icon: const Icon(
-                            Icons.shopping_cart,
+                          icon: Icon(
+                            _vendTipo == "P"
+                                ? Icons.assignment
+                                : _vendTipo == "V"
+                                    ? Icons.shopping_cart
+                                    : Icons.help_outline,
                             color: Colors.white,
                             size: 20,
                           ),
