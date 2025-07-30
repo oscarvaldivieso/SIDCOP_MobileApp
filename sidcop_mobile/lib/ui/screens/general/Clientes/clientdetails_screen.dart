@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -359,7 +360,16 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   ? "VENTA"
                                   : "ACCIÓN",
                           onPressed: () {
-                            // TODO: Implementar lógica de pedido o venta
+                            if (_vendTipo == "P") {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PedidosScreen(),
+                                ),
+                              );
+                            } else {
+                              // TODO: Implementar lógica de venta u otra acción
+                            }
                           },
                           height: 50,
                           fontSize: 14,
