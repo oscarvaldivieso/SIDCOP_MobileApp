@@ -61,7 +61,7 @@ class AppBackground extends StatelessWidget {
                         child: Transform.flip(
                           flipX: true,
                           child: SvgPicture.asset(
-                            'BreadCrumSVG2.svg',
+                            'assets/BreadCrumSVG2.svg',
                             fit: BoxFit.cover,
                           ),
                         ),

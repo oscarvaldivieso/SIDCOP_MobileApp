@@ -3,8 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
-import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+
+// Text style constants for consistent typography
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
+final TextStyle _labelStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+);
+
+final TextStyle _hintStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  color: Colors.grey,
+);
 
 class AddAddressScreen extends StatefulWidget {
   final int clientId;
@@ -144,132 +162,201 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agregar Ubicación'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _saveAddress,
-            tooltip: 'Guardar dirección',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Colonias Dropdown
-                    const Text(
-                      'Colonia *',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    _isLoading
-                        ? const CircularProgressIndicator()
-                        : DropdownButtonFormField<Colonia>(
+      body: AppBackground(
+        title: 'Agregar Cliente',
+        icon: Icons.add_location,
+        child: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                ),
+              )
+            : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Back Button
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios, size: 20, color: Color(0xFF141A2F)),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          Text(
+                            'Agregar Dirección',
+                            style: _titleStyle.copyWith(fontSize: 18),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Colonias Dropdown
+                      Text(
+                        'Colonia *',
+                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : DropdownButtonFormField<Colonia>(
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              hint: Text(
+                                'Seleccione una colonia',
+                                style: _hintStyle,
+                              ),
+                              value: _selectedColonia,
+                              items: _colonias.map((colonia) {
+                                return DropdownMenuItem<Colonia>(
+                                  value: colonia,
+                                  child: Text(
+                                    colonia.coloDescripcion,
+                                    style: _labelStyle,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (Colonia? newValue) {
+                                setState(() {
+                                  _selectedColonia = newValue;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Por favor seleccione una colonia';
+                                }
+                                return null;
+                              },
+                            ),
+                      const SizedBox(height: 16),
+                      
+                      // Dirección Exacta
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Dirección Exacta *',
+                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _direccionExactaController,
+                            style: _labelStyle,
                             decoration: InputDecoration(
+                              hintText: 'Ingrese la dirección exacta',
+                              hintStyle: _hintStyle,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              filled: true,
-                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                             ),
-                            hint: const Text('Seleccione una colonia'),
-                            value: _selectedColonia,
-                            items: _colonias.map((colonia) {
-                              return DropdownMenuItem<Colonia>(
-                                value: colonia,
-                                child: Text(colonia.coloDescripcion),
-                              );
-                            }).toList(),
-                            onChanged: (Colonia? newValue) {
-                              setState(() {
-                                _selectedColonia = newValue;
-                              });
-                            },
                             validator: (value) {
-                              if (value == null) {
-                                return 'Por favor seleccione una colonia';
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Por favor ingrese la dirección exacta';
                               }
                               return null;
                             },
                           ),
-                    const SizedBox(height: 16),
-                    
-                    // Dirección Exacta
-                    CustomInput(
-                      label: 'Dirección Exacta *',
-                      controller: _direccionExactaController,
-                      hint: 'Ingrese la dirección exacta',
-                      errorText: _direccionExactaController.text.trim().isEmpty
-                          ? 'Por favor ingrese la dirección exacta'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Observaciones
-                    CustomInput(
-                      label: 'Observaciones',
-                      controller: _observacionesController,
-                      hint: 'Ingrese observaciones adicionales',
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Mapa
-                    const Text(
-                      'Seleccione la ubicación en el mapa:',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 250,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
+                        ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: GoogleMap(
-                          onMapCreated: _onMapCreated,
-                          initialCameraPosition: CameraPosition(
-                            target: _selectedLocation,
-                            zoom: 15,
+                      const SizedBox(height: 16),
+                      
+                      // Observaciones
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Observaciones',
+                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          markers: _markers,
-                          onTap: _onMapTapped,
-                          myLocationEnabled: true,
-                          myLocationButtonEnabled: true,
-                          zoomControlsEnabled: true,
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _observacionesController,
+                            style: _labelStyle,
+                            decoration: InputDecoration(
+                              hintText: 'Ingrese observaciones adicionales',
+                              hintStyle: _hintStyle,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                            ),
+                            maxLines: 3,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Mapa
+                      Text(
+                        'Seleccione la ubicación en el mapa:',
+                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
+                        style: _hintStyle.copyWith(fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 250,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: GoogleMap(
+                            onMapCreated: _onMapCreated,
+                            initialCameraPosition: CameraPosition(
+                              target: _selectedLocation,
+                              zoom: 15,
+                            ),
+                            markers: _markers,
+                            onTap: _onMapTapped,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: true,
+                            zoomControlsEnabled: true,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Botón de guardar
-                    CustomButton(
-                      text: 'Guardar Dirección',
-                      onPressed: _isSubmitting ? null : _saveAddress,
-                      height: 50,
-                      icon: _isSubmitting 
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : null,
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      
+                      // Botón de guardar
+                      CustomButton(
+                        text: 'Guardar Dirección',
+                        onPressed: _isSubmitting ? null : _saveAddress,
+                        height: 50,
+                        icon: _isSubmitting 
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 

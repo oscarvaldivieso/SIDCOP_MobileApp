@@ -79,7 +79,7 @@ class RecargasService
 
     final body = {
       "vend_Id": personaId,
-      "bode_Id": 8,
+      "bode_Id": 18,
       "reca_Fecha": fechaString,
       "reca_observaciones": "N/A",
       "usua_creacion": usuaCreacion,
