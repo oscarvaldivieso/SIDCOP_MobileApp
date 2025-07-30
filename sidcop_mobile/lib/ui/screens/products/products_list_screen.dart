@@ -143,17 +143,12 @@ class _ProductScreenState extends State<ProductScreen> {
       body: AppBackground(
         title: 'Productos',
         icon: Icons.inventory_2,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height,
-          ),
-          child: Column(
-            children: [
-              _buildSearchBar(), // Ahora incluye el ícono de filtrar
-              _buildResultsCount(),
-              _buildProductList(),
-            ],
-          ),
+        child: Column(
+          children: [
+            _buildSearchBar(), // Ahora incluye el ícono de filtrar
+            _buildResultsCount(),
+            _buildProductList(),
+          ],
         ),
       ),
     );
@@ -523,35 +518,40 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildProductList() {
     if (_isLoading) {
-      return const Expanded(child: Center(child: CircularProgressIndicator()));
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
     if (_filteredProducts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off, size: 50, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('No se encontraron productos'),
-            if (_hasActiveFilters)
-              TextButton(
-                onPressed: _clearFilters,
-                child: const Text('Limpiar filtros'),
-              ),
-          ],
+      return SizedBox(
+        height: 200,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off, size: 50, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No se encontraron productos'),
+              if (_hasActiveFilters)
+                TextButton(
+                  onPressed: _clearFilters,
+                  child: const Text('Limpiar filtros'),
+                ),
+            ],
+          ),
         ),
       );
     }
 
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _filteredProducts.length,
-        itemBuilder: (context, index) {
-          final product = _filteredProducts[index];
-          return _buildProductCard(product);
-        },
-      ),
+    // Generar los widgets de productos directamente para que funcionen con SingleChildScrollView
+    return Column(
+      children: _filteredProducts.map((product) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          child: _buildProductCard(product),
+        );
+      }).toList(),
     );
   }
 
