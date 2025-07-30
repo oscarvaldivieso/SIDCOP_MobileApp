@@ -68,7 +68,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
       // Obtener usuaIdPersona desde los datos guardados
       final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final usuaIdPersona = userData?['personaId'] as int?;
+      print("userData drawer para inve: $userData");
+      final usuaIdPersona = userData?['usua_IdPersona'] as int?;
       final imagenVendedor = userData?['imagen'] as String?;
 
       if (mounted) {
@@ -365,7 +366,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
               onTap: () async {
                 // Navegar a MInventario
                 Navigator.pop(context);
-
                 if (_usuaIdPersona != null) {
                   Navigator.pushAndRemoveUntil(
                     context,
@@ -375,15 +375,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     ),
                     (route) => false,
                   );
-                  print(
-                    "Navegando a inventario con usuaIdPersona: $_usuaIdPersona",
-                  );
                 } else {
-                  // Mostrar error si no hay usuaIdPersona
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Error: No se pudo obtener la información del usuario',
+                        'No se pudo obtener el ID de usuario para Inventario.',
                       ),
                       backgroundColor: Colors.red,
                     ),
