@@ -29,6 +29,7 @@ dependencies:
   http_parser: ^4.0.2
   path: ^1.8.3
   crypto: ^3.0.3
+  flutter_launcher_icons: ^0.14.4
 
 
 dev_dependencies:
@@ -37,7 +38,13 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
 
-
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo_blanco_icon.png"
+  adaptive_icon_foreground: "assets/logo_blanco_icon.png"
+  adaptive_icon_background: "#141a2e"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
@@ -45,7 +52,8 @@ flutter:
     - .env
     - assets/auth-background.jpg
     - assets/marca_blanco.png
-    - assets/logo_blanco.png
+    - assets/logo_blanco.png    
+    - assets/logo_peque_1.png
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png

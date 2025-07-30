@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="sidcop_mobile"
+        android:label="Sidcop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Google Maps API Key -->
