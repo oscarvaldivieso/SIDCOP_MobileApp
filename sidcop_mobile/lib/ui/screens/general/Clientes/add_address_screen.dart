@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'package:flutter/material.dart' show showMenu, RelativeRect;
+import 'package:flutter/rendering.dart' show TextOverflow;
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
@@ -28,10 +30,7 @@ final TextStyle _hintStyle = const TextStyle(
 class AddAddressScreen extends StatefulWidget {
   final int clientId;
 
-  const AddAddressScreen({
-    Key? key,
-    required this.clientId,
-  }) : super(key: key);
+  const AddAddressScreen({Key? key, required this.clientId}) : super(key: key);
 
   @override
   _AddAddressScreenState createState() => _AddAddressScreenState();
@@ -40,16 +39,20 @@ class AddAddressScreen extends StatefulWidget {
 class _AddAddressScreenState extends State<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
   final _direccionClienteService = DireccionClienteService();
-  final _direccionExactaController = TextEditingController();
-  final _observacionesController = TextEditingController();
+  final TextEditingController _direccionExactaController = TextEditingController();
+  final TextEditingController _observacionesController = TextEditingController();
+  final TextEditingController _coloniaController = TextEditingController();
   
   List<Colonia> _colonias = [];
   Colonia? _selectedColonia;
   bool _isLoading = true;
   bool _isSubmitting = false;
-  
+
   // Map variables
-  LatLng _selectedLocation = const LatLng(15.5, -86.8); // Default to Honduras center
+  LatLng _selectedLocation = const LatLng(
+    15.5,
+    -86.8,
+  ); // Default to Honduras center
 
   @override
   void initState() {
@@ -62,9 +65,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       final colonias = await _direccionClienteService.getColonias();
       setState(() {
         _colonias = colonias;
-        if (colonias.isNotEmpty) {
-          _selectedColonia = colonias.first;
-        }
+        // Don't set a default colonia
         _isLoading = false;
       });
     } catch (e) {
@@ -102,11 +103,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     try {
       // Crear el objeto de dirección sin intentar guardarlo
       final direccion = DireccionCliente(
-        clieId: 0, // Se actualizará con el ID real del cliente después de crearlo
+        clieId:
+            0, // Se actualizará con el ID real del cliente después de crearlo
         coloId: _selectedColonia!.coloId,
         direccionExacta: _direccionExactaController.text.trim(),
-        observaciones: _observacionesController.text.trim().isNotEmpty 
-            ? _observacionesController.text.trim() 
+        observaciones: _observacionesController.text.trim().isNotEmpty
+            ? _observacionesController.text.trim()
             : null,
         latitud: _selectedLocation.latitude,
         longitud: _selectedLocation.longitude,
@@ -121,7 +123,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       print('Observaciones: ${direccion.observaciones ?? "Ninguna"}');
       print('Ubicación: (${direccion.latitud}, ${direccion.longitud})');
       print('====================================');
-      
+
       // Solo devolver los datos de la dirección sin intentar guardar
       if (mounted) {
         Navigator.pop(context, direccion);
@@ -135,16 +137,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-
-
-
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -154,6 +149,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       body: AppBackground(
         title: 'Agregar Cliente',
         icon: Icons.add_location,
+        onRefresh: () async {
+          await _loadColonias();
+        },
         child: _isLoading
             ? Center(
                 child: CircularProgressIndicator(
@@ -171,7 +169,11 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back_ios, size: 20, color: Color(0xFF141A2F)),
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              size: 20,
+                              color: Color(0xFF141A2F),
+                            ),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                           Text(
@@ -181,58 +183,149 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Colonias Dropdown
                       Text(
                         'Colonia *',
-                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                        style: _labelStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       _isLoading
                           ? const CircularProgressIndicator()
-                          : DropdownButtonFormField<Colonia>(
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                              hint: Text(
-                                'Seleccione una colonia',
-                                style: _hintStyle,
-                              ),
-                              value: _selectedColonia,
-                              items: _colonias.map((colonia) {
-                                return DropdownMenuItem<Colonia>(
-                                  value: colonia,
-                                  child: Text(
-                                    colonia.coloDescripcion,
-                                    style: _labelStyle,
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade400),
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.white,
                                   ),
-                                );
-                              }).toList(),
-                              onChanged: (Colonia? newValue) {
-                                setState(() {
-                                  _selectedColonia = newValue;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Por favor seleccione una colonia';
-                                }
-                                return null;
-                              },
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: RawAutocomplete<Colonia>(
+                                          textEditingController: _coloniaController,
+                                          focusNode: FocusNode(),
+                                          optionsBuilder: (TextEditingValue textEditingValue) {
+                                            if (textEditingValue.text.isEmpty) {
+                                              return _colonias.take(10);
+                                            }
+                                            return _colonias.where((colonia) {
+                                              final searchValue = textEditingValue.text.toLowerCase();
+                                              return colonia.coloDescripcion.toLowerCase().contains(searchValue) ||
+                                                  colonia.muniDescripcion.toLowerCase().contains(searchValue) ||
+                                                  colonia.depaDescripcion.toLowerCase().contains(searchValue);
+                                            });
+                                          },
+                                          displayStringForOption: (Colonia colonia) => 
+                                              '${colonia.coloDescripcion} - ${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
+                                          fieldViewBuilder: (
+                                            BuildContext context,
+                                            TextEditingController textEditingController,
+                                            FocusNode focusNode,
+                                            VoidCallback onFieldSubmitted,
+                                          ) {
+                                            // Clear the controller and let the hint text show when no colonia is selected
+                                            if (_selectedColonia == null) {
+                                              textEditingController.clear();
+                                            } else {
+                                              textEditingController.text = _selectedColonia!.coloDescripcion;
+                                            }
+                                            
+                                            return TextFormField(
+                                              controller: textEditingController,
+                                              focusNode: focusNode,
+                                              style: _labelStyle,
+                                              decoration: InputDecoration(
+                                                hintText: 'Buscar colonia...',
+                                                hintStyle: _hintStyle,
+                                                border: InputBorder.none,
+                                                suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
+                                                isDense: true,
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                              ),
+                                              // Clear the selection when the text field is tapped
+                                              onTap: () {
+                                                if (_selectedColonia != null) {
+                                                  setState(() {
+                                                    _selectedColonia = null;
+                                                    textEditingController.clear();
+                                                  });
+                                                }
+                                              },
+                                            );
+                                          },
+                                          optionsViewBuilder: (
+                                            BuildContext context,
+                                            AutocompleteOnSelected<Colonia> onSelected,
+                                            Iterable<Colonia> options,
+                                          ) {
+                                            return Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Material(
+                                                elevation: 4.0,
+                                                child: Container(
+                                                  width: MediaQuery.of(context).size.width * 0.9,
+                                                  constraints: const BoxConstraints(maxHeight: 200),
+                                                  child: ListView.builder(
+                                                    padding: EdgeInsets.zero,
+                                                    itemCount: options.length,
+                                                    itemBuilder: (BuildContext context, int index) {
+                                                      final Colonia option = options.elementAt(index);
+                                                      return InkWell(
+                                                        onTap: () {
+                                                          onSelected(option);
+                                                          setState(() {
+                                                            _selectedColonia = option;
+                                                          });
+                                                        },
+                                                        child: _buildOption(context, option),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          onSelected: (Colonia selection) {
+                                            setState(() {
+                                              _selectedColonia = selection;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_selectedColonia != null) ...[
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8.0),
+                                    child: Text(
+                                      '${_selectedColonia!.muniDescripcion}, ${_selectedColonia!.depaDescripcion}',
+                                      style: _hintStyle.copyWith(fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                       const SizedBox(height: 16),
-                      
+
                       // Dirección Exacta
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Dirección Exacta *',
-                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                            style: _labelStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           TextFormField(
@@ -259,14 +352,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Observaciones
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Observaciones',
-                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                            style: _labelStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           TextFormField(
@@ -288,15 +383,20 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Mapa
                       Text(
                         'Seleccione la ubicación en el mapa:',
-                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                        style: _labelStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
@@ -307,12 +407,18 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                           children: [
                             Text(
                               'Ubicación actual:',
-                              style: _labelStyle.copyWith(fontSize: 12, color: Colors.grey[600]),
+                              style: _labelStyle.copyWith(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                              style: _labelStyle.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
+                              style: _labelStyle.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             SizedBox(
@@ -322,7 +428,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                 icon: const Icon(Icons.map, size: 18),
                                 label: const Text('Seleccionar en el mapa'),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -333,13 +441,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Botón de guardar
                       CustomButton(
                         text: 'Guardar Dirección',
                         onPressed: _isSubmitting ? null : _saveAddress,
                         height: 50,
-                        icon: _isSubmitting 
+                        icon: _isSubmitting
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
@@ -359,10 +467,34 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     );
   }
 
+  // This is what will be shown in the autocomplete overlay
+  static Widget _buildOption(BuildContext context, Colonia colonia) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            colonia.coloDescripcion,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
   @override
   void dispose() {
     _direccionExactaController.dispose();
     _observacionesController.dispose();
+    _coloniaController.dispose();
     super.dispose();
   }
 }

@@ -339,9 +339,39 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   }
 
   Future<void> _pickImage() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galería de fotos'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _handleImageSelection(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Tomar foto'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _handleImageSelection(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleImageSelection(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 80, // Reduce image quality for faster uploads
         maxWidth: 1200,   // Limit image dimensions
         maxHeight: 1200,
@@ -356,13 +386,10 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }
         setState(() {
           _selectedImageBytes = bytes;
-          _selectedImage = null; // Clear any previous file reference
+          _selectedImage = null; // Clear any previous file
         });
       } else {
         final file = File(image.path);
-        if (!await file.exists()) {
-          throw Exception('No se pudo acceder al archivo de la imagen');
-        }
         setState(() {
           _selectedImage = file;
           _selectedImageBytes = null; // Clear any previous bytes
@@ -380,7 +407,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al seleccionar la imagen: ${e.toString()}'),
+            content: Text('Error al procesar la imagen: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );

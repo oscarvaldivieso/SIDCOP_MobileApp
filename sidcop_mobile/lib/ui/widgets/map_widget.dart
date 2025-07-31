@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 class MapWidget extends StatefulWidget {
   final LatLng initialPosition;
@@ -74,6 +75,67 @@ class _MapWidgetState extends State<MapWidget> {
     super.initState();
     _currentPosition = widget.initialPosition;
     _updateMarker(_currentPosition);
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Los servicios de ubicación están desactivados.')),
+        );
+      }
+      return;
+    }
+
+    // Check location permissions
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Se necesitan permisos de ubicación para esta función.')),
+          );
+        }
+        return;
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Los permisos de ubicación están permanentemente denegados. Por favor, actívalos manualmente en la configuración del dispositivo.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Get current location
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      if (mounted) {
+        setState(() {
+          _currentPosition = LatLng(position.latitude, position.longitude);
+          _updateMarker(_currentPosition);
+          _moveCamera(_currentPosition);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        debugPrint('Error getting location: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo obtener la ubicación actual')),
+        );
+      }
+    }
   }
 
   @override
@@ -154,36 +216,50 @@ class _MapWidgetState extends State<MapWidget> {
           const Divider(height: 1),
         ],
         Expanded(
-          child: GoogleMap(
-            onMapCreated: (controller) {
-              _mapController = controller;
-              _moveCamera(_currentPosition);
-            },
-            initialCameraPosition: CameraPosition(
-              target: _currentPosition,
-              zoom: widget.initialZoom,
-            ),
-            markers: _markers,
-            onTap: widget.onLocationSelected != null ? (latLng) {
-              widget.onLocationSelected!(latLng);
-              _updatePosition(latLng);
-            } : null,
-            // Optimización de rendimiento
-            zoomGesturesEnabled: true,
-            scrollGesturesEnabled: true,
-            zoomControlsEnabled: !widget.isFullScreen,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: !widget.isFullScreen,
-            tiltGesturesEnabled: false,
-            rotateGesturesEnabled: false,
-            mapType: MapType.normal,
-            minMaxZoomPreference: const MinMaxZoomPreference(5, 18),
-            // Mejoras de rendimiento
-            compassEnabled: false,
-            mapToolbarEnabled: false,
-            buildingsEnabled: false,
-            trafficEnabled: false,
-            indoorViewEnabled: false,
+          child: Stack(
+            children: [
+              GoogleMap(
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  _moveCamera(_currentPosition);
+                },
+                initialCameraPosition: CameraPosition(
+                  target: _currentPosition,
+                  zoom: widget.initialZoom,
+                ),
+                markers: _markers,
+                onTap: widget.onLocationSelected != null ? (latLng) {
+                  widget.onLocationSelected!(latLng);
+                  _updatePosition(latLng);
+                } : null,
+                // Optimización de rendimiento
+                zoomGesturesEnabled: true,
+                scrollGesturesEnabled: true,
+                zoomControlsEnabled: !widget.isFullScreen,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false, // We'll use our custom button
+                tiltGesturesEnabled: false,
+                rotateGesturesEnabled: false,
+                mapType: MapType.normal,
+                minMaxZoomPreference: const MinMaxZoomPreference(5, 18),
+                // Mejoras de rendimiento
+                compassEnabled: false,
+                mapToolbarEnabled: false,
+                buildingsEnabled: false,
+                trafficEnabled: false,
+                indoorViewEnabled: false,
+              ),
+              Positioned(
+                bottom: 20,
+                right: 20,
+                child: FloatingActionButton(
+                  backgroundColor: Colors.white,
+                  mini: true,
+                  onPressed: _getCurrentLocation,
+                  child: const Icon(Icons.my_location, color: Colors.black87, size: 20),
+                ),
+              ),
+            ],
           ),
         ),
         if (widget.isFullScreen && widget.showConfirmButton && widget.onLocationSelected != null)
