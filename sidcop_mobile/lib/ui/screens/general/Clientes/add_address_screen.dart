@@ -65,9 +65,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       final colonias = await _direccionClienteService.getColonias();
       setState(() {
         _colonias = colonias;
-        if (colonias.isNotEmpty) {
-          _selectedColonia = colonias.first;
-        }
+        // Don't set a default colonia
         _isLoading = false;
       });
     } catch (e) {
@@ -231,6 +229,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                             FocusNode focusNode,
                                             VoidCallback onFieldSubmitted,
                                           ) {
+                                            // Clear the controller and let the hint text show when no colonia is selected
+                                            if (_selectedColonia == null) {
+                                              textEditingController.clear();
+                                            } else {
+                                              textEditingController.text = _selectedColonia!.coloDescripcion;
+                                            }
+                                            
                                             return TextFormField(
                                               controller: textEditingController,
                                               focusNode: focusNode,
@@ -243,6 +248,15 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                                 isDense: true,
                                                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
                                               ),
+                                              // Clear the selection when the text field is tapped
+                                              onTap: () {
+                                                if (_selectedColonia != null) {
+                                                  setState(() {
+                                                    _selectedColonia = null;
+                                                    textEditingController.clear();
+                                                  });
+                                                }
+                                              },
                                             );
                                           },
                                           optionsViewBuilder: (
