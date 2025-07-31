@@ -308,82 +308,118 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   // Método para construir la barra de búsqueda
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _filterClientes,
-          decoration: InputDecoration(
-            hintText: 'Filtrar por nombre...',
-            prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
-                    onPressed: () {
-                      _searchController.clear();
-                      _filterClientes('');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Método para construir el botón de filtro y mostrar el contador de resultados
-  Widget _buildFilterAndCount() {
-    final bool hasTextFilter = _searchController.text.isNotEmpty;
-    final bool hasLocationFilter =
-        _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
-    final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
-
-    // Usar la lista filtrada si hay algún filtro activo
-    final int resultCount = filteredClientes.length;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0),
-      child: Row(
-        children: [
-          // Contador de resultados
-          Text(
-            '$resultCount resultados',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const Spacer(),
-          const SizedBox(width: 8),
-          // Botón de filtrar
-          ElevatedButton.icon(
-            onPressed: _showLocationFilters,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+  
+Widget _buildSearchBar() {
+  return Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 45, // Altura del TextField
+            child: TextField(
+              controller: _searchController,
+              onChanged: _filterClientes,
+              decoration: InputDecoration(
+                hintText: 'Filtrar por nombre...',
+                hintStyle: const TextStyle(color: Colors.grey),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Color(0xFF141A2F),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12, // Padding vertical reducido
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF141A2F),
+                    width: 2,
+                  ),
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          _filterClientes('');
+                        },
+                      )
+                    : null,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(width: 12),
+        Container(
+          height: 48, // Misma altura que el TextField
+          width: 48, // Hacer el botón cuadrado
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24), // Completamente redondeado
+            border: Border.all(width: 1),
+          ),
+          child: IconButton(
+            onPressed: _showLocationFilters,
+            icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
+            tooltip: 'Filtrar',
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+
+
+  // Método para construir el botón de filtro y mostrar el contador de resultados
+  Widget _buildFilterAndCount() {
+  final bool hasTextFilter = _searchController.text.isNotEmpty;
+  final bool hasLocationFilter =
+      _selectedDepa != null || _selectedMuni != null || _selectedColo != null;
+  final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+
+  // Usar la lista filtrada si hay algún filtro activo
+  final int resultCount = filteredClientes.length;
+
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    child: Row(
+      children: [
+        // Contador de resultados
+        Text(
+          '$resultCount resultados',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        const Spacer(),
+        // Mostrar botón "Limpiar filtros" si hay filtros activos
+        if (hasAnyFilter)
+          TextButton(
+            onPressed: () {
+              _searchController.clear();
+              setState(() {
+                _selectedDepa = null;
+                _selectedMuni = null;
+                _selectedColo = null;
+              });
+              _applyAllFilters('');
+            },
+            child: const Text('Limpiar filtros'),
+          ),
+      ],
+    ),
+  );
+}
 
   Widget _buildClientesList() {
     return FutureBuilder<List<dynamic>>(
