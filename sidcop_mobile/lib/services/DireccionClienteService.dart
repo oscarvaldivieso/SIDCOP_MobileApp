@@ -12,14 +12,11 @@ class DireccionClienteService {
   Future<List<Colonia>> getColonias() async {
     final url = Uri.parse('$_apiServer/Colonia/Listar');
     developer.log('Get Colonias Request URL: $url');
-    
+
     try {
       final response = await http.get(
         url,
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       developer.log('Get Colonias Response Status: ${response.statusCode}');
@@ -39,11 +36,45 @@ class DireccionClienteService {
     }
   }
 
+  // Listar direcciones por cliente
+  Future<List<DireccionCliente>> getDireccionesPorCliente() async {
+    final url = Uri.parse('$_apiServer/DireccionesPorCliente/Listar');
+    developer.log('Listar DireccionesPorCliente Request URL: $url');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log(
+        'Listar DireccionesPorCliente Response Status: ${response.statusCode}',
+      );
+      developer.log(
+        'Listar DireccionesPorCliente Response Body: ${response.body}',
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = jsonDecode(response.body);
+        return jsonData.map((json) => DireccionCliente.fromJson(json)).toList();
+      } else {
+        throw Exception(
+          'Error al obtener las direcciones: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Listar DireccionesPorCliente Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
   // Insert a new client address
-  Future<Map<String, dynamic>> insertDireccionCliente(DireccionCliente direccion) async {
+  Future<Map<String, dynamic>> insertDireccionCliente(
+    DireccionCliente direccion,
+  ) async {
     final url = Uri.parse('$_apiServer/DireccionesPorCliente/Insertar');
     developer.log('Insert DireccionCliente Request URL: $url');
-    
+
     try {
       final response = await http.post(
         url,
@@ -73,9 +104,10 @@ class DireccionClienteService {
 
   // Insert multiple addresses for a client
   Future<List<Map<String, dynamic>>> insertDireccionesCliente(
-      List<DireccionCliente> direcciones) async {
+    List<DireccionCliente> direcciones,
+  ) async {
     final results = <Map<String, dynamic>>[];
-    
+
     for (final direccion in direcciones) {
       try {
         final result = await insertDireccionCliente(direccion);
@@ -89,7 +121,7 @@ class DireccionClienteService {
         });
       }
     }
-    
+
     return results;
   }
 }

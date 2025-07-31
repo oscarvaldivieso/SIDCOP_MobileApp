@@ -1,4 +1,3 @@
-
 class Ruta {
   final int ruta_Id;
   final String? ruta_Codigo;
@@ -31,7 +30,9 @@ class Ruta {
       usua_Creacion: json['usua_Creacion'],
       ruta_FechaCreacion: DateTime.parse(json['ruta_FechaCreacion']),
       usua_Modificacion: json['usua_Modificacion'],
-      ruta_FechaModificacion: json['ruta_FechaModificacion'] != null ? DateTime.parse(json['ruta_FechaModificacion']) : null,
+      ruta_FechaModificacion: json['ruta_FechaModificacion'] != null
+          ? DateTime.parse(json['ruta_FechaModificacion'])
+          : null,
       ruta_Estado: json['ruta_Estado'],
     );
   }
@@ -45,7 +46,9 @@ class Ruta {
       'usua_Creacion': usua_Creacion,
       'ruta_FechaCreacion': ruta_FechaCreacion.toUtc().toIso8601String(),
       'usua_Modificacion': usua_Modificacion,
-      'ruta_FechaModificacion': ruta_FechaModificacion?.toUtc().toIso8601String(),
+      'ruta_FechaModificacion': ruta_FechaModificacion
+          ?.toUtc()
+          .toIso8601String(),
       'ruta_Estado': ruta_Estado,
     };
   }

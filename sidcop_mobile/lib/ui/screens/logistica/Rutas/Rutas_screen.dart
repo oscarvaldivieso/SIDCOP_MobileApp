@@ -9,7 +9,6 @@ import 'Rutas_mapscreen.dart';
 class RutasScreen extends StatefulWidget {
   @override
   State<RutasScreen> createState() => _RutasScreenState();
-
 }
 
 class _RutasScreenState extends State<RutasScreen> {
@@ -53,7 +52,10 @@ class _RutasScreenState extends State<RutasScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 16.0,
+              ),
               child: Column(
                 children: [
                   Container(
@@ -85,28 +87,33 @@ class _RutasScreenState extends State<RutasScreen> {
                       ),
                     ),
                   ),
-                  
+
                   Expanded(
                     child: ListView.builder(
                       itemCount: _rutas.length,
                       itemBuilder: (context, index) {
                         final ruta = _rutas[index];
                         return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           child: ListTile(
-                            title: Text(ruta.ruta_Descripcion ?? 'Sin descripción'),
+                            title: Text(
+                              ruta.ruta_Descripcion ?? 'Sin descripción',
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 16),
                                 GestureDetector(
                                   onTap: () {
+                                    final rutaId = ruta.ruta_Id ?? 0;
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => RutaMapScreen(
-                                          lat: 15.525585,
-                                          lng: -88.013512,
+                                          rutaId: rutaId,
                                           descripcion: ruta.ruta_Descripcion,
                                         ),
                                       ),
@@ -117,26 +124,38 @@ class _RutasScreenState extends State<RutasScreen> {
                                     height: 120,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
-                                      height: 120,
-                                      color: Colors.grey[300],
-                                      child: const Icon(Icons.map, size: 40, color: Colors.grey),
-                                    ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              height: 120,
+                                              color: Colors.grey[300],
+                                              child: const Icon(
+                                                Icons.map,
+                                                size: 40,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
                                   ),
                                 ),
-                                Text('Código: ${(ruta.ruta_Codigo ?? "-").toString()}'),
-                                Text('Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}'),
+                                Text(
+                                  'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                ),
+                                Text(
+                                  'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                ),
                                 const SizedBox(height: 8),
                                 SizedBox(
                                   width: double.infinity,
-                                  height: 40, 
+                                  height: 40,
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF141A2F),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
                                     ),
                                     onPressed: () {},
                                     child: const Text(
@@ -152,9 +171,7 @@ class _RutasScreenState extends State<RutasScreen> {
                                 ),
                               ],
                             ),
-                            
                           ),
-                          
                         );
                       },
                     ),

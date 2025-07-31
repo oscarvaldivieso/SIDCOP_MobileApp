@@ -1,4 +1,27 @@
 class DireccionCliente {
+  // Método para deserializar desde JSON
+  static DireccionCliente fromJson(Map<String, dynamic> json) {
+    return DireccionCliente(
+      diClId: json['diCl_Id'],
+      clieId: json['clie_Id'],
+      coloId: json['colo_Id'],
+      direccionExacta: json['diCl_DireccionExacta'],
+      observaciones: json['diCl_Observaciones'],
+      latitud: (json['diCl_Latitud'] is int)
+          ? (json['diCl_Latitud'] as int).toDouble()
+          : json['diCl_Latitud'],
+      longitud: (json['diCl_Longitud'] is int)
+          ? (json['diCl_Longitud'] as int).toDouble()
+          : json['diCl_Longitud'],
+      usuaCreacion: json['usua_Creacion'],
+      fechaCreacion: DateTime.parse(json['diCl_FechaCreacion']),
+      usuaModificacion: json['usua_Modificacion'],
+      fechaModificacion: json['diCl_FechaModificacion'] != null
+          ? DateTime.tryParse(json['diCl_FechaModificacion'])
+          : null,
+    );
+  }
+
   final int? diClId;
   final int clieId;
   final int coloId;
