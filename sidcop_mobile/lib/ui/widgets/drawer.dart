@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
-import 'package:sidcop_mobile/ui/screens/products/productos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
@@ -34,11 +34,30 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String? _imagenVendedor;
   int? _usuaIdPersona;
   bool _isLoading = true;
+  List<dynamic> permisos = [];
 
   @override
   void initState() {
     super.initState();
     _cargarDatosUsuario();
+    _loadPermisos();
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
+      try {
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
   }
 
   Future<void> _cargarDatosUsuario() async {
@@ -50,7 +69,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
       // Obtener usuaIdPersona desde los datos guardados
       final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final usuaIdPersona = userData?['personaId'] as int?;
+      print("userData drawer para inve: $userData");
+      final usuaIdPersona = userData?['usua_IdPersona'] as int?;
       final imagenVendedor = userData?['imagen'] as String?;
 
       if (mounted) {
@@ -77,7 +97,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   }
 
   bool tienePermiso(int pantId) {
-    return widget.permisos.any((p) => p['Pant_Id'] == pantId);
+    return permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
   @override
@@ -192,7 +212,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           // Accesos móviles según permisos
-          if (tienePermiso(48)) // MRuta
+          if (tienePermiso(30)) // MRuta
             ListTile(
               leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
               title: const Text(
@@ -212,7 +232,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-          if (tienePermiso(49)) // MProductos
+          if (tienePermiso(25)) // MProductos
             ListTile(
               leading: const Icon(
                 Icons.inventory_2_outlined,
@@ -235,25 +255,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-          if (tienePermiso(50)) // MMetas
-            ListTile(
-              leading: const Icon(
-                Icons.speed_outlined,
-                color: Color(0xFFD6B68A),
+          // MMetas
+          ListTile(
+            leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Metas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
               ),
-              title: const Text(
-                'Metas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              onTap: () {
-                // Navegar a MMetas
-              },
             ),
-          if (tienePermiso(51)) // MVentas
+            onTap: () {
+              // Navegar a MMetas
+            },
+          ),
+          if (tienePermiso(57)) // MVentas
             ListTile(
               leading: const Icon(
                 Icons.sell_outlined,
@@ -289,7 +306,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               );
             },
           ),
-          if (tienePermiso(52)) // MClientes
+          if (tienePermiso(10)) // MClientes
             ListTile(
               leading: const Icon(
                 Icons.person_outline,
@@ -312,7 +329,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-          if (tienePermiso(53)) // MRecargas
+          if (tienePermiso(29)) // MRecargas
             ListTile(
               leading: Transform.flip(
                 flipX: true,
@@ -338,7 +355,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               },
             ),
           //   if(usuario!.usua_Admin)
-          if (tienePermiso(54)) // MInventario
+          if (tienePermiso(58)) // MInventario
             ListTile(
               leading: const Icon(
                 Icons.assignment_turned_in_outlined,
@@ -354,6 +371,26 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               onTap: () async {
                 // Navegar a MInventario
+                Navigator.pop(context);
+                if (_usuaIdPersona != null) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                    ),
+                    (route) => false,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo obtener el ID de usuario para Inventario.',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
             ),
         ],

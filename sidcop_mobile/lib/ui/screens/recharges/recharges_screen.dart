@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/RecargasService.Dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
 
 import 'dart:convert';
 
@@ -16,6 +17,7 @@ class RechargesScreen extends StatefulWidget {
 }
 
 class _RechargesScreenState extends State<RechargesScreen> {
+  bool _verTodasLasRecargas = false;
   Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
@@ -53,7 +55,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const RecargaBottomSheet(),
-    );
+    ).then((value) {
+      if (value == true) {
+        setState(() {}); // Refresca la lista de recargas
+      }
+    });
   }
 
   @override
@@ -80,11 +86,16 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       fontFamily: 'Satoshi',
                     ),
                   ),
+                  const SizedBox(width: 12),
                   TextButton(
-                    onPressed: () {}, // Restaurar botón 'Ver más' a su estado original
-                    child: const Text(
-                      'Ver mas',
-                      style: TextStyle(
+                    onPressed: () {
+                      setState(() {
+                        _verTodasLasRecargas = !_verTodasLasRecargas;
+                      });
+                    },
+                    child: Text(
+                      _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
+                      style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 16,
                         fontFamily: 'Satoshi',
@@ -93,6 +104,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
               FutureBuilder<List<RecargasViewModel>>(
                 future: _getRecargasConPersonaId(),
                 builder: (context, snapshot) {
@@ -101,7 +113,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
-                    return Center(child: Text('Error: \\${snapshot.error}'));
                   }
                   final recargas = snapshot.data ?? [];
                   final Map<int, List<RecargasViewModel>> agrupadas = {};
@@ -110,79 +121,108 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
                     }
                   }
-                  if (agrupadas.isEmpty) {
-                    return const Center(child: Text('No hay recargas.'));
-                  }
+                  final entriesList = agrupadas.entries.toList();
+                  final mostrarTodas = _verTodasLasRecargas;
+                  final itemsToShow = mostrarTodas ? entriesList : entriesList.take(3).toList();
+
+                  // Validación de recarga de hoy
+                  final now = DateTime.now();
+                  final existeRecargaHoy = recargas.any((r) {
+                    if (r.reca_Fecha == null || r.reca_Confirmacion == null) return false;
+                    final fecha = r.reca_Fecha!;
+                    final mismoDia = fecha.year == now.year && fecha.month == now.month && fecha.day == now.day;
+                    final estado = r.reca_Confirmacion?.toUpperCase();
+                    return mismoDia && (estado == 'P' || estado == 'A');
+                  });
+
                   return Column(
-                    children: agrupadas.entries.take(3).map((entry) {
-                      final recaId = entry.key;
-                      final recargasGrupo = entry.value;
-                      final recarga = recargasGrupo.first;
-                      final totalCantidad = recargasGrupo.fold<int>(0, (
-                        sum,
-                        r,
-                      ) {
-                        if (r.reDe_Cantidad == null) return sum;
-                        if (r.reDe_Cantidad is int)
-                          return sum + (r.reDe_Cantidad as int);
-                        return sum +
-                            (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
-                      });
-                      return _buildHistorialCard(
-                        _mapEstadoFromApi(recarga.reca_Confirmacion),
-                        recarga.reca_Fecha != null
-                            ? _formatFechaFromApi(
-                                recarga.reca_Fecha!.toIso8601String(),
-                              )
-                            : '-',
-                        totalCantidad,
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Solicitar recarga',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 18,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-              const SizedBox(height: 15),
-              GestureDetector(
-                onTap: _openRecargaModal,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141A2F),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Abrir recarga',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                            fontFamily: 'Satoshi',
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (agrupadas.isEmpty)
+                        const Center(child: Text('No hay recargas.'))
+                      else
+                        Column(
+                          children: itemsToShow.map((entry) {
+                            final recaId = entry.key;
+                            final recargasGrupo = entry.value;
+                            final recarga = recargasGrupo.first;
+                            final totalCantidad = recargasGrupo.fold<int>(0, (
+                              sum,
+                              r,
+                            ) {
+                              if (r.reDe_Cantidad == null) return sum;
+                              if (r.reDe_Cantidad is int)
+                                return sum + (r.reDe_Cantidad as int);
+                              return sum +
+                                  (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                            });
+                            return _buildHistorialCard(
+                              _mapEstadoFromApi(recarga.reca_Confirmacion),
+                              recarga.reca_Fecha != null
+                                  ? _formatFechaFromApi(
+                                      recarga.reca_Fecha!.toIso8601String(),
+                                    )
+                                  : '-',
+                              totalCantidad,
+                              recargasGrupo: recargasGrupo,
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Solicitar recarga',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 18,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      GestureDetector(
+                        onTap: existeRecargaHoy ? null : _openRecargaModal,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            color: existeRecargaHoy ? Colors.grey : const Color(0xFF141A2F),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  existeRecargaHoy ? 'Ya tienes una recarga hoy' : 'Abrir recarga',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 16,
+                                    fontFamily: 'Satoshi',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        SizedBox(width: 10),
-                        Icon(
-                          Icons.add_shopping_cart_rounded,
-                          color: Colors.white,
-                          size: 20,
+                      ),
+                      if (existeRecargaHoy)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Ya tienes una recarga solicitada o aprobada para hoy.',
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -231,111 +271,267 @@ class _RechargesScreenState extends State<RechargesScreen> {
     String estado,
     String fecha,
     int cantidadProductos,
+    {required List<RecargasViewModel> recargasGrupo}
   ) {
-    Color textColor;
+    // Configuración de colores y gradientes según el estado
+    Color primaryColor;
+    Color secondaryColor;
+    Color backgroundColor;
+    IconData statusIcon;
     String label;
+  
     switch (estado) {
       case 'En proceso':
       case 'Pendiente':
         label = 'En proceso';
-        textColor = Colors.amber.shade700;
+        primaryColor = const Color.fromARGB(255, 206, 160, 8);
+        secondaryColor = const Color.fromARGB(255, 228, 197, 69);
+        backgroundColor = const Color(0xFFFFF4E6);
+        statusIcon = Icons.schedule_rounded;
         break;
       case 'Aprobada':
         label = 'Aprobada';
-        textColor = Colors.green.shade700;
+        primaryColor = const Color(0xFF34C759);
+        secondaryColor = const Color(0xFF4CD964);
+        backgroundColor = const Color(0xFFE8F5E8);
+        statusIcon = Icons.check_circle_rounded;
         break;
       case 'Rechazada':
         label = 'Rechazada';
-        textColor = Colors.red.shade700;
+        primaryColor = const Color(0xFFFF3B30);
+        secondaryColor = const Color(0xFFFF6B60);
+        backgroundColor = const Color(0xFFFFE8E6);
+        statusIcon = Icons.cancel_rounded;
         break;
       default:
         label = estado;
-        textColor = Colors.grey.shade700;
+        primaryColor = const Color(0xFF8E8E93);
+        secondaryColor = const Color(0xFFAEAEB2);
+        backgroundColor = const Color(0xFFF2F2F7);
+        statusIcon = Icons.help_outline_rounded;
     }
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.calendar_today,
-                  color: Color(0xFF181E34),
-                  size: 28,
-                ),
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: GestureDetector(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => RecargaDetalleBottomSheet(recargasGrupo: recargasGrupo),
+          );
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+                spreadRadius: 0,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Fecha de solicitud: $fecha',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: Color(0xFF181E34),
-                    fontFamily: 'Satoshi',
-                  ),
-                ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total productos solicitados: $cantidadProductos',
-                style: const TextStyle(
-                  color: Color(0xFF181E34),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 16,
-                  fontFamily: 'Satoshi',
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    backgroundColor.withOpacity(0.3),
+                  ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+              child: Column(
+                children: [
+                  // Header con gradiente de estado
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [primaryColor, secondaryColor],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            statusIcon,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Solicitud de recarga',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  // Contenido principal
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        // Fecha de solicitud
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.calendar_today_rounded,
+                                color: primaryColor,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Fecha de solicitud',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    fecha,
+                                    style: const TextStyle(
+                                      color: Color(0xFF181E34),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // Cantidad de productos
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.inventory_2_rounded,
+                                color: primaryColor,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total productos',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$cantidadProductos productos solicitados',
+                                    style: const TextStyle(
+                                      color: Color(0xFF181E34),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
+  // <- aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
   const RecargaBottomSheet({super.key});
@@ -488,7 +684,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   if (mounted) {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Recarga enviada correctamente"), backgroundColor: Colors.green));
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar la recarga"), backgroundColor: Colors.red));
     }

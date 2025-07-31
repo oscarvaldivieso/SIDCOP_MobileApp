@@ -85,7 +85,8 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           style: TextStyle(
             color: Colors.white,
             fontSize: 22,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Satoshi',
           ),
         ),
         centerTitle: false,
@@ -127,7 +128,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ),
                 // Foto de perfil y nombre
                 Positioned(
-                  top: 90,
+                  top: 75,
                   child: Container(
                     width: 90,
                     height: 90,
@@ -142,35 +143,25 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                   ),
                 ),
                 Positioned(
-                  top: 190,
+                  top: 170,
                   child: Text(
                     _isLoading ? 'Cargando...' : _nombreCompleto,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
+                    style: TextStyle(
+                      fontSize: 24,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 55),
-            // Nombre
-            Text(
-              _isLoading ? 'Cargando...' : _nombreCompleto,
-              style: const TextStyle(
-                color: Color(0xFF1a1d3a),
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 18),
+
+            const SizedBox(height: 10),
             // Tarjeta de información
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 18),
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 18),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
@@ -218,7 +209,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 50),
           ],
         ),
       ),
@@ -234,10 +225,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           const SizedBox(width: 10),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: Color(0xFF1a1d3a),
+              fontFamily: 'Satoshi',
             ),
           ),
         ],
@@ -259,6 +251,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 fontSize: 13,
                 color: Color(0xFF2d2d2d),
                 fontWeight: FontWeight.w600,
+                fontFamily: 'Satoshi',
               ),
             ),
           ),
@@ -269,6 +262,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 fontSize: 13,
                 color: Color(0xFF2d2d2d),
                 fontWeight: FontWeight.w400,
+                fontFamily: 'Satoshi',
               ),
             ),
           ),

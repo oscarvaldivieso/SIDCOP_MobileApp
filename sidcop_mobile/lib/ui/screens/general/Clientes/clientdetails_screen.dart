@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
-  
-  const ClientdetailsScreen({
-    super.key, 
-    required this.clienteId,
-  });
+
+  const ClientdetailsScreen({super.key, required this.clienteId});
 
   @override
   State<ClientdetailsScreen> createState() => _ClientdetailsScreenState();
@@ -22,11 +22,21 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   List<dynamic> _direcciones = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  String? _vendTipo;
 
   @override
   void initState() {
     super.initState();
     _loadCliente();
+    _loadTipoVendedor();
+  }
+
+  Future<void> _loadTipoVendedor() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    setState(() {
+      _vendTipo = userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+    });
   }
 
   Future<void> _loadCliente() async {
@@ -49,15 +59,15 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
 
   Future<void> _loadDireccionesCliente() async {
     if (!mounted) return;
-    
+
     try {
       final direcciones = await _clientesService.getDireccionesPorCliente();
-      
+
       final direccionesFiltradas = direcciones.where((dir) {
         final clienteId = dir['clie_Id'];
         return clienteId == widget.clienteId;
       }).toList();
-      
+
       if (mounted) {
         setState(() {
           _direcciones = direccionesFiltradas;
@@ -72,50 +82,37 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     }
   }
 
-  Widget _buildInfoRow(String label, String? value) {
-    final displayValue = value?.isNotEmpty == true ? value! : 'No especificado';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
+  // Build a field with label above value
+  Widget _buildInfoField({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF141A2F),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              displayValue,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF6B7280),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF141A2F)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
       body: Stack(
         children: [
           AppBackground(
@@ -124,179 +121,215 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
-                    ? Center(child: Text(_errorMessage))
-                    : _cliente == null
-                        ? const Center(child: Text('No se encontró información del cliente'))
-                        : SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Client Name
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                              child: Text(
-                                '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'.trim(),
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                ? Center(
+                    child: Text(
+                      _errorMessage,
+                      style: const TextStyle(fontFamily: 'Satoshi'),
+                    ),
+                  )
+                : _cliente == null
+                ? const Center(
+                    child: Text(
+                      'No se encontró información del cliente',
+                      style: const TextStyle(fontFamily: 'Satoshi'),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Client Name with Back Button
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                          child: Row(
+                            children: [
+                              InkWell(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: const Icon(
+                                  Icons.arrow_back_ios,
+                                  size: 24,
+                                  color: Color(0xFF141A2F),
                                 ),
-                                textAlign: TextAlign.center,
                               ),
-                            ),
-
-                            // Client Image
-                            Center(
-                              child: Container(
-                                width: MediaQuery.of(context).size.width * 0.9,
-                                height: 200,
-                                margin: const EdgeInsets.only(bottom: 20),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: const Color(0xFF141A2F),
-                                    width: 2,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'
+                                      .trim(),
+                                  style: const TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Client Image
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            height: 200,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: _cliente!['clie_ImagenDelNegocio'] != null
+                                  ? Image.network(
+                                      _cliente!['clie_ImagenDelNegocio'],
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildDefaultAvatar(),
+                                    )
+                                  : _buildDefaultAvatar(),
+                            ),
+                          ),
+                        ),
+
+                        // Client Information
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Cliente
+                              _buildInfoField(
+                                label: 'Cliente:',
+                                value:
+                                    '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'
+                                        .trim(),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // RTN
+                              if (_cliente!['clie_RTN'] != null &&
+                                  _cliente!['clie_RTN'].toString().isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoField(
+                                      label: 'RTN:',
+                                      value: _cliente!['clie_RTN'].toString(),
                                     ),
+                                    const SizedBox(height: 12),
                                   ],
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: _cliente!['clie_ImagenDelNegocio'] != null
-                                      ? Image.network(
-                                          _cliente!['clie_ImagenDelNegocio'],
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
-                                        )
-                                      : _buildDefaultAvatar(),
+
+                              // Correo
+                              if (_cliente!['clie_Correo'] != null &&
+                                  _cliente!['clie_Correo']
+                                      .toString()
+                                      .isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoField(
+                                      label: 'Correo:',
+                                      value: _cliente!['clie_Correo']
+                                          .toString(),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
                                 ),
-                              ),
-                            ),
 
-                            // Business Info
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Información del Negocio',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF141A2F),
+                              // Teléfono
+                              if (_cliente!['clie_Telefono'] != null &&
+                                  _cliente!['clie_Telefono']
+                                      .toString()
+                                      .isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoField(
+                                      label: 'Teléfono:',
+                                      value: _cliente!['clie_Telefono']
+                                          .toString(),
                                     ),
-                                  ),
-                                  const Divider(color: Colors.grey),
-                                  _buildInfoRow('Negocio:', _cliente!['clie_NombreNegocio']),
-                                  _buildInfoRow('Teléfono:', _cliente!['clie_Telefono']),
-                                  _buildInfoRow('Ruta:', _cliente!['ruta_Descripcion']),
-                                  if (_direcciones.isNotEmpty) ..._buildDirecciones(),
-                                ],
-                              ),
-                            ),
-
-                            // Client Details Card
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Información del Cliente',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF141A2F),
-                                    ),
-                                  ),
-                                  const Divider(color: Colors.grey),
-                                  _buildInfoRow('Código:', _cliente!['clie_Codigo']),
-                                  _buildInfoRow('DNI:', _cliente!['clie_DNI']),
-                                  _buildInfoRow('RTN:', _cliente!['clie_RTN']),
-                                  _buildInfoRow('Correo:', _cliente!['clie_Correo']),
-                                  _buildInfoRow('Sexo:', _cliente!['clie_Sexo']),
-                                  _buildInfoRow('Límite de Crédito:', 
-                                      'L. ${(_cliente!['clie_LimiteCredito'] ?? 0).toStringAsFixed(2)}'),
-                                  _buildInfoRow('Días de Crédito:', 
-                                      '${_cliente!['clie_DiasCredito'] ?? '0'} días'),
-                                ],
-                              ),
-                            ),
-
-                            // Ir a la Ubicación Button
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _direcciones.isNotEmpty
-                                      ? () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => ClientLocationScreen(
-                                                locations: List<Map<String, dynamic>>.from(_direcciones),
-                                                clientName: _cliente?['clie_Nombre'] ?? 'Cliente',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      side: const BorderSide(color: Color(0xFF141A2F)),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.location_on, color: Color(0xFF141A2F)),
-                                  label: const Text(
-                                    'Ir a la ubicación',
-                                    style: TextStyle(
-                                      color: Color(0xFF141A2F),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                    const SizedBox(height: 12),
+                                  ],
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 100), // Espacio para los botones flotantes
-                          ],
+
+                              // Ruta
+                              if (_cliente!['ruta_Descripcion'] != null &&
+                                  _cliente!['ruta_Descripcion']
+                                      .toString()
+                                      .isNotEmpty)
+                                _buildInfoField(
+                                  label: 'Ruta:',
+                                  value: _cliente!['ruta_Descripcion']
+                                      .toString(),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
+
+                        // Ir a la Ubicación Button
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Opacity(
+                            opacity: _direcciones.isNotEmpty ? 1.0 : 0.5,
+                            child: AbsorbPointer(
+                              absorbing: _direcciones.isEmpty,
+                              child: CustomButton(
+                                text: 'IR A LA UBICACIÓN',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ClientLocationScreen(
+                                            locations:
+                                                List<Map<String, dynamic>>.from(
+                                                  _direcciones,
+                                                ),
+                                            clientName:
+                                                _cliente?['clie_Nombre'] ??
+                                                'Cliente',
+                                          ),
+                                    ),
+                                  );
+                                },
+                                height: 50,
+                                fontSize: 14,
+                                icon: const Icon(
+                                  Icons.location_pin,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 100,
+                        ), // Espacio para los botones flotantes
+                      ],
+                    ),
+                  ),
           ),
           // Sticky Action Buttons
           if (_cliente != null && !_isLoading && _errorMessage.isEmpty)
@@ -319,52 +352,53 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                 child: SafeArea(
                   child: Row(
                     children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Implementar lógica de venta
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF141A2F),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          icon: const Icon(Icons.shopping_cart, color: Colors.white, size: 20),
-                          label: const Text(
-                            'VENDER',
-                            style: TextStyle(
+                      if (_vendTipo == "P" || _vendTipo == "V") ...[
+                        Expanded(
+                          child: CustomButton(
+                            text: _vendTipo == "P"
+                                ? "PEDIDO"
+                                : _vendTipo == "V"
+                                    ? "VENTA"
+                                    : "ACCIÓN",
+                            onPressed: () {
+                              if (_vendTipo == "P") {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PedidosScreen(),
+                                  ),
+                                );
+                              } else {
+                                // TODO: Implementar lógica de venta u otra acción
+                              }
+                            },
+                            height: 50,
+                            fontSize: 14,
+                            icon: Icon(
+                              _vendTipo == "P"
+                                  ? Icons.assignment
+                                  : _vendTipo == "V"
+                                      ? Icons.shopping_cart
+                                      : Icons.help_outline,
                               color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
+                              size: 20,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
+                      ],
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: CustomButton(
+                          text: 'COBRAR',
                           onPressed: () {
                             // TODO: Implementar lógica de cobro
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF141A2F),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          icon: const Icon(Icons.monetization_on, color: Colors.white, size: 20),
-                          label: const Text(
-                            'COBRAR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
+                          height: 50,
+                          fontSize: 14,
+                          icon: const Icon(
+                            Icons.monetization_on,
+                            color: Colors.white,
+                            size: 20,
                           ),
                         ),
                       ),
@@ -378,27 +412,11 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     );
   }
 
-  List<Widget> _buildDirecciones() {
-    if (_direcciones.isEmpty) {
-      return [];
-    }
-    
-    // Tomar solo la primera dirección
-    final direccion = _direcciones.first;
-    return [
-      _buildInfoRow('Dirección:', direccion['diCl_DireccionExacta']?.toString() ?? 'No especificada')
-    ];
-  }
-
   Widget _buildDefaultAvatar() {
     return Container(
       color: Colors.grey[200],
       child: const Center(
-        child: Icon(
-          Icons.person,
-          size: 80,
-          color: Colors.grey,
-        ),
+        child: Icon(Icons.person, size: 80, color: Colors.grey),
       ),
     );
   }
