@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -48,15 +49,11 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   bool _isSubmitting = false;
   
   // Map variables
-  final Completer<GoogleMapController> _mapController = Completer();
   LatLng _selectedLocation = const LatLng(15.5, -86.8); // Default to Honduras center
-  final Set<Marker> _markers = {};
-  // Map controller will be initialized when the map is created
 
   @override
   void initState() {
     super.initState();
-    _updateMarker(_selectedLocation);
     _loadColonias();
   }
 
@@ -78,16 +75,19 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController.complete(controller);
-    _updateMarker(_selectedLocation);
-  }
+  Future<void> _showMapModal() async {
+    final newLocation = await MapWidget.showAsDialog(
+      context: context,
+      initialPosition: _selectedLocation,
+      title: 'Seleccionar Ubicación',
+      confirmButtonText: 'Seleccionar esta ubicación',
+    );
 
-  void _onMapTapped(LatLng location) {
-    setState(() {
-      _selectedLocation = location;
-      _updateMarker(location);
-    });
+    if (newLocation != null) {
+      setState(() {
+        _selectedLocation = newLocation;
+      });
+    }
   }
 
   Future<void> _saveAddress() async {
@@ -135,18 +135,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-  void _updateMarker(LatLng location) {
-    setState(() {
-      _markers.clear();
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('selected_location'),
-          position: location,
-          infoWindow: const InfoWindow(title: 'Ubicación seleccionada'),
-        ),
-      );
-    });
-  }
+
 
 
 
@@ -306,31 +295,41 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                        style: _hintStyle.copyWith(fontSize: 12),
-                      ),
-                      const SizedBox(height: 8),
                       Container(
-                        height: 250,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
+                          border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey[100],
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: GoogleMap(
-                            onMapCreated: _onMapCreated,
-                            initialCameraPosition: CameraPosition(
-                              target: _selectedLocation,
-                              zoom: 15,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ubicación actual:',
+                              style: _labelStyle.copyWith(fontSize: 12, color: Colors.grey[600]),
                             ),
-                            markers: _markers,
-                            onTap: _onMapTapped,
-                            myLocationEnabled: true,
-                            myLocationButtonEnabled: true,
-                            zoomControlsEnabled: true,
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
+                              style: _labelStyle.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _showMapModal,
+                                icon: const Icon(Icons.map, size: 18),
+                                label: const Text('Seleccionar en el mapa'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 24),
