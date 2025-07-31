@@ -649,7 +649,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             Expanded(
               child: _buildMovementButton(
                 icon: Icons.shopping_cart,
-                label: 'Registrar Venta',
+                label: 'Nueva venta',
                 color: Colors.green,
                 onPressed: () {},
               ),
@@ -702,7 +702,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     style: TextStyle(
                       color: Colors.white,
                       fontFamily: 'Satoshi',
-                      fontSize: 18,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
