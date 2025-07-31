@@ -231,46 +231,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ],
                 ),
               ),
-              
-              // Estado de la jornada
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.green,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'En Progreso',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontFamily: 'Satoshi',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -701,31 +665,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        
-        Row(
-          children: [
-            Expanded(
-              child: _buildMovementButton(
-                icon: Icons.warning,
-                label: 'Faltante',
-                color: Colors.red,
-                onPressed: () {},
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMovementButton(
-                icon: Icons.tune,
-                label: 'Ajuste',
-                color: Colors.orange,
-                onPressed: () {},
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        
+        const SizedBox(height: 25),
         // Historial de movimientos recientes
         Container(
           padding: const EdgeInsets.all(20),
