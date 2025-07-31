@@ -39,7 +39,11 @@ class AppBackground extends StatelessWidget {
           ),
         ),
         child: RefreshIndicator(
-          onRefresh: onRefresh ?? () async { await Future.delayed(const Duration(milliseconds: 500)); },
+          onRefresh:
+              onRefresh ??
+              () async {
+                await Future.delayed(const Duration(milliseconds: 500));
+              },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.only(
@@ -76,10 +80,13 @@ class AppBackground extends StatelessWidget {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20.0,
+                              ),
                               child: Text(
                                 title,
-                                style: titleStyle ??
+                                style:
+                                    titleStyle ??
                                     Theme.of(
                                       context,
                                     ).textTheme.headlineSmall?.copyWith(

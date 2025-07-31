@@ -28,10 +28,7 @@ final TextStyle _hintStyle = const TextStyle(
 class AddAddressScreen extends StatefulWidget {
   final int clientId;
 
-  const AddAddressScreen({
-    Key? key,
-    required this.clientId,
-  }) : super(key: key);
+  const AddAddressScreen({Key? key, required this.clientId}) : super(key: key);
 
   @override
   _AddAddressScreenState createState() => _AddAddressScreenState();
@@ -42,14 +39,17 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   final _direccionClienteService = DireccionClienteService();
   final _direccionExactaController = TextEditingController();
   final _observacionesController = TextEditingController();
-  
+
   List<Colonia> _colonias = [];
   Colonia? _selectedColonia;
   bool _isLoading = true;
   bool _isSubmitting = false;
-  
+
   // Map variables
-  LatLng _selectedLocation = const LatLng(15.5, -86.8); // Default to Honduras center
+  LatLng _selectedLocation = const LatLng(
+    15.5,
+    -86.8,
+  ); // Default to Honduras center
 
   @override
   void initState() {
@@ -102,11 +102,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     try {
       // Crear el objeto de dirección sin intentar guardarlo
       final direccion = DireccionCliente(
-        clieId: 0, // Se actualizará con el ID real del cliente después de crearlo
+        clieId:
+            0, // Se actualizará con el ID real del cliente después de crearlo
         coloId: _selectedColonia!.coloId,
         direccionExacta: _direccionExactaController.text.trim(),
-        observaciones: _observacionesController.text.trim().isNotEmpty 
-            ? _observacionesController.text.trim() 
+        observaciones: _observacionesController.text.trim().isNotEmpty
+            ? _observacionesController.text.trim()
             : null,
         latitud: _selectedLocation.latitude,
         longitud: _selectedLocation.longitude,
@@ -121,7 +122,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       print('Observaciones: ${direccion.observaciones ?? "Ninguna"}');
       print('Ubicación: (${direccion.latitud}, ${direccion.longitud})');
       print('====================================');
-      
+
       // Solo devolver los datos de la dirección sin intentar guardar
       if (mounted) {
         Navigator.pop(context, direccion);
@@ -135,16 +136,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-
-
-
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -154,6 +148,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       body: AppBackground(
         title: 'Agregar Cliente',
         icon: Icons.add_location,
+        onRefresh: () async {
+          await _loadColonias();
+        },
         child: _isLoading
             ? Center(
                 child: CircularProgressIndicator(
@@ -171,7 +168,11 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back_ios, size: 20, color: Color(0xFF141A2F)),
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              size: 20,
+                              color: Color(0xFF141A2F),
+                            ),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                           Text(
@@ -181,11 +182,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Colonias Dropdown
                       Text(
                         'Colonia *',
-                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                        style: _labelStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       _isLoading
@@ -225,14 +228,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                               },
                             ),
                       const SizedBox(height: 16),
-                      
+
                       // Dirección Exacta
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Dirección Exacta *',
-                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                            style: _labelStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           TextFormField(
@@ -259,14 +264,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Observaciones
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Observaciones',
-                            style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                            style: _labelStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           TextFormField(
@@ -288,15 +295,20 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Mapa
                       Text(
                         'Seleccione la ubicación en el mapa:',
-                        style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
+                        style: _labelStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
@@ -307,12 +319,18 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                           children: [
                             Text(
                               'Ubicación actual:',
-                              style: _labelStyle.copyWith(fontSize: 12, color: Colors.grey[600]),
+                              style: _labelStyle.copyWith(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                              style: _labelStyle.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
+                              style: _labelStyle.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             SizedBox(
@@ -322,7 +340,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                 icon: const Icon(Icons.map, size: 18),
                                 label: const Text('Seleccionar en el mapa'),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -333,13 +353,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Botón de guardar
                       CustomButton(
                         text: 'Guardar Dirección',
                         onPressed: _isSubmitting ? null : _saveAddress,
                         height: 50,
-                        icon: _isSubmitting 
+                        icon: _isSubmitting
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
