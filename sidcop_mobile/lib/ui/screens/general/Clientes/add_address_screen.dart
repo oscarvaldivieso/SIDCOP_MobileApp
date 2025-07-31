@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'package:flutter/material.dart' show showMenu, RelativeRect;
+import 'package:flutter/rendering.dart' show TextOverflow;
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
@@ -40,8 +42,9 @@ class AddAddressScreen extends StatefulWidget {
 class _AddAddressScreenState extends State<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
   final _direccionClienteService = DireccionClienteService();
-  final _direccionExactaController = TextEditingController();
-  final _observacionesController = TextEditingController();
+  final TextEditingController _direccionExactaController = TextEditingController();
+  final TextEditingController _observacionesController = TextEditingController();
+  final TextEditingController _coloniaController = TextEditingController();
   
   List<Colonia> _colonias = [];
   Colonia? _selectedColonia;
@@ -190,39 +193,110 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       const SizedBox(height: 8),
                       _isLoading
                           ? const CircularProgressIndicator()
-                          : DropdownButtonFormField<Colonia>(
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                              hint: Text(
-                                'Seleccione una colonia',
-                                style: _hintStyle,
-                              ),
-                              value: _selectedColonia,
-                              items: _colonias.map((colonia) {
-                                return DropdownMenuItem<Colonia>(
-                                  value: colonia,
-                                  child: Text(
-                                    colonia.coloDescripcion,
-                                    style: _labelStyle,
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade400),
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.white,
                                   ),
-                                );
-                              }).toList(),
-                              onChanged: (Colonia? newValue) {
-                                setState(() {
-                                  _selectedColonia = newValue;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Por favor seleccione una colonia';
-                                }
-                                return null;
-                              },
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: RawAutocomplete<Colonia>(
+                                          textEditingController: _coloniaController,
+                                          focusNode: FocusNode(),
+                                          optionsBuilder: (TextEditingValue textEditingValue) {
+                                            if (textEditingValue.text.isEmpty) {
+                                              return _colonias.take(10);
+                                            }
+                                            return _colonias.where((colonia) {
+                                              final searchValue = textEditingValue.text.toLowerCase();
+                                              return colonia.coloDescripcion.toLowerCase().contains(searchValue) ||
+                                                  colonia.muniDescripcion.toLowerCase().contains(searchValue) ||
+                                                  colonia.depaDescripcion.toLowerCase().contains(searchValue);
+                                            });
+                                          },
+                                          displayStringForOption: (Colonia colonia) => 
+                                              '${colonia.coloDescripcion} - ${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
+                                          fieldViewBuilder: (
+                                            BuildContext context,
+                                            TextEditingController textEditingController,
+                                            FocusNode focusNode,
+                                            VoidCallback onFieldSubmitted,
+                                          ) {
+                                            return TextFormField(
+                                              controller: textEditingController,
+                                              focusNode: focusNode,
+                                              style: _labelStyle,
+                                              decoration: InputDecoration(
+                                                hintText: 'Buscar colonia...',
+                                                hintStyle: _hintStyle,
+                                                border: InputBorder.none,
+                                                suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
+                                                isDense: true,
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                              ),
+                                            );
+                                          },
+                                          optionsViewBuilder: (
+                                            BuildContext context,
+                                            AutocompleteOnSelected<Colonia> onSelected,
+                                            Iterable<Colonia> options,
+                                          ) {
+                                            return Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Material(
+                                                elevation: 4.0,
+                                                child: Container(
+                                                  width: MediaQuery.of(context).size.width * 0.9,
+                                                  constraints: const BoxConstraints(maxHeight: 200),
+                                                  child: ListView.builder(
+                                                    padding: EdgeInsets.zero,
+                                                    itemCount: options.length,
+                                                    itemBuilder: (BuildContext context, int index) {
+                                                      final Colonia option = options.elementAt(index);
+                                                      return InkWell(
+                                                        onTap: () {
+                                                          onSelected(option);
+                                                          setState(() {
+                                                            _selectedColonia = option;
+                                                          });
+                                                        },
+                                                        child: _buildOption(context, option),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          onSelected: (Colonia selection) {
+                                            setState(() {
+                                              _selectedColonia = selection;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_selectedColonia != null) ...[
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8.0),
+                                    child: Text(
+                                      '${_selectedColonia!.muniDescripcion}, ${_selectedColonia!.depaDescripcion}',
+                                      style: _hintStyle.copyWith(fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                       const SizedBox(height: 16),
                       
@@ -359,10 +433,34 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     );
   }
 
+  // This is what will be shown in the autocomplete overlay
+  static Widget _buildOption(BuildContext context, Colonia colonia) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            colonia.coloDescripcion,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
   @override
   void dispose() {
     _direccionExactaController.dispose();
     _observacionesController.dispose();
+    _coloniaController.dispose();
     super.dispose();
   }
 }
