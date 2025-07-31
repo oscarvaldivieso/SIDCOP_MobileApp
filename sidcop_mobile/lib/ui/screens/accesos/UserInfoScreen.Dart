@@ -128,7 +128,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ),
                 // Foto de perfil y nombre
                 Positioned(
-                  top: 90,
+                  top: 75,
                   child: Container(
                     width: 90,
                     height: 90,
@@ -143,7 +143,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                   ),
                 ),
                 Positioned(
-                  top: 190,
+                  top: 170,
                   child: Text(
                     _isLoading ? 'Cargando...' : _nombreCompleto,
                     style: TextStyle(
@@ -156,22 +156,12 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 55),
-            // Nombre
-            Text(
-              _isLoading ? 'Cargando...' : _nombreCompleto,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1a1d3a),
-                fontFamily: 'Satoshi',
-              ),
-            ),
-            const SizedBox(height: 18),
+
+            const SizedBox(height: 10),
             // Tarjeta de información
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 18),
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 18),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
@@ -219,7 +209,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 50),
           ],
         ),
       ),
