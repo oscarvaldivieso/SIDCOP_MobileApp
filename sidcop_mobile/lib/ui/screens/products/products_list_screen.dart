@@ -143,6 +143,10 @@ class _ProductScreenState extends State<ProductScreen> {
       body: AppBackground(
         title: 'Productos',
         icon: Icons.inventory_2,
+        // permisos: permisos,
+        onRefresh: () async {
+          await _loadProducts();
+        },
         child: Column(
           children: [
             _buildSearchBar(), // Ahora incluye el ícono de filtrar
