@@ -68,6 +68,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
       title: 'Recarga',
       icon: Icons.sync,
       permisos: permisos,
+      onRefresh: () async {
+        setState(() {});
+      },
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

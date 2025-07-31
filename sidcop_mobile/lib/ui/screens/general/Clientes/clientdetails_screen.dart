@@ -35,7 +35,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
     setState(() {
-      _vendTipo = userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+      _vendTipo =
+          userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
     });
   }
 
@@ -121,6 +122,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
           AppBackground(
             title: 'Detalles del Cliente',
             icon: Icons.person_outline,
+            onRefresh: () async {
+              _loadCliente();
+            },
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
@@ -328,27 +332,33 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Sección de botones de acción
-                        if (_cliente != null && !_isLoading && _errorMessage.isEmpty)
+                        if (_cliente != null &&
+                            !_isLoading &&
+                            _errorMessage.isEmpty)
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                              vertical: 16.0,
+                            ),
                             child: Row(
                               children: [
-                                if (_vendTipo == "P" || _vendTipo == "V") 
+                                if (_vendTipo == "P" || _vendTipo == "V")
                                   Expanded(
                                     child: CustomButton(
                                       text: _vendTipo == "P"
                                           ? "PEDIDO"
                                           : _vendTipo == "V"
-                                              ? "VENTA"
-                                              : "ACCIÓN",
+                                          ? "VENTA"
+                                          : "ACCIÓN",
                                       onPressed: () {
                                         if (_vendTipo == "P") {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => PedidosScreen(),
+                                              builder: (context) =>
+                                                  PedidosScreen(),
                                             ),
                                           );
                                         } else {
@@ -361,17 +371,17 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                         _vendTipo == "P"
                                             ? Icons.assignment
                                             : _vendTipo == "V"
-                                                ? Icons.shopping_cart
-                                                : Icons.help_outline,
+                                            ? Icons.shopping_cart
+                                            : Icons.help_outline,
                                         color: Colors.white,
                                         size: 20,
                                       ),
                                     ),
                                   ),
-                                
-                                if (_vendTipo == "P" || _vendTipo == "V") 
+
+                                if (_vendTipo == "P" || _vendTipo == "V")
                                   const SizedBox(width: 12),
-                                
+
                                 Expanded(
                                   child: CustomButton(
                                     text: 'COBRAR',
@@ -390,8 +400,10 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                               ],
                             ),
                           ),
-                          
-                        const SizedBox(height: 24), // Espacio adicional al final
+
+                        const SizedBox(
+                          height: 24,
+                        ), // Espacio adicional al final
                       ],
                     ),
                   ),
