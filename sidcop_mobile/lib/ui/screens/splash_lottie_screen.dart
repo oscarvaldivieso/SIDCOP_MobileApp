@@ -23,10 +23,10 @@ class _SplashLottieScreenState extends State<SplashLottieScreen> with SingleTick
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed && !_navigated) {
         _navigated = true;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        // );
       }
     });
   }
@@ -59,12 +59,12 @@ class _SplashLottieScreenState extends State<SplashLottieScreen> with SingleTick
           ),
           // Overlay para cubrir la marca de agua (ajusta el tamaño si es necesario)
           Positioned(
-            right: MediaQuery.of(context).size.width * 0.05,
-            bottom: MediaQuery.of(context).size.height * 0.04,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.18, // Ajusta según el tamaño de la marca
-              height: MediaQuery.of(context).size.height * 0.07, // Ajusta según el tamaño de la marca
-              color: const Color(0xFF181E34), // Mismo color que el fondo
+           right: MediaQuery.of(context).size.width * 0.0,   // 10% del ancho
+  bottom: MediaQuery.of(context).size.height * 0.10, // 30% del alto
+  child: Container(
+    width: MediaQuery.of(context).size.width * 0.40, // 40% del ancho
+    height: MediaQuery.of(context).size.height * 0.15, // 15% del alto
+    color: const Color.fromARGB(255, 255, 255, 255), // Mismo color que el fondo
             ),
           ),
         ],
