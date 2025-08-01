@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
+import 'package:flutter/services.dart';
 
 import 'dart:convert';
 
@@ -68,6 +69,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
       title: 'Recarga',
       icon: Icons.sync,
       permisos: permisos,
+      onRefresh: () async {
+        setState(() {});
+      },
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -544,6 +548,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
   Map<int, int> _cantidades = {}; // prod_Id -> cantidad
+  Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
   String search = '';
   bool _isLoading = true;
 
@@ -551,6 +556,14 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   void initState() {
     super.initState();
     _fetchProductos();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _fetchProductos() async {
@@ -707,6 +720,30 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
+    // Inicializa el controlador si no existe
+    if (!_controllers.containsKey(producto.prod_Id)) {
+      final controller = TextEditingController(text: cantidad > 0 ? cantidad.toString() : '');
+      controller.addListener(() {
+        final text = controller.text;
+        final value = int.tryParse(text);
+        if (value != null && value >= 0) {
+          setState(() {
+            _cantidades[producto.prod_Id] = value;
+          });
+        } else if (text.isEmpty) {
+          setState(() {
+            _cantidades[producto.prod_Id] = 0;
+          });
+        }
+      });
+      _controllers[producto.prod_Id] = controller;
+    } else {
+      // Si la cantidad cambia por botones, actualiza el texto
+      if (_controllers[producto.prod_Id]!.text != (cantidad > 0 ? cantidad.toString() : '')) {
+        _controllers[producto.prod_Id]!.text = cantidad > 0 ? cantidad.toString() : '';
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
@@ -733,26 +770,43 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
               ),
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: cantidad > 0
                       ? () {
+                          final newValue = cantidad - 1;
+                          _controllers[producto.prod_Id]?.text = newValue > 0 ? newValue.toString() : '';
                           setState(() {
-                            _cantidades[producto.prod_Id] = cantidad - 1;
+                            _cantidades[producto.prod_Id] = newValue > 0 ? newValue : 0;
                           });
                         }
                       : null,
                 ),
-                Text(
-                  '$cantidad',
-                  style: const TextStyle(fontSize: 16),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    controller: _controllers[producto.prod_Id],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    ),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
+                    final newValue = cantidad + 1;
+                    _controllers[producto.prod_Id]?.text = newValue.toString();
                     setState(() {
-                      _cantidades[producto.prod_Id] = cantidad + 1;
+                      _cantidades[producto.prod_Id] = newValue;
                     });
                   },
                 ),

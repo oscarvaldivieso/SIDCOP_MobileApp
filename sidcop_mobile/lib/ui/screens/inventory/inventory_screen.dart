@@ -6,9 +6,9 @@ import '../../../services/PerfilUsuarioService.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
-  
+
   const InventoryScreen({super.key, required this.usuaIdPersona});
-  
+
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
@@ -33,9 +33,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
-      
-      final items = await InventoryService().getInventoryByVendor(widget.usuaIdPersona);
-      
+
+      final items = await InventoryService().getInventoryByVendor(
+        widget.usuaIdPersona,
+      );
+
       setState(() {
         _inventoryItems = items;
         _isLoading = false;
@@ -55,7 +57,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       if (userData != null) {
         final nombres = userData['nombres'] ?? '';
         final apellidos = userData['apellidos'] ?? '';
-        
+
         if (nombres.isNotEmpty && apellidos.isNotEmpty) {
           setState(() {
             _sellerName = '$nombres $apellidos';
@@ -73,7 +75,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           return;
         }
       }
-      
+
       // Fallback to existing method
       final name = await _perfilUsuarioService.obtenerNombreCompleto();
       setState(() {
@@ -89,18 +91,34 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _formatCurrentDate() {
     final now = DateTime.now();
     final weekdays = [
-      'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
     ];
     final months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
     ];
-    
+
     final weekday = weekdays[now.weekday - 1];
     final day = now.day;
     final month = months[now.month - 1];
     final year = now.year;
-    
+
     return '$weekday, $day $month $year';
   }
 
@@ -109,6 +127,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return AppBackground(
       title: 'Inventario',
       icon: Icons.inventory_2,
+      onRefresh: () async {
+        _loadInventoryData();
+        _loadSellerName();
+      },
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -117,15 +139,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
             // Encabezado de Jornada
             _buildDayHeader(),
             const SizedBox(height: 24),
-            
+
             // Inventario Asignado del Día
             _buildAssignedInventory(),
             const SizedBox(height: 24),
-            
+
             // Gestión de Movimientos
             _buildMovementsManagement(),
             const SizedBox(height: 24),
-            
+
             // Resumen del Día
             _buildDailySummary(),
             const SizedBox(height: 24),
@@ -142,10 +164,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1A2332),
-            Color(0xFF141A2F),
-          ],
+          colors: [Color(0xFF1A2332), Color(0xFF141A2F)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -186,11 +205,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Vendedor y Zona
           Row(
             children: [
@@ -201,10 +220,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFC2AF86).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(
-                    color: const Color(0xFFC2AF86),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFFC2AF86), width: 2),
                 ),
                 child: const Icon(
                   Icons.person,
@@ -213,7 +229,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-              
+
               // Información del vendedor
               Expanded(
                 child: Column(
@@ -228,68 +244,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Zona Norte - Ruta 15',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontFamily: 'Satoshi',
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Estado de la jornada
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.green,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'En Progreso',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontFamily: 'Satoshi',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ],
                 ),
               ),
             ],
           ),
-          
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -303,11 +264,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }) {
     return Column(
       children: [
-        Icon(
-          icon,
-          color: const Color(0xFFC2AF86),
-          size: 20,
-        ),
+        Icon(icon, color: const Color(0xFFC2AF86), size: 20),
         const SizedBox(height: 4),
         Text(
           label,
@@ -406,10 +363,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFC2AF86).withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFC2AF86),
-                  width: 1,
-                ),
+                border: Border.all(color: const Color(0xFFC2AF86), width: 1),
               ),
               child: Text(
                 '${_inventoryItems.length} productos',
@@ -424,7 +378,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        
+
         // Lista de productos
         ..._inventoryItems.map((item) => _buildInventoryItemCard(item)),
       ],
@@ -441,12 +395,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     } else if (subcDescripcion.toLowerCase().contains('snack')) {
       productIcon = Icons.fastfood;
     }
-    
-    return Icon(
-      productIcon,
-      color: const Color(0xFF141A2F),
-      size: 30,
-    );
+
+    return Icon(productIcon, color: const Color(0xFF141A2F), size: 30);
   }
 
   Widget _buildInventoryItemCard(InventoryItem item) {
@@ -454,10 +404,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final int current = item.currentQuantity;
     final int sold = item.soldQuantity;
     final double percentage = item.stockPercentage;
-    
+
     final Color statusColor = item.statusColor;
     final String statusText = item.statusText;
-    
+
     // Usar imagen del producto si está disponible
     Widget productImage = item.prodImagen.isNotEmpty
         ? ClipRRect(
@@ -477,7 +427,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: CircularProgressIndicator(
                     value: loadingProgress.expectedTotalBytes != null
                         ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
+                              loadingProgress.expectedTotalBytes!
                         : null,
                     color: const Color(0xFF141A2F),
                     strokeWidth: 2,
@@ -495,10 +445,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1E2A3A),
-            const Color(0xFF1A2332),
-          ],
+          colors: [const Color(0xFF1E2A3A), const Color(0xFF1A2332)],
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
@@ -522,14 +469,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 width: 55,
                 height: 55,
                 decoration: BoxDecoration(
-                  gradient: item.prodImagen.isEmpty ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFC2AF86),
-                      const Color(0xFFB8A478),
-                    ],
-                  ) : null,
+                  gradient: item.prodImagen.isEmpty
+                      ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFFC2AF86),
+                            const Color(0xFFB8A478),
+                          ],
+                        )
+                      : null,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
@@ -542,7 +491,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 child: productImage,
               ),
               const SizedBox(width: 16),
-              
+
               // Información del producto
               Expanded(
                 child: Column(
@@ -569,13 +518,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ],
                 ),
               ),
-              
+
               // Estado y precio
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor,
                       borderRadius: BorderRadius.circular(10),
@@ -612,7 +564,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Cantidades y barra de progreso
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -646,7 +598,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Barra de progreso
           Container(
             height: 8,
@@ -668,10 +620,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
-                      colors: [
-                        statusColor,
-                        statusColor.withOpacity(0.8),
-                      ],
+                      colors: [statusColor, statusColor.withOpacity(0.8)],
                     ),
                   ),
                 ),
@@ -697,14 +646,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Botones de acciones rápidas
         Row(
           children: [
             Expanded(
               child: _buildMovementButton(
                 icon: Icons.shopping_cart,
-                label: 'Registrar Venta',
+                label: 'Nueva venta',
                 color: Colors.green,
                 onPressed: () {},
               ),
@@ -720,31 +669,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        
-        Row(
-          children: [
-            Expanded(
-              child: _buildMovementButton(
-                icon: Icons.warning,
-                label: 'Faltante',
-                color: Colors.red,
-                onPressed: () {},
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMovementButton(
-                icon: Icons.tune,
-                label: 'Ajuste',
-                color: Colors.orange,
-                onPressed: () {},
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        
+        const SizedBox(height: 25),
         // Historial de movimientos recientes
         Container(
           padding: const EdgeInsets.all(20),
@@ -752,10 +677,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1E2A3A),
-                Color(0xFF1A2332),
-              ],
+              colors: [Color(0xFF1E2A3A), Color(0xFF1A2332)],
             ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -781,12 +703,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     style: TextStyle(
                       color: Colors.white,
                       fontFamily: 'Satoshi',
-                      fontSize: 18,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFC2AF86).withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
@@ -812,7 +737,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              
+
               // Lista de movimientos
               _buildMovementItem(
                 type: 'Venta',
@@ -857,16 +782,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.2),
-            color.withOpacity(0.1),
-          ],
+          colors: [color.withOpacity(0.2), color.withOpacity(0.1)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -878,11 +797,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
+                Icon(icon, color: color, size: 24),
                 const SizedBox(width: 8),
                 Text(
                   label,
@@ -922,10 +837,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: Row(
         children: [
@@ -936,10 +848,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  color,
-                  color.withOpacity(0.8),
-                ],
+                colors: [color, color.withOpacity(0.8)],
               ),
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
@@ -950,14 +859,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ],
             ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 20,
-            ),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
-          
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -983,7 +888,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               ],
             ),
           ),
-          
+
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -991,7 +896,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: (quantity > 0 ? Colors.green : Colors.red).withOpacity(0.3),
+                  color: (quantity > 0 ? Colors.green : Colors.red).withOpacity(
+                    0.3,
+                  ),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -1026,7 +933,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Métricas principales
         Container(
           padding: const EdgeInsets.all(20),
@@ -1034,10 +941,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1E2A3A),
-                Color(0xFF1A2332),
-              ],
+              colors: [Color(0xFF1E2A3A), Color(0xFF1A2332)],
             ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -1081,7 +985,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              
+
               // Fila inferior de métricas
               Row(
                 children: [
@@ -1128,10 +1032,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1144,10 +1045,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      color,
-                      color.withOpacity(0.8),
-                    ],
+                    colors: [color, color.withOpacity(0.8)],
                   ),
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
@@ -1158,11 +1056,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ],
                 ),
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: Icon(icon, color: Colors.white, size: 20),
               ),
               const Spacer(),
               Text(
@@ -1177,7 +1071,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           Text(
             label,
             style: const TextStyle(
@@ -1187,7 +1081,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          
+
           Text(
             value,
             style: const TextStyle(
@@ -1198,7 +1092,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
           const SizedBox(height: 2),
-          
+
           Text(
             'de $total',
             style: const TextStyle(
@@ -1208,7 +1102,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Barra de progreso
           Container(
             height: 6,
@@ -1230,10 +1124,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
-                      colors: [
-                        color,
-                        color.withOpacity(0.8),
-                      ],
+                      colors: [color, color.withOpacity(0.8)],
                     ),
                   ),
                 ),

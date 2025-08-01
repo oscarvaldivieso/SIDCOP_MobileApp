@@ -17,7 +17,7 @@ class clientScreen extends StatefulWidget {
 
 class _clientScreenState extends State<clientScreen> {
   List<dynamic> permisos = [];
-  late Future<List<dynamic>> clientesList;
+  late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
@@ -35,31 +35,40 @@ class _clientScreenState extends State<clientScreen> {
   int? _selectedColo;
 
   @override
+  @override
   void initState() {
     super.initState();
-    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
-    _clienteService.getDireccionesPorCliente().then((direcciones) {
-      setState(() {
-        _direccionesPorCliente = direcciones;
-      });
-      clientesList.then((clientes) {
-        setState(() {
-          filteredClientes = clientes;
-        });
-      });
+    _loadAllClientData();
+  }
+
+  Future<void> _loadAllClientData() async {
+    // Cargar direcciones por cliente
+    final direcciones = await _clienteService.getDireccionesPorCliente();
+    setState(() {
+      _direccionesPorCliente = direcciones;
     });
 
-    clientesList = ClientesService().getClientes();
-    // Cargar TODOS los datos de ubicación al inicializar
-    _loadAllLocationData();
+    // Cargar clientes
+    final clientes = await ClientesService().getClientes();
+    setState(() {
+      filteredClientes = clientes;
+      clientesList = Future.value(clientes); // Actualiza el FutureBuilder
+    });
+    // Asegurarse que filteredClientes siempre tenga datos frescos si no hay filtro
+    if (_searchController.text.isEmpty && _selectedDepa == null && _selectedMuni == null && _selectedColo == null) {
+      setState(() {
+        filteredClientes = clientes;
+      });
+    }
 
     // Cargar cuentas por cobrar
-    _clienteService.getCuentasPorCobrar().then((cuentas) {
-      setState(() {
-        print('Cuentas por cobrarrr: ${cuentas}');
-        _cuentasPorCobrar = cuentas;
-      });
+    final cuentas = await _clienteService.getCuentasPorCobrar();
+    setState(() {
+      _cuentasPorCobrar = cuentas;
     });
+
+    // Cargar datos de ubicación
+    await _loadAllLocationData();
   }
 
   @override
@@ -308,40 +317,76 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   // Método para construir la barra de búsqueda
+
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 45, // Altura del TextField
+              child: TextField(
+                controller: _searchController,
+                onChanged: _filterClientes,
+                decoration: InputDecoration(
+                  hintText: 'Filtrar por nombre...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12, // Padding vertical reducido
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterClientes('');
+                          },
+                        )
+                      : null,
+                ),
+              ),
             ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _filterClientes,
-          decoration: InputDecoration(
-            hintText: 'Filtrar por nombre...',
-            prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
-                    onPressed: () {
-                      _searchController.clear();
-                      _filterClientes('');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
           ),
-        ),
+          const SizedBox(width: 12),
+          Container(
+            height: 48, // Misma altura que el TextField
+            width: 48, // Hacer el botón cuadrado
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                24,
+              ), // Completamente redondeado
+              border: Border.all(width: 1),
+            ),
+            child: IconButton(
+              onPressed: _showLocationFilters,
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
+              tooltip: 'Filtrar',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -357,7 +402,7 @@ class _clientScreenState extends State<clientScreen> {
     final int resultCount = filteredClientes.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
           // Contador de resultados
@@ -366,20 +411,20 @@ class _clientScreenState extends State<clientScreen> {
             style: const TextStyle(color: Colors.grey),
           ),
           const Spacer(),
-          const SizedBox(width: 8),
-          // Botón de filtrar
-          ElevatedButton.icon(
-            onPressed: _showLocationFilters,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+          // Mostrar botón "Limpiar filtros" si hay filtros activos
+          if (hasAnyFilter)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _selectedDepa = null;
+                  _selectedMuni = null;
+                  _selectedColo = null;
+                });
+                _applyAllFilters('');
+              },
+              child: const Text('Limpiar filtros'),
             ),
-          ),
         ],
       ),
     );
@@ -615,6 +660,15 @@ class _clientScreenState extends State<clientScreen> {
       body: AppBackground(
         title: 'Clientes',
         icon: Icons.people,
+        onRefresh: () async {
+          // Limpiar filtros antes de recargar
+          _searchController.clear();
+          _selectedDepa = null;
+          _selectedMuni = null;
+          _selectedColo = null;
+          await _loadAllClientData();
+          if (mounted) setState(() {}); // Forzar rebuild tras refresh
+        },
         child: Column(
           children: [
             _buildSearchBar(),

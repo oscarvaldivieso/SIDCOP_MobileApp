@@ -40,6 +40,7 @@ class UserVerificationModel {
   final bool usuaEstado;
   final String? permisosJson;
   final String? nombreCompleto;
+  final String? roleDescripcion;
 
   UserVerificationModel({
     required this.usuaId,
@@ -58,6 +59,7 @@ class UserVerificationModel {
     required this.usuaEstado,
     this.permisosJson,
     this.nombreCompleto,
+    this.roleDescripcion,
   });
 
   factory UserVerificationModel.fromJson(Map<String, dynamic> json) {
@@ -84,6 +86,7 @@ class UserVerificationModel {
       usuaEstado: json['usua_Estado'] ?? false,
       permisosJson: json['permisosJson'],
       nombreCompleto: json['nombreCompleto'],
+      roleDescripcion: json['role_Descripcion'],
     );
   }
 
@@ -94,6 +97,7 @@ class UserVerificationModel {
       'correo': correo,
       'usua_Clave': usuaClave,
       'role_Id': roleId,
+      'role_Descripcion': roleDescripcion,
       'usua_IdPersona': usuaIdPersona,
       'usua_EsVendedor': usuaEsVendedor,
       'usua_EsAdmin': usuaEsAdmin,

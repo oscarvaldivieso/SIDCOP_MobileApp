@@ -19,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _gaugeAnimationController;
   late Animation<double> _gaugeAnimation;
   List<dynamic> permisos = [];
+  String _userName = 'Usuario';
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     });
     _loadPermisos();
+    _loadUserName();
   }
 
   @override
@@ -65,6 +68,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {});
   }
 
+  Future<void> _loadUserName() async {
+    try {
+      final nombre = await _perfilUsuarioService.obtenerNombreDesdeNombresApellidos();
+      if (nombre != null && nombre.isNotEmpty) {
+        setState(() {
+          _userName = nombre;
+        });
+      }
+    } catch (e) {
+      // En caso de error, mantener el valor por defecto
+      print('Error al cargar nombre de usuario: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppBackground(
@@ -75,9 +92,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 20),
-          const Text(
-            'Bienvenido de vuelta, Oscarito',
-            style: TextStyle(
+          Text(
+            'Bienvenido de vuelta, $_userName',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Color(0xFF181E34),
