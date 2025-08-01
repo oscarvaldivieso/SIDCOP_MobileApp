@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'dart:developer' as developer;
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
@@ -30,16 +31,37 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
 
   Future<void> _loadDirecciones() async {
     try {
-      // Obtener todos los clientes
+      // 1. Obtener todos los clientes
       final clientesService = ClientesService();
       final clientes = await clientesService.getClientes();
-      //  Obtener todas las direcciones
+      // 2. Filtrar clientes por rutaId
+      print(' cantidad clientes: ${clientes.length} ');
+
+      final clientesFiltrados = clientes
+          .where((c) => c.ruta_Id == widget.rutaId)
+          .toList();
+      print(
+        'Clientes filtrados para ruta ${widget.rutaId}: ${clientesFiltrados.length}',
+      );
+      for (var cliente in clientesFiltrados) {
+        print(
+          'Cliente: ${cliente.clie_Id}, Nombre: ${cliente.clie_Nombres}, Ruta: ${cliente.ruta_Id}',
+        );
+      }
+
+      // Obtener todas las direcciones
       final direccionesService = DireccionClienteService();
       final todasDirecciones = await direccionesService
           .getDireccionesPorCliente();
-      // omito el filtrar por ruta ya que las tablas recibiran cambios
 
-      final markers = todasDirecciones
+      // Filtrar direcciones por los clientes de la ruta
+      final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
+      final direccionesFiltradas = todasDirecciones
+          .where((d) => clienteIds.contains(d.clieId))
+          .toList();
+
+      // 5. Crear los marcadores
+      final markers = direccionesFiltradas
           .map(
             (d) => Marker(
               markerId: MarkerId(d.diClId?.toString() ?? d.direccionExacta),
@@ -55,10 +77,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _markers = markers;
         _loading = false;
-        if (todasDirecciones.isNotEmpty) {
+        if (direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
-            todasDirecciones.first.latitud,
-            todasDirecciones.first.longitud,
+            direccionesFiltradas.first.latitud,
+            direccionesFiltradas.first.longitud,
           );
         }
       });
@@ -66,7 +88,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _loading = false;
       });
-      // Puedes mostrar un error aquí si lo deseas
     }
   }
 
@@ -93,18 +114,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _initialPosition == null
-          ? const Center(child: Text('No hay direcciones para mostrar'))
-          : GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: _initialPosition!,
-                zoom: 15,
-              ),
-              mapType: _mapType,
-              markers: _markers,
-            ),
     );
   }
 }

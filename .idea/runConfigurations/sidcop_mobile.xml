@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="sidcop mobile" type="FlutterRunConfigurationType" factoryName="Flutter">
+  <configuration default="false" name="sidcop mobile" type="FlutterRunConfigurationType" factoryName="Flutter" activateToolWindowBeforeRun="false">
     <option name="filePath" value="$PROJECT_DIR$/sidcop_mobile/lib/main.dart" />
     <method v="2" />
   </configuration>
