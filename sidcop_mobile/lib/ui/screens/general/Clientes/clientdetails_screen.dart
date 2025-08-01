@@ -35,7 +35,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
     setState(() {
-      _vendTipo = userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+      _vendTipo =
+          userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
     });
   }
 
@@ -113,11 +114,17 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Asegurar que el drawer tenga una elevación mayor que los botones
+      drawerScrimColor: Colors.black54,
+      drawerEnableOpenDragGesture: true,
       body: Stack(
         children: [
           AppBackground(
             title: 'Detalles del Cliente',
             icon: Icons.person_outline,
+            onRefresh: () async {
+              _loadCliente();
+            },
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
@@ -324,89 +331,83 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 24),
+
+                        // Sección de botones de acción
+                        if (_cliente != null &&
+                            !_isLoading &&
+                            _errorMessage.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                              vertical: 16.0,
+                            ),
+                            child: Row(
+                              children: [
+                                if (_vendTipo == "P" || _vendTipo == "V")
+                                  Expanded(
+                                    child: CustomButton(
+                                      text: _vendTipo == "P"
+                                          ? "PEDIDO"
+                                          : _vendTipo == "V"
+                                          ? "VENTA"
+                                          : "ACCIÓN",
+                                      onPressed: () {
+                                        if (_vendTipo == "P") {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  PedidosScreen(),
+                                            ),
+                                          );
+                                        } else {
+                                          // TODO: Implementar lógica de venta u otra acción
+                                        }
+                                      },
+                                      height: 50,
+                                      fontSize: 14,
+                                      icon: Icon(
+                                        _vendTipo == "P"
+                                            ? Icons.assignment
+                                            : _vendTipo == "V"
+                                            ? Icons.shopping_cart
+                                            : Icons.help_outline,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+
+                                if (_vendTipo == "P" || _vendTipo == "V")
+                                  const SizedBox(width: 12),
+
+                                Expanded(
+                                  child: CustomButton(
+                                    text: 'COBRAR',
+                                    onPressed: () {
+                                      // TODO: Implementar lógica de cobro
+                                    },
+                                    height: 50,
+                                    fontSize: 14,
+                                    icon: const Icon(
+                                      Icons.monetization_on,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
                         const SizedBox(
-                          height: 100,
-                        ), // Espacio para los botones flotantes
+                          height: 24,
+                        ), // Espacio adicional al final
                       ],
                     ),
                   ),
           ),
-          // Sticky Action Buttons
-          if (_cliente != null && !_isLoading && _errorMessage.isEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -5),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Row(
-                    children: [
-                      if (_vendTipo == "P" || _vendTipo == "V") ...[
-                        Expanded(
-                          child: CustomButton(
-                            text: _vendTipo == "P"
-                                ? "PEDIDO"
-                                : _vendTipo == "V"
-                                    ? "VENTA"
-                                    : "ACCIÓN",
-                            onPressed: () {
-                              if (_vendTipo == "P") {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PedidosScreen(),
-                                  ),
-                                );
-                              } else {
-                                // TODO: Implementar lógica de venta u otra acción
-                              }
-                            },
-                            height: 50,
-                            fontSize: 14,
-                            icon: Icon(
-                              _vendTipo == "P"
-                                  ? Icons.assignment
-                                  : _vendTipo == "V"
-                                      ? Icons.shopping_cart
-                                      : Icons.help_outline,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: CustomButton(
-                          text: 'COBRAR',
-                          onPressed: () {
-                            // TODO: Implementar lógica de cobro
-                          },
-                          height: 50,
-                          fontSize: 14,
-                          icon: const Icon(
-                            Icons.monetization_on,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
