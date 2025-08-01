@@ -57,18 +57,18 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       // Filtrar direcciones por los clientes de la ruta
       final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
       final direccionesFiltradas = todasDirecciones
-          .where((d) => clienteIds.contains(d.clieId))
+          .where((d) => clienteIds.contains(d.clie_id))
           .toList();
 
       // 5. Crear los marcadores
       final markers = direccionesFiltradas
           .map(
             (d) => Marker(
-              markerId: MarkerId(d.diClId?.toString() ?? d.direccionExacta),
-              position: LatLng(d.latitud, d.longitud),
+              markerId: MarkerId(d.dicl_id.toString()),
+              position: LatLng(d.dicl_latitud ?? 0, d.dicl_longitud ?? 0),
               infoWindow: InfoWindow(
-                title: d.direccionExacta,
-                snippet: d.observaciones ?? '',
+                title: d.dicl_direccionexacta,
+                snippet: d.dicl_observaciones,
               ),
             ),
           )
@@ -79,8 +79,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         _loading = false;
         if (direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
-            direccionesFiltradas.first.latitud,
-            direccionesFiltradas.first.longitud,
+            direccionesFiltradas.first.dicl_latitud ?? 0.0,
+            direccionesFiltradas.first.dicl_longitud ?? 0.0,
           );
         }
       });

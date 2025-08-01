@@ -39,10 +39,12 @@ class AddAddressScreen extends StatefulWidget {
 class _AddAddressScreenState extends State<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
   final _direccionClienteService = DireccionClienteService();
-  final TextEditingController _direccionExactaController = TextEditingController();
-  final TextEditingController _observacionesController = TextEditingController();
+  final TextEditingController _direccionExactaController =
+      TextEditingController();
+  final TextEditingController _observacionesController =
+      TextEditingController();
   final TextEditingController _coloniaController = TextEditingController();
-  
+
   List<Colonia> _colonias = [];
   Colonia? _selectedColonia;
   bool _isLoading = true;
@@ -103,25 +105,27 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     try {
       // Crear el objeto de dirección sin intentar guardarlo
       final direccion = DireccionCliente(
-        clieId:
-            0, // Se actualizará con el ID real del cliente después de crearlo
-        coloId: _selectedColonia!.coloId,
-        direccionExacta: _direccionExactaController.text.trim(),
-        observaciones: _observacionesController.text.trim().isNotEmpty
-            ? _observacionesController.text.trim()
-            : null,
-        latitud: _selectedLocation.latitude,
-        longitud: _selectedLocation.longitude,
-        usuaCreacion: 1, // TODO: Replace with actual user ID
-        fechaCreacion: DateTime.now(),
+        dicl_id: 0, // Se actualizará con el ID real después de guardar
+        clie_id: widget.clientId,
+        colo_id: _selectedColonia!.coloId,
+        dicl_direccionexacta: _direccionExactaController.text.trim(),
+        dicl_observaciones: _observacionesController.text.trim(),
+        dicl_latitud: _selectedLocation.latitude,
+        dicl_longitud: _selectedLocation.longitude,
+        usua_creacion: 1, // TODO: Replace with actual user ID
+        dicl_fechacreacion: DateTime.now(),
+        muni_descripcion: _selectedColonia!.muniDescripcion,
+        depa_descripcion: _selectedColonia!.depaDescripcion,
       );
 
       // Mostrar los datos de la dirección que se guardarán
       print('=== Datos de Dirección Preparados ===');
-      print('ID Colonia: ${direccion.coloId}');
-      print('Dirección: ${direccion.direccionExacta}');
-      print('Observaciones: ${direccion.observaciones ?? "Ninguna"}');
-      print('Ubicación: (${direccion.latitud}, ${direccion.longitud})');
+      print('ID Colonia: ${direccion.colo_id}');
+      print('Dirección: ${direccion.dicl_direccionexacta}');
+      print('Observaciones: ${direccion.dicl_observaciones}');
+      print(
+        'Ubicación: (${direccion.dicl_latitud}, ${direccion.dicl_longitud})',
+      );
       print('====================================');
 
       // Solo devolver los datos de la dirección sin intentar guardar
@@ -199,98 +203,168 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                               children: [
                                 Container(
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.grey.shade400),
+                                    border: Border.all(
+                                      color: Colors.grey.shade400,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                     color: Colors.white,
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
                                   child: Row(
                                     children: [
                                       Expanded(
                                         child: RawAutocomplete<Colonia>(
-                                          textEditingController: _coloniaController,
+                                          textEditingController:
+                                              _coloniaController,
                                           focusNode: FocusNode(),
-                                          optionsBuilder: (TextEditingValue textEditingValue) {
-                                            if (textEditingValue.text.isEmpty) {
-                                              return _colonias.take(10);
-                                            }
-                                            return _colonias.where((colonia) {
-                                              final searchValue = textEditingValue.text.toLowerCase();
-                                              return colonia.coloDescripcion.toLowerCase().contains(searchValue) ||
-                                                  colonia.muniDescripcion.toLowerCase().contains(searchValue) ||
-                                                  colonia.depaDescripcion.toLowerCase().contains(searchValue);
-                                            });
-                                          },
-                                          displayStringForOption: (Colonia colonia) => 
-                                              '${colonia.coloDescripcion} - ${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
-                                          fieldViewBuilder: (
-                                            BuildContext context,
-                                            TextEditingController textEditingController,
-                                            FocusNode focusNode,
-                                            VoidCallback onFieldSubmitted,
-                                          ) {
-                                            // Clear the controller and let the hint text show when no colonia is selected
-                                            if (_selectedColonia == null) {
-                                              textEditingController.clear();
-                                            } else {
-                                              textEditingController.text = _selectedColonia!.coloDescripcion;
-                                            }
-                                            
-                                            return TextFormField(
-                                              controller: textEditingController,
-                                              focusNode: focusNode,
-                                              style: _labelStyle,
-                                              decoration: InputDecoration(
-                                                hintText: 'Buscar colonia...',
-                                                hintStyle: _hintStyle,
-                                                border: InputBorder.none,
-                                                suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
-                                                isDense: true,
-                                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                                              ),
-                                              // Clear the selection when the text field is tapped
-                                              onTap: () {
-                                                if (_selectedColonia != null) {
-                                                  setState(() {
-                                                    _selectedColonia = null;
-                                                    textEditingController.clear();
-                                                  });
+                                          optionsBuilder:
+                                              (
+                                                TextEditingValue
+                                                textEditingValue,
+                                              ) {
+                                                if (textEditingValue
+                                                    .text
+                                                    .isEmpty) {
+                                                  return _colonias.take(10);
                                                 }
+                                                return _colonias.where((
+                                                  colonia,
+                                                ) {
+                                                  final searchValue =
+                                                      textEditingValue.text
+                                                          .toLowerCase();
+                                                  return colonia.coloDescripcion
+                                                          .toLowerCase()
+                                                          .contains(
+                                                            searchValue,
+                                                          ) ||
+                                                      colonia.muniDescripcion
+                                                          .toLowerCase()
+                                                          .contains(
+                                                            searchValue,
+                                                          ) ||
+                                                      colonia.depaDescripcion
+                                                          .toLowerCase()
+                                                          .contains(
+                                                            searchValue,
+                                                          );
+                                                });
                                               },
-                                            );
-                                          },
-                                          optionsViewBuilder: (
-                                            BuildContext context,
-                                            AutocompleteOnSelected<Colonia> onSelected,
-                                            Iterable<Colonia> options,
-                                          ) {
-                                            return Align(
-                                              alignment: Alignment.topLeft,
-                                              child: Material(
-                                                elevation: 4.0,
-                                                child: Container(
-                                                  width: MediaQuery.of(context).size.width * 0.9,
-                                                  constraints: const BoxConstraints(maxHeight: 200),
-                                                  child: ListView.builder(
-                                                    padding: EdgeInsets.zero,
-                                                    itemCount: options.length,
-                                                    itemBuilder: (BuildContext context, int index) {
-                                                      final Colonia option = options.elementAt(index);
-                                                      return InkWell(
-                                                        onTap: () {
-                                                          onSelected(option);
-                                                          setState(() {
-                                                            _selectedColonia = option;
-                                                          });
-                                                        },
-                                                        child: _buildOption(context, option),
-                                                      );
-                                                    },
+                                          displayStringForOption:
+                                              (Colonia colonia) =>
+                                                  '${colonia.coloDescripcion} - ${colonia.muniDescripcion}, ${colonia.depaDescripcion}',
+                                          fieldViewBuilder:
+                                              (
+                                                BuildContext context,
+                                                TextEditingController
+                                                textEditingController,
+                                                FocusNode focusNode,
+                                                VoidCallback onFieldSubmitted,
+                                              ) {
+                                                // Clear the controller and let the hint text show when no colonia is selected
+                                                if (_selectedColonia == null) {
+                                                  textEditingController.clear();
+                                                } else {
+                                                  textEditingController.text =
+                                                      _selectedColonia!
+                                                          .coloDescripcion;
+                                                }
+
+                                                return TextFormField(
+                                                  controller:
+                                                      textEditingController,
+                                                  focusNode: focusNode,
+                                                  style: _labelStyle,
+                                                  decoration: InputDecoration(
+                                                    hintText:
+                                                        'Buscar colonia...',
+                                                    hintStyle: _hintStyle,
+                                                    border: InputBorder.none,
+                                                    suffixIcon: const Icon(
+                                                      Icons.arrow_drop_down,
+                                                      size: 24,
+                                                    ),
+                                                    isDense: true,
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 12,
+                                                        ),
                                                   ),
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                                  // Clear the selection when the text field is tapped
+                                                  onTap: () {
+                                                    if (_selectedColonia !=
+                                                        null) {
+                                                      setState(() {
+                                                        _selectedColonia = null;
+                                                        textEditingController
+                                                            .clear();
+                                                      });
+                                                    }
+                                                  },
+                                                );
+                                              },
+                                          optionsViewBuilder:
+                                              (
+                                                BuildContext context,
+                                                AutocompleteOnSelected<Colonia>
+                                                onSelected,
+                                                Iterable<Colonia> options,
+                                              ) {
+                                                return Align(
+                                                  alignment: Alignment.topLeft,
+                                                  child: Material(
+                                                    elevation: 4.0,
+                                                    child: Container(
+                                                      width:
+                                                          MediaQuery.of(
+                                                            context,
+                                                          ).size.width *
+                                                          0.9,
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                            maxHeight: 200,
+                                                          ),
+                                                      child: ListView.builder(
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        itemCount:
+                                                            options.length,
+                                                        itemBuilder:
+                                                            (
+                                                              BuildContext
+                                                              context,
+                                                              int index,
+                                                            ) {
+                                                              final Colonia
+                                                              option = options
+                                                                  .elementAt(
+                                                                    index,
+                                                                  );
+                                                              return InkWell(
+                                                                onTap: () {
+                                                                  onSelected(
+                                                                    option,
+                                                                  );
+                                                                  setState(() {
+                                                                    _selectedColonia =
+                                                                        option;
+                                                                  });
+                                                                },
+                                                                child:
+                                                                    _buildOption(
+                                                                      context,
+                                                                      option,
+                                                                    ),
+                                                              );
+                                                            },
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
                                           onSelected: (Colonia selection) {
                                             setState(() {
                                               _selectedColonia = selection;
@@ -487,8 +561,6 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       ),
     );
   }
-
-
 
   @override
   void dispose() {

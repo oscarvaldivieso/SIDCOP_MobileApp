@@ -1,94 +1,106 @@
 class DireccionCliente {
-  // Método para deserializar desde JSON
+  final int dicl_id;
+  final int clie_id;
+  final int colo_id;
+  final String dicl_direccionexacta;
+  final String dicl_observaciones;
+  final double? dicl_latitud;
+  final double? dicl_longitud;
+  final String muni_descripcion;
+  final String depa_descripcion;
+  final int usua_creacion;
+  final DateTime dicl_fechacreacion;
+  final int? usua_modificacion;
+  final DateTime? dicl_fechamodificacion;
+
+  DireccionCliente({
+    required this.dicl_id,
+    required this.clie_id,
+    required this.colo_id,
+    required this.dicl_direccionexacta,
+    required this.dicl_observaciones,
+    this.dicl_latitud,
+    this.dicl_longitud,
+    required this.muni_descripcion,
+    required this.depa_descripcion,
+    required this.usua_creacion,
+    required this.dicl_fechacreacion,
+    this.usua_modificacion,
+    this.dicl_fechamodificacion,
+  });
+
   static DireccionCliente fromJson(Map<String, dynamic> json) {
     return DireccionCliente(
-      diClId: json['diCl_Id'],
-      clieId: json['clie_Id'],
-      coloId: json['colo_Id'],
-      direccionExacta: json['diCl_DireccionExacta'],
-      observaciones: json['diCl_Observaciones'],
-      latitud: (json['diCl_Latitud'] is int)
-          ? (json['diCl_Latitud'] as int).toDouble()
-          : json['diCl_Latitud'],
-      longitud: (json['diCl_Longitud'] is int)
-          ? (json['diCl_Longitud'] as int).toDouble()
-          : json['diCl_Longitud'],
-      usuaCreacion: json['usua_Creacion'],
-      fechaCreacion: DateTime.parse(json['diCl_FechaCreacion']),
-      usuaModificacion: json['usua_Modificacion'],
-      fechaModificacion: json['diCl_FechaModificacion'] != null
-          ? DateTime.tryParse(json['diCl_FechaModificacion'])
+      dicl_id: json['dicl_id'],
+      clie_id: json['clie_id'],
+      colo_id: json['colo_id'],
+      dicl_direccionexacta: json['dicl_direccionexacta'],
+      dicl_observaciones: json['dicl_observaciones'],
+      dicl_latitud: json['dicl_latitud'] != null
+          ? double.tryParse(json['dicl_latitud'].toString())
+          : null,
+      dicl_longitud: json['dicl_longitud'] != null
+          ? double.tryParse(json['dicl_longitud'].toString())
+          : null,
+      muni_descripcion: json['muni_descripcion'] ?? '',
+      depa_descripcion: json['depa_descripcion'] ?? '',
+      usua_creacion: json['usua_creacion'],
+      dicl_fechacreacion: DateTime.parse(json['dicl_fechacreacion']),
+      usua_modificacion: json['usua_modificacion'],
+      dicl_fechamodificacion: json['dicl_fechamodificacion'] != null
+          ? DateTime.tryParse(json['dicl_fechamodificacion'])
           : null,
     );
   }
 
-  final int? diClId;
-  final int clieId;
-  final int coloId;
-  final String direccionExacta;
-  final String? observaciones;
-  final double latitud;
-  final double longitud;
-  final int usuaCreacion;
-  final DateTime fechaCreacion;
-  final int? usuaModificacion;
-  final DateTime? fechaModificacion;
-
-  DireccionCliente({
-    this.diClId,
-    required this.clieId,
-    required this.coloId,
-    required this.direccionExacta,
-    this.observaciones,
-    required this.latitud,
-    required this.longitud,
-    required this.usuaCreacion,
-    required this.fechaCreacion,
-    this.usuaModificacion,
-    this.fechaModificacion,
-  });
-
   Map<String, dynamic> toJson() {
     return {
-      'diCl_Id': diClId ?? 0,
-      'clie_Id': clieId,
-      'colo_Id': coloId,
-      'diCl_DireccionExacta': direccionExacta,
-      'diCl_Observaciones': observaciones ?? '',
-      'diCl_Latitud': latitud,
-      'diCl_Longitud': longitud,
-      'usua_Creacion': usuaCreacion,
-      'diCl_FechaCreacion': fechaCreacion.toIso8601String(),
-      'usua_Modificacion': usuaModificacion ?? 0,
-      'diCl_FechaModificacion': fechaModificacion?.toIso8601String(),
+      'dicl_id': dicl_id,
+      'clie_id': clie_id,
+      'colo_id': colo_id,
+      'dicl_direccionexacta': dicl_direccionexacta,
+      'dicl_observaciones': dicl_observaciones,
+      'dicl_latitud': dicl_latitud,
+      'dicl_longitud': dicl_longitud,
+      'muni_descripcion': muni_descripcion,
+      'depa_descripcion': depa_descripcion,
+      'usua_creacion': usua_creacion,
+      'dicl_fechacreacion': dicl_fechacreacion.toIso8601String(),
+      'usua_modificacion': usua_modificacion,
+      'dicl_fechamodificacion': dicl_fechamodificacion?.toIso8601String(),
     };
   }
 
   DireccionCliente copyWith({
-    int? diClId,
-    int? clieId,
-    int? coloId,
-    String? direccionExacta,
-    String? observaciones,
-    double? latitud,
-    double? longitud,
-    int? usuaCreacion,
-    DateTime? fechaCreacion,
-    int? usuaModificacion,
-    DateTime? fechaModificacion,
+    int? dicl_id,
+    int? clie_id,
+    int? colo_id,
+    String? dicl_direccionexacta,
+    String? dicl_observaciones,
+    double? dicl_latitud,
+    double? dicl_longitud,
+    String? muni_descripcion,
+    String? depa_descripcion,
+    int? usua_creacion,
+    DateTime? dicl_fechacreacion,
+    int? usua_modificacion,
+    DateTime? dicl_fechamodificacion,
   }) {
     return DireccionCliente(
-      diClId: diClId ?? this.diClId,
-      clieId: clieId ?? this.clieId,
-      coloId: coloId ?? this.coloId,
-      direccionExacta: direccionExacta ?? this.direccionExacta,
-      observaciones: observaciones ?? this.observaciones,
-      latitud: latitud ?? this.latitud,
-      longitud: longitud ?? this.longitud,
-      usuaCreacion: usuaCreacion ?? this.usuaCreacion,
-      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
-      usuaModificacion: usuaModificacion ?? this.usuaModificacion,
-      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      dicl_id: dicl_id ?? this.dicl_id,
+      clie_id: clie_id ?? this.clie_id,
+      colo_id: colo_id ?? this.colo_id,
+      dicl_direccionexacta: dicl_direccionexacta ?? this.dicl_direccionexacta,
+      dicl_observaciones: dicl_observaciones ?? this.dicl_observaciones,
+      dicl_latitud: dicl_latitud ?? this.dicl_latitud,
+      dicl_longitud: dicl_longitud ?? this.dicl_longitud,
+      muni_descripcion: muni_descripcion ?? this.muni_descripcion,
+      depa_descripcion: depa_descripcion ?? this.depa_descripcion,
+      usua_creacion: usua_creacion ?? this.usua_creacion,
+      dicl_fechacreacion: dicl_fechacreacion ?? this.dicl_fechacreacion,
+      usua_modificacion: usua_modificacion ?? this.usua_modificacion,
+      dicl_fechamodificacion:
+          dicl_fechamodificacion ?? this.dicl_fechamodificacion,
     );
   }
 }
