@@ -31,24 +31,26 @@ class DireccionCliente {
 
   static DireccionCliente fromJson(Map<String, dynamic> json) {
     return DireccionCliente(
-      dicl_id: json['dicl_id'],
-      clie_id: json['clie_id'],
-      colo_id: json['colo_id'],
-      dicl_direccionexacta: json['dicl_direccionexacta'],
-      dicl_observaciones: json['dicl_observaciones'],
-      dicl_latitud: json['dicl_latitud'] != null
-          ? double.tryParse(json['dicl_latitud'].toString())
+      dicl_id: json['diCl_Id'],
+      clie_id: json['clie_Id'],
+      colo_id: json['colo_Id'],
+      dicl_direccionexacta: json['diCl_DireccionExacta'],
+      dicl_observaciones: json['diCl_Observaciones'],
+      dicl_latitud: json['diCl_Latitud'] != null
+          ? double.tryParse(json['diCl_Latitud'].toString())
           : null,
-      dicl_longitud: json['dicl_longitud'] != null
-          ? double.tryParse(json['dicl_longitud'].toString())
+      dicl_longitud: json['diCl_Longitud'] != null
+          ? double.tryParse(json['diCl_Longitud'].toString())
           : null,
-      muni_descripcion: json['muni_descripcion'] ?? '',
-      depa_descripcion: json['depa_descripcion'] ?? '',
-      usua_creacion: json['usua_creacion'],
-      dicl_fechacreacion: DateTime.parse(json['dicl_fechacreacion']),
-      usua_modificacion: json['usua_modificacion'],
-      dicl_fechamodificacion: json['dicl_fechamodificacion'] != null
-          ? DateTime.tryParse(json['dicl_fechamodificacion'])
+      muni_descripcion: json['muni_Descripcion'] ?? '',
+      depa_descripcion: json['depa_Descripcion'] ?? '',
+      usua_creacion: json['usua_Creacion'],
+      dicl_fechacreacion: json['diCl_FechaCreacion'] != null
+          ? DateTime.parse(json['diCl_FechaCreacion'])
+          : DateTime.now(),
+      usua_modificacion: json['usua_Modificacion'],
+      dicl_fechamodificacion: json['diCl_FechaModificacion'] != null
+          ? DateTime.tryParse(json['diCl_FechaModificacion'])
           : null,
     );
   }

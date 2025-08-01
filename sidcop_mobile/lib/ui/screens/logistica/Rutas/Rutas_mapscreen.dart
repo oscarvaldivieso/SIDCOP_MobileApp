@@ -34,31 +34,30 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       // 1. Obtener todos los clientes
       final clientesService = ClientesService();
       final clientes = await clientesService.getClientes();
-      // 2. Filtrar clientes por rutaId
-      print(' cantidad clientes: ${clientes.length} ');
-
-      final clientesFiltrados = clientes
-          .where((c) => c.ruta_Id == widget.rutaId)
-          .toList();
-      print(
-        'Clientes filtrados para ruta ${widget.rutaId}: ${clientesFiltrados.length}',
-      );
-      for (var cliente in clientesFiltrados) {
-        print(
-          'Cliente: ${cliente.clie_Id}, Nombre: ${cliente.clie_Nombres}, Ruta: ${cliente.ruta_Id}',
-        );
+      print('Cantidad total de clientes: ${clientes.length}');
+      print('Clientes recibidos:');
+      for (var cliente in clientes) {
+        print(cliente);
       }
 
-      // Obtener todas las direcciones
       final direccionesService = DireccionClienteService();
       final todasDirecciones = await direccionesService
           .getDireccionesPorCliente();
+      print('Cantidad total de direcciones: ${todasDirecciones.length}');
+      print('Direcciones recibidas:');
+      for (var direccion in todasDirecciones) {
+        print(direccion);
+        try {
+          print(
+            'Campos: latitud=${direccion.dicl_latitud}, longitud=${direccion.dicl_longitud}, id=${direccion.dicl_id}',
+          );
+        } catch (e) {
+          print('No se pudo acceder a los campos principales: $e');
+        }
+      }
 
-      // Filtrar direcciones por los clientes de la ruta
-      final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
-      final direccionesFiltradas = todasDirecciones
-          .where((d) => clienteIds.contains(d.clie_id))
-          .toList();
+      final direccionesFiltradas = todasDirecciones;
+      print('Direcciones filtradas: ${direccionesFiltradas.length}');
 
       // 5. Crear los marcadores
       final markers = direccionesFiltradas
@@ -114,6 +113,20 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ),
         ],
       ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _initialPosition == null
+          ? const Center(child: Text('No hay direcciones para mostrar'))
+          : GoogleMap(
+              mapType: _mapType,
+              initialCameraPosition: CameraPosition(
+                target: _initialPosition!,
+                zoom: 14,
+              ),
+              markers: _markers,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+            ),
     );
   }
 }
