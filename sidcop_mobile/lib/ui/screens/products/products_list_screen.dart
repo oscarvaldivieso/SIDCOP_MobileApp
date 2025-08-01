@@ -19,6 +19,10 @@ class _ProductScreenState extends State<ProductScreen> {
 
   List<Productos> _allProducts = [];
   List<Productos> _filteredProducts = [];
+  List<Map<String, dynamic>> _categorias = [];
+  List<Map<String, dynamic>> _subcategorias = [];
+  List<Map<String, dynamic>> _marcas = [];
+  bool _filtersLoaded = false;
 
   // Filtros
   final Map<String, Set<int>> _selectedFilters = {
@@ -33,7 +37,30 @@ class _ProductScreenState extends State<ProductScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    _loadFilters(); // Cargar filtros
     _searchController.addListener(_applyFilters);
+  }
+
+  Future<void> _loadFilters() async {
+    try {
+      final results = await Future.wait([
+        _productosService.getCategorias(),
+        _productosService.getSubcategorias(),
+        _productosService.getMarcas(),
+      ]);
+
+      setState(() {
+        _categorias = results[0] as List<Map<String, dynamic>>? ?? [];
+        _subcategorias = results[1] as List<Map<String, dynamic>>? ?? [];
+        _marcas = results[2] as List<Map<String, dynamic>>? ?? [];
+        _filtersLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('Error cargando filtros: $e');
+      setState(() {
+        _filtersLoaded = true;
+      });
+    }
   }
 
   Future<void> _loadProducts() async {
@@ -93,7 +120,6 @@ class _ProductScreenState extends State<ProductScreen> {
       } else {
         filters.add(value);
       }
-      _applyFilters();
     });
   }
 
@@ -117,57 +143,86 @@ class _ProductScreenState extends State<ProductScreen> {
       body: AppBackground(
         title: 'Productos',
         icon: Icons.inventory_2,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height,
-          ),
-          child: Column(
-            children: [
-              _buildSearchBar(), // Ahora incluye el ícono de filtrar
-              _buildResultsCount(),
-              _buildProductList(),
-            ],
-          ),
+        // permisos: permisos,
+        onRefresh: () async {
+          await _loadProducts();
+        },
+        child: Column(
+          children: [
+            _buildSearchBar(), // Ahora incluye el ícono de filtrar
+            _buildResultsCount(),
+            _buildProductList(),
+          ],
         ),
       ),
     );
   }
 
+  // Bloque 2:  barra de búsqueda
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Buscar productos...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10.0),
+            child: Container(
+              height: 45, //altura del TextField
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar productos...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12, // Padding vertical reducido
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _applyFilters();
+                          },
+                        )
+                      : null,
                 ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applyFilters();
-                        },
-                      )
-                    : null,
               ),
             ),
           ),
           const SizedBox(width: 12),
           Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+            height: 48, // Misma altura que el TextField
+            width: 48, // Hacer el botón cuadrado
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                24,
+              ), // Completamente redondeado
+              border: Border.all(width: 1),
+            ),
             child: IconButton(
               onPressed: _showFiltersPanel,
-              icon: const Icon(
-                Icons.filter_list,
-                color: Color.fromARGB(255, 134, 134, 134),
-              ),
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
               tooltip: 'Filtrar',
             ),
           ),
@@ -214,7 +269,6 @@ class _ProductScreenState extends State<ProductScreen> {
             maxChildSize: 0.9,
             builder: (context, scrollController) {
               return StatefulBuilder(
-                // Agregamos StatefulBuilder aquí
                 builder: (context, setModalState) {
                   return Container(
                     decoration: BoxDecoration(
@@ -239,7 +293,10 @@ class _ProductScreenState extends State<ProductScreen> {
                           child: Row(
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.close),
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
                                 onPressed: () => Navigator.pop(context),
                               ),
                               const SizedBox(width: 8),
@@ -256,7 +313,9 @@ class _ProductScreenState extends State<ProductScreen> {
                               TextButton(
                                 onPressed: () {
                                   _clearFilters();
-                                  setModalState(() {}); // Refrescar el modal
+                                  setModalState(
+                                    () {},
+                                  ); // Solo refrescar el modal
                                 },
                                 child: const Text('Limpiar'),
                                 style: TextButton.styleFrom(
@@ -267,118 +326,88 @@ class _ProductScreenState extends State<ProductScreen> {
                           ),
                         ),
                         Expanded(
-                          child: FutureBuilder(
-                            future: Future.wait([
-                              _productosService.getCategorias(),
-                              _productosService.getSubcategorias(),
-                              _productosService.getMarcas(),
-                            ]),
-                            builder:
-                                (
-                                  context,
-                                  AsyncSnapshot<List<dynamic>> snapshot,
-                                ) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(),
-                                    );
-                                  }
-                                  if (snapshot.hasError) {
-                                    return const Center(
-                                      child: Text('Error al cargar filtros'),
-                                    );
-                                  }
-
-                                  final categorias =
-                                      snapshot.data?[0]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
-                                  final subcategorias =
-                                      snapshot.data?[1]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
-                                  final marcas =
-                                      snapshot.data?[2]
-                                          as List<Map<String, dynamic>>? ??
-                                      [];
-
-                                  return SingleChildScrollView(
-                                    controller: scrollController,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          _buildFilterSection(
-                                            'Categorías',
-                                            Icons.category,
-                                            categorias,
-                                            'cate_Id',
-                                            'cate_Descripcion',
-                                            'categorias',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          _buildFilterSection(
-                                            'Subcategorías',
-                                            Icons.list,
-                                            subcategorias,
-                                            'subc_Id',
-                                            'subc_Descripcion',
-                                            'subcategorias',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          _buildFilterSection(
-                                            'Marcas',
-                                            Icons.branding_watermark,
-                                            marcas,
-                                            'marc_Id',
-                                            'marc_Descripcion',
-                                            'marcas',
-                                            setModalState, // Pasamos la función
-                                          ),
-                                          const SizedBox(height: 24),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              onPressed: () {
-                                                _applyFilters();
-                                                Navigator.pop(context);
-                                              },
-                                              child: const Text(
-                                                'Aplicar filtros',
+                          child: _filtersLoaded
+                              ? SingleChildScrollView(
+                                  controller: scrollController,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        _buildFilterSection(
+                                          'Categorías',
+                                          Icons.category,
+                                          _categorias,
+                                          'cate_Id',
+                                          'cate_Descripcion',
+                                          'categorias',
+                                          setModalState,
+                                        ),
+                                        _buildFilterSection(
+                                          'Subcategorías',
+                                          Icons.list,
+                                          _subcategorias,
+                                          'subc_Id',
+                                          'subc_Descripcion',
+                                          'subcategorias',
+                                          setModalState,
+                                        ),
+                                        _buildFilterSection(
+                                          'Marcas',
+                                          Icons.branding_watermark,
+                                          _marcas,
+                                          'marc_Id',
+                                          'marc_Descripcion',
+                                          'marcas',
+                                          setModalState,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              _applyFilters(); // Aplicar filtros solo al confirmar
+                                              Navigator.pop(context);
+                                            },
+                                            child: const Text(
+                                              'Aplicar filtros',
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF141A2F,
                                               ),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(
-                                                  0xFF141A2F,
-                                                ),
-                                                side: const BorderSide(
-                                                  color: Color(0xFFD6B68A),
-                                                ),
-                                                elevation: 0,
-                                                foregroundColor: const Color(
-                                                  0xFFD6B68A,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 16,
-                                                    ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                ),
+                                              side: const BorderSide(
+                                                color: Color(0xFFD6B68A),
+                                              ),
+                                              elevation: 0,
+                                              foregroundColor: const Color(
+                                                0xFFD6B68A,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 16,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(height: 16),
-                                        ],
-                                      ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                      ],
                                     ),
-                                  );
-                                },
-                          ),
+                                  ),
+                                )
+                              : const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFFD6B68A),
+                                    ),
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -399,13 +428,15 @@ class _ProductScreenState extends State<ProductScreen> {
     String idKey,
     String nameKey,
     String filterType,
-    StateSetter setModalState, // Agregamos este parámetro
+    StateSetter setModalState,
   ) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141A2F),
+        color: const Color(
+          0xFF141A2F,
+        ), // Color ligeramente diferente para distinguir
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -439,6 +470,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   name,
                   style: TextStyle(
                     color: isSelected ? Colors.black : Colors.white,
+                    fontSize: 12,
                   ),
                 ),
                 selected: isSelected,
@@ -447,12 +479,12 @@ class _ProductScreenState extends State<ProductScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected ? Colors.white : const Color(0xFFD6B68A),
+                    color: isSelected ? const Color(0xFFD6B68A) : Colors.grey,
                   ),
                 ),
                 onSelected: (selected) {
                   _toggleFilterSelection(filterType, id);
-                  setModalState(() {}); // Refrescamos el modal inmediatamente
+                  setModalState(() {});
                 },
               );
             }).toList(),
@@ -490,44 +522,54 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Widget _buildProductList() {
     if (_isLoading) {
-      return const Expanded(child: Center(child: CircularProgressIndicator()));
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
     if (_filteredProducts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off, size: 50, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('No se encontraron productos'),
-            if (_hasActiveFilters)
-              TextButton(
-                onPressed: _clearFilters,
-                child: const Text('Limpiar filtros'),
-              ),
-          ],
+      return SizedBox(
+        height: 200,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off, size: 50, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No se encontraron productos'),
+              if (_hasActiveFilters)
+                TextButton(
+                  onPressed: _clearFilters,
+                  child: const Text('Limpiar filtros'),
+                ),
+            ],
+          ),
         ),
       );
     }
 
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _filteredProducts.length,
-        itemBuilder: (context, index) {
-          final product = _filteredProducts[index];
-          return _buildProductCard(product);
-        },
-      ),
+    // Generar los widgets de productos directamente para que funcionen con SingleChildScrollView
+    return Column(
+      children: _filteredProducts.map((product) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          child: _buildProductCard(product),
+        );
+      }).toList(),
     );
   }
 
+  /// Bloque 1: Modificación de la Card del producto
   Widget _buildProductCard(Productos product) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+      ), // Más redondeada
       child: InkWell(
-        borderRadius: BorderRadius.circular(10.0),
+        borderRadius: BorderRadius.circular(12.0),
         onTap: () => _showProductDetail(product),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -562,14 +604,20 @@ class _ProductScreenState extends State<ProductScreen> {
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                               fontFamily: 'Satoshi',
+                              color: Color(0xFF141A2F),
                             ),
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Colors.black),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF141A2F),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Row(
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -589,10 +637,10 @@ class _ProductScreenState extends State<ProductScreen> {
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontFamily: 'Satoshi',
+                              fontSize: 12,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -611,7 +659,7 @@ class _ProductScreenState extends State<ProductScreen> {
                             style: TextStyle(
                               color: Colors.blue[800],
                               fontFamily: 'Satoshi',
-                              fontSize: 12,
+                              fontSize: 10,
                             ),
                           ),
                         ),

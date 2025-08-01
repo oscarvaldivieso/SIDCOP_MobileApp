@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
+import 'package:flutter/services.dart';
 
 import 'dart:convert';
 
@@ -68,6 +69,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
       title: 'Recarga',
       icon: Icons.sync,
       permisos: permisos,
+      onRefresh: () async {
+        setState(() {});
+      },
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -113,7 +117,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
-                    return Center(child: Text('Error: \\${snapshot.error}'));
                   }
                   final recargas = snapshot.data ?? [];
                   final Map<int, List<RecargasViewModel>> agrupadas = {};
@@ -122,83 +125,108 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
                     }
                   }
-                  if (agrupadas.isEmpty) {
-                    return const Center(child: Text('No hay recargas.'));
-                  }
                   final entriesList = agrupadas.entries.toList();
                   final mostrarTodas = _verTodasLasRecargas;
                   final itemsToShow = mostrarTodas ? entriesList : entriesList.take(3).toList();
+
+                  // Validación de recarga de hoy
+                  final now = DateTime.now();
+                  final existeRecargaHoy = recargas.any((r) {
+                    if (r.reca_Fecha == null || r.reca_Confirmacion == null) return false;
+                    final fecha = r.reca_Fecha!;
+                    final mismoDia = fecha.year == now.year && fecha.month == now.month && fecha.day == now.day;
+                    final estado = r.reca_Confirmacion?.toUpperCase();
+                    return mismoDia && (estado == 'P' || estado == 'A');
+                  });
+
                   return Column(
-                    children: itemsToShow.map((entry) {
-                      final recaId = entry.key;
-                      final recargasGrupo = entry.value;
-                      final recarga = recargasGrupo.first;
-                      final totalCantidad = recargasGrupo.fold<int>(0, (
-                        sum,
-                        r,
-                      ) {
-                        if (r.reDe_Cantidad == null) return sum;
-                        if (r.reDe_Cantidad is int)
-                          return sum + (r.reDe_Cantidad as int);
-                        return sum +
-                            (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
-                      });
-                      return _buildHistorialCard(
-                        _mapEstadoFromApi(recarga.reca_Confirmacion),
-                        recarga.reca_Fecha != null
-                            ? _formatFechaFromApi(
-                                recarga.reca_Fecha!.toIso8601String(),
-                              )
-                            : '-',
-                        totalCantidad,
-                        recargasGrupo: recargasGrupo,
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Solicitar recarga',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 18,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-              const SizedBox(height: 15),
-              GestureDetector(
-                onTap: _openRecargaModal,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141A2F),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Abrir recarga',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                            fontFamily: 'Satoshi',
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (agrupadas.isEmpty)
+                        const Center(child: Text('No hay recargas.'))
+                      else
+                        Column(
+                          children: itemsToShow.map((entry) {
+                            final recaId = entry.key;
+                            final recargasGrupo = entry.value;
+                            final recarga = recargasGrupo.first;
+                            final totalCantidad = recargasGrupo.fold<int>(0, (
+                              sum,
+                              r,
+                            ) {
+                              if (r.reDe_Cantidad == null) return sum;
+                              if (r.reDe_Cantidad is int)
+                                return sum + (r.reDe_Cantidad as int);
+                              return sum +
+                                  (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                            });
+                            return _buildHistorialCard(
+                              _mapEstadoFromApi(recarga.reca_Confirmacion),
+                              recarga.reca_Fecha != null
+                                  ? _formatFechaFromApi(
+                                      recarga.reca_Fecha!.toIso8601String(),
+                                    )
+                                  : '-',
+                              totalCantidad,
+                              recargasGrupo: recargasGrupo,
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Solicitar recarga',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 18,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      GestureDetector(
+                        onTap: existeRecargaHoy ? null : _openRecargaModal,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            color: existeRecargaHoy ? Colors.grey : const Color(0xFF141A2F),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  existeRecargaHoy ? 'Ya tienes una recarga hoy' : 'Abrir recarga',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 16,
+                                    fontFamily: 'Satoshi',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        SizedBox(width: 10),
-                        Icon(
-                          Icons.add_shopping_cart_rounded,
-                          color: Colors.white,
-                          size: 20,
+                      ),
+                      if (existeRecargaHoy)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Ya tienes una recarga solicitada o aprobada para hoy.',
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -520,6 +548,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
   Map<int, int> _cantidades = {}; // prod_Id -> cantidad
+  Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
   String search = '';
   bool _isLoading = true;
 
@@ -527,6 +556,14 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   void initState() {
     super.initState();
     _fetchProductos();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _fetchProductos() async {
@@ -683,6 +720,30 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
+    // Inicializa el controlador si no existe
+    if (!_controllers.containsKey(producto.prod_Id)) {
+      final controller = TextEditingController(text: cantidad > 0 ? cantidad.toString() : '');
+      controller.addListener(() {
+        final text = controller.text;
+        final value = int.tryParse(text);
+        if (value != null && value >= 0) {
+          setState(() {
+            _cantidades[producto.prod_Id] = value;
+          });
+        } else if (text.isEmpty) {
+          setState(() {
+            _cantidades[producto.prod_Id] = 0;
+          });
+        }
+      });
+      _controllers[producto.prod_Id] = controller;
+    } else {
+      // Si la cantidad cambia por botones, actualiza el texto
+      if (_controllers[producto.prod_Id]!.text != (cantidad > 0 ? cantidad.toString() : '')) {
+        _controllers[producto.prod_Id]!.text = cantidad > 0 ? cantidad.toString() : '';
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
@@ -709,26 +770,43 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
               ),
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: cantidad > 0
                       ? () {
+                          final newValue = cantidad - 1;
+                          _controllers[producto.prod_Id]?.text = newValue > 0 ? newValue.toString() : '';
                           setState(() {
-                            _cantidades[producto.prod_Id] = cantidad - 1;
+                            _cantidades[producto.prod_Id] = newValue > 0 ? newValue : 0;
                           });
                         }
                       : null,
                 ),
-                Text(
-                  '$cantidad',
-                  style: const TextStyle(fontSize: 16),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    controller: _controllers[producto.prod_Id],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    ),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
+                    final newValue = cantidad + 1;
+                    _controllers[producto.prod_Id]?.text = newValue.toString();
                     setState(() {
-                      _cantidades[producto.prod_Id] = cantidad + 1;
+                      _cantidades[producto.prod_Id] = newValue;
                     });
                   },
                 ),

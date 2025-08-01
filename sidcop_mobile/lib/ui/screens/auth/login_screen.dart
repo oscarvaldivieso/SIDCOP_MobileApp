@@ -108,9 +108,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: 'Usuario',
                           hint: 'Ingresa tu usuario',
                           controller: _emailController,
-                          obscureText: true,
+                          obscureText: false,
                           keyboardType: TextInputType.emailAddress,
-                          prefixIcon: const Icon(Icons.email_outlined),
+                          prefixIcon: const Icon(Icons.person_outline),
                           errorText: _error,
                           onChanged: (_) {
                             setState(() {
