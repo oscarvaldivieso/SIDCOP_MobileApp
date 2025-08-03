@@ -759,65 +759,67 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
-  if (clienteId == null) return 0;
+    if (clienteId == null) return 0;
 
-  final limiteCredito_double =
-      double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    final limiteCredito_double =
+        double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
-  // Buscar cuentas por cobrar del cliente
-  final cuentasCliente = _cuentasPorCobrar
-      .where(
-        (cuenta) =>
-            cuenta['clie_Id'] == clienteId &&
-            cuenta['cpCo_Anulado'] == false &&
-            cuenta['cpCo_Saldada'] == false,
-      )
-      .toList();
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar
+        .where(
+          (cuenta) =>
+              cuenta['clie_Id'] == clienteId &&
+              cuenta['cpCo_Anulado'] == false &&
+              cuenta['cpCo_Saldada'] == false,
+        )
+        .toList();
 
-  // Si no tiene cuentas por cobrar, mostrar el límite de crédito
-  if (cuentasCliente.isEmpty) {
-    return limiteCredito_double;
-  }
+    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+    if (cuentasCliente.isEmpty) {
+      return limiteCredito_double;
+    }
 
-  // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
-  cuentasCliente.sort((a, b) {
-    final fechaA =
-        DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
-        DateTime(1970);
-    final fechaB =
-        DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
-        DateTime(1970);
-    return fechaB.compareTo(fechaA);
-  });
+    // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
+    cuentasCliente.sort((a, b) {
+      final fechaA =
+          DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      final fechaB =
+          DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      return fechaB.compareTo(fechaA);
+    });
 
-  final saldoReciente =
-      double.tryParse(
-        cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
-      ) ??
-      0;
+    final saldoReciente =
+        double.tryParse(
+          cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
+        ) ??
+        0;
 
-  // VERIFICAR SI TIENE CUENTA VENCIDA
-  final now = DateTime.now();
-  bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-    if (cuenta['cpCo_FechaVencimiento'] == null) return false;
-    final fechaVencimiento = DateTime.tryParse(
-      cuenta['cpCo_FechaVencimiento'].toString(),
-    );
-    if (fechaVencimiento == null) return false;
-    return fechaVencimiento.isBefore(now);
-  });
+    // -  VERIFICAR SI TIENE CUENTA VENCIDA para calcular deuda real
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+      final fechaVencimiento = DateTime.tryParse(
+        cuenta['cpCo_FechaVencimiento'].toString(),
+      );
+      if (fechaVencimiento == null) return false;
+      return fechaVencimiento.isBefore(now);
+    });
 
-  // Si tiene cuenta vencida, mostrar el saldo actual (cpCo_Saldo)
-  if (tieneCuentaVencida) {
-    print(
-      'DEBUG _getBadgeAmount: CUENTA VENCIDA - Mostrando saldo actual: $saldoReciente',
-    );
+    // Si tiene cuenta vencida, mostrar la deuda real: saldo - límite de crédito
+    if (tieneCuentaVencida) {
+      final deudaReal = saldoReciente - limiteCredito_double;
+      print(
+        'DEBUG _getBadgeAmount: CUENTA VENCIDA - Saldo: $saldoReciente, Límite: $limiteCredito_double, Deuda Real: $deudaReal',
+      );
+      // -  PERMITIR VALORES NEGATIVOS para cuentas vencidas
+      return deudaReal;
+    }
+
+    // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
     return saldoReciente;
   }
-
-  // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
-  return saldoReciente;
-}
 
   // --- Ubicaciones networking y UI ---
   Future<void> _loadAllLocationData() async {

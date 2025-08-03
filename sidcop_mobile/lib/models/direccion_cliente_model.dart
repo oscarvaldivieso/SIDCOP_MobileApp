@@ -4,8 +4,6 @@ class DireccionCliente {
   final int coloId;
   final String direccionExacta;
   final String? observaciones;
-  final String? depaDescripcion;
-  final String? muniDescripcion;
   final double latitud;
   final double longitud;
   final int usuaCreacion;
@@ -19,8 +17,6 @@ class DireccionCliente {
     required this.coloId,
     required this.direccionExacta,
     this.observaciones,
-    this.depaDescripcion,
-    this.muniDescripcion,
     required this.latitud,
     required this.longitud,
     required this.usuaCreacion,
@@ -34,8 +30,6 @@ class DireccionCliente {
       'diCl_Id': diClId ?? 0,
       'clie_Id': clieId,
       'colo_Id': coloId,
-      'Depa_Descripcion': depaDescripcion,
-      'Muni_Descripcion': muniDescripcion,
       'diCl_DireccionExacta': direccionExacta,
       'diCl_Observaciones': observaciones ?? '',
       'diCl_Latitud': latitud,
@@ -53,8 +47,6 @@ class DireccionCliente {
     int? coloId,
     String? direccionExacta,
     String? observaciones,
-    String? depaDescripcion,
-    String? muniDescripcion,
     double? latitud,
     double? longitud,
     int? usuaCreacion,
@@ -68,8 +60,6 @@ class DireccionCliente {
       coloId: coloId ?? this.coloId,
       direccionExacta: direccionExacta ?? this.direccionExacta,
       observaciones: observaciones ?? this.observaciones,
-      depaDescripcion: depaDescripcion ?? this.depaDescripcion,
-      muniDescripcion: muniDescripcion ?? this.muniDescripcion,
       latitud: latitud ?? this.latitud,
       longitud: longitud ?? this.longitud,
       usuaCreacion: usuaCreacion ?? this.usuaCreacion,
