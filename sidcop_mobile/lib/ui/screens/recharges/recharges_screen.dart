@@ -317,8 +317,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
-            builder: (context) =>
-                RecargaDetalleBottomSheet(recargasGrupo: recargasGrupo),
+            builder: (context) => RecargaDetalleBottomSheet(
+              recargasGrupo: recargasGrupo,
+              onRecargaUpdated: () {
+                print('🔍 DEBUG: Callback ejecutado - refrescando lista');
+                setState(() {}); // Refresca la lista de recargas
+              },
+            ),
           );
         },
         child: Container(
@@ -532,7 +537,16 @@ class _RechargesScreenState extends State<RechargesScreen> {
 // <- aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
-  const RecargaBottomSheet({super.key});
+  final List<RecargasViewModel>? recargasGrupoParaEditar;
+  final bool isEditMode;
+  final int? recaId;
+  
+  const RecargaBottomSheet({
+    super.key,
+    this.recargasGrupoParaEditar,
+    this.isEditMode = false,
+    this.recaId,
+  });
 
   @override
   State<RecargaBottomSheet> createState() => _RecargaBottomSheetState();
@@ -566,11 +580,45 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       setState(() {
         _productos = productos;
         _isLoading = false;
+        
+        // Si estamos en modo edición, pre-llenar las cantidades
+        if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
+          _preFillEditData();
+        }
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+  
+  void _preFillEditData() {
+    if (widget.recargasGrupoParaEditar == null) return;
+    
+    for (final recarga in widget.recargasGrupoParaEditar!) {
+      if (recarga.prod_Id != null && recarga.reDe_Cantidad != null) {
+        final prodId = recarga.prod_Id!;
+        final cantidad = recarga.reDe_Cantidad is int 
+            ? recarga.reDe_Cantidad as int
+            : int.tryParse(recarga.reDe_Cantidad.toString()) ?? 0;
+        
+        if (cantidad > 0) {
+          _cantidades[prodId] = cantidad;
+          // Create controller with listener
+          final controller = TextEditingController(text: cantidad.toString());
+          controller.addListener(() {
+            final text = controller.text;
+            final value = int.tryParse(text);
+            if (value != null && value >= 0) {
+              _cantidades[prodId] = value;
+            } else if (text.isEmpty) {
+              _cantidades[prodId] = 0;
+            }
+          });
+          _controllers[prodId] = controller;
+        }
+      }
     }
   }
 
@@ -603,9 +651,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Solicitud de recarga',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  Text(
+                    widget.isEditMode ? 'Editar recarga' : 'Solicitud de recarga',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
               ),
@@ -703,23 +751,43 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
 
                   // 3. Llamar a RecargasService
                   final recargaService = RecargasService();
-                  final ok = await recargaService.insertarRecarga(
-                    usuaCreacion: usuaId,
-                    detalles: detalles,
-                  );
+                  bool ok;
+                  
+                  if (widget.isEditMode && widget.recaId != null) {
+                    // Modo edición - actualizar recarga existente
+                    ok = await recargaService.updateRecarga(
+                      recaId: widget.recaId!,
+                      usuaModificacion: usuaId,
+                      detalles: detalles,
+                    );
+                  } else {
+                    // Modo creación - insertar nueva recarga
+                    ok = await recargaService.insertarRecarga(
+                      usuaCreacion: usuaId,
+                      detalles: detalles,
+                    );
+                  }
+                  
                   if (mounted) {
                     if (ok) {
+                      print('🔍 DEBUG: Operación exitosa - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Recarga enviada correctamente"),
+                        SnackBar(
+                          content: Text(widget.isEditMode 
+                              ? "Recarga actualizada correctamente" 
+                              : "Recarga enviada correctamente"),
                           backgroundColor: Colors.green,
                         ),
                       );
+                      print('🔍 DEBUG: Cerrando modal con resultado: true');
                       Navigator.of(context).pop(true);
                     } else {
+                      print('🔍 DEBUG: Operación fallida - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Error al enviar la recarga"),
+                        SnackBar(
+                          content: Text(widget.isEditMode 
+                              ? "Error al actualizar la recarga" 
+                              : "Error al enviar la recarga"),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -764,11 +832,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       _controllers[producto.prod_Id] = controller;
     } else {
       // Si la cantidad cambia por botones, actualiza el texto
-      if (_controllers[producto.prod_Id]!.text !=
-          (cantidad > 0 ? cantidad.toString() : '')) {
-        _controllers[producto.prod_Id]!.text = cantidad > 0
-            ? cantidad.toString()
-            : '';
+      final currentText = _controllers[producto.prod_Id]!.text;
+      final expectedText = cantidad > 0 ? cantidad.toString() : '';
+      if (currentText != expectedText) {
+        _controllers[producto.prod_Id]!.text = expectedText;
       }
     }
 
