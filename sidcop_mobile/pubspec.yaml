@@ -41,8 +41,8 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo_blanco_icon.png"
-  adaptive_icon_foreground: "assets/logo_blanco_icon.png"
+  image_path: "assets/Sidcop_Logo.png"
+  adaptive_icon_foreground: "assets/Sidcop_Logo.png"
   adaptive_icon_background: "#141a2e"
   remove_alpha_ios: true
 
@@ -52,7 +52,8 @@ flutter:
     - .env
     - assets/auth-background.jpg
     - assets/marca_blanco.png
-    - assets/logo_blanco.png    
+    - assets/logo_blanco.png  
+    - assets/Sidcop_Logo.png      
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png
@@ -70,6 +71,7 @@ flutter:
     - assets/AnimationDefinitive.json
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
+    - assets/Ellipse1.png
   
   fonts:
   - family: Satoshi
