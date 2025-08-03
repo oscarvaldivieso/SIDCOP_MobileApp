@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class CustomInput extends StatelessWidget {
   final String label;
@@ -10,6 +11,7 @@ class CustomInput extends StatelessWidget {
   final Widget? prefixIcon;
   final String? errorText;
   final void Function(String)? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
 
   const CustomInput({
     super.key,
@@ -22,6 +24,7 @@ class CustomInput extends StatelessWidget {
     this.prefixIcon,
     this.errorText,
     this.onChanged,
+    this.inputFormatters,
   });
 
   @override
@@ -45,6 +48,7 @@ class CustomInput extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          inputFormatters: inputFormatters,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface,
             fontFamily: 'Satoshi',
