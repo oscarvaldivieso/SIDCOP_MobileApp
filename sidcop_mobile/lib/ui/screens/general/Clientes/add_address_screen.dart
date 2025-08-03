@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart' show TextOverflow;
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -47,6 +48,8 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   Colonia? _selectedColonia;
   bool _isLoading = true;
   bool _isSubmitting = false;
+
+
 
   // Map variables
   LatLng _selectedLocation = const LatLng(
@@ -110,6 +113,8 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         observaciones: _observacionesController.text.trim().isNotEmpty
             ? _observacionesController.text.trim()
             : null,
+        depaDescripcion: '',
+        muniDescripcion: '',
         latitud: _selectedLocation.latitude,
         longitud: _selectedLocation.longitude,
         usuaCreacion: 1, // TODO: Replace with actual user ID
