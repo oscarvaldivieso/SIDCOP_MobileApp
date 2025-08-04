@@ -4,6 +4,8 @@ import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'Rutas_mapscreen.dart';
+import 'package:sidcop_mobile/services/global_service.dart';
 
 class RutasDetailsScreen extends StatefulWidget {
   final Ruta ruta;
@@ -14,6 +16,7 @@ class RutasDetailsScreen extends StatefulWidget {
 }
 
 class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
+  String? _staticMapUrl;
   List<Cliente> _clientes = [];
   List<DireccionCliente> _direcciones = [];
   bool _loading = true;
@@ -40,9 +43,19 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
+    // Generar string de markers para el StaticMap
+    final markers = direccionesFiltradas
+        .map((d) => 'markers=color:red%7C${d.dicl_latitud},${d.dicl_longitud}')
+        .join('&');
+    String center = direccionesFiltradas.isNotEmpty
+        ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
+        : '15.525585,-88.013512';
+    final staticMapUrl =
+        'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=15&size=400x150&$markers&key=$mapApikey';
     setState(() {
       _clientes = clientesFiltrados;
       _direcciones = direccionesFiltradas;
+      _staticMapUrl = staticMapUrl;
       _loading = false;
     });
   }
@@ -72,38 +85,98 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                       'Observaciones: ${widget.ruta.ruta_Observaciones ?? "-"}',
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Clientes en la ruta:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    ..._clientes.map(
-                      (cliente) => Card(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        child: ListTile(
-                          title: Text(cliente.clie_NombreNegocio ?? ''),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Nombre: ${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}',
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Card(
+                            color: Colors.white,
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Clientes',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_clientes.length}',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                ],
                               ),
-                              if (cliente.clie_Telefono != null &&
-                                  cliente.clie_Telefono!.isNotEmpty)
-                                Text('Teléfono: ${cliente.clie_Telefono}'),
-                              if (cliente.clie_RTN != null &&
-                                  cliente.clie_RTN!.isNotEmpty)
-                                Text('RTN: ${cliente.clie_RTN}'),
-                              if (cliente.clie_DNI != null &&
-                                  cliente.clie_DNI!.isNotEmpty)
-                                Text('DNI: ${cliente.clie_DNI}'),
-                            ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Card(
+                            color: Colors.white,
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Direcciones',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_direcciones.length}',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_staticMapUrl != null)
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => RutaMapScreen(
+                                rutaId: widget.ruta.ruta_Id,
+                                descripcion: widget.ruta.ruta_Descripcion,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              _staticMapUrl!,
+                              height: 150,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    height: 150,
+                                    color: Colors.grey[300],
+                                    child: const Icon(
+                                      Icons.map,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    const SizedBox(height: 16),
+                    // Solo mostrar la cantidad de clientes y direcciones
                     const SizedBox(height: 16),
                     const Text(
                       'Direcciones:',
