@@ -9,9 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.4.0
   flutter_dotenv: ^5.2.1
   # flutter_svg: ^2.2.0
-  http: ^1.4.0
   provider: ^6.1.5
   flutter_svg: ^2.0.5
   lottie: ^3.1.0
@@ -19,6 +19,7 @@ dependencies:
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
   geocoding: ^2.1.1
+  custom_info_window: ^1.0.1
   url_launcher: ^6.2.5
   csv: ^5.0.2
   path_provider: ^2.1.1
@@ -42,8 +43,8 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo_blanco_icon.png"
-  adaptive_icon_foreground: "assets/logo_blanco_icon.png"
+  image_path: "assets/Sidcop_Logo.png"
+  adaptive_icon_foreground: "assets/Sidcop_Logo.png"
   adaptive_icon_background: "#141a2e"
   remove_alpha_ios: true
 
@@ -53,7 +54,8 @@ flutter:
     - .env
     - assets/auth-background.jpg
     - assets/marca_blanco.png
-    - assets/logo_blanco.png    
+    - assets/logo_blanco.png  
+    - assets/Sidcop_Logo.png      
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png
@@ -71,6 +73,7 @@ flutter:
     - assets/AnimationDefinitive.json
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
+    - assets/Ellipse1.png
   
   fonts:
   - family: Satoshi

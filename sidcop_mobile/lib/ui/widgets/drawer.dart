@@ -15,6 +15,7 @@ import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
+import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -223,7 +224,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 ),
               ),
               onTap: () {
-                // Navegar a MRuta
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RutasScreen()),
+                );
               },
             ),
           if (tienePermiso(25)) // MProductos

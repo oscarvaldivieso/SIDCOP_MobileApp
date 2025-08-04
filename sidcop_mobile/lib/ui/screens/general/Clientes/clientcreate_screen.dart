@@ -12,7 +12,6 @@ import 'package:sidcop_mobile/services/DropdownDataService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -51,38 +50,21 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   Uint8List? _selectedImageBytes;
   final ImagePicker _picker = ImagePicker();
   final DropdownDataService _dropdownService = DropdownDataService();
-  final DireccionClienteService _direccionClienteService = DireccionClienteService();
-  
+  final DireccionClienteService _direccionClienteService =
+      DireccionClienteService();
+
   // Form controllers
   final _nombresController = TextEditingController();
   final _apellidosController = TextEditingController();
   final _dniController = TextEditingController();
   final _nombreNegocioController = TextEditingController();
-  final _telefonoController = TextEditingController();
-  final _rtnController = TextEditingController();
   final List<DireccionCliente> _direcciones = [];
-
-  var MKTelefono = new MaskTextInputFormatter(
-  mask: '####-####', 
-  filter: { "#": RegExp(r'[0-9]') },
-  type: MaskAutoCompletionType.lazy
-  );
-
-
-  var MKIdentidad = new MaskTextInputFormatter(
-  mask: '####-####-#####', 
-  filter: { "#": RegExp(r'[0-9]') },
-  type: MaskAutoCompletionType.lazy
-  );
-
 
   // Error text states
   String? _nombresError;
   String? _apellidosError;
   String? _dniError;
-  String? _rtnError;
   String? _nombreNegocioError;
-  String? _telefonoError;
 
   @override
   void dispose() {
@@ -95,14 +77,23 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
   bool _validateFields() {
     setState(() {
-      _nombresError = _nombresController.text.trim().isEmpty ? 'Este campo es requerido' : null;
-      _apellidosError = _apellidosController.text.trim().isEmpty ? 'Este campo es requerido' : null;
-      _dniError = null; // Identity field is now optional
-      _rtnError = null; // RTN field is now optional
-      _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty ? 'Este campo es requerido' : null;
-      _telefonoError = _telefonoController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+      _nombresError = _nombresController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _apellidosError = _apellidosController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _dniError = _dniController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
     });
-    return _nombresError == null && _apellidosError == null && _nombreNegocioError == null && _telefonoError == null;
+    return _nombresError == null &&
+        _apellidosError == null &&
+        _dniError == null &&
+        _nombreNegocioError == null;
   }
 
   Future<void> _agregarUbicacion() async {
@@ -119,14 +110,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       setState(() {
         _direcciones.add(direccion);
       });
-      
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Dirección agregada exitosamente',
-            style: _labelStyle,
-          ),
+          content: Text('Dirección agregada exitosamente', style: _labelStyle),
         ),
       );
     }
@@ -180,14 +168,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
 
     if (!mounted) return;
-    
+
     setState(() {
       _isSubmitting = true;
     });
 
     try {
       String? imageUrl;
-      
+
       // 1. Upload image if exists
       if (_selectedImage != null || _selectedImageBytes != null) {
         try {
@@ -200,7 +188,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Error al subir la imagen. Continuando sin imagen...'),
+                content: Text(
+                  'Error al subir la imagen. Continuando sin imagen...',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -210,17 +200,23 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
       // 2. Prepare and insert client
       final clienteData = {
-        'clie_Codigo': 'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+        'clie_Codigo':
+            'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
         'clie_Nombres': _nombresController.text.trim(),
         'clie_Apellidos': _apellidosController.text.trim(),
         'clie_DNI': _dniController.text.trim(),
-        'clie_RTN': _rtnController.text.trim(),
+        'clie_RTN': 'RTN-${_dniController.text.trim()}',
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
-        'clie_Telefono': _telefonoController.text.trim(),
-        'clie_Correo': '${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
+        'clie_Telefono': '0000-0000', // Default value, can be updated later
+        'clie_Correo':
+            '${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
         'clie_Sexo': 'M', // Default value
-        'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(), // Default value
+        'clie_FechaNacimiento': DateTime(
+          1990,
+          1,
+          1,
+        ).toIso8601String(), // Default value
         'cana_Id': 1, // Default value
         'esCv_Id': 1, // Default value
         'ruta_Id': 1, // Default value, should be selected from UI
@@ -239,13 +235,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       };
 
       print('Enviando datos del cliente: $clienteData');
-      
+
       // 3. Insert client
       final response = await _dropdownService.insertCliente(clienteData);
       print('Respuesta del servidor: $response');
-      
+
       if (response['success'] != true) {
-        throw Exception('Error al crear el cliente: ${response['message'] ?? 'Error desconocido'}');
+        throw Exception(
+          'Error al crear el cliente: ${response['message'] ?? 'Error desconocido'}',
+        );
       }
 
       // Extract client ID from the nested response
@@ -253,34 +251,37 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       if (clientData == null || clientData['data'] == null) {
         throw Exception('No se recibió un ID de cliente válido del servidor');
       }
-      
+
       // Parse client ID whether it comes as String or int
-      final clientId = clientData['data'] is String 
-          ? int.tryParse(clientData['data']) 
+      final clientId = clientData['data'] is String
+          ? int.tryParse(clientData['data'])
           : (clientData['data'] as num?)?.toInt();
-          
+
       if (clientId == null) {
-        throw Exception('Formato de ID de cliente inválido: ${clientData['data']}');
+        throw Exception(
+          'Formato de ID de cliente inválido: ${clientData['data']}',
+        );
       }
-      
+
       print('Client ID extraído: $clientId (${clientId.runtimeType})');
-      
+
       // 4. Insert all addresses with the new client ID
       if (_direcciones.isNotEmpty) {
         int successfulAddresses = 0;
-        
+
         for (var direccion in _direcciones) {
           try {
             // Actualizar el ID del cliente en cada dirección
-            final direccionData = direccion.copyWith(clieId: clientId);
-            
+            final direccionData = direccion.copyWith(clie_id: clientId);
+
             print('=== Enviando dirección para cliente $clientId ===');
             print('Datos completos: ${direccionData.toJson()}');
-            
-            final result = await _direccionClienteService.insertDireccionCliente(direccionData);
-            
+
+            final result = await _direccionClienteService
+                .insertDireccionCliente(direccionData);
+
             print('Respuesta del servidor para dirección: $result');
-            
+
             if (result['success'] == true) {
               successfulAddresses++;
               print('✅ Dirección guardada exitosamente');
@@ -291,13 +292,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             print('Excepción al guardar dirección: $e');
           }
         }
-        
+
         if (successfulAddresses < _direcciones.length) {
           // Show warning if not all addresses were saved
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)'),
+                content: Text(
+                  'Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -346,9 +349,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     try {
       final cloudinaryService = CloudinaryService();
       final imageBytes = await _getImageBytes();
-      return kIsWeb 
-        ? await cloudinaryService.uploadImageFromBytes(imageBytes)
-        : await cloudinaryService.uploadImage(_selectedImage!);
+      return kIsWeb
+          ? await cloudinaryService.uploadImageFromBytes(imageBytes)
+          : await cloudinaryService.uploadImage(_selectedImage!);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -394,10 +397,10 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       final XFile? image = await _picker.pickImage(
         source: source,
         imageQuality: 80, // Reduce image quality for faster uploads
-        maxWidth: 1200,   // Limit image dimensions
+        maxWidth: 1200, // Limit image dimensions
         maxHeight: 1200,
       );
-      
+
       if (image == null || !mounted) return;
 
       if (kIsWeb) {
@@ -416,7 +419,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           _selectedImageBytes = null; // Clear any previous bytes
         });
       }
-      
+
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -444,7 +447,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     TextInputType keyboardType = TextInputType.text,
     String? errorText,
     void Function(String)? onChanged,
-    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -455,7 +457,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         keyboardType: keyboardType,
         errorText: errorText,
         onChanged: onChanged,
-      inputFormatters: inputFormatters,
       ),
     );
   }
@@ -477,13 +478,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             child: ListTile(
               leading: const Icon(Icons.location_on, color: Color(0xFF141A2F)),
               title: Text(
-                direccion.direccionExacta,
+                direccion.dicl_direccionexacta,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _labelStyle,
               ),
               subtitle: Text(
-                direccion.observaciones ?? 'Sin observaciones',
+                direccion.dicl_observaciones,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _labelStyle,
@@ -506,7 +507,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
               'No se han agregado direcciones',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi'),
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                fontFamily: 'Satoshi',
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -532,7 +537,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, size: 20, color: Color(0xFF141A2F)),
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        color: Color(0xFF141A2F),
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     Text(
@@ -542,22 +551,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
-                // Nombre del Negocio
-                _buildTextField(
-                  label: 'Nombre del Negocio',
-                  controller: _nombreNegocioController,
-                  hint: 'Ingrese el nombre del negocio',
-                  isRequired: true,
-                  errorText: _nombreNegocioError,
-                  onChanged: (value) {
-                    if (_nombreNegocioError != null) {
-                      setState(() {
-                        _nombreNegocioError = null;
-                      });
-                    }
-                  },
-                ),
 
                 // Nombres
                 _buildTextField(
@@ -574,7 +567,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-                
+
                 // Apellidos
                 _buildTextField(
                   label: 'Apellidos',
@@ -591,30 +584,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   },
                 ),
 
-                _buildTextField(
-                  label: 'Numero De Telefono',
-                  controller: _telefonoController,
-                  hint: '0000-0000',
-                  inputFormatters: [MKTelefono],
-                  isRequired: true,
-                  errorText: _telefonoError,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    if (_telefonoError != null) {
-                      setState(() {
-                        _telefonoError = null;
-                      });
-                    }
-                  },
-                ),
-
                 // Identidad
                 _buildTextField(
                   label: 'Identidad',
                   controller: _dniController,
-                  hint: '0000-0000-00000 ',
-                  isRequired: false,
-                  inputFormatters: [MKIdentidad],
+                  hint: 'Ej: 0501-2009-2452',
+                  isRequired: true,
                   keyboardType: TextInputType.number,
                   errorText: _dniError,
                   onChanged: (value) {
@@ -626,25 +601,22 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   },
                 ),
 
-                // RTN
+                // Nombre del Negocio
                 _buildTextField(
-                  label: 'RTN',
-                  controller: _rtnController,
-                  hint: '0000-0000-00000 ',
-                  isRequired: false,
-                  inputFormatters: [MKIdentidad],
-                  keyboardType: TextInputType.number,
-                  errorText: _rtnError,
+                  label: 'Nombre del Negocio',
+                  controller: _nombreNegocioController,
+                  hint: 'Ingrese el nombre del negocio',
+                  isRequired: true,
+                  errorText: _nombreNegocioError,
                   onChanged: (value) {
-                    if (_rtnError != null) {
+                    if (_nombreNegocioError != null) {
                       setState(() {
-                        _rtnError = null;
+                        _nombreNegocioError = null;
                       });
                     }
                   },
                 ),
-                
-                
+
                 const SizedBox(height: 16),
                 _buildLocationButton(),
                 const SizedBox(height: 8),
@@ -666,7 +638,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                           border: Border.all(color: Colors.grey),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: _selectedImage != null || _selectedImageBytes != null
+                        child:
+                            _selectedImage != null ||
+                                _selectedImageBytes != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: kIsWeb
@@ -682,17 +656,22 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                                  const Icon(
+                                    Icons.add_a_photo,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Toca para seleccionar una imagen',
                                     style: _hintStyle,
-                                  )
+                                  ),
                                 ],
                               ),
                       ),
                     ),
-                    if (_selectedImage != null || _selectedImageBytes != null) ...[
+                    if (_selectedImage != null ||
+                        _selectedImageBytes != null) ...[
                       const SizedBox(height: 8),
                       Text(
                         'Imagen seleccionada: ${kIsWeb ? 'Imagen web' : _selectedImage!.path.split('/').last}',
@@ -719,6 +698,4 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       ),
     );
   }
-
-
 }

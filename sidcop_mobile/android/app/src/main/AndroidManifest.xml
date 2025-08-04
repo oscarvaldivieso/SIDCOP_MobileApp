@@ -8,10 +8,9 @@
         android:label="Sidcop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCAyo-OT4dGiDEh_grvD0RTkmN1EEd4nkw" />
+            android:value="AIzaSyA6bbij1_4crYsWVg6E1PnqGb17lNGdIjA" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
