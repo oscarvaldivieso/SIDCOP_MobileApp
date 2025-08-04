@@ -166,42 +166,55 @@ class _RutasScreenState extends State<RutasScreen> {
                           child: SizedBox(
                             child: Row(
                               children: [
-                                Card(
-                                  color: Colors.white,
-                                  margin: const EdgeInsets.only(
-                                    left: 8,
-                                    top: 8,
-                                    bottom: 8,
-                                  ),
-                                  elevation: 2,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => RutaMapScreen(
+                                          rutaId: ruta.ruta_Id,
+                                          descripcion: ruta.ruta_Descripcion,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Card(
+                                    color: Colors.white,
+                                    margin: const EdgeInsets.only(
+                                      left: 8,
+                                      top: 8,
+                                      bottom: 8,
                                     ),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
+                                    elevation: 2,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(16),
+                                        bottomLeft: Radius.circular(16),
+                                      ),
                                     ),
-                                    child: Image.network(
-                                      'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
-                                      height: 120,
-                                      width: 140,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Container(
-                                                height: 120,
-                                                width: 140,
-                                                color: Colors.grey[300],
-                                                child: const Icon(
-                                                  Icons.map,
-                                                  size: 40,
-                                                  color: Colors.grey,
+                                    child: ClipRRect(
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(16),
+                                        bottomLeft: Radius.circular(16),
+                                      ),
+                                      child: Image.network(
+                                        'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
+                                        height: 120,
+                                        width: 140,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                                  height: 120,
+                                                  width: 140,
+                                                  color: Colors.grey[300],
+                                                  child: const Icon(
+                                                    Icons.map,
+                                                    size: 40,
+                                                    color: Colors.grey,
+                                                  ),
                                                 ),
-                                              ),
+                                      ),
                                     ),
                                   ),
                                 ),
