@@ -56,10 +56,17 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           Marker(
             markerId: MarkerId(d.dicl_id.toString()),
             position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
+            ),
             onTap: () {
               _customInfoWindowController.addInfoWindow!(
                 Container(
-                  width: 260,
+                  constraints: BoxConstraints(
+                    minWidth: 180,
+                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -72,59 +79,64 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 220,
-                        height: 140,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child:
-                              (cliente.clie_ImagenDelNegocio != null &&
-                                  cliente.clie_ImagenDelNegocio!.isNotEmpty)
-                              ? Image.network(
-                                  cliente.clie_ImagenDelNegocio!,
-                                  width: 220,
-                                  height: 140,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          height: 140,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child:
+                                (cliente.clie_ImagenDelNegocio != null &&
+                                    cliente.clie_ImagenDelNegocio!.isNotEmpty)
+                                ? Image.network(
+                                    cliente.clie_ImagenDelNegocio!,
+                                    width: 220,
+                                    height: 140,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
                                         color: Colors.grey[300],
                                         child: const Icon(
                                           Icons.store,
                                           size: 60,
                                         ),
-                                      ),
-                                )
-                              : Container(
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.store, size: 60),
-                                ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.store, size: 60),
+                                  ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        (cliente.clie_Nombres ?? '') +
-                            ' ' +
-                            (cliente.clie_Apellidos ?? ''),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 12),
+                        Text(
+                          cliente.clie_NombreNegocio ?? '',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Dirección: ${d.dicl_direccionexacta}'),
-                      Text('Teléfono: ${cliente.clie_Telefono ?? ""}'),
-                      Text('Negocio: ${cliente.clie_NombreNegocio ?? ""}'),
-                      Text('Observaciones: ${d.dicl_observaciones}'),
-                      const Divider(),
-                      Text('ID Dirección: ${d.dicl_id}'),
-                      Text('Latitud: ${d.dicl_latitud}'),
-                      Text('Longitud: ${d.dicl_longitud}'),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          (cliente.clie_Nombres ?? '') +
+                              ' ' +
+                              (cliente.clie_Apellidos ?? ''),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
                 ),
                 LatLng(d.dicl_latitud!, d.dicl_longitud!),
@@ -135,11 +147,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       }
       setState(() {
         _markers = markers;
-        _loading = false;
-        if (markers.isNotEmpty) {
-          final firstMarker = markers.first;
-          _initialPosition = firstMarker.position;
+        if (direccionesFiltradas.isNotEmpty) {
+          _initialPosition = LatLng(
+            direccionesFiltradas.first.dicl_latitud!,
+            direccionesFiltradas.first.dicl_longitud!,
+          );
         }
+        _loading = false;
       });
     } catch (e) {
       setState(() {
@@ -186,6 +200,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                   markers: _markers,
                   myLocationEnabled: true,
                   myLocationButtonEnabled: true,
+                  onMapCreated: (GoogleMapController controller) {
+                    _customInfoWindowController.googleMapController =
+                        controller;
+                  },
                   onCameraMove: (position) {
                     _customInfoWindowController.onCameraMove!();
                   },
@@ -195,9 +213,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                 ),
                 CustomInfoWindow(
                   controller: _customInfoWindowController,
-                  height: 340,
-                  width: 260,
-                  offset: 40,
+                  height: 220,
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  offset: 50,
                 ),
               ],
             ),
