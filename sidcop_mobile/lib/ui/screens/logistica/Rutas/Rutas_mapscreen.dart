@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:custom_info_window/custom_info_window.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 
@@ -17,6 +18,8 @@ class RutaMapScreen extends StatefulWidget {
 }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  GoogleMapController? _mapController;
+  LatLng? _userLocation;
   MapType _mapType = MapType.hybrid;
   Set<Marker> _markers = {};
   bool _loading = true;
@@ -28,6 +31,28 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   void initState() {
     super.initState();
     _loadDirecciones();
+    _getUserLocation();
+  }
+
+  Future<void> _getUserLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _userLocation = LatLng(position.latitude, position.longitude);
+      });
+    } catch (e) {
+      // Si falla, no mostrar nada
+    }
   }
 
   Future<void> _loadDirecciones() async {
@@ -145,6 +170,19 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ),
         );
       }
+      // Agregar marcador de usuario si existe
+      if (_userLocation != null) {
+        markers.add(
+          Marker(
+            markerId: const MarkerId('user_location'),
+            position: _userLocation!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueAzure,
+            ),
+            infoWindow: const InfoWindow(title: 'Tu ubicación'),
+          ),
+        );
+      }
       setState(() {
         _markers = markers;
         if (direccionesFiltradas.isNotEmpty) {
@@ -199,10 +237,12 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                   ),
                   markers: _markers,
                   myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
                   onMapCreated: (GoogleMapController controller) {
                     _customInfoWindowController.googleMapController =
                         controller;
+                    _mapController = controller;
                   },
                   onCameraMove: (position) {
                     _customInfoWindowController.onCameraMove!();
@@ -216,6 +256,28 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                   height: 220,
                   width: MediaQuery.of(context).size.width * 0.6,
                   offset: 40,
+                ),
+                Positioned(
+                  bottom: 24,
+                  right: 24,
+                  child: FloatingActionButton(
+                    backgroundColor: const Color(0xFF141A2F),
+                    foregroundColor: const Color(0xFFD6B68A),
+                    onPressed: _userLocation == null || _mapController == null
+                        ? null
+                        : () {
+                            _mapController!.animateCamera(
+                              CameraUpdate.newCameraPosition(
+                                CameraPosition(
+                                  target: _userLocation!,
+                                  zoom: 16,
+                                ),
+                              ),
+                            );
+                          },
+                    child: const Icon(Icons.my_location),
+                    tooltip: 'Centrar en mi ubicación',
+                  ),
                 ),
               ],
             ),
