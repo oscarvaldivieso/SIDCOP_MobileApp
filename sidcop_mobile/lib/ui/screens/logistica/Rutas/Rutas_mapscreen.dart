@@ -244,81 +244,211 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
             ),
             onTap: () {
               _customInfoWindowController.addInfoWindow!(
-                Container(
-                  constraints: BoxConstraints(
-                    minWidth: 180,
-                    maxWidth: MediaQuery.of(context).size.width * 0.5,
-                    maxHeight: MediaQuery.of(context).size.height * 0.45,
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                GestureDetector(
+                  onTap: () {
+                    _customInfoWindowController.hideInfoWindow!();
+                    showModalBottomSheet(
+                      context: context,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 220,
-                          height: 140,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child:
-                                (cliente.clie_ImagenDelNegocio != null &&
-                                    cliente.clie_ImagenDelNegocio!.isNotEmpty)
-                                ? Image.network(
-                                    cliente.clie_ImagenDelNegocio!,
-                                    width: 220,
-                                    height: 140,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(
-                                          Icons.store,
-                                          size: 60,
-                                        ),
-                                      );
-                                    },
-                                  )
-                                : Container(
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.store, size: 60),
+                      builder: (context) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child:
+                                        (cliente.clie_ImagenDelNegocio !=
+                                                null &&
+                                            cliente
+                                                .clie_ImagenDelNegocio!
+                                                .isNotEmpty)
+                                        ? Image.network(
+                                            cliente.clie_ImagenDelNegocio!,
+                                            width: 220,
+                                            height: 140,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Container(
+                                                    color: Colors.grey[300],
+                                                    child: const Icon(
+                                                      Icons.store,
+                                                      size: 60,
+                                                    ),
+                                                  );
+                                                },
+                                          )
+                                        : Container(
+                                            color: Colors.grey[300],
+                                            width: 220,
+                                            height: 140,
+                                            child: const Icon(
+                                              Icons.store,
+                                              size: 60,
+                                            ),
+                                          ),
                                   ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  cliente.clie_NombreNegocio ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  // Nombre completo del cliente
+                                  'Cliente: ${(cliente.clie_Nombres ?? '')} ${(cliente.clie_Apellidos ?? '')}',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (cliente.clie_RTN != null &&
+                                    cliente.clie_RTN!.isNotEmpty)
+                                  Text(
+                                    'RTN: ${cliente.clie_RTN}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                if (cliente.clie_DNI != null &&
+                                    cliente.clie_DNI!.isNotEmpty)
+                                  Text(
+                                    'DNI: ${cliente.clie_DNI}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                if (cliente.clie_Telefono != null &&
+                                    cliente.clie_Telefono != '')
+                                  Text(
+                                    'Teléfono: ${cliente.clie_Telefono}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Dirección:',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
+                                  style: const TextStyle(fontSize: 15),
+                                ),
+                                if (d.dicl_observaciones.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      'Observaciones: ${d.dicl_observaciones}',
+                                      style: const TextStyle(fontSize: 15),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
+                        );
+                      },
+                    );
+                  },
+                  child: Container(
+                    constraints: BoxConstraints(
+                      minWidth: 180,
+                      maxWidth: MediaQuery.of(context).size.width * 0.5,
+                      maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          cliente.clie_NombreNegocio ?? '',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          (cliente.clie_Nombres ?? '') +
-                              ' ' +
-                              (cliente.clie_Apellidos ?? ''),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black87,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
                       ],
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 220,
+                            height: 140,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child:
+                                  (cliente.clie_ImagenDelNegocio != null &&
+                                      cliente.clie_ImagenDelNegocio!.isNotEmpty)
+                                  ? Image.network(
+                                      cliente.clie_ImagenDelNegocio!,
+                                      width: 220,
+                                      height: 140,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey[300],
+                                              child: const Icon(
+                                                Icons.store,
+                                                size: 60,
+                                              ),
+                                            );
+                                          },
+                                    )
+                                  : Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.store, size: 60),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            cliente.clie_NombreNegocio ?? '',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            (cliente.clie_Nombres ?? '') +
+                                ' ' +
+                                (cliente.clie_Apellidos ?? ''),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -356,9 +486,11 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           IconButton(
             icon: const Icon(Icons.list_alt),
             tooltip: 'Ver orden de paradas',
-            onPressed: () {
-              _scaffoldKey.currentState?.openEndDrawer();
-            },
+            onPressed: _polylines.isEmpty
+                ? null
+                : () {
+                    _scaffoldKey.currentState?.openEndDrawer();
+                  },
           ),
           PopupMenuButton<MapType>(
             icon: const Icon(Icons.map),
