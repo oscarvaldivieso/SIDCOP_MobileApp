@@ -20,6 +20,8 @@ class RutaMapScreen extends StatefulWidget {
 class _RutaMapScreenState extends State<RutaMapScreen> {
   MapType _mapType = MapType.hybrid;
   Set<Marker> _markers = {};
+  DireccionCliente? _selectedDireccion;
+  Cliente? _selectedCliente;
   bool _loading = true;
   LatLng? _initialPosition;
 
@@ -75,21 +77,20 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       print('Direcciones mostradas: ${direccionesFiltradas.length}');
       final Set<Marker> markers = {};
       for (var d in direccionesFiltradas) {
-        // Buscar el cliente correspondiente para obtener el nombre completo
         final cliente = clientesFiltrados.firstWhere(
           (c) => c.clie_Id == d.clie_id,
         );
-        final nombreCompleto =
-            (cliente.clie_Nombres ?? '') + ' ' + (cliente.clie_Apellidos ?? '');
         markers.add(
           Marker(
             markerId: MarkerId(d.dicl_id.toString()),
             position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
-            infoWindow: InfoWindow(
-              title: nombreCompleto,
-              snippet:
-                  '${d.dicl_direccionexacta}\nTel: ${cliente.clie_Telefono ?? ""}\nNegocio: ${cliente.clie_NombreNegocio ?? ""}\n---\nPrueba 1\nPrueba 2\nPrueba 3',
-            ),
+            infoWindow: InfoWindow(), // Sin contenido
+            onTap: () {
+              setState(() {
+                _selectedDireccion = d;
+                _selectedCliente = cliente;
+              });
+            },
           ),
         );
       }
@@ -140,15 +141,104 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _initialPosition == null
           ? const Center(child: Text('No hay direcciones para mostrar'))
-          : GoogleMap(
-              mapType: _mapType,
-              initialCameraPosition: CameraPosition(
-                target: _initialPosition!,
-                zoom: 12,
-              ),
-              markers: _markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
+          : Stack(
+              children: [
+                GoogleMap(
+                  mapType: _mapType,
+                  initialCameraPosition: CameraPosition(
+                    target: _initialPosition!,
+                    zoom: 12,
+                  ),
+                  markers: _markers,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                ),
+                if (_selectedDireccion != null && _selectedCliente != null)
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 40,
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_selectedCliente!.clie_ImagenDelNegocio !=
+                                    null &&
+                                _selectedCliente!
+                                    .clie_ImagenDelNegocio!
+                                    .isNotEmpty)
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(40),
+                                  child: Image.network(
+                                    _selectedCliente!.clie_ImagenDelNegocio!,
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.store, size: 80),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 12),
+                            Text(
+                              (_selectedCliente!.clie_Nombres ?? '') +
+                                  ' ' +
+                                  (_selectedCliente!.clie_Apellidos ?? ''),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Dirección: ${_selectedDireccion!.dicl_direccionexacta}',
+                            ),
+                            Text(
+                              'Teléfono: ${_selectedCliente!.clie_Telefono ?? ""}',
+                            ),
+                            Text(
+                              'Negocio: ${_selectedCliente!.clie_NombreNegocio ?? ""}',
+                            ),
+                            Text(
+                              'Observaciones: ${_selectedDireccion!.dicl_observaciones}',
+                            ),
+                            const Divider(),
+                            Text(
+                              'ID Dirección: ${_selectedDireccion!.dicl_id}',
+                            ),
+                            Text(
+                              'Latitud: ${_selectedDireccion!.dicl_latitud}',
+                            ),
+                            Text(
+                              'Longitud: ${_selectedDireccion!.dicl_longitud}',
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedDireccion = null;
+                                    _selectedCliente = null;
+                                  });
+                                },
+                                child: const Text('Cerrar'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
     );
   }
