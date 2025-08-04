@@ -57,14 +57,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
             markerId: MarkerId(d.dicl_id.toString()),
             position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
             icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue,
+              BitmapDescriptor.hueRed,
             ),
             onTap: () {
               _customInfoWindowController.addInfoWindow!(
                 Container(
                   constraints: BoxConstraints(
                     minWidth: 180,
-                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                    maxWidth: MediaQuery.of(context).size.width * 0.5,
                     maxHeight: MediaQuery.of(context).size.height * 0.45,
                   ),
                   padding: const EdgeInsets.all(12),
@@ -214,8 +214,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                 CustomInfoWindow(
                   controller: _customInfoWindowController,
                   height: 220,
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  offset: 50,
+                  width: MediaQuery.of(context).size.width * 0.6,
+                  offset: 40,
                 ),
               ],
             ),

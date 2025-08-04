@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'Rutas_mapscreen.dart';
 
@@ -12,22 +13,42 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
+  void _applySearch() {
+    final searchTerm = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredRutas = _rutas.where((ruta) {
+        final desc = ruta.ruta_Descripcion?.toLowerCase() ?? '';
+        final cod = ruta.ruta_Codigo?.toString().toLowerCase() ?? '';
+        return searchTerm.isEmpty ||
+            desc.contains(searchTerm) ||
+            cod.contains(searchTerm);
+      }).toList();
+    });
+  }
+
   List<dynamic> permisos = [];
   final RutasService _rutasService = RutasService();
+  final TextEditingController _searchController = TextEditingController();
   List<Ruta> _rutas = [];
+  List<Ruta> _filteredRutas = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _fetchRutas();
+    _searchController.addListener(_applySearch);
   }
 
   Future<void> _fetchRutas() async {
     try {
       final rutasJson = await _rutasService.getRutas();
+      final rutasList = rutasJson
+          .map<Ruta>((json) => Ruta.fromJson(json))
+          .toList();
       setState(() {
-        _rutas = rutasJson.map<Ruta>((json) => Ruta.fromJson(json)).toList();
+        _rutas = rutasList;
+        _filteredRutas = List.from(rutasList);
         _isLoading = false;
       });
       print('Rutas ${_rutas.length} ');
@@ -40,6 +61,18 @@ class _RutasScreenState extends State<RutasScreen> {
           SnackBar(content: Text('Error al cargar las rutas: $e')),
         );
       }
+      void _applySearch() {
+        final searchTerm = _searchController.text.toLowerCase();
+        setState(() {
+          _filteredRutas = _rutas.where((ruta) {
+            final desc = ruta.ruta_Descripcion?.toLowerCase() ?? '';
+            final cod = ruta.ruta_Codigo?.toString().toLowerCase() ?? '';
+            return searchTerm.isEmpty ||
+                desc.contains(searchTerm) ||
+                cod.contains(searchTerm);
+          }).toList();
+        });
+      }
     }
   }
 
@@ -47,138 +80,200 @@ class _RutasScreenState extends State<RutasScreen> {
   Widget build(BuildContext context) {
     final String mapApiKey = 'AIzaSyA6bbij1_4crYsWVg6E1PnqGb17lNGdIjA';
     return Scaffold(
-      appBar: AppBar(title: const Text('Rutas')),
+      backgroundColor: Colors.transparent,
       drawer: CustomDrawer(permisos: permisos),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 16.0,
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141A2F),
-                      borderRadius: BorderRadius.circular(16),
-                      image: const DecorationImage(
-                        image: AssetImage('assets/asset-breadcrumb.png'),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Rutas',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 22,
+      body: AppBackground(
+        title: 'Rutas',
+        icon: Icons.map,
+        onRefresh: () async {
+          await _fetchRutas();
+          if (mounted) setState(() {});
+        },
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _rutas.isEmpty
+            ? const Center(child: Text('No hay rutas'))
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Buscar rutas...',
+                          hintStyle: const TextStyle(color: Colors.grey),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Color(0xFF141A2F),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24.0),
+                            borderSide: BorderSide(
+                              color: Colors.grey,
+                              width: 1,
                             ),
                           ),
-                          Icon(Icons.map, color: Colors.white, size: 30),
-                        ],
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24.0),
+                            borderSide: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24.0),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF141A2F),
+                              width: 2,
+                            ),
+                          ),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () => _searchController.clear(),
+                                )
+                              : null,
+                        ),
                       ),
                     ),
-                  ),
-
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _rutas.length,
-                      itemBuilder: (context, index) {
-                        final ruta = _rutas[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 0,
+                        left: 16,
+                        right: 16,
+                        bottom: 8,
+                      ),
+                    ),
+                    ..._filteredRutas.map(
+                      (ruta) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 4.0,
+                        ),
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: ListTile(
-                            title: Text(
-                              ruta.ruta_Descripcion ?? 'Sin descripción',
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          elevation: 4,
+                          child: SizedBox(
+                            child: Row(
                               children: [
-                                const SizedBox(height: 16),
-                                GestureDetector(
-                                  onTap: () {
-                                    final rutaId = ruta.ruta_Id ?? 0;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => RutaMapScreen(
-                                          rutaId: rutaId,
-                                          descripcion: ruta.ruta_Descripcion,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Image.network(
-                                    'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
-                                    height: 120,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              height: 120,
-                                              color: Colors.grey[300],
-                                              child: const Icon(
-                                                Icons.map,
-                                                size: 40,
-                                                color: Colors.grey,
+                                Card(
+                                  color: Colors.white,
+                                  margin: const EdgeInsets.only(
+                                    left: 8,
+                                    top: 8,
+                                    bottom: 8,
+                                  ),
+                                  elevation: 2,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      bottomLeft: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      bottomLeft: Radius.circular(16),
+                                    ),
+                                    child: Image.network(
+                                      'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApiKey',
+                                      height: 120,
+                                      width: 140,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Container(
+                                                height: 120,
+                                                width: 140,
+                                                color: Colors.grey[300],
+                                                child: const Icon(
+                                                  Icons.map,
+                                                  size: 40,
+                                                  color: Colors.grey,
+                                                ),
                                               ),
-                                            ),
+                                    ),
                                   ),
                                 ),
-                                Text(
-                                  'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
-                                ),
-                                Text(
-                                  'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 40,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF141A2F),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                      ),
-                                    ),
-                                    onPressed: () {},
-                                    child: const Text(
-                                      'Detalles',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Color(0xFFD6B68A),
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.1,
-                                      ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          ruta.ruta_Descripcion ??
+                                              'Sin descripción',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                          style: const TextStyle(fontSize: 15),
+                                        ),
+                                        Text(
+                                          'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                          style: const TextStyle(fontSize: 15),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 40,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF141A2F,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                            ),
+                                            onPressed:
+                                                () {}, // Habilitado pero sin acción
+                                            child: const Text(
+                                              'Detalles',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Color(0xFFD6B68A),
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1.1,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }
