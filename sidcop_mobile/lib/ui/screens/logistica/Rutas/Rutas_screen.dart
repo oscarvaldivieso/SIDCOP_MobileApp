@@ -47,7 +47,7 @@ class _RutasScreenState extends State<RutasScreen> {
   Widget build(BuildContext context) {
     final String mapApiKey = 'AIzaSyA6bbij1_4crYsWVg6E1PnqGb17lNGdIjA';
     return Scaffold(
-      appBar: AppBar(title: const Text('Rutasss')),
+      appBar: AppBar(title: const Text('Rutas')),
       drawer: CustomDrawer(permisos: permisos),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

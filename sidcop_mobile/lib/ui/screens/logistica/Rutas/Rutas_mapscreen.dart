@@ -43,9 +43,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           .toList();
       print('Cantidad total de clientes: ${clientes.length}');
       print('Clientes recibidos:');
-      for (var cliente in clientes) {
-        print(cliente);
-      }
 
       // Filtrar clientes por ruta_Id
       final clientesFiltrados = clientes
@@ -65,22 +62,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           .getDireccionesPorCliente();
       print('Cantidad total de direcciones: ${todasDirecciones.length}');
       print('Direcciones recibidas:');
-      for (var direccion in todasDirecciones) {
-        print(direccion);
-        try {
-          if (direccion.dicl_id == null) {
-            throw Exception('Campo nulo: dicl_id');
-          }
-          if (direccion.dicl_latitud == null) {
-            throw Exception('Campo nulo: dicl_latitud');
-          }
-          if (direccion.dicl_longitud == null) {
-            throw Exception('Campo nulo: dicl_longitud');
-          }
-        } catch (e) {
-          print('Error en direccion: $e');
-        }
-      }
 
       // Filtrar direcciones por los clientes filtrados (por clie_id)
       final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
@@ -94,21 +75,20 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       print('Direcciones mostradas: ${direccionesFiltradas.length}');
       final Set<Marker> markers = {};
       for (var d in direccionesFiltradas) {
-        if (d.dicl_id == null ||
-            d.dicl_latitud == null ||
-            d.dicl_longitud == null) {
-          print(
-            'Direccion con campos nulos: id=${d.dicl_id}, latitud=${d.dicl_latitud}, longitud=${d.dicl_longitud}',
-          );
-          continue;
-        }
+        // Buscar el cliente correspondiente para obtener el nombre completo
+        final cliente = clientesFiltrados.firstWhere(
+          (c) => c.clie_Id == d.clie_id,
+        );
+        final nombreCompleto =
+            (cliente.clie_Nombres ?? '') + ' ' + (cliente.clie_Apellidos ?? '');
         markers.add(
           Marker(
             markerId: MarkerId(d.dicl_id.toString()),
             position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
             infoWindow: InfoWindow(
-              title: d.dicl_direccionexacta,
-              snippet: d.dicl_observaciones,
+              title: nombreCompleto,
+              snippet:
+                  '${d.dicl_direccionexacta}\nTel: ${cliente.clie_Telefono ?? ""}\nNegocio: ${cliente.clie_NombreNegocio ?? ""}\n---\nPrueba 1\nPrueba 2\nPrueba 3',
             ),
           ),
         );
@@ -122,7 +102,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           _initialPosition = firstMarker.position;
         }
       });
-      print('setState ejecutado en _loadDirecciones');
+      setState(() {
+        _loading = false;
+      });
     } catch (e) {
       print('Error en _loadDirecciones: $e');
       setState(() {
@@ -162,7 +144,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
               mapType: _mapType,
               initialCameraPosition: CameraPosition(
                 target: _initialPosition!,
-                zoom: 14,
+                zoom: 12,
               ),
               markers: _markers,
               myLocationEnabled: true,
