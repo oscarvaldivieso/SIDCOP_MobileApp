@@ -524,6 +524,40 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                   ),
                 ),
               ),
+              // Mapa estático con todos los marcadores filtrados
+              if (_direccionesFiltradas.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  child: SizedBox(
+                    height: 180,
+                    child: AbsorbPointer(
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(
+                            _direccionesFiltradas.first.dicl_latitud!,
+                            _direccionesFiltradas.first.dicl_longitud!,
+                          ),
+                          zoom: 11,
+                        ),
+                        markers: {
+                          ..._direccionesFiltradas.map((d) {
+                            return Marker(
+                              markerId: MarkerId(d.dicl_id.toString()),
+                              position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
+                              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                            );
+                          }),
+                        },
+                        zoomControlsEnabled: false,
+                        myLocationEnabled: false,
+                        myLocationButtonEnabled: false,
+                        mapToolbarEnabled: false,
+                        onMapCreated: (_) {},
+                        onTap: (_) {},
+                      ),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: _ordenParadas.isEmpty
                     ? const Center(child: Text('No hay orden disponible'))
