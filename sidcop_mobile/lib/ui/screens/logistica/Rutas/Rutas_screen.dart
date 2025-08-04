@@ -4,7 +4,7 @@ import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/global_service.dart';
 import 'Rutas_mapscreen.dart';
 
 class RutasScreen extends StatefulWidget {
@@ -78,7 +78,7 @@ class _RutasScreenState extends State<RutasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String mapApiKey = 'AIzaSyA6bbij1_4crYsWVg6E1PnqGb17lNGdIjA';
+    final String mapApiKey = mapApikey;
     return Scaffold(
       backgroundColor: Colors.transparent,
       drawer: CustomDrawer(permisos: permisos),

@@ -6,6 +6,9 @@ import 'package:custom_info_window/custom_info_window.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:sidcop_mobile/services/global_service.dart';
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
@@ -18,20 +21,120 @@ class RutaMapScreen extends StatefulWidget {
 }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  final String _googleApiKey = mapApikey;
   GoogleMapController? _mapController;
   LatLng? _userLocation;
   MapType _mapType = MapType.hybrid;
   Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
   bool _loading = true;
   LatLng? _initialPosition;
   final CustomInfoWindowController _customInfoWindowController =
       CustomInfoWindowController();
+
+  Stream<Position>? _positionStream;
 
   @override
   void initState() {
     super.initState();
     _loadDirecciones();
     _getUserLocation();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+    _positionStream!.listen((position) {
+      if (position != null) {
+        setState(() {
+          _userLocation = LatLng(position.latitude, position.longitude);
+          _updateUserMarker();
+          if (_polylines.isNotEmpty) {
+            _updateRoutePolyline();
+          }
+        });
+      }
+    });
+  }
+
+  void _updateUserMarker() {
+    _markers = _markers
+        .where((m) => m.markerId.value != 'user_location')
+        .toSet();
+  }
+
+  void _updateRoutePolyline() {
+    if (_userLocation == null || _markers.isEmpty) return;
+    final markerPoints = _markers
+        .where((m) => m.markerId.value != 'user_location')
+        .map((m) => m.position)
+        .toList();
+    if (markerPoints.isEmpty) return;
+
+    String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
+    String destination =
+        '${markerPoints.last.latitude},${markerPoints.last.longitude}';
+    String waypoints = markerPoints.length > 1
+        ? markerPoints
+              .sublist(0, markerPoints.length - 1)
+              .map((p) => '${p.latitude},${p.longitude}')
+              .join('|')
+        : '';
+
+    String url =
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
+    if (waypoints.isNotEmpty) {
+      url += '&waypoints=$waypoints';
+    }
+
+    http.get(Uri.parse(url)).then((response) {
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['routes'] != null && data['routes'].isNotEmpty) {
+          final points = _decodePolyline(
+            data['routes'][0]['overview_polyline']['points'],
+          );
+          setState(() {
+            _polylines = {
+              Polyline(
+                polylineId: const PolylineId('route'),
+                color: Colors.blue,
+                width: 6,
+                points: points,
+              ),
+            };
+          });
+        }
+      }
+    });
+  }
+
+  List<LatLng> _decodePolyline(String poly) {
+    List<LatLng> points = [];
+    int index = 0, len = poly.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = poly.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = poly.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return points;
   }
 
   Future<void> _getUserLocation() async {
@@ -50,9 +153,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
       });
-    } catch (e) {
-      // Si falla, no mostrar nada
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadDirecciones() async {
@@ -170,21 +271,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ),
         );
       }
-      // Agregar marcador de usuario si existe
-      if (_userLocation != null) {
-        markers.add(
-          Marker(
-            markerId: const MarkerId('user_location'),
-            position: _userLocation!,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure,
-            ),
-            infoWindow: const InfoWindow(title: 'Tu ubicación'),
-          ),
-        );
-      }
       setState(() {
         _markers = markers;
+        _polylines = {};
         if (direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
             direccionesFiltradas.first.dicl_latitud!,
@@ -236,9 +325,11 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                     zoom: 12,
                   ),
                   markers: _markers,
+                  polylines: _polylines,
                   myLocationEnabled: true,
                   myLocationButtonEnabled: false,
                   zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
                   onMapCreated: (GoogleMapController controller) {
                     _customInfoWindowController.googleMapController =
                         controller;
@@ -260,23 +351,44 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                 Positioned(
                   bottom: 24,
                   right: 24,
-                  child: FloatingActionButton(
-                    backgroundColor: const Color(0xFF141A2F),
-                    foregroundColor: const Color(0xFFD6B68A),
-                    onPressed: _userLocation == null || _mapController == null
-                        ? null
-                        : () {
-                            _mapController!.animateCamera(
-                              CameraUpdate.newCameraPosition(
-                                CameraPosition(
-                                  target: _userLocation!,
-                                  zoom: 16,
-                                ),
-                              ),
-                            );
-                          },
-                    child: const Icon(Icons.my_location),
-                    tooltip: 'Centrar en mi ubicación',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      FloatingActionButton(
+                        backgroundColor: const Color(0xFF141A2F),
+                        foregroundColor: const Color(0xFFD6B68A),
+                        onPressed: _userLocation == null || _markers.isEmpty
+                            ? null
+                            : () {
+                                setState(() {
+                                  _updateRoutePolyline();
+                                });
+                              },
+                        child: const Icon(Icons.alt_route),
+                        tooltip: 'Ver rutas',
+                      ),
+                      const SizedBox(height: 16),
+                      FloatingActionButton(
+                        backgroundColor: const Color(0xFF141A2F),
+                        foregroundColor: const Color(0xFFD6B68A),
+                        onPressed:
+                            _userLocation == null || _mapController == null
+                            ? null
+                            : () {
+                                _mapController!.animateCamera(
+                                  CameraUpdate.newCameraPosition(
+                                    CameraPosition(
+                                      target: _userLocation!,
+                                      zoom: 16,
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: const Icon(Icons.my_location),
+                        tooltip: 'Centrar en mi ubicación',
+                      ),
+                    ],
                   ),
                 ),
               ],
