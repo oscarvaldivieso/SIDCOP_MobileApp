@@ -26,18 +26,38 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   @override
   void initState() {
     super.initState();
+    print('initState llamado, rutaId: [32m${widget.rutaId}[0m');
     _loadDirecciones();
   }
 
   Future<void> _loadDirecciones() async {
+    print('Entrando a _loadDirecciones');
     try {
+      print('Dentro del try de _loadDirecciones');
       // 1. Obtener todos los clientes
       final clientesService = ClientesService();
-      final clientes = await clientesService.getClientes();
+      final clientesJson = await clientesService.getClientes();
+      print('clientesJson obtenido: ${clientesJson.length}');
+      final clientes = clientesJson
+          .map<Cliente>((json) => Cliente.fromJson(json))
+          .toList();
       print('Cantidad total de clientes: ${clientes.length}');
       print('Clientes recibidos:');
       for (var cliente in clientes) {
         print(cliente);
+      }
+
+      // Filtrar clientes por ruta_Id
+      final clientesFiltrados = clientes
+          .where((c) => c.ruta_Id == widget.rutaId)
+          .toList();
+      print(
+        'Clientes filtrados por ruta_Id (${widget.rutaId}): ${clientesFiltrados.length}',
+      );
+      for (var cliente in clientesFiltrados) {
+        print(
+          'Cliente filtrado => ruta_Id: ${cliente.ruta_Id}, clie_Id: ${cliente.clie_Id}, Nombre: ${cliente.clie_Nombres}',
+        );
       }
 
       final direccionesService = DireccionClienteService();
@@ -48,42 +68,63 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       for (var direccion in todasDirecciones) {
         print(direccion);
         try {
-          print(
-            'Campos: latitud=${direccion.dicl_latitud}, longitud=${direccion.dicl_longitud}, id=${direccion.dicl_id}',
-          );
+          if (direccion.dicl_id == null) {
+            throw Exception('Campo nulo: dicl_id');
+          }
+          if (direccion.dicl_latitud == null) {
+            throw Exception('Campo nulo: dicl_latitud');
+          }
+          if (direccion.dicl_longitud == null) {
+            throw Exception('Campo nulo: dicl_longitud');
+          }
         } catch (e) {
-          print('No se pudo acceder a los campos principales: $e');
+          print('Error en direccion: $e');
         }
       }
 
-      final direccionesFiltradas = todasDirecciones;
-      print('Direcciones filtradas: ${direccionesFiltradas.length}');
-
-      // 5. Crear los marcadores
-      final markers = direccionesFiltradas
-          .map(
-            (d) => Marker(
-              markerId: MarkerId(d.dicl_id.toString()),
-              position: LatLng(d.dicl_latitud ?? 0, d.dicl_longitud ?? 0),
-              infoWindow: InfoWindow(
-                title: d.dicl_direccionexacta,
-                snippet: d.dicl_observaciones,
-              ),
+      // Filtrar direcciones por los clientes filtrados (por clie_id)
+      final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
+      final direccionesFiltradas = todasDirecciones
+          .where((d) => clienteIds.contains(d.clie_id))
+          .toList();
+      print(
+        'Direcciones filtradas por cliente: ${direccionesFiltradas.length}',
+      );
+      // Mostrar solo las direcciones filtradas en el mapa
+      print('Direcciones mostradas: ${direccionesFiltradas.length}');
+      final Set<Marker> markers = {};
+      for (var d in direccionesFiltradas) {
+        if (d.dicl_id == null ||
+            d.dicl_latitud == null ||
+            d.dicl_longitud == null) {
+          print(
+            'Direccion con campos nulos: id=${d.dicl_id}, latitud=${d.dicl_latitud}, longitud=${d.dicl_longitud}',
+          );
+          continue;
+        }
+        markers.add(
+          Marker(
+            markerId: MarkerId(d.dicl_id.toString()),
+            position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
+            infoWindow: InfoWindow(
+              title: d.dicl_direccionexacta,
+              snippet: d.dicl_observaciones,
             ),
-          )
-          .toSet();
+          ),
+        );
+      }
 
       setState(() {
         _markers = markers;
         _loading = false;
-        if (direccionesFiltradas.isNotEmpty) {
-          _initialPosition = LatLng(
-            direccionesFiltradas.first.dicl_latitud ?? 0.0,
-            direccionesFiltradas.first.dicl_longitud ?? 0.0,
-          );
+        if (markers.isNotEmpty) {
+          final firstMarker = markers.first;
+          _initialPosition = firstMarker.position;
         }
       });
+      print('setState ejecutado en _loadDirecciones');
     } catch (e) {
+      print('Error en _loadDirecciones: $e');
       setState(() {
         _loading = false;
       });
