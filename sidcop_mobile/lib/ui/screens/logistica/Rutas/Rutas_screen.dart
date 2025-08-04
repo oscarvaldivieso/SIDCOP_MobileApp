@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/global_service.dart';
 import 'Rutas_mapscreen.dart';
+import 'Rutas_details.dart';
 
 class RutasScreen extends StatefulWidget {
   @override
@@ -306,8 +307,17 @@ class _RutasScreenState extends State<RutasScreen> {
                                                         horizontal: 8,
                                                       ),
                                                 ),
-                                                onPressed:
-                                                    () {}, // Habilitado pero sin acción
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          RutasDetailsScreen(
+                                                            ruta: ruta,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
                                                 child: const Text(
                                                   'Detalles',
                                                   style: TextStyle(
