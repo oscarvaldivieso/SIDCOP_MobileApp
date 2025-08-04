@@ -401,11 +401,28 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                           final parada = _ordenParadas[idx];
                           if (parada['tipo'] == 'origen') {
                             return ListTile(
-                              leading: const Icon(
-                                Icons.person_pin_circle,
-                                color: Colors.blue,
+                              leading: CircleAvatar(
+                                backgroundColor: const Color(0xFF141A2F),
+                                child: Icon(
+                                  Icons.person_pin_circle,
+                                  color: Color(0xFFD6B68A),
+                                ),
                               ),
                               title: Text('Tu ubicación'),
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                if (_userLocation != null &&
+                                    _mapController != null) {
+                                  _mapController!.animateCamera(
+                                    CameraUpdate.newCameraPosition(
+                                      CameraPosition(
+                                        target: _userLocation!,
+                                        zoom: 16,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
                             );
                           }
                           final cliente = parada['cliente'] as Cliente?;
@@ -438,12 +455,58 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     cliente.clie_NombreNegocio ?? '',
                                   ),
                                 ),
+                              if (cliente?.clie_Telefono != null &&
+                                  cliente?.clie_Telefono != '')
+                                ListTile(
+                                  title: const Text('Teléfono'),
+                                  subtitle: Text(cliente?.clie_Telefono ?? ''),
+                                ),
                               if (parada['direccion'] != null &&
                                   parada['direccion'] != '')
                                 ListTile(
                                   title: const Text('Dirección'),
                                   subtitle: Text(parada['direccion']),
                                 ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF141A2F),
+                                      foregroundColor: const Color(0xFFD6B68A),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      textStyle: const TextStyle(fontSize: 14),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.location_on,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Mostrar en el mapa'),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      if (parada['latlng'] != null &&
+                                          _mapController != null) {
+                                        _mapController!.animateCamera(
+                                          CameraUpdate.newCameraPosition(
+                                            CameraPosition(
+                                              target: parada['latlng'],
+                                              zoom: 16,
+                                            ),
+                                          ),
+                                        );
+                                        // Opcional: mostrar info window si lo deseas
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
                             ],
                           );
                         },
