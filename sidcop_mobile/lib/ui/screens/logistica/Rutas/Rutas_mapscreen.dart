@@ -69,15 +69,39 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         .toList();
     if (markerPoints.isEmpty) return;
 
+    // Encontrar el marcador más cercano a la ubicación del usuario
+    LatLng? closest;
+    double minDist = double.infinity;
+    for (var p in markerPoints) {
+      final dist = _userLocation == null
+          ? double.infinity
+          : Geolocator.distanceBetween(
+              _userLocation!.latitude,
+              _userLocation!.longitude,
+              p.latitude,
+              p.longitude,
+            );
+      if (dist < minDist) {
+        minDist = dist;
+        closest = p;
+      }
+    }
+    if (closest == null) return;
+
+    // El resto de los puntos (sin el más cercano)
+    final rest = markerPoints.where((p) => p != closest).toList();
+
     String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
-    String destination =
-        '${markerPoints.last.latitude},${markerPoints.last.longitude}';
-    String waypoints = markerPoints.length > 1
-        ? markerPoints
-              .sublist(0, markerPoints.length - 1)
-              .map((p) => '${p.latitude},${p.longitude}')
-              .join('|')
-        : '';
+    String destination = rest.isNotEmpty
+        ? '${rest.last.latitude},${rest.last.longitude}'
+        : '${closest.latitude},${closest.longitude}';
+    String waypoints = rest.isNotEmpty
+        ? 'optimize:true|${closest.latitude},${closest.longitude}|' +
+              rest
+                  .sublist(0, rest.length - 1)
+                  .map((p) => '${p.latitude},${p.longitude}')
+                  .join('|')
+        : '${closest.latitude},${closest.longitude}';
 
     String url =
         'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
