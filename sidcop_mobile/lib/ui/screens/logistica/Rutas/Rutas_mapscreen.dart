@@ -10,6 +10,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/global_service.dart';
 
+List<Map<String, dynamic>> _ordenParadas = [];
+List<DireccionCliente> _direccionesFiltradas = [];
+List<Cliente> _clientesFiltrados = [];
+final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
   final String? descripcion;
@@ -43,15 +48,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
     _positionStream!.listen((position) {
-      if (position != null) {
-        setState(() {
-          _userLocation = LatLng(position.latitude, position.longitude);
-          _updateUserMarker();
-          if (_polylines.isNotEmpty) {
-            _updateRoutePolyline();
-          }
-        });
-      }
+      setState(() {
+        _userLocation = LatLng(position.latitude, position.longitude);
+        _updateUserMarker();
+        if (_polylines.isNotEmpty) {
+          _updateRoutePolyline();
+        }
+      });
     });
   }
 
@@ -62,53 +65,44 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   }
 
   void _updateRoutePolyline() {
-    if (_userLocation == null || _markers.isEmpty) return;
-    final markerPoints = _markers
-        .where((m) => m.markerId.value != 'user_location')
-        .map((m) => m.position)
-        .toList();
-    if (markerPoints.isEmpty) return;
-
-    // Encontrar el marcador más cercano a la ubicación del usuario
-    LatLng? closest;
+    if (_userLocation == null || _direccionesFiltradas.isEmpty) return;
+    final puntos = _direccionesFiltradas;
+    // Encontrar la dirección más cercana
+    DireccionCliente? closest;
     double minDist = double.infinity;
-    for (var p in markerPoints) {
-      final dist = _userLocation == null
-          ? double.infinity
-          : Geolocator.distanceBetween(
-              _userLocation!.latitude,
-              _userLocation!.longitude,
-              p.latitude,
-              p.longitude,
-            );
+    for (var d in puntos) {
+      final dist = Geolocator.distanceBetween(
+        _userLocation!.latitude,
+        _userLocation!.longitude,
+        d.dicl_latitud!,
+        d.dicl_longitud!,
+      );
       if (dist < minDist) {
         minDist = dist;
-        closest = p;
+        closest = d;
       }
     }
     if (closest == null) return;
-
     // El resto de los puntos (sin el más cercano)
-    final rest = markerPoints.where((p) => p != closest).toList();
-
+    final rest = puntos.where((d) => d != closest).toList();
     String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
     String destination = rest.isNotEmpty
-        ? '${rest.last.latitude},${rest.last.longitude}'
-        : '${closest.latitude},${closest.longitude}';
+        ? '${rest.last.dicl_latitud ?? ''},${rest.last.dicl_longitud ?? ''}'
+        : '${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}';
     String waypoints = rest.isNotEmpty
-        ? 'optimize:true|${closest.latitude},${closest.longitude}|' +
+        ? 'optimize:true|${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}|' +
               rest
                   .sublist(0, rest.length - 1)
-                  .map((p) => '${p.latitude},${p.longitude}')
+                  .map(
+                    (d) => '${d.dicl_latitud ?? ''},${d.dicl_longitud ?? ''}',
+                  )
                   .join('|')
-        : '${closest.latitude},${closest.longitude}';
-
+        : '${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}';
     String url =
         'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
     if (waypoints.isNotEmpty) {
       url += '&waypoints=$waypoints';
     }
-
     http.get(Uri.parse(url)).then((response) {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -125,6 +119,45 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                 points: points,
               ),
             };
+            // Actualizar el orden de paradas para mostrar en el Drawer
+            List<Map<String, dynamic>> orden = [];
+            if (_userLocation != null) {
+              orden.add({
+                'tipo': 'origen',
+                'nombre': 'Tu ubicación',
+                'direccion': '',
+                'latlng': _userLocation,
+              });
+            }
+            // El más cercano primero
+            final clienteCercano = _clientesFiltrados.firstWhere(
+              (c) => c.clie_Id == closest!.clie_id,
+              orElse: () => Cliente(),
+            );
+            orden.add({
+              'tipo': 'parada',
+              'nombre': clienteCercano.clie_NombreNegocio ?? '',
+              'cliente': clienteCercano,
+              'direccion':
+                  '${closest!.dicl_direccionexacta}, ${closest!.muni_descripcion}, ${closest!.depa_descripcion}',
+              'latlng': LatLng(closest!.dicl_latitud!, closest!.dicl_longitud!),
+            });
+            // El resto (orden optimizado)
+            for (var d in rest) {
+              final cliente = _clientesFiltrados.firstWhere(
+                (c) => c.clie_Id == d.clie_id,
+                orElse: () => Cliente(),
+              );
+              orden.add({
+                'tipo': 'parada',
+                'nombre': cliente.clie_NombreNegocio ?? '',
+                'cliente': cliente,
+                'direccion':
+                    '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
+                'latlng': LatLng(d.dicl_latitud!, d.dicl_longitud!),
+              });
+            }
+            _ordenParadas = orden;
           });
         }
       }
@@ -187,19 +220,19 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final clientes = clientesJson
           .map<Cliente>((json) => Cliente.fromJson(json))
           .toList();
-      final clientesFiltrados = clientes
+      _clientesFiltrados = clientes
           .where((c) => c.ruta_Id == widget.rutaId)
           .toList();
       final direccionesService = DireccionClienteService();
       final todasDirecciones = await direccionesService
           .getDireccionesPorCliente();
-      final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
-      final direccionesFiltradas = todasDirecciones
+      final clienteIds = _clientesFiltrados.map((c) => c.clie_Id).toSet();
+      _direccionesFiltradas = todasDirecciones
           .where((d) => clienteIds.contains(d.clie_id))
           .toList();
       final Set<Marker> markers = {};
-      for (var d in direccionesFiltradas) {
-        final cliente = clientesFiltrados.firstWhere(
+      for (var d in _direccionesFiltradas) {
+        final cliente = _clientesFiltrados.firstWhere(
           (c) => c.clie_Id == d.clie_id,
         );
         markers.add(
@@ -298,10 +331,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _markers = markers;
         _polylines = {};
-        if (direccionesFiltradas.isNotEmpty) {
+        if (_direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
-            direccionesFiltradas.first.dicl_latitud!,
-            direccionesFiltradas.first.dicl_longitud!,
+            _direccionesFiltradas.first.dicl_latitud!,
+            _direccionesFiltradas.first.dicl_longitud!,
           );
         }
         _loading = false;
@@ -316,9 +349,17 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: Text(widget.descripcion ?? 'Ubicación Ruta'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt),
+            tooltip: 'Ver orden de paradas',
+            onPressed: () {
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
+          ),
           PopupMenuButton<MapType>(
             icon: const Icon(Icons.map),
             onSelected: (type) {
@@ -335,6 +376,82 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
             ],
           ),
         ],
+      ),
+      endDrawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Orden de visitas',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _ordenParadas.isEmpty
+                    ? const Center(child: Text('No hay orden disponible'))
+                    : ListView.builder(
+                        itemCount: _ordenParadas.length,
+                        itemBuilder: (context, idx) {
+                          final parada = _ordenParadas[idx];
+                          if (parada['tipo'] == 'origen') {
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.person_pin_circle,
+                                color: Colors.blue,
+                              ),
+                              title: Text('Tu ubicación'),
+                            );
+                          }
+                          final cliente = parada['cliente'] as Cliente?;
+                          return ExpansionTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF141A2F),
+                              child: Text(
+                                '${idx}',
+                                style: const TextStyle(
+                                  color: Color(0xFFD6B68A),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              cliente?.clie_Nombres != null &&
+                                      cliente?.clie_Apellidos != null
+                                  ? '${cliente?.clie_Nombres ?? ''} ${cliente?.clie_Apellidos ?? ''}'
+                                  : parada['nombre'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            children: [
+                              if (cliente?.clie_NombreNegocio != null &&
+                                  cliente!.clie_NombreNegocio!.isNotEmpty)
+                                ListTile(
+                                  title: const Text('Negocio'),
+                                  subtitle: Text(
+                                    cliente.clie_NombreNegocio ?? '',
+                                  ),
+                                ),
+                              if (parada['direccion'] != null &&
+                                  parada['direccion'] != '')
+                                ListTile(
+                                  title: const Text('Dirección'),
+                                  subtitle: Text(parada['direccion']),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
