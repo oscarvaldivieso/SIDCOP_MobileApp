@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'ui/screens/splash/sync_splash_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:sidcop_mobile/ui/screens/products/products_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
+import 'ui/screens/splash_lottie_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/home_screen.dart';
 
@@ -30,7 +30,8 @@ class MyApp extends StatelessWidget {
 
       // home: UserInfoScreen(), // Widget correcto
       // home: const OnboardingScreen(), // Ahora se llama desde SyncSplashScreen
-      home: const SyncSplashScreen(), // Pantalla de sincronización automática
+      // home: const SyncSplashScreen(), // Pantalla de sincronización automática
+      home: const SplashLottieScreen(),
     );
   }
 }

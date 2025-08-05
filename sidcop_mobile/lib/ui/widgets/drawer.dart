@@ -16,6 +16,7 @@ import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
+import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -51,7 +52,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
       // Obtener usuaIdPersona desde los datos guardados
       final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final usuaIdPersona = userData?['personaId'] as int?;
+      print("userData drawer para inve: $userData");
+      final usuaIdPersona = userData?['usua_IdPersona'] as int?;
       final imagenVendedor = userData?['imagen'] as String?;
 
       if (mounted) {
@@ -198,7 +200,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           // Accesos móviles según permisos
-          if (tienePermiso(48)) // MRuta
+          if (tienePermiso(30)) // MRuta
             ListTile(
               leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
               title: const Text(
@@ -210,10 +212,13 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 ),
               ),
               onTap: () {
-                // Navegar a MRuta
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RutasScreen()),
+                );
               },
             ),
-          if (tienePermiso(49)) // MProductos
+          if (tienePermiso(25)) // MProductos
             ListTile(
               leading: const Icon(
                 Icons.inventory_2_outlined,
@@ -236,25 +241,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-          if (tienePermiso(50)) // MMetas
-            ListTile(
-              leading: const Icon(
-                Icons.speed_outlined,
-                color: Color(0xFFD6B68A),
+          // MMetas
+          ListTile(
+            leading: const Icon(Icons.speed_outlined, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Metas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w300,
               ),
-              title: const Text(
-                'Metas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              onTap: () {
-                // Navegar a MMetas
-              },
             ),
-          if (tienePermiso(51)) // MVentas
+            onTap: () {
+              // Navegar a MMetas
+            },
+          ),
+          if (tienePermiso(57)) // MVentas
             ListTile(
               leading: const Icon(
                 Icons.sell_outlined,
@@ -290,7 +292,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               );
             },
           ),
-          if (tienePermiso(52)) // MClientes
+          if (tienePermiso(10)) // MClientes
             ListTile(
               leading: const Icon(
                 Icons.person_outline,
@@ -313,7 +315,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-          if (tienePermiso(53)) // MRecargas
+          if (tienePermiso(29)) // MRecargas
             ListTile(
               leading: Transform.flip(
                 flipX: true,
@@ -339,7 +341,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               },
             ),
           //   if(usuario!.usua_Admin)
-          if (tienePermiso(54)) // MInventario
+          if (tienePermiso(58)) // MInventario
             ListTile(
               leading: const Icon(
                 Icons.assignment_turned_in_outlined,
@@ -355,6 +357,26 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
               onTap: () async {
                 // Navegar a MInventario
+                Navigator.pop(context);
+                if (_usuaIdPersona != null) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                    ),
+                    (route) => false,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo obtener el ID de usuario para Inventario.',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               },
             ),
         ],

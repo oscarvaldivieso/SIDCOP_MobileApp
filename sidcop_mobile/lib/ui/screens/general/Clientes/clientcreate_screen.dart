@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/add_address_screen.dart';
@@ -10,7 +11,30 @@ import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/DropdownDataService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
-import 'package:flutter/services.dart';
+import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+
+// Text style constants for consistent typography
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
+final TextStyle _labelStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+);
+
+final TextStyle _buttonTextStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontWeight: FontWeight.w600,
+);
+
+final TextStyle _hintStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  color: Colors.grey,
+);
 
 class ClientCreateScreen extends StatefulWidget {
   const ClientCreateScreen({Key? key}) : super(key: key);
@@ -26,14 +50,21 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   Uint8List? _selectedImageBytes;
   final ImagePicker _picker = ImagePicker();
   final DropdownDataService _dropdownService = DropdownDataService();
-  final DireccionClienteService _direccionClienteService = DireccionClienteService();
-  
+  final DireccionClienteService _direccionClienteService =
+      DireccionClienteService();
+
   // Form controllers
   final _nombresController = TextEditingController();
   final _apellidosController = TextEditingController();
   final _dniController = TextEditingController();
   final _nombreNegocioController = TextEditingController();
   final List<DireccionCliente> _direcciones = [];
+
+  // Error text states
+  String? _nombresError;
+  String? _apellidosError;
+  String? _dniError;
+  String? _nombreNegocioError;
 
   @override
   void dispose() {
@@ -42,6 +73,27 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     _dniController.dispose();
     _nombreNegocioController.dispose();
     super.dispose();
+  }
+
+  bool _validateFields() {
+    setState(() {
+      _nombresError = _nombresController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _apellidosError = _apellidosController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _dniError = _dniController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+      _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty
+          ? 'Este campo es requerido'
+          : null;
+    });
+    return _nombresError == null &&
+        _apellidosError == null &&
+        _dniError == null &&
+        _nombreNegocioError == null;
   }
 
   Future<void> _agregarUbicacion() async {
@@ -58,10 +110,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       setState(() {
         _direcciones.add(direccion);
       });
-      
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dirección agregada exitosamente')),
+        SnackBar(
+          content: Text('Dirección agregada exitosamente', style: _labelStyle),
+        ),
       );
     }
   }
@@ -73,9 +127,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateFields()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor complete todos los campos requeridos')),
+        SnackBar(
+          content: Text(
+            'Por favor complete todos los campos requeridos',
+            style: _labelStyle,
+          ),
+        ),
       );
       return;
     }
@@ -85,16 +144,19 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Sin direcciones'),
-          content: const Text('¿Desea continuar sin agregar una dirección al cliente?'),
+          title: Text('Sin direcciones', style: _titleStyle),
+          content: Text(
+            '¿Desea continuar sin agregar una dirección al cliente?',
+            style: _labelStyle,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
+              child: Text('Cancelar', style: _buttonTextStyle),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continuar'),
+              child: Text('Continuar', style: _buttonTextStyle),
             ),
           ],
         ),
@@ -106,14 +168,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
 
     if (!mounted) return;
-    
+
     setState(() {
       _isSubmitting = true;
     });
 
     try {
       String? imageUrl;
-      
+
       // 1. Upload image if exists
       if (_selectedImage != null || _selectedImageBytes != null) {
         try {
@@ -126,7 +188,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Error al subir la imagen. Continuando sin imagen...'),
+                content: Text(
+                  'Error al subir la imagen. Continuando sin imagen...',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -136,7 +200,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
       // 2. Prepare and insert client
       final clienteData = {
-        'clie_Codigo': 'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+        'clie_Codigo':
+            'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
         'clie_Nombres': _nombresController.text.trim(),
         'clie_Apellidos': _apellidosController.text.trim(),
         'clie_DNI': _dniController.text.trim(),
@@ -144,9 +209,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
         'clie_Telefono': '0000-0000', // Default value, can be updated later
-        'clie_Correo': '${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
+        'clie_Correo':
+            '${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
         'clie_Sexo': 'M', // Default value
-        'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(), // Default value
+        'clie_FechaNacimiento': DateTime(
+          1990,
+          1,
+          1,
+        ).toIso8601String(), // Default value
         'cana_Id': 1, // Default value
         'esCv_Id': 1, // Default value
         'ruta_Id': 1, // Default value, should be selected from UI
@@ -165,13 +235,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       };
 
       print('Enviando datos del cliente: $clienteData');
-      
+
       // 3. Insert client
       final response = await _dropdownService.insertCliente(clienteData);
       print('Respuesta del servidor: $response');
-      
+
       if (response['success'] != true) {
-        throw Exception('Error al crear el cliente: ${response['message'] ?? 'Error desconocido'}');
+        throw Exception(
+          'Error al crear el cliente: ${response['message'] ?? 'Error desconocido'}',
+        );
       }
 
       // Extract client ID from the nested response
@@ -179,34 +251,37 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       if (clientData == null || clientData['data'] == null) {
         throw Exception('No se recibió un ID de cliente válido del servidor');
       }
-      
+
       // Parse client ID whether it comes as String or int
-      final clientId = clientData['data'] is String 
-          ? int.tryParse(clientData['data']) 
+      final clientId = clientData['data'] is String
+          ? int.tryParse(clientData['data'])
           : (clientData['data'] as num?)?.toInt();
-          
+
       if (clientId == null) {
-        throw Exception('Formato de ID de cliente inválido: ${clientData['data']}');
+        throw Exception(
+          'Formato de ID de cliente inválido: ${clientData['data']}',
+        );
       }
-      
+
       print('Client ID extraído: $clientId (${clientId.runtimeType})');
-      
+
       // 4. Insert all addresses with the new client ID
       if (_direcciones.isNotEmpty) {
         int successfulAddresses = 0;
-        
+
         for (var direccion in _direcciones) {
           try {
             // Actualizar el ID del cliente en cada dirección
-            final direccionData = direccion.copyWith(clieId: clientId);
-            
+            final direccionData = direccion.copyWith(clie_id: clientId);
+
             print('=== Enviando dirección para cliente $clientId ===');
             print('Datos completos: ${direccionData.toJson()}');
-            
-            final result = await _direccionClienteService.insertDireccionCliente(direccionData);
-            
+
+            final result = await _direccionClienteService
+                .insertDireccionCliente(direccionData);
+
             print('Respuesta del servidor para dirección: $result');
-            
+
             if (result['success'] == true) {
               successfulAddresses++;
               print('✅ Dirección guardada exitosamente');
@@ -217,13 +292,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             print('Excepción al guardar dirección: $e');
           }
         }
-        
+
         if (successfulAddresses < _direcciones.length) {
           // Show warning if not all addresses were saved
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)'),
+                content: Text(
+                  'Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -272,9 +349,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     try {
       final cloudinaryService = CloudinaryService();
       final imageBytes = await _getImageBytes();
-      return kIsWeb 
-        ? await cloudinaryService.uploadImageFromBytes(imageBytes)
-        : await cloudinaryService.uploadImage(_selectedImage!);
+      return kIsWeb
+          ? await cloudinaryService.uploadImageFromBytes(imageBytes)
+          : await cloudinaryService.uploadImage(_selectedImage!);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -286,14 +363,44 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   }
 
   Future<void> _pickImage() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galería de fotos'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _handleImageSelection(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Tomar foto'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _handleImageSelection(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleImageSelection(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 80, // Reduce image quality for faster uploads
-        maxWidth: 1200,   // Limit image dimensions
+        maxWidth: 1200, // Limit image dimensions
         maxHeight: 1200,
       );
-      
+
       if (image == null || !mounted) return;
 
       if (kIsWeb) {
@@ -303,19 +410,16 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }
         setState(() {
           _selectedImageBytes = bytes;
-          _selectedImage = null; // Clear any previous file reference
+          _selectedImage = null; // Clear any previous file
         });
       } else {
         final file = File(image.path);
-        if (!await file.exists()) {
-          throw Exception('No se pudo acceder al archivo de la imagen');
-        }
         setState(() {
           _selectedImage = file;
           _selectedImageBytes = null; // Clear any previous bytes
         });
       }
-      
+
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -327,7 +431,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al seleccionar la imagen: ${e.toString()}'),
+            content: Text('Error al procesar la imagen: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -341,7 +445,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     required String hint,
     bool isRequired = false,
     TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
+    String? errorText,
+    void Function(String)? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -350,7 +455,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         hint: hint,
         controller: controller,
         keyboardType: keyboardType,
-        errorText: validator?.call(controller.text) == null ? null : validator!(controller.text),
+        errorText: errorText,
+        onChanged: onChanged,
       ),
     );
   }
@@ -359,9 +465,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'Direcciones del Cliente',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: _titleStyle.copyWith(fontSize: 16),
         ),
         const SizedBox(height: 8),
         ..._direcciones.asMap().entries.map((entry) {
@@ -372,14 +478,16 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             child: ListTile(
               leading: const Icon(Icons.location_on, color: Color(0xFF141A2F)),
               title: Text(
-                direccion.direccionExacta,
+                direccion.dicl_direccionexacta,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: _labelStyle,
               ),
               subtitle: Text(
-                direccion.observaciones ?? 'Sin observaciones',
+                direccion.dicl_observaciones,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: _labelStyle,
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
@@ -390,7 +498,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }).toList(),
         const SizedBox(height: 8),
         CustomButton(
-          text: 'Agregar Dirección',
+          text: 'Agregar Ubicacion',
           onPressed: _agregarUbicacion,
           icon: const Icon(Icons.add_location, color: Colors.white),
         ),
@@ -399,7 +507,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
               'No se han agregado direcciones',
-              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                fontFamily: 'Satoshi',
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -408,131 +520,182 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nuevo Cliente'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Basic Information Section
-              const Text(
-                'Información Básica',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              
-              // Nombres
-              _buildTextField(
-                label: 'Nombres',
-                controller: _nombresController,
-                hint: 'Ingrese los nombres',
-                isRequired: true,
-              ),
-              
-              // Apellidos
-              _buildTextField(
-                label: 'Apellidos',
-                controller: _apellidosController,
-                hint: 'Ingrese los apellidos',
-                isRequired: true,
-              ),
-              
-              // Identidad
-              _buildTextField(
-                label: 'Identidad',
-                controller: _dniController,
-                hint: 'Ej: 0501-2009-2452',
-                isRequired: true,
-                keyboardType: TextInputType.number,
-              ),
-              
-              // Nombre del Negocio
-              _buildTextField(
-                label: 'Nombre del Negocio',
-                controller: _nombreNegocioController,
-                hint: 'Ingrese el nombre del negocio',
-                isRequired: true,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Image Picker
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Imagen del Negocio',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      height: 150,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
+      body: AppBackground(
+        title: 'Agregar Cliente',
+        icon: Icons.person_add,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Basic Information Section with Back Button
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        color: Color(0xFF141A2F),
                       ),
-                      child: _selectedImage != null || _selectedImageBytes != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: kIsWeb
-                                  ? Image.memory(
-                                      _selectedImageBytes!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.file(
-                                      _selectedImage!,
-                                      fit: BoxFit.cover,
-                                    ),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text('Toca para seleccionar una imagen')
-                              ],
-                            ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  if (_selectedImage != null || _selectedImageBytes != null) ...[  
-                    const SizedBox(height: 8),
                     Text(
-                      'Imagen seleccionada: ${kIsWeb ? 'Imagen web' : _selectedImage!.path.split('/').last}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      'Información del Cliente',
+                      style: _titleStyle.copyWith(fontSize: 18),
                     ),
                   ],
-                ],
-              ),
-              
-              // Agregar Ubicación Button
-              _buildLocationButton(),
-              
-              // Submit Button
-              const SizedBox(height: 24),
-              CustomButton(
-                text: 'Guardar Cliente',
-                onPressed: _isSubmitting ? null : _submitForm,
-              ),
-              const SizedBox(height: 16),
-            ],
+                ),
+                const SizedBox(height: 16),
+
+                // Nombres
+                _buildTextField(
+                  label: 'Nombres',
+                  controller: _nombresController,
+                  hint: 'Ingrese los nombres',
+                  isRequired: true,
+                  errorText: _nombresError,
+                  onChanged: (value) {
+                    if (_nombresError != null) {
+                      setState(() {
+                        _nombresError = null;
+                      });
+                    }
+                  },
+                ),
+
+                // Apellidos
+                _buildTextField(
+                  label: 'Apellidos',
+                  controller: _apellidosController,
+                  hint: 'Ingrese los apellidos',
+                  isRequired: true,
+                  errorText: _apellidosError,
+                  onChanged: (value) {
+                    if (_apellidosError != null) {
+                      setState(() {
+                        _apellidosError = null;
+                      });
+                    }
+                  },
+                ),
+
+                // Identidad
+                _buildTextField(
+                  label: 'Identidad',
+                  controller: _dniController,
+                  hint: 'Ej: 0501-2009-2452',
+                  isRequired: true,
+                  keyboardType: TextInputType.number,
+                  errorText: _dniError,
+                  onChanged: (value) {
+                    if (_dniError != null) {
+                      setState(() {
+                        _dniError = null;
+                      });
+                    }
+                  },
+                ),
+
+                // Nombre del Negocio
+                _buildTextField(
+                  label: 'Nombre del Negocio',
+                  controller: _nombreNegocioController,
+                  hint: 'Ingrese el nombre del negocio',
+                  isRequired: true,
+                  errorText: _nombreNegocioError,
+                  onChanged: (value) {
+                    if (_nombreNegocioError != null) {
+                      setState(() {
+                        _nombreNegocioError = null;
+                      });
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 16),
+                _buildLocationButton(),
+                const SizedBox(height: 8),
+                // Image Picker
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Imagen del Negocio',
+                      style: _titleStyle.copyWith(fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        height: 150,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child:
+                            _selectedImage != null ||
+                                _selectedImageBytes != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: kIsWeb
+                                    ? Image.memory(
+                                        _selectedImageBytes!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Image.file(
+                                        _selectedImage!,
+                                        fit: BoxFit.cover,
+                                      ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.add_a_photo,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Toca para seleccionar una imagen',
+                                    style: _hintStyle,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    if (_selectedImage != null ||
+                        _selectedImageBytes != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Imagen seleccionada: ${kIsWeb ? 'Imagen web' : _selectedImage!.path.split('/').last}',
+                        style: _hintStyle.copyWith(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 24),
+                CustomButton(
+                  text: 'Enviar Solicitud',
+                  onPressed: _isSubmitting ? null : _submitForm,
+                  height: 50,
+                  fontSize: 14,
+                  icon: const Icon(Icons.send, size: 20, color: Colors.white),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-
-
 }

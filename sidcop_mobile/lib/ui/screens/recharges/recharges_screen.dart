@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
+import 'package:flutter/services.dart';
 
 import 'dart:convert';
 
@@ -21,11 +22,16 @@ class _RechargesScreenState extends State<RechargesScreen> {
   Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
+    final personaId =
+        userData?['personaId'] ??
+        userData?['usua_IdPersona'] ??
+        userData?['idPersona'];
     if (personaId == null) {
       throw Exception('No se encontró personaId en los datos de usuario');
     }
-    return RecargasService().getRecargas(personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0);
+    return RecargasService().getRecargas(
+      personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
+    );
   }
 
   List<dynamic> permisos = [];
@@ -39,9 +45,12 @@ class _RechargesScreenState extends State<RechargesScreen> {
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
-    if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
       try {
-        final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
         permisos = jsonDecode(permisosJson);
       } catch (_) {
         permisos = [];
@@ -49,6 +58,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     }
     setState(() {});
   }
+
   void _openRecargaModal() {
     showModalBottomSheet(
       context: context,
@@ -68,6 +78,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
       title: 'Recarga',
       icon: Icons.sync,
       permisos: permisos,
+      onRefresh: () async {
+        setState(() {});
+      },
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -113,7 +126,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
-                    return Center(child: Text('Error: \\${snapshot.error}'));
                   }
                   final recargas = snapshot.data ?? [];
                   final Map<int, List<RecargasViewModel>> agrupadas = {};
@@ -122,83 +134,92 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
                     }
                   }
-                  if (agrupadas.isEmpty) {
-                    return const Center(child: Text('No hay recargas.'));
-                  }
                   final entriesList = agrupadas.entries.toList();
                   final mostrarTodas = _verTodasLasRecargas;
-                  final itemsToShow = mostrarTodas ? entriesList : entriesList.take(3).toList();
+                  final itemsToShow = mostrarTodas
+                      ? entriesList
+                      : entriesList.take(3).toList();
+
                   return Column(
-                    children: itemsToShow.map((entry) {
-                      final recaId = entry.key;
-                      final recargasGrupo = entry.value;
-                      final recarga = recargasGrupo.first;
-                      final totalCantidad = recargasGrupo.fold<int>(0, (
-                        sum,
-                        r,
-                      ) {
-                        if (r.reDe_Cantidad == null) return sum;
-                        if (r.reDe_Cantidad is int)
-                          return sum + (r.reDe_Cantidad as int);
-                        return sum +
-                            (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
-                      });
-                      return _buildHistorialCard(
-                        _mapEstadoFromApi(recarga.reca_Confirmacion),
-                        recarga.reca_Fecha != null
-                            ? _formatFechaFromApi(
-                                recarga.reca_Fecha!.toIso8601String(),
-                              )
-                            : '-',
-                        totalCantidad,
-                        recargasGrupo: recargasGrupo,
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Solicitar recarga',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 18,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-              const SizedBox(height: 15),
-              GestureDetector(
-                onTap: _openRecargaModal,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141A2F),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Abrir recarga',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                            fontFamily: 'Satoshi',
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (agrupadas.isEmpty)
+                        const Center(child: Text('No hay recargas.'))
+                      else
+                        Column(
+                          children: itemsToShow.map((entry) {
+                            final recaId = entry.key;
+                            final recargasGrupo = entry.value;
+                            final recarga = recargasGrupo.first;
+                            final totalCantidad = recargasGrupo.fold<int>(0, (
+                              sum,
+                              r,
+                            ) {
+                              if (r.reDe_Cantidad == null) return sum;
+                              if (r.reDe_Cantidad is int)
+                                return sum + (r.reDe_Cantidad as int);
+                              return sum +
+                                  (int.tryParse(r.reDe_Cantidad.toString()) ??
+                                      0);
+                            });
+                            return _buildHistorialCard(
+                              _mapEstadoFromApi(recarga.reca_Confirmacion),
+                              recarga.reca_Fecha != null
+                                  ? _formatFechaFromApi(
+                                      recarga.reca_Fecha!.toIso8601String(),
+                                    )
+                                  : '-',
+                              totalCantidad,
+                              recargasGrupo: recargasGrupo,
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Solicitar recarga',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 18,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      GestureDetector(
+                        onTap: _openRecargaModal,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF141A2F),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Abrir recarga',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 16,
+                                    fontFamily: 'Satoshi',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        SizedBox(width: 10),
-                        Icon(
-                          Icons.add_shopping_cart_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -246,16 +267,16 @@ class _RechargesScreenState extends State<RechargesScreen> {
   Widget _buildHistorialCard(
     String estado,
     String fecha,
-    int cantidadProductos,
-    {required List<RecargasViewModel> recargasGrupo}
-  ) {
+    int cantidadProductos, {
+    required List<RecargasViewModel> recargasGrupo,
+  }) {
     // Configuración de colores y gradientes según el estado
     Color primaryColor;
     Color secondaryColor;
     Color backgroundColor;
     IconData statusIcon;
     String label;
-  
+
     switch (estado) {
       case 'En proceso':
       case 'Pendiente':
@@ -296,7 +317,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
-            builder: (context) => RecargaDetalleBottomSheet(recargasGrupo: recargasGrupo),
+            builder: (context) => RecargaDetalleBottomSheet(
+              recargasGrupo: recargasGrupo,
+              onRecargaUpdated: () {
+                print('🔍 DEBUG: Callback ejecutado - refrescando lista');
+                setState(() {}); // Refresca la lista de recargas
+              },
+            ),
           );
         },
         child: Container(
@@ -326,10 +353,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white,
-                    backgroundColor.withOpacity(0.3),
-                  ],
+                  colors: [Colors.white, backgroundColor.withOpacity(0.3)],
                 ),
               ),
               child: Column(
@@ -337,7 +361,10 @@ class _RechargesScreenState extends State<RechargesScreen> {
                   // Header con gradiente de estado
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.centerLeft,
@@ -507,10 +534,19 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 }
-  // <- aquí termina correctamente el método
+// <- aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
-  const RecargaBottomSheet({super.key});
+  final List<RecargasViewModel>? recargasGrupoParaEditar;
+  final bool isEditMode;
+  final int? recaId;
+  
+  const RecargaBottomSheet({
+    super.key,
+    this.recargasGrupoParaEditar,
+    this.isEditMode = false,
+    this.recaId,
+  });
 
   @override
   State<RecargaBottomSheet> createState() => _RecargaBottomSheetState();
@@ -520,6 +556,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
   Map<int, int> _cantidades = {}; // prod_Id -> cantidad
+  Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
   String search = '';
   bool _isLoading = true;
 
@@ -529,17 +566,59 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     _fetchProductos();
   }
 
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _fetchProductos() async {
     try {
       final productos = await _productosService.getProductos();
       setState(() {
         _productos = productos;
         _isLoading = false;
+        
+        // Si estamos en modo edición, pre-llenar las cantidades
+        if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
+          _preFillEditData();
+        }
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+  
+  void _preFillEditData() {
+    if (widget.recargasGrupoParaEditar == null) return;
+    
+    for (final recarga in widget.recargasGrupoParaEditar!) {
+      if (recarga.prod_Id != null && recarga.reDe_Cantidad != null) {
+        final prodId = recarga.prod_Id!;
+        final cantidad = recarga.reDe_Cantidad is int 
+            ? recarga.reDe_Cantidad as int
+            : int.tryParse(recarga.reDe_Cantidad.toString()) ?? 0;
+        
+        if (cantidad > 0) {
+          _cantidades[prodId] = cantidad;
+          // Create controller with listener
+          final controller = TextEditingController(text: cantidad.toString());
+          controller.addListener(() {
+            final text = controller.text;
+            final value = int.tryParse(text);
+            if (value != null && value >= 0) {
+              _cantidades[prodId] = value;
+            } else if (text.isEmpty) {
+              _cantidades[prodId] = 0;
+            }
+          });
+          _controllers[prodId] = controller;
+        }
+      }
     }
   }
 
@@ -572,9 +651,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Solicitud de recarga',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  Text(
+                    widget.isEditMode ? 'Editar recarga' : 'Solicitud de recarga',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
               ),
@@ -619,53 +698,102 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   ),
                 ),
                 onPressed: () async {
-  // 1. Obtener usuario logueado
-  final perfilService = PerfilUsuarioService();
-  final userData = await perfilService.obtenerDatosUsuario();
-  if (userData == null || userData['usua_Id'] == null) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No se pudo obtener el usuario logueado.")));
-    }
-    return;
-  }
-  final int usuaId = userData['usua_Id'] is String
-      ? int.tryParse(userData['usua_Id']) ?? 0
-      : userData['usua_Id'] ?? 0;
-  if (usuaId == 0) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ID de usuario inválido.")));
-    }
-    return;
-  }
+                  // 1. Obtener usuario logueado
+                  final perfilService = PerfilUsuarioService();
+                  final userData = await perfilService.obtenerDatosUsuario();
+                  if (userData == null || userData['usua_Id'] == null) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "No se pudo obtener el usuario logueado.",
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  final int usuaId = userData['usua_Id'] is String
+                      ? int.tryParse(userData['usua_Id']) ?? 0
+                      : userData['usua_Id'] ?? 0;
+                  if (usuaId == 0) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("ID de usuario inválido."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
-  // 2. Construir detalles
-  final detalles = _cantidades.entries
-      .where((e) => e.value > 0)
-      .map((e) => {
-            "prod_Id": e.key,
-            "reDe_Cantidad": e.value,
-            "reDe_Observaciones": "N/A",
-          })
-      .toList();
-  if (detalles.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selecciona al menos un producto.")));
-    }
-    return;
-  }
+                  // 2. Construir detalles
+                  final detalles = _cantidades.entries
+                      .where((e) => e.value > 0)
+                      .map(
+                        (e) => {
+                          "prod_Id": e.key,
+                          "reDe_Cantidad": e.value,
+                          "reDe_Observaciones": "N/A",
+                        },
+                      )
+                      .toList();
+                  if (detalles.isEmpty) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Selecciona al menos un producto."),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
-  // 3. Llamar a RecargasService
-  final recargaService = RecargasService();
-  final ok = await recargaService.insertarRecarga(usuaCreacion: usuaId, detalles: detalles);
-  if (mounted) {
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Recarga enviada correctamente"), backgroundColor: Colors.green));
-      Navigator.of(context).pop(true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar la recarga"), backgroundColor: Colors.red));
-    }
-  }
-},
+                  // 3. Llamar a RecargasService
+                  final recargaService = RecargasService();
+                  bool ok;
+                  
+                  if (widget.isEditMode && widget.recaId != null) {
+                    // Modo edición - actualizar recarga existente
+                    ok = await recargaService.updateRecarga(
+                      recaId: widget.recaId!,
+                      usuaModificacion: usuaId,
+                      detalles: detalles,
+                    );
+                  } else {
+                    // Modo creación - insertar nueva recarga
+                    ok = await recargaService.insertarRecarga(
+                      usuaCreacion: usuaId,
+                      detalles: detalles,
+                    );
+                  }
+                  
+                  if (mounted) {
+                    if (ok) {
+                      print('🔍 DEBUG: Operación exitosa - isEditMode: ${widget.isEditMode}');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(widget.isEditMode 
+                              ? "Recarga actualizada correctamente" 
+                              : "Recarga enviada correctamente"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      print('🔍 DEBUG: Cerrando modal con resultado: true');
+                      Navigator.of(context).pop(true);
+                    } else {
+                      print('🔍 DEBUG: Operación fallida - isEditMode: ${widget.isEditMode}');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(widget.isEditMode 
+                              ? "Error al actualizar la recarga" 
+                              : "Error al enviar la recarga"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
                 icon: const Icon(Icons.send, color: Colors.white),
                 label: const Text(
                   'Solicitar',
@@ -683,6 +811,34 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
+    // Inicializa el controlador si no existe
+    if (!_controllers.containsKey(producto.prod_Id)) {
+      final controller = TextEditingController(
+        text: cantidad > 0 ? cantidad.toString() : '',
+      );
+      controller.addListener(() {
+        final text = controller.text;
+        final value = int.tryParse(text);
+        if (value != null && value >= 0) {
+          setState(() {
+            _cantidades[producto.prod_Id] = value;
+          });
+        } else if (text.isEmpty) {
+          setState(() {
+            _cantidades[producto.prod_Id] = 0;
+          });
+        }
+      });
+      _controllers[producto.prod_Id] = controller;
+    } else {
+      // Si la cantidad cambia por botones, actualiza el texto
+      final currentText = _controllers[producto.prod_Id]!.text;
+      final expectedText = cantidad > 0 ? cantidad.toString() : '';
+      if (currentText != expectedText) {
+        _controllers[producto.prod_Id]!.text = expectedText;
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
@@ -691,13 +847,16 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
+              child:
+                  producto.prod_Imagen != null &&
+                      producto.prod_Imagen!.isNotEmpty
                   ? Image.network(
                       producto.prod_Imagen!,
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, size: 48),
                     )
                   : const Icon(Icons.image, size: 48),
             ),
@@ -709,26 +868,48 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
               ),
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: cantidad > 0
                       ? () {
+                          final newValue = cantidad - 1;
+                          _controllers[producto.prod_Id]?.text = newValue > 0
+                              ? newValue.toString()
+                              : '';
                           setState(() {
-                            _cantidades[producto.prod_Id] = cantidad - 1;
+                            _cantidades[producto.prod_Id] = newValue > 0
+                                ? newValue
+                                : 0;
                           });
                         }
                       : null,
                 ),
-                Text(
-                  '$cantidad',
-                  style: const TextStyle(fontSize: 16),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    controller: _controllers[producto.prod_Id],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 8,
+                      ),
+                    ),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
+                    final newValue = cantidad + 1;
+                    _controllers[producto.prod_Id]?.text = newValue.toString();
                     setState(() {
-                      _cantidades[producto.prod_Id] = cantidad + 1;
+                      _cantidades[producto.prod_Id] = newValue;
                     });
                   },
                 ),

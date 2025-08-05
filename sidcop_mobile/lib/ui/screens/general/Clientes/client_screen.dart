@@ -17,7 +17,7 @@ class clientScreen extends StatefulWidget {
 
 class _clientScreenState extends State<clientScreen> {
   List<dynamic> permisos = [];
-  late Future<List<dynamic>> clientesList;
+  late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
@@ -35,31 +35,40 @@ class _clientScreenState extends State<clientScreen> {
   int? _selectedColo;
 
   @override
+  @override
   void initState() {
     super.initState();
-    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
-    _clienteService.getDireccionesPorCliente().then((direcciones) {
-      setState(() {
-        _direccionesPorCliente = direcciones;
-      });
-      clientesList.then((clientes) {
-        setState(() {
-          filteredClientes = clientes;
-        });
-      });
+    _loadAllClientData();
+  }
+
+  Future<void> _loadAllClientData() async {
+    // Cargar direcciones por cliente
+    final direcciones = await _clienteService.getDireccionesPorCliente();
+    setState(() {
+      _direccionesPorCliente = direcciones;
     });
 
-    clientesList = ClientesService().getClientes();
-    // Cargar TODOS los datos de ubicación al inicializar
-    _loadAllLocationData();
+    // Cargar clientes
+    final clientes = await ClientesService().getClientes();
+    setState(() {
+      filteredClientes = clientes;
+      clientesList = Future.value(clientes); // Actualiza el FutureBuilder
+    });
+    // Asegurarse que filteredClientes siempre tenga datos frescos si no hay filtro
+    if (_searchController.text.isEmpty && _selectedDepa == null && _selectedMuni == null && _selectedColo == null) {
+      setState(() {
+        filteredClientes = clientes;
+      });
+    }
 
     // Cargar cuentas por cobrar
-    _clienteService.getCuentasPorCobrar().then((cuentas) {
-      setState(() {
-        print('Cuentas por cobrarrr: ${cuentas}');
-        _cuentasPorCobrar = cuentas;
-      });
+    final cuentas = await _clienteService.getCuentasPorCobrar();
+    setState(() {
+      _cuentasPorCobrar = cuentas;
     });
+
+    // Cargar datos de ubicación
+    await _loadAllLocationData();
   }
 
   @override
@@ -80,11 +89,7 @@ class _clientScreenState extends State<clientScreen> {
     print('Depa seleccionado: ${_selectedDepa}');
     print('Muni seleccionado: ${_selectedMuni}');
     print('Colo seleccionado: ${_selectedColo}');
-
-    // Verificar datos cargados
-    print(
-      'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',
-    );
+    //print( 'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',);
 
     // Si hay municipio seleccionado, mostrar colonias de ese municipio
     if (_selectedMuni != null) {
@@ -98,6 +103,20 @@ class _clientScreenState extends State<clientScreen> {
         print('Ejemplo de colonia: ${coloniasDelMunicipio.first}');
       }
     }
+
+    //  Future<void> _loadPermisos() async {
+    //     final perfilService = PerfilUsuarioService();
+    //     final userData = await perfilService.obtenerDatosUsuario();
+    //     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    //       try {
+    //         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+    //         permisos = jsonDecode(permisosJson);
+    //       } catch (_) {
+    //         permisos = [];
+    //       }
+    //     }
+    //     setState(() {});
+    //   }
 
     final searchLower = query.toLowerCase();
 
@@ -298,40 +317,76 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   // Método para construir la barra de búsqueda
+
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 45, // Altura del TextField
+              child: TextField(
+                controller: _searchController,
+                onChanged: _filterClientes,
+                decoration: InputDecoration(
+                  hintText: 'Filtrar por nombre...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12, // Padding vertical reducido
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterClientes('');
+                          },
+                        )
+                      : null,
+                ),
+              ),
             ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _filterClientes,
-          decoration: InputDecoration(
-            hintText: 'Filtrar por nombre...',
-            prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
-                    onPressed: () {
-                      _searchController.clear();
-                      _filterClientes('');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
           ),
-        ),
+          const SizedBox(width: 12),
+          Container(
+            height: 48, // Misma altura que el TextField
+            width: 48, // Hacer el botón cuadrado
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                24,
+              ), // Completamente redondeado
+              border: Border.all(width: 1),
+            ),
+            child: IconButton(
+              onPressed: _showLocationFilters,
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
+              tooltip: 'Filtrar',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -347,7 +402,7 @@ class _clientScreenState extends State<clientScreen> {
     final int resultCount = filteredClientes.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
           // Contador de resultados
@@ -356,20 +411,20 @@ class _clientScreenState extends State<clientScreen> {
             style: const TextStyle(color: Colors.grey),
           ),
           const Spacer(),
-          const SizedBox(width: 8),
-          // Botón de filtrar
-          ElevatedButton.icon(
-            onPressed: _showLocationFilters,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+          // Mostrar botón "Limpiar filtros" si hay filtros activos
+          if (hasAnyFilter)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _selectedDepa = null;
+                  _selectedMuni = null;
+                  _selectedColo = null;
+                });
+                _applyAllFilters('');
+              },
+              child: const Text('Limpiar filtros'),
             ),
-          ),
         ],
       ),
     );
@@ -457,7 +512,7 @@ class _clientScreenState extends State<clientScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 10),
+                                      const SizedBox(height: 8),
                                       Text(
                                         '${cliente['clie_NombreNegocio'] ?? ''}',
                                         style: const TextStyle(
@@ -467,7 +522,7 @@ class _clientScreenState extends State<clientScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
                                         cliente['clie_Nombres'] +
                                                 ' ' +
@@ -475,6 +530,15 @@ class _clientScreenState extends State<clientScreen> {
                                             'Sin dirección',
                                         style: const TextStyle(
                                           fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        cliente['clie_Telefono'] ??
+                                            'Sin teléfono',
+                                        style: const TextStyle(
+                                          fontSize: 11,
                                           color: Colors.grey,
                                         ),
                                       ),
@@ -499,14 +563,15 @@ class _clientScreenState extends State<clientScreen> {
                                         ),
                                       ),
                                       onPressed: () async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClientdetailsScreen(
-        clienteId: cliente['clie_Id'],
-      ),
-    ),
-  );
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ClientdetailsScreen(
+                                                  clienteId: cliente['clie_Id'],
+                                                ),
+                                          ),
+                                        );
                                       },
                                       child: const Text(
                                         'Detalles',
@@ -532,7 +597,16 @@ class _clientScreenState extends State<clientScreen> {
                                     cliente['clie_Id'],
                                     cliente['clie_LimiteCredito'],
                                   );
-                                  final isZero = amount == 0;
+                                  final badgeColor = _getBadgeColor(
+                                    cliente['clie_Id'],
+                                    amount: amount,
+                                  );
+                                  final isRed = badgeColor == Colors.red;
+
+                                  // -  Para cuentas rojas (vencidas), mostrar el monto incluso si es 0 o negativo
+                                  // Para otras, solo mostrar "Sin crédito" si es 0 Y no es roja
+                                  final shouldShowSinCredito =
+                                      amount == 0 && !isRed;
 
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
@@ -540,10 +614,7 @@ class _clientScreenState extends State<clientScreen> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _getBadgeColor(
-                                        cliente['clie_Id'],
-                                        amount: amount,
-                                      ),
+                                      color: badgeColor,
                                       borderRadius: const BorderRadius.only(
                                         topRight: Radius.circular(16),
                                         bottomLeft: Radius.circular(16),
@@ -552,8 +623,10 @@ class _clientScreenState extends State<clientScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      isZero
+                                      shouldShowSinCredito
                                           ? 'Sin crédito'
+                                          : isRed
+                                          ? ' L. ${amount.toStringAsFixed(2)}'
                                           : 'L. ${amount.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -582,10 +655,20 @@ class _clientScreenState extends State<clientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //drawer: CustomDrawer(permisos: permisos),
       backgroundColor: Colors.transparent,
       body: AppBackground(
         title: 'Clientes',
         icon: Icons.people,
+        onRefresh: () async {
+          // Limpiar filtros antes de recargar
+          _searchController.clear();
+          _selectedDepa = null;
+          _selectedMuni = null;
+          _selectedColo = null;
+          await _loadAllClientData();
+          if (mounted) setState(() {}); // Forzar rebuild tras refresh
+        },
         child: Column(
           children: [
             _buildSearchBar(),
@@ -621,90 +704,120 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
+  // -  MÉTODO CORREGIDO - Evalúa vencimiento ANTES que monto cero
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    print('DEBUG _getBadgeColor: clienteId=$clienteId, amount=$amount');
     if (clienteId == null) return Colors.grey;
 
-    // Si el monto es 0, mostrar gris (sin crédito)
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar
+        .where(
+          (cuenta) =>
+              cuenta['clie_Id'] == clienteId &&
+              cuenta['cpCo_Anulado'] == false &&
+              cuenta['cpCo_Saldada'] == false,
+        )
+        .toList();
+
+    // -  EVALUAR VENCIMIENTO PRIMERO (antes de verificar si tiene cuentas)
+    if (cuentasCliente.isNotEmpty) {
+      final now = DateTime.now();
+      bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+        print(
+          'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
+        );
+        if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+
+        final fechaVencimiento = DateTime.tryParse(
+          cuenta['cpCo_FechaVencimiento'].toString(),
+        );
+        if (fechaVencimiento == null) return false;
+
+        return fechaVencimiento.isBefore(now);
+      });
+
+      // -  PRIORIDAD MÁXIMA: Rojo si tiene cuenta vencida (sin importar el monto)
+      if (tieneCuentaVencida) {
+        print('DEBUG _getBadgeColor: CUENTA VENCIDA -> ROJO (monto: $amount)');
+        return Colors.red;
+      }
+
+      // Si tiene cuentas activas pero no vencidas -> NARANJA
+      print('DEBUG _getBadgeColor: Cuenta activa no vencida -> NARANJA');
+      return Colors.orange;
+    }
+
+    // Si no tiene cuentas por cobrar
     if (amount != null && amount == 0) {
+      print('DEBUG _getBadgeColor: Sin cuentas y sin crédito -> GRIS');
       return Colors.grey;
     }
 
-    // Buscar cuentas por cobrar del cliente
-    final cuentasCliente = _cuentasPorCobrar
-        .where(
-          (cuenta) =>
-              cuenta['clie_Id'] == clienteId &&
-              cuenta['cpCo_Anulado'] == false &&
-              cuenta['cpCo_Saldada'] == false,
-        )
-        .toList();
-
-    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
-    if (cuentasCliente.isEmpty) {
-      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
-      return Colors.green;
-    }
-
-    // Verificar si tiene alguna cuenta vencida
-    final now = DateTime.now();
-    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print(
-        'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
-      );
-      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
-
-      final fechaVencimiento = DateTime.tryParse(
-        cuenta['cpCo_FechaVencimiento'].toString(),
-      );
-      if (fechaVencimiento == null) return false;
-
-      return fechaVencimiento.isBefore(now);
-    });
-
-    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
-    print(
-      'DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color',
-    );
-    return color;
+    // Si tiene límite de crédito disponible -> VERDE
+    print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
+    return Colors.green;
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
-    if (clienteId == null) return 0;
+  if (clienteId == null) return 0;
 
-    // Buscar cuentas por cobrar del cliente
-    final cuentasCliente = _cuentasPorCobrar
-        .where(
-          (cuenta) =>
-              cuenta['clie_Id'] == clienteId &&
-              cuenta['cpCo_Anulado'] == false &&
-              cuenta['cpCo_Saldada'] == false,
-        )
-        .toList();
+  final limiteCredito_double =
+      double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
-    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
-    if (cuentasCliente.isEmpty) {
-      return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
-    }
+  // Buscar cuentas por cobrar del cliente
+  final cuentasCliente = _cuentasPorCobrar
+      .where(
+        (cuenta) =>
+            cuenta['clie_Id'] == clienteId &&
+            cuenta['cpCo_Anulado'] == false &&
+            cuenta['cpCo_Saldada'] == false,
+      )
+      .toList();
 
-    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
-    cuentasCliente.sort((a, b) {
-      final fechaA =
-          DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
-          DateTime(1970);
-      final fechaB =
-          DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
-          DateTime(1970);
-      return fechaB.compareTo(fechaA);
-    });
-    final saldoReciente =
-        double.tryParse(
-          cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
-        ) ??
-        0;
+  // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+  if (cuentasCliente.isEmpty) {
+    return limiteCredito_double;
+  }
+
+  // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
+  cuentasCliente.sort((a, b) {
+    final fechaA =
+        DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
+        DateTime(1970);
+    final fechaB =
+        DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
+        DateTime(1970);
+    return fechaB.compareTo(fechaA);
+  });
+
+  final saldoReciente =
+      double.tryParse(
+        cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
+      ) ??
+      0;
+
+  // VERIFICAR SI TIENE CUENTA VENCIDA
+  final now = DateTime.now();
+  bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+    if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+    final fechaVencimiento = DateTime.tryParse(
+      cuenta['cpCo_FechaVencimiento'].toString(),
+    );
+    if (fechaVencimiento == null) return false;
+    return fechaVencimiento.isBefore(now);
+  });
+
+  // Si tiene cuenta vencida, mostrar el saldo actual (cpCo_Saldo)
+  if (tieneCuentaVencida) {
+    print(
+      'DEBUG _getBadgeAmount: CUENTA VENCIDA - Mostrando saldo actual: $saldoReciente',
+    );
     return saldoReciente;
   }
+
+  // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
+  return saldoReciente;
+}
 
   // --- Ubicaciones networking y UI ---
   Future<void> _loadAllLocationData() async {

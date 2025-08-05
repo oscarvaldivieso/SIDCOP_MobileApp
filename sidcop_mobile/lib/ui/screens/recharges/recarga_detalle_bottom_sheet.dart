@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/RecargasViewModel.dart';
+import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 
 class RecargaDetalleBottomSheet extends StatelessWidget {
   // Sistema de colores modernizado
@@ -54,8 +55,35 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
   }
 
   final List<RecargasViewModel> recargasGrupo;
+  final VoidCallback? onRecargaUpdated;
 
-  const RecargaDetalleBottomSheet({Key? key, required this.recargasGrupo}) : super(key: key);
+  const RecargaDetalleBottomSheet({Key? key, required this.recargasGrupo, this.onRecargaUpdated}) : super(key: key);
+
+  void _openEditRecargaModal(BuildContext context, List<RecargasViewModel> recargasGrupo) {
+    final recaId = recargasGrupo.isNotEmpty ? recargasGrupo.first.reca_Id : null;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RecargaBottomSheet(
+        recargasGrupoParaEditar: recargasGrupo,
+        isEditMode: true,
+        recaId: recaId,
+      ),
+    ).then((result) {
+      // Si la edición fue exitosa, ejecutar callback y cerrar modal
+      print('🔍 DEBUG: Modal de detalles recibió resultado: $result');
+      if (result == true) {
+        print('🔍 DEBUG: Ejecutando callback de actualización');
+        // Ejecutar callback para refrescar la lista principal
+        if (onRecargaUpdated != null) {
+          onRecargaUpdated!();
+        }
+        // Cerrar el modal de detalles
+        Navigator.of(context).pop();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +258,43 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                   },
                 ),
               ),
+              
+              // Botón de editar para solicitudes pendientes
+              if (recarga.reca_Confirmacion == 'P')
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context); // Cerrar el detalle
+                        _openEditRecargaModal(context, recargasGrupo);
+                      },
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Editar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE0C7A0),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               
               const SizedBox(height: 24),
             ],
