@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/RecargasService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -15,6 +16,7 @@ class ProductScreen extends StatefulWidget {
 
 class _ProductScreenState extends State<ProductScreen> {
   final ProductosService _productosService = ProductosService();
+  final ProductPreloadService _preloadService = ProductPreloadService();
   final TextEditingController _searchController = TextEditingController();
 
   List<Productos> _allProducts = [];
@@ -66,10 +68,25 @@ class _ProductScreenState extends State<ProductScreen> {
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
     try {
-      _allProducts = await _productosService.getProductos();
+      // Usar el servicio de precarga en lugar de ProductosService directamente
+      _allProducts = await _preloadService.getPreloadedProducts();
       _filteredProducts = List.from(_allProducts);
+      
+      // Si no hay productos precargados o la lista está vacía, intentar cargar directamente
+      if (_allProducts.isEmpty) {
+        debugPrint('No hay productos precargados, intentando cargar directamente');
+        _allProducts = await _productosService.getProductos();
+        _filteredProducts = List.from(_allProducts);
+      }
     } catch (e) {
       debugPrint('Error cargando productos: $e');
+      // Intentar fallback al método tradicional si falla la precarga
+      try {
+        _allProducts = await _productosService.getProductos();
+        _filteredProducts = List.from(_allProducts);
+      } catch (fallbackError) {
+        debugPrint('Error en fallback de carga de productos: $fallbackError');
+      }
     } finally {
       setState(() => _isLoading = false);
     }
