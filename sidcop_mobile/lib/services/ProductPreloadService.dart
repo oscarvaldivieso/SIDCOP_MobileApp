@@ -6,12 +6,15 @@ import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/CacheService.dart';
 import 'package:sidcop_mobile/services/NavigationService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/services/ProductImageCacheService.dart';
 
 /// Servicio para precargar productos e imágenes en segundo plano
 class ProductPreloadService {
   static final ProductPreloadService _instance = ProductPreloadService._internal();
   factory ProductPreloadService() => _instance;
   ProductPreloadService._internal();
+
+  final ProductImageCacheService _imageCacheService = ProductImageCacheService();
 
   bool _isPreloading = false;
   bool _isPreloaded = false;
@@ -46,8 +49,8 @@ class ProductPreloadService {
       
       developer.log('ProductPreloadService: ${products.length} productos cargados');
       
-      // Paso 2: Precargar imágenes en segundo plano
-      _preloadImages(products);
+      // Paso 2: Precargar imágenes usando ProductImageCacheService
+      await _preloadImagesWithCache(products);
       
       _isPreloaded = true;
       _lastPreloadTime = DateTime.now();
@@ -125,44 +128,57 @@ class ProductPreloadService {
     };
   }
 
-  /// Precarga imágenes de productos en segundo plano
-  void _preloadImages(List<Productos> products) async {
-    _loadedImages = 0;
-    
-    // Procesar en lotes de 10 para no sobrecargar
-    final batchSize = 10;
-    
-    for (int i = 0; i < products.length; i += batchSize) {
-      final end = (i + batchSize < products.length) ? i + batchSize : products.length;
-      final batch = products.sublist(i, end);
+  /// Precarga imágenes de productos usando ProductImageCacheService
+  Future<void> _preloadImagesWithCache(List<Productos> products) async {
+    try {
+      developer.log('🖼️ ProductPreloadService: Iniciando precarga de imágenes con caché avanzado');
       
-      await Future.wait(
-        batch.map((product) async {
-          if (product.prod_Imagen != null && product.prod_Imagen!.isNotEmpty) {
-            try {
-              // Intentar precargar la imagen usando NavigationService si está disponible
-              final context = NavigationService.navigatorKey.currentContext;
-              if (context != null) {
-                await precacheImage(
-                  CachedNetworkImageProvider(product.prod_Imagen!),
-                  context,
-                );
-              } else {
-                // Fallback si no hay contexto disponible
-                await CachedNetworkImageProvider(product.prod_Imagen!).resolve(ImageConfiguration());
-              }
-              _loadedImages++;
-            } catch (e) {
-              developer.log('Error precargando imagen para ${product.prod_Descripcion}: $e');
-            }
-          }
-        }).toList(),
-      );
+      // Usar ProductImageCacheService para caché optimizado
+      final success = await _imageCacheService.cacheAllProductImages(products);
       
-      // Pequeña pausa entre lotes para no bloquear la UI
-      await Future.delayed(Duration(milliseconds: 100));
+      if (success) {
+        _loadedImages = _imageCacheService.cachedImages;
+        developer.log('✅ ProductPreloadService: ${_loadedImages} imágenes precargadas exitosamente');
+      } else {
+        developer.log('⚠️ ProductPreloadService: Precarga de imágenes completada con algunos errores');
+        _loadedImages = _imageCacheService.cachedImages;
+      }
+      
+    } catch (e) {
+      developer.log('❌ ProductPreloadService: Error en precarga de imágenes: $e');
+      _loadedImages = 0;
     }
-    
-    developer.log('ProductPreloadService: $_loadedImages imágenes precargadas de $_totalProducts productos');
+  }
+
+  /// Obtiene widget de imagen con caché para un producto
+  Widget getCachedProductImage({
+    required String? imageUrl,
+    required String productId,
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+    Widget? placeholder,
+    Widget? errorWidget,
+  }) {
+    return _imageCacheService.getCachedProductImage(
+      imageUrl: imageUrl,
+      productId: productId,
+      width: width,
+      height: height,
+      fit: fit,
+      placeholder: placeholder,
+      errorWidget: errorWidget,
+    );
+  }
+
+  /// Verifica si una imagen está en caché
+  Future<bool> isImageCached(String imageUrl, String productId) async {
+    return await _imageCacheService.isImageCached(imageUrl, productId);
+  }
+
+  /// Limpia el caché de imágenes
+  Future<void> clearImageCache() async {
+    await _imageCacheService.clearImageCache();
+    _loadedImages = 0;
   }
 }

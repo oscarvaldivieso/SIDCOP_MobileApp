@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/RecargasService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
+import 'package:sidcop_mobile/widgets/CachedProductImageWidget.dart';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -592,20 +593,13 @@ class _ProductScreenState extends State<ProductScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              ClipRRect(
+              CachedProductImageWidget(
+                product: product,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
                 borderRadius: BorderRadius.circular(8.0),
-                child: Image.network(
-                  product.prod_Imagen ?? '',
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.image, color: Colors.grey),
-                  ),
-                ),
+                showPlaceholder: true,
               ),
               const SizedBox(width: 16),
               Expanded(
