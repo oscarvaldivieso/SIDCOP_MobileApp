@@ -690,16 +690,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       label: const Text('Ver ruta'),
                                       onPressed: () {
                                         Navigator.of(context).pop();
-                                        final destino = _direccionesFiltradas
-                                            .where(
-                                              (d) =>
-                                                  d.clie_id ==
-                                                  (cliente?.clie_Id),
-                                            )
-                                            .toList();
-                                        if (_userLocation != null &&
-                                            destino.isNotEmpty) {
-                                          _mostrarRutaACliente(destino.first);
+                                        final paradaLatLng = parada['latlng'];
+                                        final idxDireccion = _direccionesFiltradas.indexWhere(
+                                          (d) => d.dicl_latitud == paradaLatLng.latitude && d.dicl_longitud == paradaLatLng.longitude,
+                                        );
+                                        if (_userLocation != null && idxDireccion != -1) {
+                                          final destino = _direccionesFiltradas[idxDireccion];
+                                          _mostrarRutaACliente(destino);
                                         }
                                       },
                                     ),
