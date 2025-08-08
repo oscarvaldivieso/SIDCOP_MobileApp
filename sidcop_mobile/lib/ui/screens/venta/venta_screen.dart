@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/ui/widgets/drawer.dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
+import 'package:sidcop_mobile/utils/invoice_utils.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
@@ -208,40 +210,71 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _procesarVenta() async {
-    try {
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
-            ],
-          ),
+    // Mostrar indicador de carga
+    final loadingContext = Navigator.of(context, rootNavigator: true).overlay!.context;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
+          ],
         ),
-      );
+      ),
+    );
 
-      // Preparar datos de la venta
-      _ventaModel.factNumero = DateTime.now().millisecondsSinceEpoch.toString();
+    try {
+      print('Iniciando procesamiento de venta...');
+      
+      // Obtener el último número de factura (deberías obtenerlo de tu base de datos o API)
+      // Por ahora, usaremos un valor por defecto
+      final lastInvoiceNumber = "F001-000003408"; // Esto debería venir de tu base de datos
+      
+      // Generar el nuevo número de factura
+      final newInvoiceNumber = InvoiceUtils.getNextInvoiceNumber(lastInvoiceNumber);
+      print('Nuevo número de factura generado: $newInvoiceNumber');
+      
+      // Asignar el número de factura al modelo
+      _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
+      _ventaModel.regCId = 19;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factFechaLimiteEmision = DateTime.now().add(const Duration(days: 30));
+      _ventaModel.factRangoInicialAutorizado = "F001-00000001";
+      _ventaModel.factRangoFinalAutorizado = "F001-00099999";
       _ventaModel.factReferencia = "Venta desde app móvil";
+      _ventaModel.factLatitud = 14.072245;
+      _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
       // TODO: Estos valores deberían venir de la sesión del usuario y selección de cliente
       _ventaModel.clieId = 111; // Temporal - debe venir de la selección de cliente
-      _ventaModel.vendId = 1; // Temporal - debe venir de la sesión del usuario
+      _ventaModel.vendId = 12; // Temporal - debe venir de la sesión del usuario
       _ventaModel.usuaCreacion = 1; // Temporal - debe venir de la sesión del usuario
       
+      // Validar el modelo antes de enviar
+      print('Validando modelo de venta...');
+      print('Cliente ID: ${_ventaModel.clieId}');
+      print('Vendedor ID: ${_ventaModel.vendId}');
+      print('Productos: ${_ventaModel.detallesFacturaInput.length}');
+      print('Detalles de productos:');
+      for (var detalle in _ventaModel.detallesFacturaInput) {
+        print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
+      }
+      
       // Enviar venta al backend
+      print('Enviando datos al servidor...');
       final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
       
       // Cerrar indicador de carga
-      Navigator.pop(context);
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      print('Respuesta del servidor: $resultado');
       
       if (resultado?['success'] == true) {
         // Venta exitosa
@@ -272,26 +305,74 @@ class _VentaScreenState extends State<VentaScreen> {
         );
       } else {
         // Error en la venta
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Error en la Venta", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-            content: Text(
-              "No se pudo procesar la venta:\n\n${resultado?['message'] ?? 'Error desconocido'}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              TextButton(
-                child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+      String errorMessage = 'Error desconocido';
+      if (resultado != null) {
+        errorMessage = resultado['message'] ?? 
+                     resultado['details'] ?? 
+                     'Error al procesar la venta (${resultado['statusCode'] ?? 'sin código'})';
       }
-    } catch (e) {
+      
+      print('Error al procesar venta: $errorMessage');
+      
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Error en la Venta", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("No se pudo procesar la venta:", style: TextStyle(fontFamily: 'Satoshi')),
+                const SizedBox(height: 10),
+                Text(
+                  errorMessage,
+                  style: const TextStyle(fontFamily: 'Satoshi', color: Colors.red),
+                ),
+                const SizedBox(height: 10),
+                if (resultado?['details'] != null)
+                  Text(
+                    'Detalles: ${resultado!['details']}',
+                    style: const TextStyle(fontFamily: 'Satoshi', fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+      }
+    } catch (e, stackTrace) {
+      print('Excepción al procesar venta: $e');
+      print('Stack trace: $stackTrace');
+      
       // Cerrar indicador de carga si está abierto
-      Navigator.pop(context);
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      // Mostrar error al usuario
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Error", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
+          content: Text(
+            'Error al procesar la venta: ${e.toString()}',
+            style: const TextStyle(fontFamily: 'Satoshi'),
+          ),
+          actions: [
+            TextButton(
+              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
       
       // Mostrar error
       showDialog(
@@ -889,38 +970,40 @@ class _VentaScreenState extends State<VentaScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Badge de seleccionado
+                      // Botón de deseleccionar cuando está seleccionado
                       if (isSelected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF98774A).withOpacity(0.8),
-                                const Color(0xFFD6B68A).withOpacity(0.8),
+                        GestureDetector(
+                          onTap: () => _updateProductQuantity(product.prod_Id, 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFE74C3C).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Color(0xFFE74C3C),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Quitar',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 12,
+                                    color: const Color(0xFFE74C3C),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check_circle,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Seleccionado',
-                                style: const TextStyle(
-                                  fontFamily: 'Satoshi',
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
                           ),
                         )
                       else
@@ -955,23 +1038,70 @@ class _VentaScreenState extends State<VentaScreen> {
                                 padding: EdgeInsets.zero,
                               ),
                             ),
-                            Container(
-                              width: 50,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isSelected 
-                                    ? const Color(0xFFD6B68A).withOpacity(0.2)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  currentQuantity.toInt().toString(),
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                            InkWell(
+                              onTap: () async {
+                                final TextEditingController controller = TextEditingController(
+                                  text: currentQuantity.toInt().toString(),
+                                );
+                                
+                                final result = await showDialog<double>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    content: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Ingrese la cantidad',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (_) {
+                                        final value = double.tryParse(controller.text) ?? 0;
+                                        Navigator.of(context).pop(value);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final value = double.tryParse(controller.text) ?? 0;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF98774A),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (result != null && result >= 0) {
+                                  _updateProductQuantity(product.prod_Id, result);
+                                }
+                              },
+                              child: Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? const Color(0xFFD6B68A).withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    currentQuantity.toInt().toString(),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                    ),
                                   ),
                                 ),
                               ),

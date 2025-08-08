@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
@@ -15,80 +15,126 @@ class VentaService {
     VentaInsertarViewModel venta,
   ) async {
     final url = Uri.parse('$_apiServer/Facturas/Insertar');
-
-    developer.log('Insertar Factura Request URL: $url');
+    
+    print(' [VentaService] Iniciando inserción de factura');
+    print(' [VentaService] URL: $url');
+    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
 
     try {
       // Convertir el modelo a JSON
+      print(' [VentaService] Convirtiendo modelo a JSON...');
       final body = venta.toJson();
+      final bodyJson = jsonEncode(body);
       
-      developer.log('Insertar Factura Request Body: ${jsonEncode(body)}');
+      print(' [VentaService] Enviando solicitud POST...');
+      print(' [VentaService] Cuerpo de la solicitud:');
+      print(bodyJson);
 
+      final stopwatch = Stopwatch()..start();
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': _apiKey,
         },
-        body: jsonEncode(body),
-      );
+        body: bodyJson,
+      ).timeout(const Duration(seconds: 30));
+      
+      stopwatch.stop();
+      print(' [VentaService] Respuesta recibida en ${stopwatch.elapsedMilliseconds}ms');
+      print(' [VentaService] Código de estado: ${response.statusCode}');
+      print(' [VentaService] Cuerpo de la respuesta:');
+      print(response.body);
 
-      developer.log('Insertar Factura Response Status: ${response.statusCode}');
-      developer.log('Insertar Factura Response Body: ${response.body}');
+      // Procesar la respuesta
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+      } catch (e) {
+        print(' [VentaService] Error al decodificar la respuesta JSON: $e');
+        throw Exception('Respuesta del servidor no es un JSON válido');
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        print(' [VentaService] Factura insertada exitosamente');
         return {
           'success': true,
           'data': responseData['data'] ?? responseData,
           'message': 'Factura insertada exitosamente',
+          'statusCode': response.statusCode,
         };
       } else {
-        developer.log('Error al insertar factura: ${response.statusCode}');
+        final errorMsg = responseData['message'] ?? 'Error desconocido';
+        print(' [VentaService] Error al insertar factura (${response.statusCode}): $errorMsg');
         return {
           'success': false,
           'error': true,
-          'message': 'Error al insertar factura: ${response.statusCode}',
+          'message': errorMsg,
           'details': response.body,
           'statusCode': response.statusCode,
         };
       }
-    } catch (e) {
-      developer.log('Insertar Factura Error: $e');
+    } on http.ClientException catch (e) {
+      print(' [VentaService] Error de conexión: ${e.message}');
       return {
         'success': false,
         'error': true,
-        'message': 'Error de conexión: $e',
+        'message': 'Error de conexión: ${e.message}',
         'exception': e.toString(),
+      };
+    } on TimeoutException catch (e) {
+      print(' [VentaService] Tiempo de espera agotado: $e');
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Tiempo de espera agotado. Por favor, intente nuevamente.',
+        'exception': e.toString(),
+      };
+    } catch (e, stackTrace) {
+      print(' [VentaService] Error inesperado: $e');
+      print(' [VentaService] Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Error inesperado: $e',
+        'exception': e.toString(),
+        'stackTrace': stackTrace.toString(),
       };
     }
   }
 
   /// Método auxiliar para validar los datos de la venta antes de enviar
   bool validarVenta(VentaInsertarViewModel venta) {
+    print(' [VentaService] Validando datos de la venta...');
+    
     // Validaciones básicas
     if (venta.clieId <= 0) {
-      developer.log('Error: Cliente ID no válido');
+      print(' [VentaService] Validación fallida: Cliente ID no válido (${venta.clieId})');
       return false;
     }
     
     if (venta.vendId <= 0) {
-      developer.log('Error: Vendedor ID no válido');
+      print(' [VentaService] Validación fallida: Vendedor ID no válido (${venta.vendId})');
       return false;
     }
     
     if (venta.detallesFacturaInput.isEmpty) {
-      developer.log('Error: No hay productos en la factura');
+      print(' [VentaService] Validación fallida: No hay productos en la factura');
       return false;
     }
     
     // Validar que todos los productos tengan cantidad mayor a 0
     for (var detalle in venta.detallesFacturaInput) {
       if (detalle.faDeCantidad <= 0) {
-        developer.log('Error: Producto con cantidad inválida: ${detalle.prodId}');
+        print(' [VentaService] Validación fallida: Producto ${detalle.prodId} tiene cantidad inválida (${detalle.faDeCantidad})');
         return false;
       }
     }
+    
+    print(' [VentaService] Validación de datos exitosa');
+    print('   - Cliente ID: ${venta.clieId}');
+    print('   - Vendedor ID: ${venta.vendId}');
+    print('   - Productos: ${venta.detallesFacturaInput.length}');
     
     return true;
   }
