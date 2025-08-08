@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/services/DevolucionesService.dart';
-import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:intl/intl.dart' as intl;
-import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
+import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class DevolucioneslistScreen extends StatefulWidget {
   const DevolucioneslistScreen({super.key});
@@ -170,85 +171,76 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                         elevation: 2,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12.0),
+                          side: BorderSide(
+                            color: Colors.grey.shade200,
+                            width: 1,
+                          ),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 12.0,
-                          ),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8.0),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE0C7A0).withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.assignment_return,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ),
-                          title: Text(
-                            devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                'Motivo: ${devolucion.devoMotivo}',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Fecha: ${_formatDate(devolucion.devoFecha)}',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ],
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                              vertical: 4.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: devolucion.devoEstado
-                                  ? Colors.green.withOpacity(0.2)
-                                  : Colors.red.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12.0),
+                          onTap: () {
+                            _showDevolucionDetails(context, devolucion);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  devolucion.devoEstado
-                                      ? Icons.check_circle
-                                      : Icons.cancel,
-                                  color: devolucion.devoEstado
-                                      ? Colors.green
-                                      : Colors.red,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  devolucion.devoEstado ? 'Activo' : 'Inactivo',
-                                  style: TextStyle(
-                                    color: devolucion.devoEstado
-                                        ? Colors.green
-                                        : Colors.red,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
+                                Container(
+                                  padding: const EdgeInsets.all(10.0),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE0C7A0).withOpacity(0.1),
+                                    shape: BoxShape.circle,
                                   ),
+                                  child: const Icon(
+                                    Icons.assignment_return,
+                                    color: Color(0xFFE0C7A0),
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 15,
+                                          color: Color(0xFF141A2F),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        devolucion.devoMotivo,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatDate(devolucion.devoFecha),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey,
                                 ),
                               ],
                             ),
                           ),
-                          onTap: () {
-                            // TODO: Navigate to detail screen
-                          },
                         ),
                       );
                     },
@@ -265,5 +257,12 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   String _formatDate(DateTime date) {
     return intl.DateFormat('dd/MM/yyyy HH:mm').format(date);
+  }
+
+  void _showDevolucionDetails(BuildContext context, DevolucionesViewModel devolucion) {
+    showDevolucionDetalleBottomSheet(
+      context: context,
+      devolucion: devolucion,
+    );
   }
 }
