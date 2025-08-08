@@ -1,99 +1,100 @@
-class RecargasViewModel {
-  final int? reca_Id;
-  final int? empl_Id;
-  final int? bode_Id;
-  final int? tras_Id;
-  final DateTime? reca_Fecha;
-  final String? reca_Observacion;
-  final String? reca_Confirmacion; // "p", "A", "R"
-  final int? usua_Confirmacion;
-  final int? usua_Creacion;
-  final DateTime? reca_FechaCreacion;
-  final int? usua_Modificacion;
-  final DateTime? reca_FechaModificacion;
-  final bool? reca_Estado;
+class PedidosViewModel {
+  final int? secuencia;
+  final int pediId;
+  final int diClId;
+  final int vendId;
+  final DateTime pediFechaPedido;
+  final DateTime? pediFechaEntrega;
+  final int usuaCreacion;
+  final DateTime pediFechaCreacion;
+  final int? usuaModificacion;
+  final DateTime? pediFechaModificacion;
+  final bool pediEstado;
+  final String? clieCodigo;
+  final int? clieId;
+  final String? clieNombreNegocio;
+  final String? clieNombres;
+  final String? clieApellidos;
+  final String? coloDescripcion;
+  final String? muniDescripcion;
+  final String? depaDescripcion;
+  final String? diClDireccionExacta;
+  final String? vendNombres;
+  final String? vendApellidos;
+  final String? usuarioCreacion;
+  final String? usuarioModificacion;
+  final String? prodCodigo;
+  final String? prodDescripcion;
+  final double? peDeProdPrecio;
+  final int? peDeCantidad;
+  final List<dynamic> detalles;
+  final String? detallesJson;
 
-  // Detalle de recarga
-  final int? reDe_Id;
-  final int? prod_Id;
-  final int? reDe_Cantidad;
-  final String? reDe_Observaciones;
-
-  // Producto relacionado
-  final String? prod_DescripcionCorta;
-  final String? prod_Codigo;
-  final String? prod_Imagen;
-
-  RecargasViewModel({
-    this.reca_Id,
-    this.empl_Id,
-    this.bode_Id,
-    this.tras_Id,
-    this.reca_Fecha,
-    this.reca_Observacion,
-    this.reca_Confirmacion,
-    this.usua_Confirmacion,
-    this.usua_Creacion,
-    this.reca_FechaCreacion,
-    this.usua_Modificacion,
-    this.reca_FechaModificacion,
-    this.reca_Estado,
-    this.reDe_Id,
-    this.prod_Id,
-    this.reDe_Cantidad,
-    this.reDe_Observaciones,
-    this.prod_DescripcionCorta,
-    this.prod_Codigo,
-    this.prod_Imagen,
+  PedidosViewModel({
+    this.secuencia,
+    required this.pediId,
+    required this.diClId,
+    required this.vendId,
+    required this.pediFechaPedido,
+    this.pediFechaEntrega,
+    required this.usuaCreacion,
+    required this.pediFechaCreacion,
+    this.usuaModificacion,
+    this.pediFechaModificacion,
+    required this.pediEstado,
+    this.clieCodigo,
+    this.clieId,
+    this.clieNombreNegocio,
+    this.clieNombres,
+    this.clieApellidos,
+    this.coloDescripcion,
+    this.muniDescripcion,
+    this.depaDescripcion,
+    this.diClDireccionExacta,
+    this.vendNombres,
+    this.vendApellidos,
+    this.usuarioCreacion,
+    this.usuarioModificacion,
+    this.prodCodigo,
+    this.prodDescripcion,
+    this.peDeProdPrecio,
+    this.peDeCantidad,
+    required this.detalles,
+    this.detallesJson,
   });
 
-  factory RecargasViewModel.fromJson(Map<String, dynamic> json) {
-    return RecargasViewModel(
-      reca_Id: json['reca_Id'],
-      empl_Id: json['empl_Id'],
-      bode_Id: json['bode_Id'],
-      tras_Id: json['tras_Id'],
-      reca_Fecha: json['reca_Fecha'] != null ? DateTime.tryParse(json['reca_Fecha']) : null,
-      reca_Observacion: json['reca_Observacion'],
-      reca_Confirmacion: json['reca_Confirmacion'],
-      usua_Confirmacion: json['usua_Confirmacion'],
-      usua_Creacion: json['usua_Creacion'],
-      reca_FechaCreacion: json['reca_FechaCreacion'] != null ? DateTime.tryParse(json['reca_FechaCreacion']) : null,
-      usua_Modificacion: json['usua_Modificacion'],
-      reca_FechaModificacion: json['reca_FechaModificacion'] != null ? DateTime.tryParse(json['reca_FechaModificacion']) : null,
-      reca_Estado: json['reca_Estado'],
-      reDe_Id: json['reDe_Id'],
-      prod_Id: json['prod_Id'],
-      reDe_Cantidad: json['reDe_Cantidad'],
-      reDe_Observaciones: json['reDe_Observaciones'],
-      prod_DescripcionCorta: json['prod_DescripcionCorta'],
-      prod_Codigo: json['prod_Codigo'],
-      prod_Imagen: json['prod_Imagen'],
+  factory PedidosViewModel.fromJson(Map<String, dynamic> json) {
+    return PedidosViewModel(
+      secuencia: json['secuencia'],
+      pediId: json['pedi_Id'],
+      diClId: json['diCl_Id'],
+      vendId: json['vend_Id'],
+      pediFechaPedido: DateTime.parse(json['pedi_FechaPedido']),
+      pediFechaEntrega: json['pedi_FechaEntrega'] != null ? DateTime.parse(json['pedi_FechaEntrega']) : null,
+      usuaCreacion: json['usua_Creacion'],
+      pediFechaCreacion: DateTime.parse(json['pedi_FechaCreacion']),
+      usuaModificacion: json['usua_Modificacion'],
+      pediFechaModificacion: json['pedi_FechaModificacion'] != null ? DateTime.parse(json['pedi_FechaModificacion']) : null,
+      pediEstado: json['pedi_Estado'],
+      clieCodigo: json['clie_Codigo'],
+      clieId: json['clie_Id'],
+      clieNombreNegocio: json['clie_NombreNegocio'],
+      clieNombres: json['clie_Nombres'],
+      clieApellidos: json['clie_Apellidos'],
+      coloDescripcion: json['colo_Descripcion'],
+      muniDescripcion: json['muni_Descripcion'],
+      depaDescripcion: json['depa_Descripcion'],
+      diClDireccionExacta: json['diCl_DireccionExacta'],
+      vendNombres: json['vend_Nombres'],
+      vendApellidos: json['vend_Apellidos'],
+      usuarioCreacion: json['usuarioCreacion'],
+      usuarioModificacion: json['usuarioModificacion'],
+      prodCodigo: json['prod_Codigo'],
+      prodDescripcion: json['prod_Descripcion'],
+      peDeProdPrecio: json['peDe_ProdPrecio'] != null ? (json['peDe_ProdPrecio'] as num).toDouble() : null,
+      peDeCantidad: json['peDe_Cantidad'],
+      detalles: json['detalles'] ?? [],
+      detallesJson: json['detallesJson'],
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'reca_Id': reca_Id,
-      'empl_Id': empl_Id,
-      'bode_Id': bode_Id,
-      'tras_Id': tras_Id,
-      'reca_Fecha': reca_Fecha?.toIso8601String(),
-      'reca_Observacion': reca_Observacion,
-      'reca_Confirmacion': reca_Confirmacion,
-      'usua_Confirmacion': usua_Confirmacion,
-      'usua_Creacion': usua_Creacion,
-      'reca_FechaCreacion': reca_FechaCreacion?.toIso8601String(),
-      'usua_Modificacion': usua_Modificacion,
-      'reca_FechaModificacion': reca_FechaModificacion?.toIso8601String(),
-      'reca_Estado': reca_Estado,
-      'reDe_Id': reDe_Id,
-      'prod_Id': prod_Id,
-      'reDe_Cantidad': reDe_Cantidad,
-      'reDe_Observaciones': reDe_Observaciones,
-      'prod_DescripcionCorta': prod_DescripcionCorta,
-      'prod_Codigo': prod_Codigo,
-      'prod_Imagen': prod_Imagen,
-    };
   }
 }
