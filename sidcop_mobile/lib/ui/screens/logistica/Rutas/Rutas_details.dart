@@ -5,7 +5,7 @@ import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
-import 'package:sidcop_mobile/services/global_service.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'Rutas_mapscreen.dart';
 
