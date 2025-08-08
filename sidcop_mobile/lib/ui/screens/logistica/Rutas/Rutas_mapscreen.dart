@@ -55,7 +55,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     return closest;
   }
 
-  // Nueva función para mostrar ruta individual a un cliente
+  //  individual a un cliente
   void _mostrarRutaACliente(DireccionCliente destino) async {
     if (_userLocation == null) return;
     String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
@@ -74,7 +74,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           _polylines = {
             Polyline(
               polylineId: const PolylineId('route_cliente'),
-              color: Colors.blue, // Cambia el color aquí
+              color: Colors.blue,
               width: 4,
               patterns: [],
               endCap: Cap.roundCap,
@@ -104,7 +104,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDirecciones();
     _getUserLocation();
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -115,6 +114,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         _updateUserMarker();
         // Ya no se actualiza la ruta general
       });
+      // Cuando la ubicación cambia, recalcula el orden de visitas
+      _loadDirecciones();
     });
   }
 
@@ -124,7 +125,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         .toSet();
   }
 
-  // Eliminada la función de ruta general. Solo se mantiene el orden de visita.
 
   List<LatLng> _decodePolyline(String poly) {
     List<LatLng> points = [];
@@ -172,11 +172,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
       });
+      // Una vez obtenida la ubicación, carga las direcciones y calcula el orden
+      await _loadDirecciones();
     } catch (e) {}
   }
 
   Future<void> _loadDirecciones() async {
     try {
+
       final clientesService = ClientesService();
       final clientesJson = await clientesService.getClientes();
       final clientes = clientesJson
@@ -467,7 +470,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       }
       setState(() {
         _markers = markers;
-        _polylines = {};
+        // Solo limpiar _polylines si no hay una ruta activa
+        if (_polylines.isEmpty) {
+          _polylines = {};
+        }
         if (_direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
             _direccionesFiltradas.first.dicl_latitud!,
@@ -495,26 +501,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
             icon: const Icon(Icons.list_alt),
             tooltip: 'Ver orden de paradas',
             onPressed: () {
-              // Buscar el cliente más cercano y mostrar la ruta
-              if (_direccionesFiltradas.isNotEmpty && _userLocation != null) {
-                DireccionCliente? closest;
-                double minDist = double.infinity;
-                for (var d in _direccionesFiltradas) {
-                  final dist = Geolocator.distanceBetween(
-                    _userLocation!.latitude,
-                    _userLocation!.longitude,
-                    d.dicl_latitud!,
-                    d.dicl_longitud!,
-                  );
-                  if (dist < minDist) {
-                    minDist = dist;
-                    closest = d;
-                  }
-                }
-                if (closest != null) {
-                  _mostrarRutaACliente(closest);
-                }
-              }
+              // Solo abrir el drawer, NO mostrar la ruta automáticamente
               _scaffoldKey.currentState?.openEndDrawer();
             },
           ),
@@ -654,6 +641,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         ),
                                         textStyle: const TextStyle(
                                           fontSize: 14,
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w500
                                         ),
                                       ),
                                       icon: const Icon(
