@@ -19,8 +19,8 @@ class PedidosService {
           'X-Api-Key': _apiKey,
         },
       );
-      developer.log('Get Pedidos Response Status: \\${response.statusCode}');
-      developer.log('Get Pedidos Response Body: \\${response.body}');
+      print('Get Pedidos Response Status: \\${response.statusCode}');
+      print('Get Pedidos Response Body: \\${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => PedidosViewModel.fromJson(json)).toList();
@@ -28,12 +28,13 @@ class PedidosService {
         return [];
       }
     } catch (e) {
-      developer.log('Error fetching pedidos: \\${e.toString()}');
+      print('Error fetching pedidos: \\${e.toString()}');
       return [];
     }
   }
 
   Future<List<ProductosPedidosViewModel>> getProductosConListaPrecio(int clienteId) async {
+    print('Get Productos ListaPrecio clienteId: $clienteId');
     final url = Uri.parse('$_apiServer/Productos/ListaPrecio/$clienteId');
     try {
       final response = await http.get(
@@ -43,8 +44,8 @@ class PedidosService {
           'X-Api-Key': _apiKey,
         },
       );
-      developer.log('Get Productos ListaPrecio Response Status: \\${response.statusCode}');
-      developer.log('Get Productos ListaPrecio Response Body: \\${response.body}');
+      print('Get Productos ListaPrecio Response Status: \\${response.statusCode}');
+      print('Get Productos ListaPrecio Response Body: \\${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => ProductosPedidosViewModel.fromJson(json)).toList();
@@ -52,7 +53,7 @@ class PedidosService {
         return [];
       }
     } catch (e) {
-      developer.log('Error fetching productos con lista precio: \\${e.toString()}');
+      print('Error fetching productos con lista precio: \\${e.toString()}');
       return [];
     }
   }
