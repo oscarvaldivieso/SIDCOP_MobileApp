@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedido_detalle_bottom_sheet.dart';
 
 class PedidosScreen extends StatefulWidget {
   const PedidosScreen({super.key});
@@ -71,72 +72,82 @@ class _PedidosScreenState extends State<PedidosScreen> {
       cantidadProductos = 0;
     }
   }
-  return Card(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    elevation: 4,
-    color: primaryColor,
-    child: Padding(
-      padding: const EdgeInsets.all(18.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: goldColor.withOpacity(0.13),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.assignment, color: goldColor, size: 32),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '$cantidadProductos producto${cantidadProductos == 1 ? '' : 's'}',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  return GestureDetector(
+    onTap: () {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => PedidoDetalleBottomSheet(pedido: pedido),
+      );
+    },
+    child: Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      elevation: 4,
+      color: primaryColor,
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
               children: [
-                Text(
-                  pedido.clieNombreNegocio ?? 'Sin nombre de negocio',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    fontFamily: 'Satoshi',
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: goldColor.withOpacity(0.13),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Icon(Icons.assignment, color: goldColor, size: 32),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  'Cliente: ${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Fecha pedido: ${_formatFecha(pedido.pediFechaPedido)}',
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Dirección: ${pedido.diClDireccionExacta ?? '-'}',
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  '$cantidadProductos producto${cantidadProductos == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.arrow_forward_ios_rounded, color: goldColor, size: 20),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pedido.clieNombreNegocio ?? 'Sin nombre de negocio',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Cliente: ${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Fecha pedido: ${_formatFecha(pedido.pediFechaPedido)}',
+                    style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Dirección: ${pedido.diClDireccionExacta ?? '-'}',
+                    style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_ios_rounded, color: goldColor, size: 20),
+          ],
+        ),
       ),
     ),
   );
