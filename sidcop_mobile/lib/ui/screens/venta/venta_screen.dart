@@ -231,7 +231,7 @@ class _VentaScreenState extends State<VentaScreen> {
       
       // Obtener el último número de factura (deberías obtenerlo de tu base de datos o API)
       // Por ahora, usaremos un valor por defecto
-      final lastInvoiceNumber = "F001-000003408"; // Esto debería venir de tu base de datos
+      final lastInvoiceNumber = "F001-000003411"; // Esto debería venir de tu base de datos
       
       // Generar el nuevo número de factura
       final newInvoiceNumber = InvoiceUtils.getNextInvoiceNumber(lastInvoiceNumber);
@@ -289,17 +289,30 @@ class _VentaScreenState extends State<VentaScreen> {
               style: const TextStyle(fontFamily: 'Satoshi'),
             ),
             actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF98BF4A),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Aceptar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _resetearFormulario();
-                },
-              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    child: const Text("Aceptar", style: TextStyle(fontFamily: 'Satoshi')),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _resetearFormulario();
+                    },
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF98BF4A),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("Ver Factura", style: TextStyle(fontFamily: 'Satoshi')),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _mostrarFactura(resultado!['data']);
+                      _resetearFormulario();
+                    },
+                  ),
+                ],
+              )
             ],
           ),
         );
@@ -401,12 +414,280 @@ class _VentaScreenState extends State<VentaScreen> {
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
+      _pageController.jumpToPage(0);
     });
-    _pageController.animateToPage(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+  }
+
+  void _mostrarFactura(Map<String, dynamic> facturaData) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const Text(
+                'Factura de Venta',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'N° ${facturaData['fact_Numero'] ?? _ventaModel.factNumero}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+              const Divider(thickness: 1, height: 30),
+              
+              // Información de la factura
+              _buildFacturaInfoRow('Fecha', _ventaModel.factFechaEmision.toString().substring(0, 10)),
+              _buildFacturaInfoRow('Cliente', facturaData['clie_Nombres'] ?? 'Consumidor Final'),
+              _buildFacturaInfoRow('Vendedor', facturaData['vend_Nombres'] ?? 'Sistema'),
+              
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Detalles de la compra',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Satoshi',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              
+              // Lista de productos
+              if (_ventaModel.detallesFacturaInput.isNotEmpty)
+                ..._ventaModel.detallesFacturaInput.map((detalle) {
+                  final producto = _allProducts.firstWhere(
+                    (p) => p.prod_Id == detalle.prodId,
+                    orElse: () => Productos(
+                      prod_Id: 0,
+                      prod_Descripcion: 'Producto no encontrado',
+                      marc_Id: 0,
+                      cate_Id: 0,
+                      subc_Id: 0,
+                      prov_Id: 0,
+                      impu_Id: 0,
+                      prod_PrecioUnitario: 0,
+                      prod_CostoTotal: 0,
+                      prod_PromODesc: 0,
+                      usua_Creacion: 0,
+                      prod_FechaCreacion: DateTime.now(),
+                      usua_Modificacion: 0,
+                      prod_FechaModificacion: DateTime.now(),
+                      prod_Estado: true,
+                    ),
+                  );
+                  return _buildProductoItem(
+                    producto.prod_Descripcion ?? 'Producto',
+                    detalle.faDeCantidad,
+                    producto.prod_PrecioUnitario ?? 0.0, // Default to 0.0 if null
+                  );
+                }).toList(),
+              
+              const Divider(thickness: 1, height: 30),
+              
+              // Totales
+              // Calculate and show totals
+              Builder(
+                builder: (context) {
+                  final subtotal = _calculateSubtotal();
+                  final impuestos = _calculateTaxes(subtotal);
+                  final total = subtotal + impuestos;
+                  
+                  return Column(
+                    children: [
+                      _buildTotalRow('Subtotal', subtotal.toStringAsFixed(2)),
+                      _buildTotalRow('Impuestos', impuestos.toStringAsFixed(2)),
+                      _buildTotalRow(
+                        'Total',
+                        total.toStringAsFixed(2),
+                        isTotal: true,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  // Aquí podrías implementar la generación de PDF o compartir
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF98BF4A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Compartir o Guardar PDF',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFacturaInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Satoshi',
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Calculate subtotal from selected products
+  double _calculateSubtotal() {
+    return _ventaModel.detallesFacturaInput.fold(
+      0.0, 
+      (sum, detalle) {
+        final producto = _allProducts.firstWhere(
+          (p) => p.prod_Id == detalle.prodId,
+          orElse: () => Productos(
+            prod_Id: 0,
+            prod_Descripcion: 'Producto no encontrado',
+            marc_Id: 0,
+            cate_Id: 0,
+            subc_Id: 0,
+            prov_Id: 0,
+            impu_Id: 0,
+            prod_PrecioUnitario: 0,
+            prod_CostoTotal: 0,
+            prod_PromODesc: 0,
+            usua_Creacion: 0,
+            prod_FechaCreacion: DateTime.now(),
+            usua_Modificacion: 0,
+            prod_FechaModificacion: DateTime.now(),
+            prod_Estado: true,
+          ),
+        );
+        return sum + (detalle.faDeCantidad * (producto.prod_PrecioUnitario ?? 0));
+      },
+    );
+  }
+  
+  // Calculate taxes (15%)
+  double _calculateTaxes(double subtotal) {
+    return subtotal * 0.15;
+  }
+
+  // Método para construir un ítem de producto en la factura
+  Widget _buildProductoItem(String nombre, double cantidad, double precioUnitario) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              nombre,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              cantidad.toStringAsFixed(2),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              'L. ${precioUnitario.toStringAsFixed(2)}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalRow(String label, String value, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+            ),
+          ),
+          Text(
+            'L. $value',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+              color: isTotal ? const Color(0xFF98BF4A) : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
