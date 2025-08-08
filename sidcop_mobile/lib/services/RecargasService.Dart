@@ -81,11 +81,13 @@ class RecargasService
       "vend_Id": personaId,
       "bode_Id": 18,
       "reca_Fecha": fechaString,
-      "reca_observaciones": "N/A",
-      "usua_creacion": usuaCreacion,
+      "reca_Observaciones": "N/A",
+      "usua_Creacion": usuaCreacion,
       "reca_FechaCreacion": fechaString,
       "detalles": detalles
     };
+
+    print('Insertar Recarga Body: ${jsonEncode(body)}');
 
     try {
       final response = await http.post(
@@ -96,16 +98,18 @@ class RecargasService
         },
         body: jsonEncode(body),
       );
-      developer.log('Insertar Recarga Response Status: ${response.statusCode}');
-      developer.log('Insertar Recarga Response Body: ${response.body}');
+      print('Insertar Recarga Response Status: \\${response.statusCode}');
+      print('Insertar Recarga Response Body: \\${response.body}');
       if (response.statusCode == 200) {
         return true;
       } else {
-        developer.log('Error al insertar recarga: Código ${response.statusCode}, Respuesta: ${response.body}');
+        print('Error al insertar recarga: Código \\${response.statusCode}, Respuesta: \\${response.body}');
         return false;
       }
-    } catch (e) {
-      developer.log('Excepción al insertar recarga: ${e}');
+    } catch (e, stacktrace) {
+      print('Error inesperado al hacer POST en insertarRecarga: \\${e.toString()}');
+      print('Stacktrace: \\${stacktrace.toString()}');
+      print('Excepción al insertar recarga: \\${e}');
       return false;
     }
   }
@@ -122,8 +126,8 @@ class RecargasService
       "vend_Id": personaId,
       "bode_Id": 18,
       "reca_Fecha": fechaString,
-      "reca_observaciones": "N/A",
-      "usua_modificacion": usuaModificacion,
+      "reca_Observaciones": "N/A",
+      "usua_Modificacion": usuaModificacion,
       "reca_FechaModificacion": fechaString,
       "detalles": detalles
     };
@@ -137,16 +141,16 @@ class RecargasService
         },
         body: jsonEncode(body),
       );
-      developer.log('Actualizar Recarga Response Status: ${response.statusCode}');
-      developer.log('Actualizar Recarga Response Body: ${response.body}');
+      print('Actualizar Recarga Response Status: ${response.statusCode}');
+      print('Actualizar Recarga Response Body: ${response.body}');
       if (response.statusCode == 200) {
         return true;
       } else {
-        developer.log('Error al actualizar recarga: Código ${response.statusCode}, Respuesta: ${response.body}');
+        print('Error al actualizar recarga: Código ${response.statusCode}, Respuesta: ${response.body}');
         return false;
       }
     } catch (e) {
-      developer.log('Excepción al actualizar recarga: ${e}');
+      print('Excepción al actualizar recarga: ${e}');
       return false;
     }
   }
