@@ -81,21 +81,14 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Listado de Devoluciones',
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      color: Colors.grey[600],
+                      fontSize: 14,
                       fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Color(0xFFE0C7A0)),
-                    onPressed: () {
-                      setState(() {
-                        _devolucionesFuture = _loadDevoluciones();
-                      });
-                    },
                   ),
                 ],
               ),
@@ -121,16 +114,24 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                           children: [
                             const Icon(Icons.error_outline, color: Colors.red, size: 48),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'Error al cargar las devoluciones',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: Colors.grey[800],
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Satoshi',
+                              ),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               snapshot.error.toString(),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontFamily: 'Satoshi',
+                              ),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -139,7 +140,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                                   _devolucionesFuture = _loadDevoluciones();
                                 });
                               },
-                              child: const Text('Reintentar'),
+                              child: const Text(
+                                'Reintentar',
+                                style: TextStyle(fontFamily: 'Satoshi'),
+                              ),
                             ),
                           ],
                         ),
@@ -153,7 +157,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                         padding: EdgeInsets.only(top: 50.0),
                         child: Text(
                           'No hay devoluciones registradas',
-                          style: TextStyle(fontSize: 16),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontFamily: 'Satoshi',
+                          ),
                         ),
                       ),
                     );
@@ -166,83 +173,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                     itemCount: devoluciones.length,
                     itemBuilder: (context, index) {
                       final devolucion = devoluciones[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12.0),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                          side: BorderSide(
-                            color: Colors.grey.shade200,
-                            width: 1,
-                          ),
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12.0),
-                          onTap: () {
-                            _showDevolucionDetails(context, devolucion);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10.0),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE0C7A0).withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.assignment_return,
-                                    color: Color(0xFFE0C7A0),
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 15,
-                                          color: Color(0xFF141A2F),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        devolucion.devoMotivo,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey.shade700,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatDate(devolucion.devoFecha),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right,
-                                  color: Colors.grey,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
+                      return _buildDevolucionCard(devolucion);
                     },
                   );
                 },
@@ -257,6 +188,188 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   String _formatDate(DateTime date) {
     return intl.DateFormat('dd/MM/yyyy HH:mm').format(date);
+  }
+
+  Widget _buildDevolucionCard(DevolucionesViewModel devolucion) {
+    // Color principal del proyecto (usando el mismo que en el drawer y otros componentes)
+    final primaryColor = const Color(0xFF141A2F); // Azul oscuro principal
+    final secondaryColor = const Color(0xFF1E2746); // Tono ligeramente más claro para gradiente
+    final backgroundColor = const Color(0xFFF5F5F7); // Fondo gris claro
+    
+    // Usar el ícono original de devolución
+    final iconoDevolucion = Icons.assignment_return;
+    
+    // Obtener el estado como texto
+    final estado = devolucion.devoEstado.toString();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: () {
+          _showDevolucionDetails(context, devolucion);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, backgroundColor.withOpacity(0.3)],
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Header con gradiente de estado
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [primaryColor, secondaryColor],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            iconoDevolucion,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Devolución #${devolucion.devoId}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Contenido de la tarjeta
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Fila de cliente
+                        _buildDetailRow(
+                          Icons.person_outline,
+                          'Cliente',
+                          devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
+                        ),
+                        const SizedBox(height: 12),
+                        // Fila de motivo
+                        _buildDetailRow(
+                          Icons.receipt_long_outlined,
+                          'Motivo',
+                          devolucion.devoMotivo,
+                        ),
+                        const SizedBox(height: 12),
+                        // Fila de fecha
+                        _buildDetailRow(
+                          Icons.calendar_today_outlined,
+                          'Fecha',
+                          _formatDate(devolucion.devoFecha),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: const Color(0xFF8E8E93),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF8E8E93),
+                  fontSize: 13,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  color: Colors.grey[800],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Satoshi',
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   void _showDevolucionDetails(BuildContext context, DevolucionesViewModel devolucion) {

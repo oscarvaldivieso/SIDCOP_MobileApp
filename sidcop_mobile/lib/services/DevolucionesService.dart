@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/global_service.dart';
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
+import 'package:sidcop_mobile/models/devolucion_detalle_model.dart';
 
 class DevolucionesService {
   final String _endpoint = 'Devoluciones';
@@ -68,6 +69,34 @@ class DevolucionesService {
       }
     } catch (e) {
       final errorMsg = 'Error en listarDevoluciones: $e';
+      print(errorMsg);
+      throw Exception(errorMsg);
+    }
+  }
+
+  Future<List<DevolucionDetalleModel>> getDevolucionDetalles(int devoId) async {
+    print('=== getDevolucionDetalles() called for devoId: $devoId ===');
+    try {
+      final response = await get('DevolucionesDetalles/Buscar/$devoId');
+      
+      if (response.statusCode == 200) {
+        print('Response status is 200, parsing JSON...');
+        final List<dynamic> data = json.decode(response.body);
+        print('Parsed ${data.length} items from response');
+        
+        final result = data
+            .map((json) => DevolucionDetalleModel.fromJson(json))
+            .toList();
+            
+        print('Successfully mapped ${result.length} DevolucionDetalleModel objects');
+        return result;
+      } else {
+        final errorMsg = 'Error al obtener detalles de devolución: ${response.statusCode} - ${response.body}';
+        print(errorMsg);
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      final errorMsg = 'Error en getDevolucionDetalles: $e';
       print(errorMsg);
       throw Exception(errorMsg);
     }
