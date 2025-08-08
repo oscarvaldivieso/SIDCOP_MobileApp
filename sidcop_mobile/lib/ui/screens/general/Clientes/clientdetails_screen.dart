@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
@@ -362,7 +363,13 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                             ),
                                           );
                                         } else {
-                                          // TODO: Implementar lógica de venta u otra acción
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  VentaScreen(),
+                                            ),
+                                          );
                                         }
                                       },
                                       height: 50,

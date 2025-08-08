@@ -16,6 +16,7 @@ import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -283,7 +284,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 ),
               ),
               onTap: () {
-                // Navegar a MVentas
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const VentaScreen()),
+                  (route) => false,
+                );
               },
             ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
