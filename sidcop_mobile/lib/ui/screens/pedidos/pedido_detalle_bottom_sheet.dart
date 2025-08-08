@@ -12,15 +12,20 @@ class PedidoDetalleBottomSheet extends StatelessWidget {
   Color get _borderColor => const Color(0xFFE2E8F0);
 
   @override
-  Widget build(BuildContext context) {
-    final List<dynamic> detalles = _parseDetalles(pedido.detallesJson);
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: SingleChildScrollView(
+Widget build(BuildContext context) {
+  final List<dynamic> detalles = _parseDetalles(pedido.detallesJson);
+  return DraggableScrollableSheet(
+    initialChildSize: 0.75,
+    minChildSize: 0.5,
+    maxChildSize: 0.95,
+    expand: false,
+    builder: (context, scrollController) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +51,6 @@ class PedidoDetalleBottomSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
-            // Tarjeta 1: Nombre del negocio
             _buildInfoCard(
               icon: Icons.store,
               title: 'Negocio',
@@ -54,7 +58,6 @@ class PedidoDetalleBottomSheet extends StatelessWidget {
               color: _goldColor,
             ),
             const SizedBox(height: 12),
-            // Tarjeta 2: Fechas
             Row(
               children: [
                 Expanded(
@@ -88,22 +91,25 @@ class PedidoDetalleBottomSheet extends StatelessWidget {
             const SizedBox(height: 8),
             detalles.isEmpty
                 ? const Text('No hay productos en este pedido.')
-                : ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: detalles.length,
-                    separatorBuilder: (_, __) => const Divider(height: 22),
-                    itemBuilder: (context, i) {
-                      final item = detalles[i];
-                      return _buildDetalleItem(item);
-                    },
+                : Expanded(
+                    child: ListView.separated(
+                      controller: scrollController,
+                      padding: EdgeInsets.zero,
+                      itemCount: detalles.length,
+                      separatorBuilder: (_, __) => const Divider(height: 22),
+                      itemBuilder: (context, i) {
+                        final item = detalles[i];
+                        return _buildDetalleItem(item);
+                      },
+                    ),
                   ),
             const SizedBox(height: 10),
           ],
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _buildInfoCard({required IconData icon, required String title, required String value, required Color color}) {
     return Container(
