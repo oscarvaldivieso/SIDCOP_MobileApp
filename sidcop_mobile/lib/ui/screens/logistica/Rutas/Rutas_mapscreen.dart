@@ -775,6 +775,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                         onPressed: _userLocation == null || _markers.isEmpty
                             ? null
                             : () async {
+                                await _loadDirecciones();
                                 if (_direccionesFiltradas.isNotEmpty &&
                                     _userLocation != null) {
                                   // Buscar el cliente más cercano por ruta real
