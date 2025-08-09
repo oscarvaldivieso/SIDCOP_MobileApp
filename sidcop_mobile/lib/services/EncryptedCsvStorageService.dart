@@ -302,6 +302,75 @@ class EncryptedCsvStorageService {
     }
   }
 
+  /// Guarda datos genéricos en CSV cifrado
+  static Future<bool> saveData(String key, List<String> data) async {
+    try {
+      final directory = await _getAppDocumentsDirectory();
+      final file = File('${directory.path}/${key}.csv.enc');
+      
+      // Convertir lista de strings a formato CSV
+      String csvString = data.join('\n');
+      
+      // Cifrar contenido
+      final encryptedContent = EncryptionService.encriptar(csvString);
+      
+      // Escribir archivo cifrado
+      await file.writeAsString(encryptedContent);
+      
+      developer.log('Datos genéricos guardados en CSV cifrado: $key');
+      return true;
+    } catch (e) {
+      developer.log('Error guardando datos genéricos $key: $e');
+      return false;
+    }
+  }
+
+  /// Carga datos genéricos desde CSV cifrado
+  static Future<List<String>> loadData(String key) async {
+    try {
+      final directory = await _getAppDocumentsDirectory();
+      final file = File('${directory.path}/${key}.csv.enc');
+      
+      if (!await file.exists()) {
+        developer.log('Archivo $key no existe');
+        return [];
+      }
+      
+      // Leer archivo cifrado
+      final encryptedContent = await file.readAsString();
+      
+      // Descifrar contenido
+      final csvString = EncryptionService.desencriptar(encryptedContent);
+      
+      // Convertir CSV a lista de strings
+      final data = csvString.split('\n').where((line) => line.isNotEmpty).toList();
+      
+      developer.log('Datos genéricos cargados desde CSV cifrado: $key - ${data.length} registros');
+      return data;
+    } catch (e) {
+      developer.log('Error cargando datos genéricos $key: $e');
+      return [];
+    }
+  }
+
+  /// Limpia datos genéricos
+  static Future<bool> clearData(String key) async {
+    try {
+      final directory = await _getAppDocumentsDirectory();
+      final file = File('${directory.path}/${key}.csv.enc');
+      
+      if (await file.exists()) {
+        await file.delete();
+        developer.log('Datos genéricos eliminados: $key');
+      }
+      
+      return true;
+    } catch (e) {
+      developer.log('Error eliminando datos genéricos $key: $e');
+      return false;
+    }
+  }
+
   /// Migra datos del servicio anterior (no cifrado) al nuevo servicio cifrado
   static Future<bool> migrateFromUnencryptedData() async {
     try {
