@@ -14,14 +14,99 @@ class PedidosCreateScreen extends StatefulWidget {
 class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   DateTime? _fechaEntrega;
   List<ProductosPedidosViewModel> _productos = [];
+  List<ProductosPedidosViewModel> _filteredProductos = [];
   final Map<int, int> _cantidades = {};
   bool _isLoading = true;
   String? _error;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchProductos();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Buscar productos...',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_error!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchProductos,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final listView = ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _filteredProductos.length,
+      itemBuilder: (context, index) {
+        return _buildProductoItem(_filteredProductos[index]);
+      },
+    );
+
+    return Column(
+      children: [
+        _buildSearchBar(),
+        const SizedBox(height: 16),
+        _filteredProductos.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32.0),
+                child: Text('No se encontraron productos que coincidan con la búsqueda',
+                    textAlign: TextAlign.center),
+              )
+            : listView,
+      ],
+    );
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredProductos = List.from(_productos);
+      } else {
+        _filteredProductos = _productos.where((producto) {
+          final nombre = producto.prodDescripcionCorta?.toLowerCase() ?? '';
+          return nombre.contains(query);
+        }).toList();
+      }
+    });
   }
 
   Future<void> _fetchProductos() async {
@@ -33,6 +118,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
       setState(() {
         _productos = productos;
+        _filteredProductos = List.from(_productos);
         _isLoading = false;
       });
     } catch (e) {
@@ -64,6 +150,23 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   }
 }
 
+
+  num _getPrecioPorCantidad(ProductosPedidosViewModel producto, int cantidad) {
+    if (producto.listasPrecio != null && producto.listasPrecio!.isNotEmpty && cantidad > 0) {
+      ListaPrecioModel? ultimaEscala;
+      for (final lp in producto.listasPrecio!) {
+        if (cantidad >= lp.prePInicioEscala && cantidad <= lp.prePFinEscala) {
+          return lp.prePPrecioContado;
+        }
+        ultimaEscala = lp;
+      }
+      // Si la cantidad es mayor al último rango, usar el último precio
+      if (ultimaEscala != null && cantidad > ultimaEscala.prePFinEscala) {
+        return ultimaEscala.prePPrecioContado;
+      }
+    }
+    return producto.prodPrecioUnitario ?? 0;
+  }
 
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
@@ -98,7 +201,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Precio: L. ${producto.prodPrecioUnitario}',
+                    'Precio: L. ${_getPrecioPorCantidad(producto, cantidad).toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ],
@@ -156,58 +259,48 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return AppBackground(
       title: 'Nuevo Pedido',
       icon: Icons.add_shopping_cart,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 10),
-          Text('Selecciona fecha de entrega:', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-          const SizedBox(height: 6),
-          Row(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () => _selectFechaEntrega(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 19, color: Colors.grey.shade600),
-                        const SizedBox(width: 10),
-                        Text(
-                          _fechaEntrega != null
-                              ? '${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}'
-                              : 'Elegir fecha',
-                          style: TextStyle(fontSize: 15, color: _fechaEntrega != null ? Colors.black : Colors.grey.shade500),
-                        ),
-                      ],
-                    ),
+              Text('Selecciona fecha de entrega:', 
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => _selectFechaEntrega(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 19, color: Colors.grey.shade600),
+                      const SizedBox(width: 10),
+                      Text(
+                        _fechaEntrega != null
+                            ? '${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}'
+                            : 'Elegir fecha',
+                        style: TextStyle(fontSize: 15, color: _fechaEntrega != null ? Colors.black : Colors.grey.shade500),
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              Text('Selecciona productos y cantidades:', 
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              const SizedBox(height: 8),
+              _buildProductList(),
+              const SizedBox(height: 20),
             ],
           ),
-          const SizedBox(height: 18),
-          Text('Selecciona productos y cantidades:', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-          const SizedBox(height: 6),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? Center(child: Text(_error!))
-                  : _productos.isEmpty
-                      ? const Center(child: Text('No hay productos disponibles'))
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _productos.length,
-                          itemBuilder: (context, idx) => _buildProductoItem(_productos[idx]),
-                        ),
-          const SizedBox(height: 20),
-        ],
+        ),
       ),
     );
   }
