@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/utils/invoice_utils.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/utils/error_handler.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -74,6 +74,7 @@ class _VentaScreenState extends State<VentaScreen> {
       _filteredProducts = List.from(_allProducts);
     } catch (e) {
       debugPrint('Error cargando productos: $e');
+      ErrorHandler.showErrorToast('Error al cargar productos. Verifica tu conexión.');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -171,9 +172,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   void mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
+    ErrorHandler.showErrorToast(mensaje);
   }
 
   void mostrarResumen() {
@@ -277,7 +276,9 @@ class _VentaScreenState extends State<VentaScreen> {
       print('Respuesta del servidor: $resultado');
       
       if (resultado?['success'] == true) {
-        // Venta exitosa
+        // Venta exitosa - mostrar toast y dialog
+        ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
+        
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
@@ -317,48 +318,9 @@ class _VentaScreenState extends State<VentaScreen> {
           ),
         );
       } else {
-        // Error en la venta
-      String errorMessage = 'Error desconocido';
-      if (resultado != null) {
-        errorMessage = resultado['message'] ?? 
-                     resultado['details'] ?? 
-                     'Error al procesar la venta (${resultado['statusCode'] ?? 'sin código'})';
-      }
-      
-      print('Error al procesar venta: $errorMessage');
-      
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Error en la Venta", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("No se pudo procesar la venta:", style: TextStyle(fontFamily: 'Satoshi')),
-                const SizedBox(height: 10),
-                Text(
-                  errorMessage,
-                  style: const TextStyle(fontFamily: 'Satoshi', color: Colors.red),
-                ),
-                const SizedBox(height: 10),
-                if (resultado?['details'] != null)
-                  Text(
-                    'Detalles: ${resultado!['details']}',
-                    style: const TextStyle(fontFamily: 'Satoshi', fontSize: 12),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
+        // Error en la venta - usar toast en lugar de dialog
+        ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
+        print('Error al procesar venta: $resultado');
       }
     } catch (e, stackTrace) {
       print('Excepción al procesar venta: $e');
@@ -369,41 +331,8 @@ class _VentaScreenState extends State<VentaScreen> {
         Navigator.of(loadingContext, rootNavigator: true).pop();
       }
       
-      // Mostrar error al usuario
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Error", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-          content: Text(
-            'Error al procesar la venta: ${e.toString()}',
-            style: const TextStyle(fontFamily: 'Satoshi'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
-      
-      // Mostrar error
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Error", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-          content: Text(
-            "Ocurrió un error inesperado:\n\n$e",
-            style: const TextStyle(fontFamily: 'Satoshi'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
+      // Mostrar error al usuario con toast
+      ErrorHandler.showErrorToast('Error inesperado al procesar la venta. Intenta nuevamente.');
     }
   }
 

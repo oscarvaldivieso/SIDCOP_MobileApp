@@ -156,4 +156,91 @@ class VentaService {
     // Si la validación pasa, proceder con la inserción
     return await insertarFactura(venta);
   }
+
+  /// Obtiene la información completa de una factura por su ID
+  /// Recibe el [facturaId] de la factura a consultar
+  /// Retorna un Map con la información completa de la factura o información de error
+  Future<Map<String, dynamic>?> obtenerFacturaCompleta(int facturaId) async {
+    final url = Uri.parse('$_apiServer/Facturas/ObtenerCompleta/$facturaId');
+    
+    print(' [VentaService] Obteniendo factura completa');
+    print(' [VentaService] URL: $url');
+    print(' [VentaService] Factura ID: $facturaId');
+    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
+
+    try {
+      print(' [VentaService] Enviando solicitud GET...');
+
+      final stopwatch = Stopwatch()..start();
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      ).timeout(const Duration(seconds: 30));
+      
+      stopwatch.stop();
+      print(' [VentaService] Respuesta recibida en ${stopwatch.elapsedMilliseconds}ms');
+      print(' [VentaService] Código de estado: ${response.statusCode}');
+      print(' [VentaService] Cuerpo de la respuesta:');
+      print(response.body);
+
+      // Procesar la respuesta
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+      } catch (e) {
+        print(' [VentaService] Error al decodificar la respuesta JSON: $e');
+        throw Exception('Respuesta del servidor no es un JSON válido');
+      }
+
+      if (response.statusCode == 200) {
+        print(' [VentaService] Factura obtenida exitosamente');
+        return {
+          'success': true,
+          'data': responseData['data'] ?? responseData,
+          'message': responseData['message'] ?? 'Factura obtenida exitosamente',
+          'statusCode': response.statusCode,
+          'code': responseData['code'],
+        };
+      } else {
+        final errorMsg = responseData['message'] ?? 'Error desconocido';
+        print(' [VentaService] Error al obtener factura (${response.statusCode}): $errorMsg');
+        return {
+          'success': false,
+          'error': true,
+          'message': errorMsg,
+          'details': response.body,
+          'statusCode': response.statusCode,
+        };
+      }
+    } on http.ClientException catch (e) {
+      print(' [VentaService] Error de conexión: ${e.message}');
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Error de conexión: ${e.message}',
+        'exception': e.toString(),
+      };
+    } on TimeoutException catch (e) {
+      print(' [VentaService] Tiempo de espera agotado: $e');
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Tiempo de espera agotado. Por favor, intente nuevamente.',
+        'exception': e.toString(),
+      };
+    } catch (e, stackTrace) {
+      print(' [VentaService] Error inesperado: $e');
+      print(' [VentaService] Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Error inesperado: $e',
+        'exception': e.toString(),
+        'stackTrace': stackTrace.toString(),
+      };
+    }
+  }
 }
