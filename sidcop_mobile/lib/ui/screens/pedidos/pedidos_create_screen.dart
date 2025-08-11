@@ -19,6 +19,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   bool _isLoading = true;
   String? _error;
   final TextEditingController _searchController = TextEditingController();
+  int _productosMostrados = 8;
 
   @override
   void initState() {
@@ -71,16 +72,22 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       );
     }
 
+    final isSearching = _searchController.text.trim().isNotEmpty;
+    final productosParaMostrar = isSearching
+        ? _filteredProductos
+        : _filteredProductos.take(_productosMostrados).toList();
+
     final listView = ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _filteredProductos.length,
+      itemCount: productosParaMostrar.length,
       itemBuilder: (context, index) {
-        return _buildProductoItem(_filteredProductos[index]);
+        return _buildProductoItem(productosParaMostrar[index]);
       },
     );
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSearchBar(),
         const SizedBox(height: 16),
@@ -91,6 +98,26 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                     textAlign: TextAlign.center),
               )
             : listView,
+        if (!isSearching && _productosMostrados < _filteredProductos.length)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12.0, right: 4.0),
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _productosMostrados += 8;
+                  });
+                },
+                icon: const Icon(Icons.expand_more),
+                label: const Text('Ver más'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF141A2F), // color principal
+                  textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -100,6 +127,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     setState(() {
       if (query.isEmpty) {
         _filteredProductos = List.from(_productos);
+        _productosMostrados = 8; // Reiniciar paginación
       } else {
         _filteredProductos = _productos.where((producto) {
           final nombre = producto.prodDescripcionCorta?.toLowerCase() ?? '';
@@ -336,7 +364,25 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
               _buildProductList(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Acción del botón siguiente
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
+                    foregroundColor: Colors.black,
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Siguiente'),
+                ),
+              ),
             ],
           ),
         ),
