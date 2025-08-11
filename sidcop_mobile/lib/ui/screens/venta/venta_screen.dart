@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/utils/invoice_utils.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
 
 // Modelo centralizado para los datos
@@ -28,7 +29,12 @@ class _VentaScreenState extends State<VentaScreen> {
   final FormData formData = FormData();
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
+  final PrinterService _printerService = PrinterService();
   VentaInsertarViewModel _ventaModel = VentaInsertarViewModel.empty();
+  
+  // Variables para impresión
+  bool _isPrinting = false;
+  bool _isProcessingSale = false;
 
   // Variables para productos
   List<Productos> _allProducts = [];
@@ -64,6 +70,8 @@ class _VentaScreenState extends State<VentaScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pageController.dispose();
+    _printerService.dispose();
     super.dispose();
   }
 
@@ -802,7 +810,7 @@ class _VentaScreenState extends State<VentaScreen> {
               child: Container(
                 margin: EdgeInsets.only(left: currentStep > 0 ? 12 : 0),
                 child: ElevatedButton(
-                  onPressed: nextStep,
+                  onPressed: _isProcessingSale ? null : (currentStep == totalSteps - 1 ? _procesarVentaConImpresion : nextStep),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF141A2F),
                     foregroundColor: Colors.white,
@@ -812,14 +820,37 @@ class _VentaScreenState extends State<VentaScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
-                    style: const TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isProcessingSale && currentStep == totalSteps - 1
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Procesando...",
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -1876,6 +1907,88 @@ class _VentaScreenState extends State<VentaScreen> {
                   // Resumen financiero
                   _buildFinancialSummary(subtotal, impuestos, total, totalItems),
                   
+                  const SizedBox(height: 16),
+                  
+                  // Botón para probar impresora
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF141A2F).withOpacity(0.1),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.print,
+                              color: Color(0xFF141A2F),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Verificar Impresora',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF141A2F),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Prueba tu impresora Zebra ZQ310 antes de finalizar la venta',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 12,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isPrinting ? null : _probarImpresora,
+                            icon: _isPrinting 
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
+                                    ),
+                                  )
+                                : const Icon(Icons.print_outlined),
+                            label: Text(_isPrinting ? 'Probando...' : 'Probar Impresora'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF141A2F),
+                              side: const BorderSide(color: Color(0xFF141A2F)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
                   const SizedBox(height: 24),
                   
                   // Checkbox de confirmación
@@ -2266,5 +2379,222 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Método para procesar la venta con impresión
+  Future<void> _procesarVentaConImpresion() async {
+    if (_isProcessingSale) return;
+
+    setState(() {
+      _isProcessingSale = true;
+    });
+
+    try {
+      // 1. Validar que hay productos seleccionados
+      if (_selectedProducts.isEmpty) {
+        throw Exception('Debe seleccionar al menos un producto');
+      }
+
+      // 2. Usar el método existente _procesarVenta para guardar la venta
+      await _procesarVenta();
+
+      // 3. Si la venta fue exitosa, mostrar diálogo con opción de impresión
+      await _mostrarDialogoExitoConImpresion({});
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingSale = false;
+        });
+      }
+    }
+  }
+
+  // Método para mostrar diálogo de éxito con opción de impresión
+  Future<void> _mostrarDialogoExitoConImpresion(Map<String, dynamic> facturaData) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 30),
+            const SizedBox(width: 10),
+            const Text('¡Venta Exitosa!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Venta procesada correctamente'),
+            const SizedBox(height: 16),
+            const Text('¿Desea imprimir la factura ahora?'),
+            const SizedBox(height: 8),
+            const Text(
+              'Se buscará automáticamente su impresora Zebra ZQ310',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _resetearFormulario();
+            },
+            child: const Text('No Imprimir'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _imprimirFactura(facturaData);
+              _resetearFormulario();
+            },
+            icon: const Icon(Icons.print),
+            label: const Text('Imprimir'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF141A2F),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Método para imprimir la factura
+  Future<void> _imprimirFactura(Map<String, dynamic> facturaData) async {
+    if (_isPrinting) return;
+
+    setState(() {
+      _isPrinting = true;
+    });
+
+    try {
+      // 1. Mostrar diálogo de selección de impresora
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      
+      if (selectedDevice == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impresión cancelada'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // 2. Conectar a la impresora
+      final connected = await _printerService.connect(selectedDevice);
+      
+      if (!connected) {
+        throw Exception('No se pudo conectar a la impresora ${selectedDevice.name}');
+      }
+
+      // 3. Mostrar diálogo de progreso
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Imprimiendo...'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Enviando datos a la impresora'),
+            ],
+          ),
+        ),
+      );
+
+      // 4. Imprimir la factura
+      final printSuccess = await _printerService.printInvoice(facturaData);
+      
+      // Cerrar diálogo de progreso
+      Navigator.of(context).pop();
+
+      if (printSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Factura impresa correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception('Error al imprimir la factura');
+      }
+
+      // 5. Desconectar de la impresora
+      await _printerService.disconnect();
+
+    } catch (e) {
+      // Cerrar diálogo de progreso si está abierto
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de impresión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Reintentar',
+              onPressed: () => _imprimirFactura(facturaData),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
+        });
+      }
+    }
+  }
+
+  // Método para probar la impresora
+  Future<void> _probarImpresora() async {
+    try {
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      
+      if (selectedDevice == null) return;
+
+      final connected = await _printerService.connect(selectedDevice);
+      
+      if (!connected) {
+        throw Exception('No se pudo conectar a la impresora');
+      }
+
+      final testSuccess = await _printerService.printTest();
+      
+      await _printerService.disconnect();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(testSuccess 
+            ? 'Prueba de impresión exitosa' 
+            : 'Error en la prueba de impresión'),
+          backgroundColor: testSuccess ? Colors.green : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
 }
