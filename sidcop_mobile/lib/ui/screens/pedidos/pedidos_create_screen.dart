@@ -152,20 +152,59 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
 
 
   num _getPrecioPorCantidad(ProductosPedidosViewModel producto, int cantidad) {
+    // 1. Obtener el precio base según escala
+    num precioBase;
     if (producto.listasPrecio != null && producto.listasPrecio!.isNotEmpty && cantidad > 0) {
       ListaPrecioModel? ultimaEscala;
       for (final lp in producto.listasPrecio!) {
         if (cantidad >= lp.prePInicioEscala && cantidad <= lp.prePFinEscala) {
-          return lp.prePPrecioContado;
+          precioBase = lp.prePPrecioContado;
+          return _aplicarDescuento(producto, cantidad, precioBase);
         }
         ultimaEscala = lp;
       }
-      // Si la cantidad es mayor al último rango, usar el último precio
       if (ultimaEscala != null && cantidad > ultimaEscala.prePFinEscala) {
-        return ultimaEscala.prePPrecioContado;
+        precioBase = ultimaEscala.prePPrecioContado;
+        return _aplicarDescuento(producto, cantidad, precioBase);
       }
     }
-    return producto.prodPrecioUnitario ?? 0;
+    precioBase = producto.prodPrecioUnitario ?? 0;
+    return _aplicarDescuento(producto, cantidad, precioBase);
+  }
+
+  num _aplicarDescuento(ProductosPedidosViewModel producto, int cantidad, num precioBase) {
+    // 2. Verificar si hay descuentos y si aplica
+    if (producto.descuentosEscala == null || producto.descuentosEscala!.isEmpty) {
+      return precioBase;
+    }
+    final descEsp = producto.descEspecificaciones;
+    if (descEsp == null || descEsp.descTipoFactura != 'AM') {
+      return precioBase;
+    }
+    // Buscar el descuento correspondiente
+    DescuentoEscalaModel? ultimoDescuento;
+    for (final desc in producto.descuentosEscala!) {
+      if (cantidad >= desc.deEsInicioEscala && cantidad <= desc.deEsFinEscala) {
+        return _calcularDescuento(precioBase, descEsp, desc.deEsValor);
+      }
+      ultimoDescuento = desc;
+    }
+    // Si la cantidad es mayor al último rango, usar el último descuento
+    if (ultimoDescuento != null && cantidad > ultimoDescuento.deEsFinEscala) {
+      return _calcularDescuento(precioBase, descEsp, ultimoDescuento.deEsValor);
+    }
+    return precioBase;
+  }
+
+  num _calcularDescuento(num precioBase, DescEspecificacionesModel descEsp, num valorDescuento) {
+    if (descEsp.descTipo == 0) {
+      // Porcentaje
+      return precioBase - (precioBase * (valorDescuento / 100));
+    } else if (descEsp.descTipo == 1) {
+      // Cantidad fija
+      return precioBase - valorDescuento;
+    }
+    return precioBase;
   }
 
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
