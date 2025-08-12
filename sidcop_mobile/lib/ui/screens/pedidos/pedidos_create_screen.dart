@@ -399,6 +399,16 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe seleccionar un cliente y una fecha de entrega.')));
                       return;
                     }
+                    // Obtener usuarioId desde PerfilUsuarioService
+                    final perfilService = PerfilUsuarioService();
+                    final userData = await perfilService.obtenerDatosUsuario();
+                    final usuarioId = userData != null && userData['usua_Id'] != null
+                        ? (userData['usua_Id'] is int ? userData['usua_Id'] : int.tryParse(userData['usua_Id'].toString()) ?? 0)
+                        : 0;
+                    if (usuarioId == 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo obtener el usuario actual.')));
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -409,6 +419,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                           total: total,
                           clienteId: widget.clienteId,
                           fechaEntrega: _fechaEntrega!,
+                          usuarioId: usuarioId,
                         ),
                       ),
                     );

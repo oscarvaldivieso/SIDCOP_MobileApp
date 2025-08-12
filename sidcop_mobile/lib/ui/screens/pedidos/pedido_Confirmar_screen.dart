@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
 
 class ProductoConfirmacion {
   final String nombre;
@@ -23,6 +24,7 @@ class PedidoConfirmarScreen extends StatelessWidget {
   final num total;
   final int clienteId;
   final DateTime fechaEntrega;
+  final int usuarioId;
 
   const PedidoConfirmarScreen({
     Key? key,
@@ -32,6 +34,7 @@ class PedidoConfirmarScreen extends StatelessWidget {
     required this.total,
     required this.clienteId,
     required this.fechaEntrega,
+    required this.usuarioId,
   }) : super(key: key);
 
   @override
@@ -70,8 +73,29 @@ class PedidoConfirmarScreen extends StatelessWidget {
               height: 48,
               child: ElevatedButton(
                 onPressed: () {
-                  // Aquí iría la lógica para confirmar el pedido y navegar a la factura
-                  Navigator.pop(context, true);
+                  // Aquí navega a la factura tipo ticket pasando los datos
+                  Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => FacturaTicketScreen(
+      clienteId: clienteId,
+      usuarioId: usuarioId, // <-- Debe recibirse como argumento
+      numeroFactura: 'F-0001',
+      fechaFactura: DateTime.now(),
+      fechaLimite: DateTime.now().add(const Duration(days: 30)), // Ejemplo: 30 días después
+      productos: productosSeleccionados,
+      subtotal: subtotal,
+      totalDescuento: 0, // Ajustar si hay descuentos
+      totalExento: 0, // TODO: calcular según productos
+      totalExonerado: 0, // TODO: calcular según productos
+      totalGravado15: 0, // TODO: calcular según productos
+      totalGravado18: 0, // TODO: calcular según productos
+      totalImpuesto15: 0, // TODO: calcular según productos
+      totalImpuesto18: 0, // TODO: calcular según productos
+      total: total,
+    ),
+  ),
+);
                 },
                 child: const Text('Confirmar'),
               ),
