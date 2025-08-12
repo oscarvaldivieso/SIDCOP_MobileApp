@@ -277,8 +277,8 @@ class _VentaScreenState extends State<VentaScreen> {
       
       // Asignar IDs de la sesión del usuario
       _ventaModel.clieId = widget.clienteId ?? 111; // Usar clienteId pasado desde pantalla de cliente o valor por defecto
-      //_ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
-      _ventaModel.vendId = 12;
+      _ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
+      //_ventaModel.vendId = 12;
       _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
       // Validar el modelo antes de enviar

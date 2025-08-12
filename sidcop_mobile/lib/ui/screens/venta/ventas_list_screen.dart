@@ -54,10 +54,10 @@ class _VentasListScreenState extends State<VentasListScreen> {
       final userData = await _perfilService.obtenerDatosUsuario();
       final vendedorId = userData?['vend_Id'] ?? 
                         userData?['personaId'] ?? 
-                        userData?['usua_IdVendedor'] ?? 1;
+                        userData?['usua_IdVendedor'] ?? 13;
 
       final response = await _ventaService.listarVentasPorVendedor(
-        vendedorId is int ? vendedorId : int.tryParse(vendedorId.toString()) ?? 1,
+        vendedorId is int ? vendedorId : int.tryParse(vendedorId.toString()) ?? 13,
       );
 
       if (response != null && response['success'] == true) {
