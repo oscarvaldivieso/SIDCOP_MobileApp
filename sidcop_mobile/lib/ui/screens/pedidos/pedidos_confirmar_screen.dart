@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
+import 'package:sidcop_mobile/services/EmpresaService.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
   final List<ProductoConfirmacion> productosSeleccionados;
@@ -388,6 +389,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                           // Si el pedido se creó exitosamente, obtener datos para la factura
                           final clienteService = ClientesService();
                           final cliente = await clienteService.getClienteById(widget.clienteId);
+                          final empresaService = EmpresaService();
+                          final empresa = await empresaService.getConfiguracionFactura();
                           final nombreCliente = ((cliente['clie_Nombres'] ?? '') + ' ' + (cliente['clie_Apellidos'] ?? '')).trim();
                           final codigoCliente = cliente['clie_Codigo'] ?? '';
                           
@@ -459,6 +462,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => FacturaTicketScreen(
+                                  empresa: empresa,
                                   nombreCliente: nombreCliente,
                                   codigoCliente: codigoCliente,
                                   direccion: direccion,

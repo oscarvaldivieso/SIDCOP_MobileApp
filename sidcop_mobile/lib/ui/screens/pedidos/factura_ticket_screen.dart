@@ -7,6 +7,8 @@ import 'package:printing/printing.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
+import 'package:sidcop_mobile/services/EmpresaService.dart';
+import 'package:sidcop_mobile/models/ConfiguracionFacturaViewModel.dart'; 
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
@@ -22,6 +24,8 @@ class FacturaTicketScreen extends StatelessWidget {
   final num totalDescuento;
   final num total;
   final String totalEnLetras;
+  final List<ConfiguracionFacturaViewModel> empresa;
+  
 
   const FacturaTicketScreen({
     Key? key,
@@ -38,7 +42,8 @@ class FacturaTicketScreen extends StatelessWidget {
     required this.totalDescuento,
     required this.total,
     required this.totalEnLetras,
-  }) : super(key: key);
+    required this.empresa,
+      }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +69,11 @@ class FacturaTicketScreen extends StatelessWidget {
                         codigoCliente: codigoCliente,
                         direccion: direccion,
                         rtn: rtn,
+                        logo: empresa?[0].coFa_Logo,
+                        nombreEmpresa: empresa?[0].coFa_NombreEmpresa,
+                        direccionEmpresa: '${empresa?[0].coFa_DireccionEmpresa ?? ''}, ${empresa?[0].muni_Descripcion ?? ''}, ${empresa?[0].depa_Descripcion ?? ''}',
+                        telefonoEmpresa: empresa?[0].coFa_Telefono1,
+                        correoEmpresa: empresa?[0].coFa_Correo,
                         vendedor: vendedor,
                         fechaFactura: fechaFactura,
                         fechaEntrega: fechaEntrega,
@@ -111,6 +121,11 @@ class FacturaTicketScreen extends StatelessWidget {
                         codigoCliente: codigoCliente,
                         direccion: direccion,
                         rtn: rtn,
+                        logo: empresa?[0].coFa_Logo,
+                        nombreEmpresa: empresa?[0].coFa_NombreEmpresa,
+                        direccionEmpresa: '${empresa?[0].coFa_DireccionEmpresa ?? ''}, ${empresa?[0].muni_Descripcion ?? ''}, ${empresa?[0].depa_Descripcion ?? ''}',
+                        telefonoEmpresa: empresa?[0].coFa_Telefono1,
+                        correoEmpresa: empresa?[0].coFa_Correo,
                         vendedor: vendedor,
                         fechaFactura: fechaFactura,
                         fechaEntrega: fechaEntrega,
@@ -172,7 +187,7 @@ class FacturaTicketScreen extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  Image.asset('assets/logo.png', height: 60),
+                  Image.network('${empresa[0].coFa_Logo}', width: 48, height: 48, fit: BoxFit.cover),
                   const SizedBox(height: 8),
                   const Text('COMERCIAL LA ROCA S. DE R.L.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),

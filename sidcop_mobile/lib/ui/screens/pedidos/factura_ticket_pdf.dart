@@ -3,13 +3,18 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:flutter/services.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
-
+import 'package:printing/printing.dart';
 
 Future<Uint8List> generarFacturaPdf({
   required String nombreCliente,
   required String codigoCliente,
   String? direccion,
   String? rtn,
+  String? logo,
+  String? nombreEmpresa,
+  String? direccionEmpresa,
+  String? telefonoEmpresa,
+  String? correoEmpresa,
   required String vendedor,
   required String fechaFactura,
   required String fechaEntrega,
@@ -23,8 +28,9 @@ Future<Uint8List> generarFacturaPdf({
   final pdf = pw.Document();
 
   // Cargar el logo
-  final logoBytes = await rootBundle.load('assets/logo_blanco.png');
-  final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+  // final logoBytes = await rootBundle.load('$logo');
+  // final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+  final netImage = await networkImage('$logo');
 
   pdf.addPage(
     pw.Page(
@@ -35,12 +41,13 @@ Future<Uint8List> generarFacturaPdf({
           children: [
             pw.Center(
               child: pw.Column(children: [
-                pw.Image(logoImage, width: 40, height: 40),
+                pw.Image(netImage, width: 40, height: 40),
                 pw.SizedBox(height: 5),
-                pw.Text('COMERCIAL LA ROCA S. DE R.L.', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                pw.Text('$nombreEmpresa', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
                 pw.SizedBox(height: 3),
-                pw.Text('Casa Matriz 1ra Ave, 5ta Calle...', style: pw.TextStyle(fontSize: 9)),
-                pw.Text('Tel: (504) 2516-4076 / 4189 / 4190 / 4191', style: pw.TextStyle(fontSize: 9)),
+                pw.Text('$direccionEmpresa', style: pw.TextStyle(fontSize: 9)),
+                pw.Text('Tel: $telefonoEmpresa', style: pw.TextStyle(fontSize: 9)),
+                pw.Text('Correo: $correoEmpresa', style: pw.TextStyle(fontSize: 9)),
               ]),
             ),
             pw.SizedBox(height: 8),
