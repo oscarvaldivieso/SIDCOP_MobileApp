@@ -12,7 +12,8 @@ class SplashLottieScreen extends StatefulWidget {
   State<SplashLottieScreen> createState() => _SplashLottieScreenState();
 }
 
-class _SplashLottieScreenState extends State<SplashLottieScreen> with SingleTickerProviderStateMixin {
+class _SplashLottieScreenState extends State<SplashLottieScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _navigated = false;
 
@@ -57,19 +58,40 @@ class _SplashLottieScreenState extends State<SplashLottieScreen> with SingleTick
               },
             ),
           ),
-          // Overlay para cubrir la marca de agua (ajusta el tamaño si es necesario)
+
+          // Overlay para cubrir la marca de agua
           Positioned(
-            right: MediaQuery.of(context).size.width * 0.05,
-            bottom: MediaQuery.of(context).size.height * 0.04,
+            right: MediaQuery.of(context).size.width * 0.0, // 10% del ancho
+            bottom: MediaQuery.of(context).size.height * 0.10, // 30% del alto
             child: Container(
-              width: MediaQuery.of(context).size.width * 0.18, // Ajusta según el tamaño de la marca
-              height: MediaQuery.of(context).size.height * 0.07, // Ajusta según el tamaño de la marca
-              color: const Color(0xFF181E34), // Mismo color que el fondo
+              width: MediaQuery.of(context).size.width * 0.40, // 40% del ancho
+              height: MediaQuery.of(context).size.height * 0.15, // 15% del alto
+              color: const Color.fromRGBO(
+                24,
+                30,
+                52,
+                1,
+              ), // Mismo color que el fondo
             ),
+          ),
+
+          Positioned(
+            bottom: 60,
+            right: -100,
+            child: Image.asset('assets/Ellipse1.png', width: 300, height: 300),
+          ),
+          Positioned(
+            top: 50,
+            right: -80,
+            child: Image.asset('assets/Ellipse1.png', width: 150, height: 150),
+          ),
+          Positioned(
+            top: 80,
+            left: -100,
+            child: Image.asset('assets/Ellipse1.png', width: 330, height: 330),
           ),
         ],
       ),
     );
   }
 }
-
