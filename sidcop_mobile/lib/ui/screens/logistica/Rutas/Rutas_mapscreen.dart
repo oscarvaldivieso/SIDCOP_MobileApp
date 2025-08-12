@@ -10,6 +10,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'dart:ui' as ui; // Para generar el bitmap custom
+import 'dart:typed_data';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
@@ -99,6 +101,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   LatLng? _initialPosition;
   final CustomInfoWindowController _customInfoWindowController =
       CustomInfoWindowController();
+  // Icono personalizado para "negocio"
+  BitmapDescriptor? _negocioIcon;
+  bool _generatingNegocioIcon = false;
 
   Stream<Position>? _positionStream;
 
@@ -118,6 +123,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       // Cuando la ubicación cambia, recalcula el orden de visitas
       _loadDirecciones();
     });
+    // Pre-generar el icono de negocio en segundo plano
+    _generateNegocioMarker();
   }
 
   void _updateUserMarker() {
@@ -125,7 +132,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         .where((m) => m.markerId.value != 'user_location')
         .toSet();
   }
-
 
   List<LatLng> _decodePolyline(String poly) {
     List<LatLng> points = [];
@@ -180,7 +186,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
 
   Future<void> _loadDirecciones() async {
     try {
-
+      if (_negocioIcon == null && !_generatingNegocioIcon) {
+        await _generateNegocioMarker();
+      }
       final clientesService = ClientesService();
       final clientesJson = await clientesService.getClientes();
       final clientes = clientesJson
@@ -205,9 +213,11 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           Marker(
             markerId: MarkerId(d.dicl_id.toString()),
             position: LatLng(d.dicl_latitud!, d.dicl_longitud!),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed,
-            ),
+            icon:
+                _negocioIcon ??
+                BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueYellow,
+                ),
             onTap: () {
               _customInfoWindowController.addInfoWindow!(
                 GestureDetector(
@@ -269,7 +279,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
+                                    color: Color(0xFFD6B68A),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -280,7 +290,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                   style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w500,
-                                    color: Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -288,29 +297,20 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     cliente.clie_RTN!.isNotEmpty)
                                   Text(
                                     'RTN: ${cliente.clie_RTN}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
+                                    style: const TextStyle(fontSize: 16),
                                   ),
                                 if (cliente.clie_DNI != null &&
                                     cliente.clie_DNI!.isNotEmpty)
                                   Text(
                                     'DNI: ${cliente.clie_DNI}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
+                                    style: const TextStyle(fontSize: 16),
                                   ),
                                 const SizedBox(height: 8),
                                 if (cliente.clie_Telefono != null &&
                                     cliente.clie_Telefono != '')
                                   Text(
                                     'Teléfono: ${cliente.clie_Telefono}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
+                                    style: const TextStyle(fontSize: 16),
                                   ),
                                 const SizedBox(height: 8),
                                 Text(
@@ -491,6 +491,105 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     }
   }
 
+  // Genera un BitmapDescriptor personalizado estilizado con el color dorado y un ícono de tienda
+  Future<void> _generateNegocioMarker() async {
+    if (_generatingNegocioIcon || _negocioIcon != null) return;
+    _generatingNegocioIcon = true;
+    try {
+      const double size = 140; // tamaño base del canvas
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final Canvas canvas = Canvas(recorder);
+      final Paint fillPaint = Paint()..color = const Color(0xFFD6B68A);
+      final Paint strokePaint = Paint()
+        ..color = const Color(0xFF141A2F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+      // Gota simétrica mejor proporcionada
+      final double r = size * 0.30; // radio base ligeramente menor para nitidez
+      final Offset c = Offset(size / 2, r + 6);
+      const double tailFactor = 1.75; // largo controlado
+      final double bottomY = c.dy + r * tailFactor;
+      final Path drop = Path();
+      // Punto superior
+      drop.moveTo(c.dx, c.dy - r);
+      // Lado derecho (dos curvas: superior y hacia la punta)
+      drop.quadraticBezierTo(
+        c.dx + r,
+        c.dy - r,
+        c.dx + r * 0.92,
+        c.dy + r * 0.15,
+      );
+      drop.quadraticBezierTo(c.dx + r * 0.60, c.dy + r * 0.95, c.dx, bottomY);
+      // Lado izquierdo espejo
+      drop.quadraticBezierTo(
+        c.dx - r * 0.60,
+        c.dy + r * 0.95,
+        c.dx - r * 0.92,
+        c.dy + r * 0.15,
+      );
+      drop.quadraticBezierTo(c.dx - r, c.dy - r, c.dx, c.dy - r);
+      drop.close();
+
+      canvas.drawPath(drop, fillPaint);
+      canvas.drawPath(drop, strokePaint);
+
+      // Ícono de tienda dentro del círculo usando el font de Material Icons
+      final TextPainter tp = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(Icons.store.codePoint),
+          style: TextStyle(
+            fontSize: r * 1.55, // escala relativa al radio
+            fontFamily: 'MaterialIcons',
+            color: const Color(0xFF141A2F),
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - tp.height / 2));
+
+      // Finalizar y convertir a bytes
+      final ui.Picture picture = recorder.endRecording();
+      final double totalHeight =
+          bottomY + r * 0.35; // margen extra para evitar corte
+      final ui.Image image = await picture.toImage(
+        size.toInt(),
+        totalHeight.toInt(),
+      );
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (byteData != null) {
+        final Uint8List pngBytes = byteData.buffer.asUint8List();
+        final icon = BitmapDescriptor.fromBytes(pngBytes);
+        setState(() {
+          _negocioIcon = icon;
+        });
+        // Reemplazar íconos existentes de clientes si ya estaban en el mapa
+        _rebuildMarkersWithNegocioIcon();
+      }
+    } catch (e) {
+      // Fallback silencioso: deja el icono por defecto
+    } finally {
+      _generatingNegocioIcon = false;
+    }
+  }
+
+  void _rebuildMarkersWithNegocioIcon() {
+    if (_negocioIcon == null || _markers.isEmpty) return;
+    final updated = _markers.map((m) {
+      // si en el futuro añadimos marker de usuario lo saltamos
+      if (m.markerId.value == 'user_location') return m;
+      return m.copyWith(iconParam: _negocioIcon);
+    }).toSet();
+    setState(() {
+      _markers = updated;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -643,7 +742,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         textStyle: const TextStyle(
                                           fontSize: 14,
                                           fontFamily: 'Satoshi',
-                                          fontWeight: FontWeight.w500
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                       icon: const Icon(
@@ -692,11 +791,18 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       onPressed: () {
                                         Navigator.of(context).pop();
                                         final paradaLatLng = parada['latlng'];
-                                        final idxDireccion = _direccionesFiltradas.indexWhere(
-                                          (d) => d.dicl_latitud == paradaLatLng.latitude && d.dicl_longitud == paradaLatLng.longitude,
-                                        );
-                                        if (_userLocation != null && idxDireccion != -1) {
-                                          final destino = _direccionesFiltradas[idxDireccion];
+                                        final idxDireccion =
+                                            _direccionesFiltradas.indexWhere(
+                                              (d) =>
+                                                  d.dicl_latitud ==
+                                                      paradaLatLng.latitude &&
+                                                  d.dicl_longitud ==
+                                                      paradaLatLng.longitude,
+                                            );
+                                        if (_userLocation != null &&
+                                            idxDireccion != -1) {
+                                          final destino =
+                                              _direccionesFiltradas[idxDireccion];
                                           _mostrarRutaACliente(destino);
                                         }
                                       },
@@ -765,7 +871,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                 await _loadDirecciones();
                                 if (_direccionesFiltradas.isNotEmpty &&
                                     _userLocation != null) {
-                                  // Buscar el cliente más cercano por ruta real
                                   DireccionCliente? closest =
                                       await _getClienteMasCercanoPorRuta();
                                   if (closest != null) {
