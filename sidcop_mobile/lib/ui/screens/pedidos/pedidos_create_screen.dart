@@ -4,7 +4,7 @@ import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
-import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_confirmar_screen.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 
 class PedidosCreateScreen extends StatefulWidget {
@@ -24,11 +24,17 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   String? _error;
   final TextEditingController _searchController = TextEditingController();
   int _productosMostrados = 8;
+  
+  // Variables para direcciones
+  List<dynamic> _direcciones = [];
+  dynamic _direccionSeleccionada;
+  bool _loadingDirecciones = false;
 
   @override
   void initState() {
     super.initState();
     _fetchProductos();
+    _fetchDirecciones();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -158,6 +164,41 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         _isLoading = false;
         _error = 'Error al cargar productos';
       });
+    }
+  }
+
+  Future<void> _fetchDirecciones() async {
+    setState(() {
+      _loadingDirecciones = true;
+    });
+    try {
+      final direcciones = await ClientesService().getDireccionesCliente(widget.clienteId);
+      
+      // Debug: Imprimir estructura de direcciones
+      print('Direcciones obtenidas: $direcciones');
+      if (direcciones.isNotEmpty) {
+        print('Primera dirección: ${direcciones[0]}');
+        print('Claves de primera dirección: ${direcciones[0].keys.toList()}');
+      }
+      
+      setState(() {
+        _direcciones = direcciones;
+        _loadingDirecciones = false;
+        // Seleccionar la primera dirección por defecto si existe
+        if (_direcciones.isNotEmpty) {
+          _direccionSeleccionada = _direcciones[0];
+          print('Dirección seleccionada por defecto: $_direccionSeleccionada');
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _loadingDirecciones = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar direcciones: $e')),
+        );
+      }
     }
   }
 
@@ -363,6 +404,86 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              
+              // Dropdown de direcciones
+              Text('Selecciona dirección de entrega:', 
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              const SizedBox(height: 8),
+              _loadingDirecciones
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Center(child: CircularProgressIndicator()),
+                    )
+                  : _direcciones.isEmpty
+                      ? Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_off, size: 19, color: Colors.grey.shade600),
+                              const SizedBox(width: 10),
+                              Text(
+                                'No hay direcciones disponibles',
+                                style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<dynamic>(
+                              value: _direccionSeleccionada,
+                              isExpanded: true,
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                              items: _direcciones.map<DropdownMenuItem<dynamic>>((direccion) {
+                                final descripcion = direccion['diCl_DireccionExacta'] ?? 
+                                                   direccion['DiCl_DireccionExacta'] ?? 
+                                                   direccion['descripcion'] ?? 
+                                                   'Dirección sin descripción';
+                                return DropdownMenuItem<dynamic>(
+                                  value: direccion,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.location_on, size: 19, color: Colors.grey.shade600),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          descripcion,
+                                          style: const TextStyle(fontSize: 15),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _direccionSeleccionada = value;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
               const SizedBox(height: 24),
               Text('Selecciona productos y cantidades:', 
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
@@ -389,92 +510,48 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       );
                       return;
                     }
-                    // 3. Mostrar loading
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (context) => const Center(child: CircularProgressIndicator()),
-                    );
-                    try {
-                      // 4. Obtener datos reales del cliente
-                      final clienteService = ClientesService();
-                      final clienteData = await clienteService.getClienteById(widget.clienteId);
-                      // Mapear campos del cliente
-                      final nombreCliente = ((clienteData['clie_Nombres'] ?? '') + ' ' + (clienteData['clie_Apellidos'] ?? '')).trim();
-                      final codigoCliente = clienteData['clie_Codigo'] ?? '';
-                      String? direccion = '';
-                      if (clienteData['tbDireccionesPorCliente'] != null && clienteData['tbDireccionesPorCliente'] is List && (clienteData['tbDireccionesPorCliente'] as List).isNotEmpty) {
-                        direccion = (clienteData['tbDireccionesPorCliente'][0]['dire_DireccionExacta'] ?? '').toString();
-                      } else {
-                        direccion = clienteData['clie_DireccionExacta'] ?? '';
-                      }
-                      final rtn = clienteData['clie_RTN'] ?? '';
-
-                      // 5. Obtener datos reales del vendedor (usuario actual)
-                      final perfilService = PerfilUsuarioService();
-                      final userData = await perfilService.obtenerDatosUsuario();
-                      final usuaId = userData?['usua_Id'];
-                      String vendedor = '';
-                      if (usuaId != null) {
-                        final usuarioCompleto = await perfilService.obtenerDatosCompletoUsuario(usuaId);
-                        if (usuarioCompleto != null) {
-                          final nombres = usuarioCompleto['nombres'] ?? '';
-                          final apellidos = usuarioCompleto['apellidos'] ?? '';
-                          vendedor = (nombres + ' ' + apellidos).trim();
-                        }
-                      }
-
-                      // 6. Armar productos seleccionados
-                      final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
-                      final productosFactura = productosSeleccionadosList.map((e) {
-                        final producto = _productos.firstWhere((p) => p.prodId == e.key);
-                        // Aquí puedes ajustar el cálculo de precioFinal, descuentoStr e impuesto según tu lógica
-                        return ProductoFactura(
-                          nombre: producto.prodDescripcionCorta ?? '',
-                          cantidad: e.value,
-                          precio: producto.prodPrecioUnitario ?? 0,
-                          precioFinal: producto.prodPrecioUnitario ?? 0,
-                          descuentoStr: '',
-                          impuesto: 0,
-                        );
-                      }).toList();
-                      // Calcular totales
-                      num subtotal = productosFactura.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
-                      num totalDescuento = 0;
-                      num total = subtotal;
-                      // Fecha actual
-                      final now = DateTime.now();
-                      final fechaFactura = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
-                      final fechaEntrega = "${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}";
-                      // 7. Cerrar loading
-                      Navigator.of(context).pop();
-                      // 8. Navegar a FacturaTicketScreen
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FacturaTicketScreen(
-                            nombreCliente: nombreCliente,
-                            codigoCliente: codigoCliente,
-                            direccion: direccion,
-                            rtn: rtn,
-                            vendedor: vendedor,
-                            fechaFactura: fechaFactura,
-                            fechaEntrega: fechaEntrega,
-                            numeroFactura: '',
-                            productos: productosFactura,
-                            subtotal: subtotal,
-                            totalDescuento: totalDescuento,
-                            total: total,
-                            totalEnLetras: NumeroEnLetras.convertir(total),
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      Navigator.of(context).pop();
+                    // 3. Validar dirección seleccionada
+                    if (_direccionSeleccionada == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error al generar la factura: \n"+e.toString')),
+                        const SnackBar(content: Text('Selecciona una dirección de entrega.')),
                       );
+                      return;
                     }
+                    // 4. Preparar productos para confirmación
+                    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+                    final productosConfirmacion = productosSeleccionadosList.map((e) {
+                      final producto = _productos.firstWhere((p) => p.prodId == e.key);
+                      final precioFinal = _getPrecioPorCantidad(producto, e.value);
+                      return ProductoConfirmacion(
+                        prodId: producto.prodId, // Agregar el ID del producto
+                        nombre: producto.prodDescripcionCorta ?? '',
+                        cantidad: e.value,
+                        precioBase: producto.prodPrecioUnitario ?? 0,
+                        precioFinal: precioFinal,
+                        imagen: producto.prodImagen,
+                      );
+                    }).toList();
+
+                    // 5. Calcular totales
+                    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
+                    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
+                    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+
+                    // 6. Navegar a pantalla de confirmación
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PedidoConfirmarScreen(
+                          productosSeleccionados: productosConfirmacion,
+                          cantidadTotal: cantidadTotal,
+                          subtotal: subtotal,
+                          total: total,
+                          clienteId: widget.clienteId,
+                          fechaEntrega: _fechaEntrega!,
+                          direccionSeleccionada: _direccionSeleccionada!,
+                        ),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto

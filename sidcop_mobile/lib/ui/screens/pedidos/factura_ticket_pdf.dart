@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
+import 'package:flutter/services.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
 
 
@@ -21,6 +22,10 @@ Future<Uint8List> generarFacturaPdf({
 }) async {
   final pdf = pw.Document();
 
+  // Cargar el logo
+  final logoBytes = await rootBundle.load('assets/logo_blanco.png');
+  final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+
   pdf.addPage(
     pw.Page(
       pageFormat: PdfPageFormat(100 * PdfPageFormat.mm, double.infinity, marginAll: 10 * PdfPageFormat.mm),
@@ -30,6 +35,8 @@ Future<Uint8List> generarFacturaPdf({
           children: [
             pw.Center(
               child: pw.Column(children: [
+                pw.Image(logoImage, width: 40, height: 40),
+                pw.SizedBox(height: 5),
                 pw.Text('COMERCIAL LA ROCA S. DE R.L.', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
                 pw.SizedBox(height: 3),
                 pw.Text('Casa Matriz 1ra Ave, 5ta Calle...', style: pw.TextStyle(fontSize: 9)),
