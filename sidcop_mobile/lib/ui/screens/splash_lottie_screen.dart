@@ -59,7 +59,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
             ),
           ),
 
-          // Overlay para cubrir la marca de agua (ajusta el tamaño si es necesario)
+          // Overlay para cubrir la marca de agua
           Positioned(
             right: MediaQuery.of(context).size.width * 0.0, // 10% del ancho
             bottom: MediaQuery.of(context).size.height * 0.10, // 30% del alto
@@ -76,14 +76,19 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
           ),
 
           Positioned(
-            bottom: 80,
-            right: 0,
+            bottom: 60,
+            right: -100,
             child: Image.asset('assets/Ellipse1.png', width: 300, height: 300),
           ),
           Positioned(
-            top: 200,
-            right: 0,
-            child: Image.asset('assets/Ellipse1.png', width: 80, height: 80),
+            top: 50,
+            right: -80,
+            child: Image.asset('assets/Ellipse1.png', width: 150, height: 150),
+          ),
+          Positioned(
+            top: 80,
+            left: -100,
+            child: Image.asset('assets/Ellipse1.png', width: 330, height: 330),
           ),
         ],
       ),
