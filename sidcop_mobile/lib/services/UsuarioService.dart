@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/Globalservice.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -50,7 +50,8 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        // Aquí puedes validar si trae "data" o un objeto directo
+        globalUsuaIdPersona = responseData['data']['usua_IdPersona'];
+        developer.log('Usuario ID: $globalUsuaIdPersona');
         return responseData['data'] ?? responseData;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
