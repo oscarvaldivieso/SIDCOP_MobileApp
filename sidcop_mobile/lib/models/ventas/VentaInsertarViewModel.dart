@@ -56,7 +56,7 @@ class VentaInsertarViewModel {
 
   // Convertir a JSON para enviar al backend
   Map<String, dynamic> toJson() {
-    return {
+    final ventaData = {
       'fact_Numero': factNumero,
       'fact_TipoDeDocumento': factTipoDeDocumento,
       'regC_Id': regCId,
@@ -74,6 +74,49 @@ class VentaInsertarViewModel {
       'usua_Creacion': usuaCreacion,
       'detallesFacturaInput': detallesFacturaInput.map((detalle) => detalle.toJson()).toList(),
     };
+    
+    // Imprimir el JSON completo para depuración
+    print('VentaInsertarViewModel.toJson():');
+    final jsonString = '''
+    {
+      "fact_Numero": "${ventaData['fact_Numero']}",
+      "fact_TipoDeDocumento": "${ventaData['fact_TipoDeDocumento']}",
+      "regC_Id": ${ventaData['regC_Id']},
+      "clie_Id": ${ventaData['clie_Id']},
+      "vend_Id": ${ventaData['vend_Id']},
+      "fact_TipoVenta": "${ventaData['fact_TipoVenta']}",
+      "fact_FechaEmision": "${ventaData['fact_FechaEmision']}",
+      "fact_FechaLimiteEmision": "${ventaData['fact_FechaLimiteEmision']}",
+      "fact_RangoInicialAutorizado": "${ventaData['fact_RangoInicialAutorizado']}",
+      "fact_RangoFinalAutorizado": "${ventaData['fact_RangoFinalAutorizado']}",
+      "fact_Latitud": ${ventaData['fact_Latitud']},
+      "fact_Longitud": ${ventaData['fact_Longitud']},
+      "fact_Referencia": "${ventaData['fact_Referencia']}",
+      "fact_AutorizadoPor": "${ventaData['fact_AutorizadoPor']}",
+      "usua_Creacion": ${ventaData['usua_Creacion']},
+      "detallesFacturaInput": ${_formatDetalles(ventaData['detallesFacturaInput'] as List)}
+    }
+    ''';
+    print(jsonString);
+    
+    return ventaData;
+  }
+  
+  // Método auxiliar para formatear los detalles de la factura
+  String _formatDetalles(List<dynamic> detalles) {
+    final buffer = StringBuffer('[');
+    for (var i = 0; i < detalles.length; i++) {
+      if (i > 0) buffer.write(',');
+      final detalle = detalles[i] as Map<String, dynamic>;
+      buffer.write('''
+        {
+          "prod_Id": ${detalle['prod_Id']},
+          "faDe_Cantidad": ${detalle['faDe_Cantidad']}
+        }'''
+      );
+    }
+    buffer.write(']');
+    return buffer.toString();
   }
 
   // Crear desde JSON (si necesitas deserializar)
@@ -142,21 +185,26 @@ class DetalleFacturaInput {
   // Constructor vacío
   DetalleFacturaInput.empty()
       : prodId = 0,
-        faDeCantidad = 0.0;
+        faDeCantidad = 0;
 
   // Convertir a JSON
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'prod_Id': prodId,
-      'faDe_Cantidad': faDeCantidad,
+      'faDe_Cantidad': faDeCantidad.toInt(), // Convertir a entero
     };
+    print('DetalleFacturaInput.toJson(): $json');
+    return json;
   }
 
   // Crear desde JSON
   factory DetalleFacturaInput.fromJson(Map<String, dynamic> json) {
+    // Try both possible field names for backward compatibility
+    final cantidad = (json['faDeCantidad'] ?? json['faDe_Cantidad'] ?? 0).toDouble();
+    print('DetalleFacturaInput.fromJson(): $json, cantidad: $cantidad');
     return DetalleFacturaInput(
       prodId: json['prod_Id'] ?? 0,
-      faDeCantidad: (json['faDe_Cantidad'] ?? 0).toDouble(),
+      faDeCantidad: cantidad,
     );
   }
 

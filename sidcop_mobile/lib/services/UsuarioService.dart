@@ -53,10 +53,14 @@ class UsuarioService {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         // Aquí puedes validar si trae "data" o un objeto directo
         final result = responseData['data'] ?? responseData;
-        
+
+        // Guardar ID de persona global y registrarlo en logs
+        globalUsuaIdPersona = result['usua_IdPersona'];
+        developer.log('Usuario ID: $globalUsuaIdPersona');
+
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         _iniciarPrecargaProductos();
-        
+
         return result;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
@@ -74,15 +78,19 @@ class UsuarioService {
 
   /// Inicia la precarga de productos en segundo plano
   void _iniciarPrecargaProductos() {
-    developer.log('UsuarioService: Iniciando precarga de productos en segundo plano');
+    developer.log(
+      'UsuarioService: Iniciando precarga de productos en segundo plano',
+    );
     try {
       final preloadService = ProductPreloadService();
       preloadService.preloadInBackground();
     } catch (e) {
-      developer.log('UsuarioService: Error al iniciar precarga de productos: $e');
+      developer.log(
+        'UsuarioService: Error al iniciar precarga de productos: $e',
+      );
     }
   }
-  
+
   /// Método público para precargar productos manualmente
   Future<List<dynamic>> precargarProductos() async {
     developer.log('UsuarioService: Precargando productos manualmente');
@@ -94,7 +102,7 @@ class UsuarioService {
       return [];
     }
   }
-  
+
   /// Obtiene el estado actual de la precarga de productos
   Map<String, dynamic> obtenerEstadoPrecarga() {
     try {
@@ -102,13 +110,10 @@ class UsuarioService {
       return preloadService.getPreloadInfo();
     } catch (e) {
       developer.log('UsuarioService: Error al obtener estado de precarga: $e');
-      return {
-        'error': true,
-        'message': e.toString(),
-      };
+      return {'error': true, 'message': e.toString()};
     }
   }
-  
+
   /// Verifica si los productos están precargados
   bool productosEstanPrecargados() {
     try {
@@ -118,7 +123,7 @@ class UsuarioService {
       return false;
     }
   }
-  
+
   /// Limpia la precarga de productos para forzar una nueva carga
   void limpiarPrecarga() {
     try {
