@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
@@ -51,7 +57,40 @@ class FacturaTicketScreen extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.download),
                   tooltip: 'Descargar',
-                  onPressed: () {},
+                  onPressed: () async {
+                    try {
+                      final pdfBytes = await generarFacturaPdf(
+                        nombreCliente: nombreCliente,
+                        codigoCliente: codigoCliente,
+                        direccion: direccion,
+                        rtn: rtn,
+                        vendedor: vendedor,
+                        fechaFactura: fechaFactura,
+                        fechaEntrega: fechaEntrega,
+                        numeroFactura: numeroFactura,
+                        productos: productos,
+                        subtotal: subtotal,
+                        totalDescuento: totalDescuento,
+                        total: total,
+                        totalEnLetras: totalEnLetras,
+                      );
+                      final directory = await getApplicationDocumentsDirectory();
+                      final filePath = '${directory.path}/factura_${numeroFactura.replaceAll('/', '_')}.pdf';
+                      final file = File(filePath);
+                      await file.writeAsBytes(pdfBytes);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Factura descargada en: $filePath')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al descargar: $e')),
+                        );
+                      }
+                    }
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.print),
