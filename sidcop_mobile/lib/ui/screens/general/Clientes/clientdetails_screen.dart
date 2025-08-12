@@ -1,11 +1,12 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
-import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -358,11 +359,19 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  PedidosScreen(),
+                                                  PedidosCreateScreen(
+                                                    clienteId: widget.clienteId,
+                                                  ),
                                             ),
                                           );
                                         } else {
-                                          // TODO: Implementar lógica de venta u otra acción
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  VentaScreen(),
+                                            ),
+                                          );
                                         }
                                       },
                                       height: 50,

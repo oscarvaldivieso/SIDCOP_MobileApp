@@ -8,7 +8,7 @@ import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/services/global_service.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_details.dart';
 
@@ -23,7 +23,8 @@ class _RutasScreenState extends State<RutasScreen> {
     // Obtener clientes y direcciones filtradas igual que en RutasMapScreen
     final clientesService = ClientesService();
     final direccionesService = DireccionClienteService();
-    final clientesJson = await clientesService.getClientes();
+    final clientesJson = await clientesService.getClientes(); 
+    int idPersona = globalUsuaIdPersona ?? 0;
     final clientes = clientesJson
         .map<Cliente>((json) => Cliente.fromJson(json))
         .toList();
