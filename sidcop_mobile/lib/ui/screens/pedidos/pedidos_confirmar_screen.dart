@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
-import 'package:sidcop_mobile/services/ClientesService.Dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
+import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
@@ -46,13 +47,22 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     }
     
     setState(() {
+      final producto = _productosEditables[index];
+      
+      // Recalcular precio con listas de precios y descuentos si tenemos el producto original
+      num nuevoPrecioFinal = producto.precioFinal;
+      if (producto.productoOriginal != null) {
+        nuevoPrecioFinal = _getPrecioPorCantidad(producto.productoOriginal!, nuevaCantidad);
+      }
+      
       _productosEditables[index] = ProductoConfirmacion(
-        prodId: _productosEditables[index].prodId,
-        nombre: _productosEditables[index].nombre,
+        prodId: producto.prodId,
+        nombre: producto.nombre,
         cantidad: nuevaCantidad,
-        precioBase: _productosEditables[index].precioBase,
-        precioFinal: _productosEditables[index].precioFinal,
-        imagen: _productosEditables[index].imagen,
+        precioBase: producto.precioBase,
+        precioFinal: nuevoPrecioFinal,
+        imagen: producto.imagen,
+        productoOriginal: producto.productoOriginal,
       );
     });
   }
@@ -61,6 +71,63 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     setState(() {
       _productosEditables.removeAt(index);
     });
+  }
+
+  // Métodos para cálculo de precios con listas de precios y descuentos
+  num _getPrecioPorCantidad(ProductosPedidosViewModel producto, int cantidad) {
+    // 1. Obtener el precio base según escala
+    num precioBase;
+    if (producto.listasPrecio != null && producto.listasPrecio!.isNotEmpty && cantidad > 0) {
+      ListaPrecioModel? ultimaEscala;
+      for (final lp in producto.listasPrecio!) {
+        if (cantidad >= lp.prePInicioEscala && cantidad <= lp.prePFinEscala) {
+          precioBase = lp.prePPrecioContado;
+          return _aplicarDescuento(producto, cantidad, precioBase);
+        }
+        ultimaEscala = lp;
+      }
+      if (ultimaEscala != null && cantidad > ultimaEscala.prePFinEscala) {
+        precioBase = ultimaEscala.prePPrecioContado;
+        return _aplicarDescuento(producto, cantidad, precioBase);
+      }
+    }
+    precioBase = producto.prodPrecioUnitario ?? 0;
+    return _aplicarDescuento(producto, cantidad, precioBase);
+  }
+
+  num _aplicarDescuento(ProductosPedidosViewModel producto, int cantidad, num precioBase) {
+    // 2. Verificar si hay descuentos y si aplica
+    if (producto.descuentosEscala == null || producto.descuentosEscala!.isEmpty) {
+      return precioBase;
+    }
+    final descEsp = producto.descEspecificaciones;
+    if (descEsp == null || descEsp.descTipoFactura != 'AM') {
+      return precioBase;
+    }
+    // Buscar el descuento correspondiente
+    DescuentoEscalaModel? ultimoDescuento;
+    for (final desc in producto.descuentosEscala!) {
+      if (cantidad >= desc.deEsInicioEscala && cantidad <= desc.deEsFinEscala) {
+        return _calcularDescuento(precioBase, descEsp, desc.deEsValor);
+      }
+      ultimoDescuento = desc;
+    }
+    // Si la cantidad es mayor al último rango, usar el último descuento
+    if (ultimoDescuento != null && cantidad > ultimoDescuento.deEsFinEscala) {
+      return _calcularDescuento(precioBase, descEsp, ultimoDescuento.deEsValor);
+    }
+    return precioBase;
+  }
+
+  num _calcularDescuento(num precioBase, DescEspecificacionesModel descEsp, num valorDescuento) {
+    if (descEsp.descTipo == 0) {
+      // Porcentaje
+      return precioBase - (precioBase * (valorDescuento / 100));
+    } else if (descEsp.descTipo == 1) {
+      // Cantidad fija
+      return precioBase - valorDescuento;
+    }
+    return precioBase;
   }
   
   int get _cantidadTotal => _productosEditables.fold<int>(0, (sum, p) => sum + p.cantidad);
@@ -446,19 +513,21 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
 }
 
 class ProductoConfirmacion {
-  final int? prodId; // ID del producto para la API
+  final int? prodId;
   final String nombre;
-  final int cantidad;
-  final num precioFinal;
+  int cantidad;
   final num precioBase;
+  num precioFinal;
   final String? imagen;
+  final ProductosPedidosViewModel? productoOriginal; // Referencia al producto original para cálculos
 
   ProductoConfirmacion({
     this.prodId,
     required this.nombre,
     required this.cantidad,
-    required this.precioFinal,
     required this.precioBase,
+    required this.precioFinal,
     this.imagen,
+    this.productoOriginal,
   });
 }

@@ -529,6 +529,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                         precioBase: producto.prodPrecioUnitario ?? 0,
                         precioFinal: precioFinal,
                         imagen: producto.prodImagen,
+                        productoOriginal: producto, // Pasar el producto original para cálculos
                       );
                     }).toList();
 
