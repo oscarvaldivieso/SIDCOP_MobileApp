@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
@@ -26,6 +27,68 @@ class RutaMapScreen extends StatefulWidget {
 }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  // scando dsitancia por metros y no solo coordenadas
+  Future<DireccionCliente?> _getClienteMasCercanoPorRuta() async {
+    if (_userLocation == null || _direccionesFiltradas.isEmpty) return null;
+    double minDist = double.infinity;
+    DireccionCliente? closest;
+    for (var d in _direccionesFiltradas) {
+      String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
+      String destination = '${d.dicl_latitud},${d.dicl_longitud}';
+      String url =
+          'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['routes'] != null && data['routes'].isNotEmpty) {
+          final route = data['routes'][0];
+          final legs = route['legs'];
+          if (legs != null && legs.isNotEmpty) {
+            final distance = legs[0]['distance']['value']; // metros
+            if (distance < minDist) {
+              minDist = distance.toDouble();
+              closest = d;
+            }
+          }
+        }
+      }
+    }
+    return closest;
+  }
+
+  //  individual a un cliente
+  void _mostrarRutaACliente(DireccionCliente destino) async {
+    if (_userLocation == null) return;
+    String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
+    String destination = '${destino.dicl_latitud},${destino.dicl_longitud}';
+    String url =
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['routes'] != null && data['routes'].isNotEmpty) {
+        final points = _decodePolyline(
+          data['routes'][0]['overview_polyline']['points'],
+        );
+        setState(() {
+          _polylines = {};
+          _polylines = {
+            Polyline(
+              polylineId: const PolylineId('route_cliente'),
+              color: Colors.blue,
+              width: 4,
+              patterns: [],
+              endCap: Cap.roundCap,
+              startCap: Cap.roundCap,
+              jointType: JointType.round,
+              points: points,
+            ),
+          };
+        });
+      }
+    }
+  }
+
   final String _googleApiKey = mapApikey;
   GoogleMapController? _mapController;
   LatLng? _userLocation;
@@ -42,7 +105,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDirecciones();
     _getUserLocation();
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -51,10 +113,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
         _updateUserMarker();
-        if (_polylines.isNotEmpty) {
-          _updateRoutePolyline();
-        }
+        // Ya no se actualiza la ruta general
       });
+      // Cuando la ubicación cambia, recalcula el orden de visitas
+      _loadDirecciones();
     });
   }
 
@@ -64,105 +126,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         .toSet();
   }
 
-  void _updateRoutePolyline() {
-    if (_userLocation == null || _direccionesFiltradas.isEmpty) return;
-    final puntos = _direccionesFiltradas;
-    // Encontrar la dirección más cercana
-    DireccionCliente? closest;
-    double minDist = double.infinity;
-    for (var d in puntos) {
-      final dist = Geolocator.distanceBetween(
-        _userLocation!.latitude,
-        _userLocation!.longitude,
-        d.dicl_latitud!,
-        d.dicl_longitud!,
-      );
-      if (dist < minDist) {
-        minDist = dist;
-        closest = d;
-      }
-    }
-    if (closest == null) return;
-    // El resto de los puntos (sin el más cercano)
-    final rest = puntos.where((d) => d != closest).toList();
-    String origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
-    String destination = rest.isNotEmpty
-        ? '${rest.last.dicl_latitud ?? ''},${rest.last.dicl_longitud ?? ''}'
-        : '${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}';
-    String waypoints = rest.isNotEmpty
-        ? 'optimize:true|${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}|' +
-              rest
-                  .sublist(0, rest.length - 1)
-                  .map(
-                    (d) => '${d.dicl_latitud ?? ''},${d.dicl_longitud ?? ''}',
-                  )
-                  .join('|')
-        : '${closest?.dicl_latitud ?? ''},${closest?.dicl_longitud ?? ''}';
-    String url =
-        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$_googleApiKey';
-    if (waypoints.isNotEmpty) {
-      url += '&waypoints=$waypoints';
-    }
-    http.get(Uri.parse(url)).then((response) {
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
-          final points = _decodePolyline(
-            data['routes'][0]['overview_polyline']['points'],
-          );
-          setState(() {
-            _polylines = {
-              Polyline(
-                polylineId: const PolylineId('route'),
-                color: Colors.blue,
-                width: 6,
-                points: points,
-              ),
-            };
-            // Actualizar el orden de paradas para mostrar en el Drawer
-            List<Map<String, dynamic>> orden = [];
-            if (_userLocation != null) {
-              orden.add({
-                'tipo': 'origen',
-                'nombre': 'Tu ubicación',
-                'direccion': '',
-                'latlng': _userLocation,
-              });
-            }
-            // El más cercano primero
-            final clienteCercano = _clientesFiltrados.firstWhere(
-              (c) => c.clie_Id == closest!.clie_id,
-              orElse: () => Cliente(),
-            );
-            orden.add({
-              'tipo': 'parada',
-              'nombre': clienteCercano.clie_NombreNegocio ?? '',
-              'cliente': clienteCercano,
-              'direccion':
-                  '${closest!.dicl_direccionexacta}, ${closest!.muni_descripcion}, ${closest!.depa_descripcion}',
-              'latlng': LatLng(closest!.dicl_latitud!, closest!.dicl_longitud!),
-            });
-            // El resto (orden optimizado)
-            for (var d in rest) {
-              final cliente = _clientesFiltrados.firstWhere(
-                (c) => c.clie_Id == d.clie_id,
-                orElse: () => Cliente(),
-              );
-              orden.add({
-                'tipo': 'parada',
-                'nombre': cliente.clie_NombreNegocio ?? '',
-                'cliente': cliente,
-                'direccion':
-                    '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
-                'latlng': LatLng(d.dicl_latitud!, d.dicl_longitud!),
-              });
-            }
-            _ordenParadas = orden;
-          });
-        }
-      }
-    });
-  }
 
   List<LatLng> _decodePolyline(String poly) {
     List<LatLng> points = [];
@@ -210,11 +173,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
       });
+      // Una vez obtenida la ubicación, carga las direcciones y calcula el orden
+      await _loadDirecciones();
     } catch (e) {}
   }
 
   Future<void> _loadDirecciones() async {
     try {
+
       final clientesService = ClientesService();
       final clientesJson = await clientesService.getClientes();
       final clientes = clientesJson
@@ -458,15 +424,64 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           ),
         );
       }
+      // Generar orden de paradas automáticamente (sin necesidad de calcular ruta)
+      List<Map<String, dynamic>> orden = [];
+      if (_userLocation != null) {
+        orden.add({
+          'tipo': 'origen',
+          'nombre': 'Tu ubicación',
+          'direccion': '',
+          'latlng': _userLocation,
+        });
+      }
+      // Ordenar todas las direcciones por distancia desde la ubicación del usuario
+      if (_direccionesFiltradas.isNotEmpty && _userLocation != null) {
+        final direccionesOrdenadas = List<DireccionCliente>.from(
+          _direccionesFiltradas,
+        );
+        direccionesOrdenadas.sort((a, b) {
+          final distA = Geolocator.distanceBetween(
+            _userLocation!.latitude,
+            _userLocation!.longitude,
+            a.dicl_latitud!,
+            a.dicl_longitud!,
+          );
+          final distB = Geolocator.distanceBetween(
+            _userLocation!.latitude,
+            _userLocation!.longitude,
+            b.dicl_latitud!,
+            b.dicl_longitud!,
+          );
+          return distA.compareTo(distB);
+        });
+        for (var d in direccionesOrdenadas) {
+          final cliente = _clientesFiltrados.firstWhere(
+            (c) => c.clie_Id == d.clie_id,
+            orElse: () => Cliente(),
+          );
+          orden.add({
+            'tipo': 'parada',
+            'nombre': cliente.clie_NombreNegocio ?? '',
+            'cliente': cliente,
+            'direccion':
+                '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
+            'latlng': LatLng(d.dicl_latitud!, d.dicl_longitud!),
+          });
+        }
+      }
       setState(() {
         _markers = markers;
-        _polylines = {};
+        // Solo limpiar _polylines si no hay una ruta activa
+        if (_polylines.isEmpty) {
+          _polylines = {};
+        }
         if (_direccionesFiltradas.isNotEmpty) {
           _initialPosition = LatLng(
             _direccionesFiltradas.first.dicl_latitud!,
             _direccionesFiltradas.first.dicl_longitud!,
           );
         }
+        _ordenParadas = orden;
         _loading = false;
       });
     } catch (e) {
@@ -486,11 +501,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           IconButton(
             icon: const Icon(Icons.list_alt),
             tooltip: 'Ver orden de paradas',
-            onPressed: _polylines.isEmpty
-                ? null
-                : () {
-                    _scaffoldKey.currentState?.openEndDrawer();
-                  },
+            onPressed: () {
+              // Solo abrir el drawer, NO mostrar la ruta automáticamente
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
           ),
           PopupMenuButton<MapType>(
             icon: const Icon(Icons.map),
@@ -569,14 +583,21 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                 ),
                               ),
                             ),
-                            title: Text(
-                              cliente?.clie_Nombres != null &&
-                                      cliente?.clie_Apellidos != null
-                                  ? '${cliente?.clie_Nombres ?? ''} ${cliente?.clie_Apellidos ?? ''}'
-                                  : parada['nombre'] ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    cliente?.clie_Nombres != null &&
+                                            cliente?.clie_Apellidos != null
+                                        ? '${cliente?.clie_Nombres ?? ''} ${cliente?.clie_Apellidos ?? ''}'
+                                        : parada['nombre'] ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Checkbox(value: false, onChanged: null),
+                              ],
                             ),
                             children: [
                               if (cliente?.clie_NombreNegocio != null &&
@@ -604,39 +625,83 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                   vertical: 8.0,
                                   horizontal: 16.0,
                                 ),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF141A2F),
-                                      foregroundColor: const Color(0xFFD6B68A),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
+                                        foregroundColor: const Color(
+                                          0xFFD6B68A,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w500
+                                        ),
                                       ),
-                                      textStyle: const TextStyle(fontSize: 14),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.location_on,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Mostrar en el mapa'),
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                      if (parada['latlng'] != null &&
-                                          _mapController != null) {
-                                        _mapController!.animateCamera(
-                                          CameraUpdate.newCameraPosition(
-                                            CameraPosition(
-                                              target: parada['latlng'],
-                                              zoom: 16,
+                                      icon: const Icon(
+                                        Icons.location_on,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Mostrar en mapa'),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        if (parada['latlng'] != null &&
+                                            _mapController != null) {
+                                          _mapController!.animateCamera(
+                                            CameraUpdate.newCameraPosition(
+                                              CameraPosition(
+                                                target: parada['latlng'],
+                                                zoom: 16,
+                                              ),
                                             ),
-                                          ),
+                                          );
+                                          // Opcional: mostrar info window si lo deseas
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
+                                        foregroundColor: const Color(
+                                          0xFFD6B68A,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.alt_route,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Ver ruta'),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        final paradaLatLng = parada['latlng'];
+                                        final idxDireccion = _direccionesFiltradas.indexWhere(
+                                          (d) => d.dicl_latitud == paradaLatLng.latitude && d.dicl_longitud == paradaLatLng.longitude,
                                         );
-                                        // Opcional: mostrar info window si lo deseas
-                                      }
-                                    },
-                                  ),
+                                        if (_userLocation != null && idxDireccion != -1) {
+                                          final destino = _direccionesFiltradas[idxDireccion];
+                                          _mostrarRutaACliente(destino);
+                                        }
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -696,10 +761,30 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                         foregroundColor: const Color(0xFFD6B68A),
                         onPressed: _userLocation == null || _markers.isEmpty
                             ? null
-                            : () {
-                                setState(() {
-                                  _updateRoutePolyline();
-                                });
+                            : () async {
+                                await _loadDirecciones();
+                                if (_direccionesFiltradas.isNotEmpty &&
+                                    _userLocation != null) {
+                                  // Buscar el cliente más cercano por ruta real
+                                  DireccionCliente? closest =
+                                      await _getClienteMasCercanoPorRuta();
+                                  if (closest != null) {
+                                    _mostrarRutaACliente(closest);
+                                    if (_mapController != null) {
+                                      _mapController!.animateCamera(
+                                        CameraUpdate.newCameraPosition(
+                                          CameraPosition(
+                                            target: LatLng(
+                                              closest.dicl_latitud!,
+                                              closest.dicl_longitud!,
+                                            ),
+                                            zoom: 16,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
                               },
                         child: const Icon(Icons.alt_route),
                         tooltip: 'Ver rutas',
