@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/Globalservice.dart';
+// Import corrected to match actual filename casing
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -50,9 +51,26 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        globalUsuaIdPersona = responseData['data']['usua_IdPersona'];
-        developer.log('Usuario ID: $globalUsuaIdPersona');
-        return responseData['data'] ?? responseData;
+
+        dynamic inner = responseData['data'];
+        int? extracted;
+        if (inner is Map && inner['usua_IdPersona'] != null) {
+          extracted = _toInt(inner['usua_IdPersona']);
+        } else if (responseData['usua_IdPersona'] != null) {
+          extracted = _toInt(responseData['usua_IdPersona']);
+        }
+        globalUsuaIdPersona = extracted;
+        developer.log('globalUsuaIdPersona asignado: $globalUsuaIdPersona');
+
+        // Devolvemos el map "data" si existe, si no el root
+        if (inner is Map<String, dynamic>) {
+          return inner;
+        }
+        // Si inner existe pero no es tipado, intentar convertir
+        if (inner is Map) {
+          return inner.map((key, value) => MapEntry(key.toString(), value));
+        }
+        return responseData;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
         return {
@@ -66,4 +84,14 @@ class UsuarioService {
       return {'error': true, 'message': 'Error de conexión: $e'};
     }
   }
+}
+
+int? _toInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is String) {
+    return int.tryParse(v);
+  }
+  if (v is num) return v.toInt();
+  return null;
 }
