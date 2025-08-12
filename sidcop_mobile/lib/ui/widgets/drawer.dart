@@ -21,7 +21,6 @@ import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
 
-
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
   const CustomDrawer({Key? key, required this.permisos}) : super(key: key);
@@ -221,7 +220,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ListTile(
               leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
               title: const Text(
-                'Ruta',
+                'Rutas',
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
@@ -231,7 +230,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => PedidosScreen()),
+                  MaterialPageRoute(builder: (context) => RutasScreen()),
                 );
               },
             ),
