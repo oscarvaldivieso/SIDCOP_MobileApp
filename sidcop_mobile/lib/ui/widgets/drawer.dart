@@ -19,6 +19,7 @@ import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
 
 
 class CustomDrawer extends StatefulWidget {
@@ -375,6 +376,31 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
+
+ if (tienePermiso(34)) // CxC
+            ListTile(
+              leading: const Icon(
+                Icons.person_outline,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Cuentas por Cobrar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CxCScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+
           if (tienePermiso(29)) // MRecargas
             ListTile(
               leading: Transform.flip(
