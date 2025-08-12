@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
@@ -371,7 +373,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     // 1. Validar productos seleccionados
                     final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
                     if (productosSeleccionados.isEmpty) {
@@ -387,50 +389,92 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       );
                       return;
                     }
-                    // 3. Navegar a FacturaTicketScreen
-                    // Armar productos seleccionados
-                    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
-                    final productosFactura = productosSeleccionadosList.map((e) {
-                      final producto = _productos.firstWhere((p) => p.prodId == e.key);
-                      // Aquí puedes ajustar el cálculo de precioFinal, descuentoStr e impuesto según tu lógica
-                      return ProductoFactura(
-                        nombre: producto.prodDescripcionCorta ?? '',
-                        cantidad: e.value,
-                        precio: producto.prodPrecioUnitario ?? 0,
-                        precioFinal: producto.prodPrecioUnitario ?? 0,
-                        descuentoStr: '',
-                        impuesto: 0,
-                      );
-                    }).toList();
-                    // Calcular totales
-                    num subtotal = productosFactura.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
-                    num totalDescuento = 0;
-                    num total = subtotal;
-                    // Fecha actual
-                    final now = DateTime.now();
-                    final fechaFactura = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
-                    final fechaEntrega = "${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}";
-                    // Navegación
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FacturaTicketScreen(
-                          nombreCliente: '',
-                          codigoCliente: '',
-                          direccion: '',
-                          rtn: '',
-                          vendedor: '',
-                          fechaFactura: fechaFactura,
-                          fechaEntrega: fechaEntrega,
-                          numeroFactura: '',
-                          productos: productosFactura,
-                          subtotal: subtotal,
-                          totalDescuento: totalDescuento,
-                          total: total,
-                          totalEnLetras: NumeroEnLetras.convertir(total),
-                        ),
-                      ),
+                    // 3. Mostrar loading
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(child: CircularProgressIndicator()),
                     );
+                    try {
+                      // 4. Obtener datos reales del cliente
+                      final clienteService = ClientesService();
+                      final clienteData = await clienteService.getClienteById(widget.clienteId);
+                      // Mapear campos del cliente
+                      final nombreCliente = ((clienteData['clie_Nombres'] ?? '') + ' ' + (clienteData['clie_Apellidos'] ?? '')).trim();
+                      final codigoCliente = clienteData['clie_Codigo'] ?? '';
+                      String? direccion = '';
+                      if (clienteData['tbDireccionesPorCliente'] != null && clienteData['tbDireccionesPorCliente'] is List && (clienteData['tbDireccionesPorCliente'] as List).isNotEmpty) {
+                        direccion = (clienteData['tbDireccionesPorCliente'][0]['dire_DireccionExacta'] ?? '').toString();
+                      } else {
+                        direccion = clienteData['clie_DireccionExacta'] ?? '';
+                      }
+                      final rtn = clienteData['clie_RTN'] ?? '';
+
+                      // 5. Obtener datos reales del vendedor (usuario actual)
+                      final perfilService = PerfilUsuarioService();
+                      final userData = await perfilService.obtenerDatosUsuario();
+                      final usuaId = userData?['usua_Id'];
+                      String vendedor = '';
+                      if (usuaId != null) {
+                        final usuarioCompleto = await perfilService.obtenerDatosCompletoUsuario(usuaId);
+                        if (usuarioCompleto != null) {
+                          final nombres = usuarioCompleto['nombres'] ?? '';
+                          final apellidos = usuarioCompleto['apellidos'] ?? '';
+                          vendedor = (nombres + ' ' + apellidos).trim();
+                        }
+                      }
+
+                      // 6. Armar productos seleccionados
+                      final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+                      final productosFactura = productosSeleccionadosList.map((e) {
+                        final producto = _productos.firstWhere((p) => p.prodId == e.key);
+                        // Aquí puedes ajustar el cálculo de precioFinal, descuentoStr e impuesto según tu lógica
+                        return ProductoFactura(
+                          nombre: producto.prodDescripcionCorta ?? '',
+                          cantidad: e.value,
+                          precio: producto.prodPrecioUnitario ?? 0,
+                          precioFinal: producto.prodPrecioUnitario ?? 0,
+                          descuentoStr: '',
+                          impuesto: 0,
+                        );
+                      }).toList();
+                      // Calcular totales
+                      num subtotal = productosFactura.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
+                      num totalDescuento = 0;
+                      num total = subtotal;
+                      // Fecha actual
+                      final now = DateTime.now();
+                      final fechaFactura = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+                      final fechaEntrega = "${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}";
+                      // 7. Cerrar loading
+                      Navigator.of(context).pop();
+                      // 8. Navegar a FacturaTicketScreen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FacturaTicketScreen(
+                            nombreCliente: nombreCliente,
+                            codigoCliente: codigoCliente,
+                            direccion: direccion,
+                            rtn: rtn,
+                            vendedor: vendedor,
+                            fechaFactura: fechaFactura,
+                            fechaEntrega: fechaEntrega,
+                            numeroFactura: '',
+                            productos: productosFactura,
+                            subtotal: subtotal,
+                            totalDescuento: totalDescuento,
+                            total: total,
+                            totalEnLetras: NumeroEnLetras.convertir(total),
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error al generar la factura: \n"+e.toString')),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
