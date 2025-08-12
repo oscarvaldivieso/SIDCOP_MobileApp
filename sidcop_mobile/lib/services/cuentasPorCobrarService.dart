@@ -54,35 +54,82 @@ class CuentasXCobrarService {
     }
   }
 
-  Future<Map<String, dynamic>> getCuentaPorCobrarDetalle(int cuentaId) async {
-  final url = Uri.parse('$_apiServer/CuentasPorCobrar/Detalle/$cuentaId');
-  developer.log('Get CuentaPorCobrar Detalle Request URL: $url');
-  
-  try {
-    final response = await http.get(
-      url,
-      headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
-    );
+  // Método agregado para obtener el resumen por cliente
+  Future<List<dynamic>> getResumenCliente() async {
+    final url = Uri.parse('$_apiServer/CuentasPorCobrar/ResumenCliente');
+    developer.log('Get ResumenCliente Request URL: $url');
+    
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
 
-    developer.log('Get CuentaPorCobrar Detalle Response Status: ${response.statusCode}');
-    developer.log('Get CuentaPorCobrar Detalle Response Body: ${response.body}');
+      developer.log(
+        'Get ResumenCliente Response Status: ${response.statusCode}',
+      );
+      developer.log('Get ResumenCliente Response Body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-      
-      if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
-        return decoded['data'];
-      } else if (decoded is Map<String, dynamic>) {
-        return decoded;
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        
+        // Verificar si la respuesta tiene la estructura con "data"
+        if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+          final data = decoded['data'];
+          if (data is List) {
+            return data;
+          } else {
+            throw Exception('La clave "data" no es una lista.');
+          }
+        } 
+        // Si no tiene "data", asumir que es directamente una lista
+        else if (decoded is List) {
+          return decoded;
+        } else {
+          throw Exception(
+            'Respuesta inesperada del servidor: formato no reconocido.',
+          );
+        }
       } else {
-        throw Exception('Respuesta inesperada del servidor: formato no reconocido.');
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
       }
-    } else {
-      throw Exception('Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}');
+    } catch (e) {
+      developer.log('Get ResumenCliente Error: $e');
+      throw Exception('Error en la solicitud: $e');
     }
-  } catch (e) {
-    developer.log('Get CuentaPorCobrar Detalle Error: $e');
-    throw Exception('Error en la solicitud: $e');
   }
- }
+
+  Future<Map<String, dynamic>> getCuentaPorCobrarDetalle(int cuentaId) async {
+    final url = Uri.parse('$_apiServer/CuentasPorCobrar/Detalle/$cuentaId');
+    developer.log('Get CuentaPorCobrar Detalle Request URL: $url');
+    
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log('Get CuentaPorCobrar Detalle Response Status: ${response.statusCode}');
+      developer.log('Get CuentaPorCobrar Detalle Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        
+        if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+          return decoded['data'];
+        } else if (decoded is Map<String, dynamic>) {
+          return decoded;
+        } else {
+          throw Exception('Respuesta inesperada del servidor: formato no reconocido.');
+        }
+      } else {
+        throw Exception('Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}');
+      }
+    } catch (e) {
+      developer.log('Get CuentaPorCobrar Detalle Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
 }
