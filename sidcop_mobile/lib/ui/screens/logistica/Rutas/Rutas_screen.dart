@@ -8,7 +8,7 @@ import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/services/Globalservice.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_details.dart';
 

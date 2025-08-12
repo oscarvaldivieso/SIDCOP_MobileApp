@@ -8,7 +8,8 @@ import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/Globalservice.dart';
+
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
