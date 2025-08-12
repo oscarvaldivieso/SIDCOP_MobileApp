@@ -3,9 +3,9 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:printing/printing.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
@@ -74,19 +74,22 @@ class FacturaTicketScreen extends StatelessWidget {
                         total: total,
                         totalEnLetras: totalEnLetras,
                       );
-                      final directory = await getApplicationDocumentsDirectory();
-                      final filePath = '${directory.path}/factura_${numeroFactura.replaceAll('/', '_')}.pdf';
-                      final file = File(filePath);
-                      await file.writeAsBytes(pdfBytes);
+                      
+                      // Usar printing para mostrar y compartir el PDF
+                      await Printing.sharePdf(
+                        bytes: pdfBytes,
+                        filename: 'factura_${numeroFactura.replaceAll('/', '_')}.pdf',
+                      );
+                      
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Factura descargada en: $filePath')),
+                          const SnackBar(content: Text('PDF generado exitosamente')),
                         );
                       }
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al descargar: $e')),
+                          SnackBar(content: Text('Error al generar PDF: $e')),
                         );
                       }
                     }
@@ -100,7 +103,67 @@ class FacturaTicketScreen extends StatelessWidget {
                 IconButton(
                   icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
                   tooltip: 'Enviar por WhatsApp',
-                  onPressed: () {},
+                  onPressed: () async {
+                    try {
+                      // Generar el PDF
+                      final pdfBytes = await generarFacturaPdf(
+                        nombreCliente: nombreCliente,
+                        codigoCliente: codigoCliente,
+                        direccion: direccion,
+                        rtn: rtn,
+                        vendedor: vendedor,
+                        fechaFactura: fechaFactura,
+                        fechaEntrega: fechaEntrega,
+                        numeroFactura: numeroFactura,
+                        productos: productos,
+                        subtotal: subtotal,
+                        totalDescuento: totalDescuento,
+                        total: total,
+                        totalEnLetras: totalEnLetras,
+                      );
+
+                      // Crear mensaje para WhatsApp
+                      final mensaje = Uri.encodeComponent(
+                        '¡Hola! Te envío la factura #$numeroFactura\n\n'
+                        '📋 Cliente: $nombreCliente\n'
+                        '📅 Fecha: $fechaFactura\n'
+                        '💰 Total: L. ${total.toStringAsFixed(2)}\n\n'
+                        'Gracias por tu compra en COMERCIAL LA ROCA S. DE R.L.'
+                      );
+
+                      // Compartir PDF y abrir WhatsApp
+                      await Printing.sharePdf(
+                        bytes: pdfBytes,
+                        filename: 'factura_${numeroFactura.replaceAll('/', '_')}.pdf',
+                      );
+
+                      // Abrir WhatsApp con el mensaje
+                      final whatsappUrl = 'https://wa.me/?text=$mensaje';
+                      final uri = Uri.parse(whatsappUrl);
+                      
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.')),
+                          );
+                        }
+                      }
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('PDF generado. Compártelo desde la aplicación que elijas.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al compartir por WhatsApp: $e')),
+                        );
+                      }
+                    }
+                  },
                 ),
               ],
             ),
