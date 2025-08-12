@@ -1,196 +1,177 @@
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/services/ClientesService.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
-import 'package:sidcop_mobile/utils/numero_en_letras.dart';
-
-class FacturaTicketScreen extends StatefulWidget {
-  final int clienteId;
-  final int usuarioId;
+class FacturaTicketScreen extends StatelessWidget {
+  final String nombreCliente;
+  final String codigoCliente;
+  final String? direccion;
+  final String? rtn;
+  final String vendedor;
+  final String fechaFactura;
+  final String fechaEntrega;
   final String numeroFactura;
-  final DateTime fechaFactura;
-  final DateTime fechaLimite;
-  final List<dynamic> productos;
+  final List<ProductoFactura> productos;
   final num subtotal;
   final num totalDescuento;
-  final num totalExento;
-  final num totalExonerado;
-  final num totalGravado15;
-  final num totalGravado18;
-  final num totalImpuesto15;
-  final num totalImpuesto18;
   final num total;
+  final String totalEnLetras;
 
   const FacturaTicketScreen({
     Key? key,
-    required this.clienteId,
-    required this.usuarioId,
-    required this.numeroFactura,
+    required this.nombreCliente,
+    required this.codigoCliente,
+    this.direccion,
+    this.rtn,
+    required this.vendedor,
     required this.fechaFactura,
-    required this.fechaLimite,
+    required this.fechaEntrega,
+    required this.numeroFactura,
     required this.productos,
     required this.subtotal,
     required this.totalDescuento,
-    required this.totalExento,
-    required this.totalExonerado,
-    required this.totalGravado15,
-    required this.totalGravado18,
-    required this.totalImpuesto15,
-    required this.totalImpuesto18,
     required this.total,
+    required this.totalEnLetras,
   }) : super(key: key);
 
   @override
-  State<FacturaTicketScreen> createState() => _FacturaTicketScreenState();
-}
-
-class _FacturaTicketScreenState extends State<FacturaTicketScreen> {
-  Map<String, dynamic>? cliente;
-  Map<String, dynamic>? usuario;
-  bool loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final c = await ClientesService.getClienteById(widget.clienteId);
-    final perfilService = PerfilUsuarioService();
-    final u = await perfilService.obtenerDatosCompletoUsuario(widget.usuarioId);
-    setState(() {
-      cliente = c;
-      usuario = u;
-      loading = false;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    const double ticketWidth = 350;
-    const mono = TextStyle(fontFamily: 'RobotoMono', fontSize: 13);
-    if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    // Datos de cliente y usuario
-    final nombreCliente = cliente?['nombre'] ?? '';
-    final codigoCliente = cliente?['codigo'] ?? '';
-    final direccionCliente = cliente?['direccion'] ?? '';
-    final rtnCliente = cliente?['rtn'] ?? '';
-    final rutaCliente = cliente?['ruta'] ?? '';
-    final nombreVendedor = usuario?['nombre'] ?? '';
-    // Total en letras
-    final totalEnLetras = NumeroEnLetras.convertir(widget.total);
-
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
-      body: Center(
-        child: Container(
-          width: ticketWidth,
-          margin: const EdgeInsets.symmetric(vertical: 16),
-          padding: const EdgeInsets.all(12),
-          color: Colors.white,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Logo y encabezado
-              Image.asset('assets/Sidcop_Logo.png', height: 48),
-              const SizedBox(height: 4),
-              Text('COMERCIAL LA ROCA S. DE R.L', style: mono.copyWith(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 2),
-              Text('Casa Matriz', style: mono.copyWith(fontWeight: FontWeight.bold)),
-              Text('1ra Ave, 5ta Calle., N.O Bo. Guamilito, San Pedro Sula,\nHonduras, C.A', style: mono, textAlign: TextAlign.center),
-              Text('Sucursal: Comercial La Roca Bo. Guamilito, 1ra Ave, 5ta Calle.,\nN.O San Pedro Sula, Cortes', style: mono, textAlign: TextAlign.center),
-              Text('Telefono: (504) 2516-4076 / 4189 / 4190 / 4191', style: mono, textAlign: TextAlign.center),
-              Text('E-mail: sac@comerciallaroca.com / contabilidadlaroca@gmail.com', style: mono, textAlign: TextAlign.center),
-              Text('05019002058978', style: mono, textAlign: TextAlign.center),
-              const SizedBox(height: 6),
-              // CAI y metadatos
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('C.A.I: 31FB47-AFB25B-872CE0-63BE03-090949-03', style: mono.copyWith(fontWeight: FontWeight.bold)),
-                    Text('No. Factura: ${widget.numeroFactura}', style: mono.copyWith(fontWeight: FontWeight.bold)),
-                    Text('Fecha Emision: ${widget.fechaFactura.day}/${widget.fechaFactura.month}/${widget.fechaFactura.year} ${widget.fechaFactura.hour}:${widget.fechaFactura.minute.toString().padLeft(2, '0')}', style: mono),
-                    Text('Tipo Venta: Contado', style: mono),
-                    Text('Cliente: $nombreCliente', style: mono),
-                    Text('Código Cliente: $codigoCliente', style: mono),
-                    Text('Direccion Cliente: $direccionCliente', style: mono),
-                    Text('RTN Cliente: $rtnCliente', style: mono),
-                    Text('Ruta: $rutaCliente', style: mono),
-                    Text('Vendedor: $nombreVendedor', style: mono),
-                    Text('No. Orden de compra exenta:', style: mono),
-                    Text('No. constancia de Reg. de exonerados', style: mono),
-                    Text('No. Registro de la SAG', style: mono),
-                  ],
+    return AppBackground(
+      title: 'Factura',
+      icon: Icons.receipt_long,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Opciones de acción
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.download),
+                  tooltip: 'Descargar',
+                  onPressed: () {},
                 ),
-              ),
-              const SizedBox(height: 6),
-              // Cabecera de productos
-              Row(
+                IconButton(
+                  icon: const Icon(Icons.print),
+                  tooltip: 'Imprimir',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
+                  tooltip: 'Enviar por WhatsApp',
+                  onPressed: () {},
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Encabezado
+            Center(
+              child: Column(
                 children: [
-                  Expanded(child: Text('Und', style: mono.copyWith(fontWeight: FontWeight.bold))),
-                  Expanded(flex: 3, child: Text('Prod', style: mono.copyWith(fontWeight: FontWeight.bold))),
-                  Expanded(child: Text('Precio', style: mono.copyWith(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                  Expanded(child: Text('Monto', style: mono.copyWith(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                  Image.asset('assets/logo.png', height: 60),
+                  const SizedBox(height: 8),
+                  const Text('COMERCIAL LA ROCA S. DE R.L.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text('Casa Matriz\n1ra Ave, 5ta Calle...'), // Puedes expandir con datos reales
+                  const SizedBox(height: 4),
+                  Text('Tel: (504) 2516-4076 / 4189 / 4190 / 4191'),
                 ],
               ),
-              const Divider(thickness: 1),
-              ...widget.productos.map<Widget>((p) => Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            const SizedBox(height: 12),
+            // CAI y datos de factura
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('C.A.I: 31FB47-AFB25B-872CE0-63BE03-090949-03', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('No. Factura: $numeroFactura', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Fecha Emisión: $fechaFactura'),
+                Text('Fecha Entrega: $fechaEntrega'),
+                const Text('Tipo Factura: Pedido'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Datos de factura y cliente
+            Text('Cliente: $nombreCliente'),
+            Text('Código: $codigoCliente'),
+            if (direccion != null && direccion!.isNotEmpty) Text('Dirección: $direccion'),
+            if (rtn != null && rtn!.isNotEmpty) Text('RTN: $rtn'),
+            Text('Vendedor: $vendedor'),
+            const Divider(height: 24),
+            // Tabla de productos
+            Row(
+              children: const [
+                Expanded(child: Text('Und', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 3, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Precio', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Desc.', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Monto', style: TextStyle(fontWeight: FontWeight.bold))),
+              ],
+            ),
+            const Divider(),
+            ...productos.map((p) => Row(
+              children: [
+                Expanded(child: Text('${p.cantidad}')),
+                Expanded(flex: 3, child: Text(p.nombre)),
+                Expanded(child: Text('L. ${p.precio.toStringAsFixed(2)}')),
+                Expanded(child: Text(p.descuentoStr)),
+                Expanded(child: Text('L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}')),
+              ],
+            )),
+            const Divider(height: 24),
+            // Resumen
+            Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(child: Text('${p.cantidad}', style: mono)),
-                  Expanded(flex: 3, child: Text('${p.nombre}\n${p.descripcion ?? ''}', style: mono)),
-                  Expanded(child: Text(p.precioFinal.toStringAsFixed(2), style: mono, textAlign: TextAlign.right)),
-                  Expanded(child: Text((p.precioFinal * p.cantidad).toStringAsFixed(2), style: mono, textAlign: TextAlign.right)),
+                  Text('Sub-total: L. ${subtotal.toStringAsFixed(2)}'),
+                  Text('Total Descuento: L. ${totalDescuento.toStringAsFixed(2)}'),
+                  Text('Total Impuesto 15%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.15).toStringAsFixed(2)}'),
+                Text('Total Impuesto 18%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.18).toStringAsFixed(2)}'),
+                  Text('Total: L. ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('*$totalEnLetras*'),
                 ],
-              )),
-              const Divider(thickness: 1),
-              // Totales y desglose
-              Align(
-                alignment: Alignment.centerRight,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Sub-total: L. ${widget.subtotal.toStringAsFixed(2)}', style: mono),
-                    Text('Total Descuento: L.${widget.totalDescuento.toStringAsFixed(2)}', style: mono),
-                    Text('Importe Exento: L.${widget.totalExento.toStringAsFixed(2)}', style: mono),
-                    Text('Importe Exonerado: L.${widget.totalExonerado.toStringAsFixed(2)}', style: mono),
-                    Text('Importe Gravado 15%: L.${widget.totalGravado15.toStringAsFixed(2)}', style: mono),
-                    Text('Importe Gravado 18%: L.${widget.totalGravado18.toStringAsFixed(2)}', style: mono),
-                    Text('Total Impuesto 15%: L.${widget.totalImpuesto15.toStringAsFixed(2)}', style: mono),
-                    Text('Total Impuesto 18%: L.${widget.totalImpuesto18.toStringAsFixed(2)}', style: mono),
-                    Text('Total: L.${widget.total.toStringAsFixed(2)}', style: mono.copyWith(fontWeight: FontWeight.bold)),
-                  ],
-                ),
               ),
-              const SizedBox(height: 8),
-              Text('*${totalEnLetras.toUpperCase()} LPS*', style: mono.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              // Pie de página
-              Text('Fecha Límite Emision:', style: mono),
-              Text('${widget.fechaLimite.day.toString().padLeft(2, '0')}/${widget.fechaLimite.month.toString().padLeft(2, '0')}/${widget.fechaLimite.year}', style: mono),
-              Text('Rango Autorizado:', style: mono),
-              Text('Desde: 000-044-01-00008801', style: mono),
-              Text('Hasta: 000-044-01-00009500', style: mono),
-              Text('Original: Cliente, Copia 1: Obligado Tributario Emisor', style: mono),
-              Text('Copia 2: Archivo', style: mono),
-              const SizedBox(height: 5),
-              Text('Original', style: mono.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('LA FACTURA ES BENEFICIO DE TODOS, ¡EXIJALA!', style: mono, textAlign: TextAlign.center),
-            ],
-          ),
+            ),
+            const SizedBox(height: 18),
+            // Pie
+            Center(child: Text('La factura es beneficio de todos, ¡exíjala!', textAlign: TextAlign.center)),
+          ],
         ),
       ),
     );
   }
+
+  double _calcularTotalImpuestoPorcentaje(List<ProductoFactura> productos, double porcentaje) {
+    double total = 0.0;
+    for (var p in productos) {
+      // Si el impuesto de este producto es exactamente el porcentaje solicitado
+      if ((p.impuesto / (p.precioFinal * p.cantidad)).toStringAsFixed(2) == porcentaje.toStringAsFixed(2)) {
+        total += p.impuesto * p.cantidad;
+      }
+    }
+    return total;
+  }
 }
-// --- Fin de la versión nueva. Todo lo que sigue es duplicado viejo y debe eliminarse ---
+
+
+class ProductoFactura {
+  final String nombre;
+  final int cantidad;
+  final num precio;
+  final num precioFinal;
+  final String descuentoStr;
+  final num impuesto; // Nuevo campo
+
+  ProductoFactura({
+    required this.nombre,
+    required this.cantidad,
+    required this.precio,
+    required this.precioFinal,
+    required this.descuentoStr,
+    this.impuesto = 0,
+  });
+}

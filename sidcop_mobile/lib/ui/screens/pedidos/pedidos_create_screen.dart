@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
-import 'package:sidcop_mobile/ui/screens/pedidos/pedido_Confirmar_screen.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
+import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -371,55 +372,62 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    final productosSeleccionados = _productos.where((p) => (_cantidades[p.prodId] ?? 0) > 0).toList();
+                    // 1. Validar productos seleccionados
+                    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
                     if (productosSeleccionados.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona al menos un producto.')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
+                      );
                       return;
                     }
-
-                    // Construir la lista para la pantalla de confirmación
-                    final List<ProductoConfirmacion> listaConfirmacion = productosSeleccionados.map((p) {
-                      final cantidad = _cantidades[p.prodId] ?? 0;
-                      final precioBase = _getPrecioPorCantidad(p, cantidad);
-                      final precioFinal = _getPrecioPorCantidad(p, cantidad);
-                      return ProductoConfirmacion(
-                        nombre: p.prodDescripcionCorta ?? '',
-                        cantidad: cantidad,
-                        precioBase: precioBase,
-                        precioFinal: precioFinal,
-                        imagen: p.prodImagen,
+                    // 2. Validar fecha de entrega
+                    if (_fechaEntrega == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Selecciona una fecha de entrega.')),
+                      );
+                      return;
+                    }
+                    // 3. Navegar a FacturaTicketScreen
+                    // Armar productos seleccionados
+                    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+                    final productosFactura = productosSeleccionadosList.map((e) {
+                      final producto = _productos.firstWhere((p) => p.prodId == e.key);
+                      // Aquí puedes ajustar el cálculo de precioFinal, descuentoStr e impuesto según tu lógica
+                      return ProductoFactura(
+                        nombre: producto.prodDescripcionCorta ?? '',
+                        cantidad: e.value,
+                        precio: producto.prodPrecioUnitario ?? 0,
+                        precioFinal: producto.prodPrecioUnitario ?? 0,
+                        descuentoStr: '',
+                        impuesto: 0,
                       );
                     }).toList();
-
-                    final cantidadTotal = listaConfirmacion.fold<int>(0, (s, p) => s + p.cantidad);
-                    final subtotal = listaConfirmacion.fold<num>(0, (s, p) => s + (p.precioBase * p.cantidad));
-                    final total = listaConfirmacion.fold<num>(0, (s, p) => s + (p.precioFinal * p.cantidad));
-
-                    if (widget.clienteId == null || _fechaEntrega == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe seleccionar un cliente y una fecha de entrega.')));
-                      return;
-                    }
-                    // Obtener usuarioId desde PerfilUsuarioService
-                    final perfilService = PerfilUsuarioService();
-                    final userData = await perfilService.obtenerDatosUsuario();
-                    final usuarioId = userData != null && userData['usua_Id'] != null
-                        ? (userData['usua_Id'] is int ? userData['usua_Id'] : int.tryParse(userData['usua_Id'].toString()) ?? 0)
-                        : 0;
-                    if (usuarioId == 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo obtener el usuario actual.')));
-                      return;
-                    }
+                    // Calcular totales
+                    num subtotal = productosFactura.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
+                    num totalDescuento = 0;
+                    num total = subtotal;
+                    // Fecha actual
+                    final now = DateTime.now();
+                    final fechaFactura = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+                    final fechaEntrega = "${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}";
+                    // Navegación
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => PedidoConfirmarScreen(
-                          productosSeleccionados: listaConfirmacion,
-                          cantidadTotal: cantidadTotal,
+                        builder: (context) => FacturaTicketScreen(
+                          nombreCliente: '',
+                          codigoCliente: '',
+                          direccion: '',
+                          rtn: '',
+                          vendedor: '',
+                          fechaFactura: fechaFactura,
+                          fechaEntrega: fechaEntrega,
+                          numeroFactura: '',
+                          productos: productosFactura,
                           subtotal: subtotal,
+                          totalDescuento: totalDescuento,
                           total: total,
-                          clienteId: widget.clienteId,
-                          fechaEntrega: _fechaEntrega!,
-                          usuarioId: usuarioId,
+                          totalEnLetras: NumeroEnLetras.convertir(total),
                         ),
                       ),
                     );
