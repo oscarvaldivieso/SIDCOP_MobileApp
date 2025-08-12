@@ -3,6 +3,8 @@ import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
+import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
+
 
 class CxCScreen extends StatefulWidget {
   const CxCScreen({super.key});
@@ -241,13 +243,15 @@ class _CxCScreenState extends State<CxCScreen> {
   }
 
   Widget _buildCuentaCard(CuentasXCobrar cuenta) {
-    final statusData = _getAccountStatus(cuenta);
-    final primaryColor = statusData['primaryColor'] as Color;
-    final secondaryColor = statusData['secondaryColor'] as Color;
-    final statusIcon = statusData['icon'] as IconData;
-    final status = statusData['status'] as String;
+  final statusData = _getAccountStatus(cuenta);
+  final primaryColor = statusData['primaryColor'] as Color;
+  final secondaryColor = statusData['secondaryColor'] as Color;
+  final statusIcon = statusData['icon'] as IconData;
+  final status = statusData['status'] as String;
 
-    return Container(
+  return GestureDetector(  // Agregar GestureDetector
+    onTap: () => _navigateToDetail(cuenta),  // Agregar navegación
+    child: Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -264,8 +268,24 @@ class _CxCScreenState extends State<CxCScreen> {
           ],
         ),
       ),
+    ),
+  );
+}
+
+
+void _navigateToDetail(CuentasXCobrar cuenta) {
+  if (cuenta.cpCo_Id != null) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CuentasPorCobrarDetailsScreen(
+          cuentaId: cuenta.cpCo_Id!,
+          cuentaResumen: cuenta, // Pasar la cuenta completa para mostrar info básica mientras carga
+        ),
+      ),
     );
   }
+}
 
   Widget _buildCardHeader(String status, IconData statusIcon, Color primaryColor, Color secondaryColor) {
     return Container(
