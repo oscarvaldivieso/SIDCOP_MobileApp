@@ -17,6 +17,9 @@ import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
+
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -227,7 +230,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => RutasScreen()),
+                  MaterialPageRoute(builder: (context) => PedidosScreen()),
                 );
               },
             ),
@@ -284,7 +287,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 ),
               ),
               onTap: () {
-                // Navegar a MVentas
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const VentaScreen()),
+                  (route) => false,
+                );
               },
             ),
 
@@ -327,6 +335,23 @@ class _CustomDrawerState extends State<CustomDrawer> {
               );
             },
           ),
+          ListTile(
+  leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+  title: const Text(
+    'Pedidos',
+    style: TextStyle(
+      color: Colors.white,
+      fontFamily: 'Satoshi',
+      fontWeight: FontWeight.w300,
+    ),
+  ),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PedidosScreen()),
+    );
+  },
+),
           if (tienePermiso(10)) // MClientes
             ListTile(
               leading: const Icon(

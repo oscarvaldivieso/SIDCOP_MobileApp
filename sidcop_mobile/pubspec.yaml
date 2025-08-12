@@ -87,4 +87,6 @@ flutter:
         weight: 500
       - asset: fonts/Satoshi-Bold.otf
         weight: 700
+      - asset: fonts/Satoshi-Black.otf
+        weight: 900
 
