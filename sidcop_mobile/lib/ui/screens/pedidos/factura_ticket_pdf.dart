@@ -41,7 +41,7 @@ Future<Uint8List> generarFacturaPdf({
           children: [
             pw.Center(
               child: pw.Column(children: [
-                pw.Image(netImage, width: 40, height: 40),
+                pw.Image(netImage, width: 100, height: 100),
                 pw.SizedBox(height: 5),
                 pw.Text('$nombreEmpresa', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
                 pw.SizedBox(height: 3),

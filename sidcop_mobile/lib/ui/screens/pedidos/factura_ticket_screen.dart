@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
 import 'package:sidcop_mobile/models/ConfiguracionFacturaViewModel.dart'; 
+import 'package:screenshot/screenshot.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
@@ -88,7 +89,7 @@ class FacturaTicketScreen extends StatelessWidget {
                       // Usar printing para mostrar y compartir el PDF
                       await Printing.sharePdf(
                         bytes: pdfBytes,
-                        filename: 'factura_${numeroFactura.replaceAll('/', '_')}.pdf',
+                        filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
                       );
                       
                       if (context.mounted) {
@@ -187,7 +188,7 @@ class FacturaTicketScreen extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  Image.network('${empresa[0].coFa_Logo}', width: 48, height: 48, fit: BoxFit.cover),
+                  Image.network('${empresa[0].coFa_Logo}', width: 100, height: 100, fit: BoxFit.cover),
                   const SizedBox(height: 8),
                   const Text('COMERCIAL LA ROCA S. DE R.L.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
