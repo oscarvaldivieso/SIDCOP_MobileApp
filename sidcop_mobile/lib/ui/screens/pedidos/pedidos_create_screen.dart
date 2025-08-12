@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedido_Confirmar_screen.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 
@@ -370,7 +371,47 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Acción del botón siguiente
+                    final productosSeleccionados = _productos.where((p) => (_cantidades[p.prodId] ?? 0) > 0).toList();
+                    if (productosSeleccionados.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona al menos un producto.')));
+                      return;
+                    }
+
+                    // Construir la lista para la pantalla de confirmación
+                    final List<ProductoConfirmacion> listaConfirmacion = productosSeleccionados.map((p) {
+                      final cantidad = _cantidades[p.prodId] ?? 0;
+                      final precioBase = _getPrecioPorCantidad(p, cantidad);
+                      final precioFinal = _getPrecioPorCantidad(p, cantidad);
+                      return ProductoConfirmacion(
+                        nombre: p.prodDescripcionCorta ?? '',
+                        cantidad: cantidad,
+                        precioBase: precioBase,
+                        precioFinal: precioFinal,
+                        imagen: p.prodImagen,
+                      );
+                    }).toList();
+
+                    final cantidadTotal = listaConfirmacion.fold<int>(0, (s, p) => s + p.cantidad);
+                    final subtotal = listaConfirmacion.fold<num>(0, (s, p) => s + (p.precioBase * p.cantidad));
+                    final total = listaConfirmacion.fold<num>(0, (s, p) => s + (p.precioFinal * p.cantidad));
+
+                    if (widget.clienteId == null || _fechaEntrega == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe seleccionar un cliente y una fecha de entrega.')));
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PedidoConfirmarScreen(
+                          productosSeleccionados: listaConfirmacion,
+                          cantidadTotal: cantidadTotal,
+                          subtotal: subtotal,
+                          total: total,
+                          clienteId: widget.clienteId,
+                          fechaEntrega: _fechaEntrega!,
+                        ),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
