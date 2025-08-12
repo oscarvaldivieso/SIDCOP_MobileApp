@@ -12,6 +12,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/UserInfoScreen.dart';
 import 'package:sidcop_mobile/ui/screens/accesos/Configuracion_Screen.Dart';
 import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
+import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
@@ -295,6 +296,28 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
+
+            if (tienePermiso(35)) // Devoluciones
+              ListTile(
+                leading: const Icon(
+                  Icons.restart_alt_outlined,
+                  color: Color(0xFFD6B68A),
+                ),
+                title: const Text(
+                  'Devoluciones',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.w300,
+                  ),
+                ),
+              onTap: () {
+                Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DevolucioneslistScreen()),
+                );
+              },
+              ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
           ListTile(
             leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
