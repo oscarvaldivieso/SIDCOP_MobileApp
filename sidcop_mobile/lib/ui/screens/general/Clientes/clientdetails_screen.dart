@@ -410,6 +410,34 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             ),
                           ),
 
+                        // Botón VENDER separado
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: CustomButton(
+                            text: 'VENDER',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VentaScreen(
+                                    clienteId: widget.clienteId,
+                                  ),
+                                ),
+                              );
+                            },
+                            height: 50,
+                            fontSize: 14,
+                            icon: const Icon(
+                              Icons.sell,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+
                         const SizedBox(
                           height: 24,
                         ), // Espacio adicional al final

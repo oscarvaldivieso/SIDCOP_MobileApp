@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
-import 'package:sidcop_mobile/utils/invoice_utils.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
+import 'dart:math';
+import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -18,7 +20,9 @@ class FormData {
 }
 
 class VentaScreen extends StatefulWidget {
-  const VentaScreen({super.key});
+  final int? clienteId;
+  
+  const VentaScreen({super.key, this.clienteId});
 
   @override
   State<VentaScreen> createState() => _VentaScreenState();
@@ -30,7 +34,16 @@ class _VentaScreenState extends State<VentaScreen> {
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
   final PrinterService _printerService = PrinterService();
-  VentaInsertarViewModel _ventaModel = VentaInsertarViewModel.empty();
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  late VentaInsertarViewModel _ventaModel;
+  
+  // Genera un número de factura aleatorio
+  String _generateInvoiceNumber() {
+    final random = Random();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
+    return 'FACT-${timestamp}_$randomDigits';
+  }
   
   // Variables para impresión
   bool _isPrinting = false;
@@ -63,6 +76,7 @@ class _VentaScreenState extends State<VentaScreen> {
   @override
   void initState() {
     super.initState();
+    _ventaModel = VentaInsertarViewModel.empty()..factNumero = _generateInvoiceNumber();
     _loadProducts();
     _searchController.addListener(_applyProductFilter);
   }
@@ -236,12 +250,8 @@ class _VentaScreenState extends State<VentaScreen> {
     try {
       print('Iniciando procesamiento de venta...');
       
-      // Obtener el último número de factura (deberías obtenerlo de tu base de datos o API)
-      // Por ahora, usaremos un valor por defecto
-      final lastInvoiceNumber = "F001-000003411"; // Esto debería venir de tu base de datos
-      
-      // Generar el nuevo número de factura
-      final newInvoiceNumber = InvoiceUtils.getNextInvoiceNumber(lastInvoiceNumber);
+      // Generar un nuevo número de factura único
+      final newInvoiceNumber = _generateInvoiceNumber();
       print('Nuevo número de factura generado: $newInvoiceNumber');
       
       // Asignar el número de factura al modelo
@@ -257,10 +267,19 @@ class _VentaScreenState extends State<VentaScreen> {
       _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // TODO: Estos valores deberían venir de la sesión del usuario y selección de cliente
-      _ventaModel.clieId = 111; // Temporal - debe venir de la selección de cliente
-      _ventaModel.vendId = 12; // Temporal - debe venir de la sesión del usuario
-      _ventaModel.usuaCreacion = 1; // Temporal - debe venir de la sesión del usuario
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
+      
+      if (personaId == null) {
+        throw Exception('No se pudo obtener el ID del vendedor de la sesión');
+      }
+      
+      // Asignar IDs de la sesión del usuario
+      _ventaModel.clieId = widget.clienteId ?? 111; // Usar clienteId pasado desde pantalla de cliente o valor por defecto
+      //_ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
+      _ventaModel.vendId = 12;
+      _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
       // Validar el modelo antes de enviar
       print('Validando modelo de venta...');
@@ -289,41 +308,8 @@ class _VentaScreenState extends State<VentaScreen> {
         
         showDialog(
           context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("¡Venta Exitosa!", style: TextStyle(fontFamily: 'Satoshi', color: Color(0xFF98BF4A))),
-            content: Text(
-              "La venta ha sido procesada correctamente.\n\n"
-              "Método de Pago: ${formData.metodoPago}\n"
-              "Número de Factura: ${_ventaModel.factNumero}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton(
-                    child: const Text("Aceptar", style: TextStyle(fontFamily: 'Satoshi')),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _resetearFormulario();
-                    },
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF98BF4A),
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text("Ver Factura", style: TextStyle(fontFamily: 'Satoshi')),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _mostrarFactura(resultado!['data']);
-                      _resetearFormulario();
-                    },
-                  ),
-                ],
-              )
-            ],
-          ),
+          barrierDismissible: false,
+          builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
         );
       } else {
         // Error en la venta - usar toast en lugar de dialog
@@ -357,146 +343,284 @@ class _VentaScreenState extends State<VentaScreen> {
     });
   }
 
-  void _mostrarFactura(Map<String, dynamic> facturaData) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
+  Widget _buildModernSuccessDialog(BuildContext context, Map<String, dynamic> facturaData) {
+    return Dialog(
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 500), // Limitar altura máxima
+        decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 5,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header compacto
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF98BF4A),
+                    const Color(0xFF98BF4A).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
               ),
-              const Text(
-                'Factura de Venta',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'N° ${facturaData['fact_Numero'] ?? _ventaModel.factNumero}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-              const Divider(thickness: 1, height: 30),
-              
-              // Información de la factura
-              _buildFacturaInfoRow('Fecha', _ventaModel.factFechaEmision.toString().substring(0, 10)),
-              _buildFacturaInfoRow('Cliente', facturaData['clie_Nombres'] ?? 'Consumidor Final'),
-              _buildFacturaInfoRow('Vendedor', facturaData['vend_Nombres'] ?? 'Sistema'),
-              
-              const SizedBox(height: 20),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Detalles de la compra',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Satoshi',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              
-              // Lista de productos
-              if (_ventaModel.detallesFacturaInput.isNotEmpty)
-                ..._ventaModel.detallesFacturaInput.map((detalle) {
-                  final producto = _allProducts.firstWhere(
-                    (p) => p.prod_Id == detalle.prodId,
-                    orElse: () => Productos(
-                      prod_Id: 0,
-                      prod_Descripcion: 'Producto no encontrado',
-                      marc_Id: 0,
-                      cate_Id: 0,
-                      subc_Id: 0,
-                      prov_Id: 0,
-                      impu_Id: 0,
-                      prod_PrecioUnitario: 0,
-                      prod_CostoTotal: 0,
-                      prod_PromODesc: 0,
-                      usua_Creacion: 0,
-                      prod_FechaCreacion: DateTime.now(),
-                      usua_Modificacion: 0,
-                      prod_FechaModificacion: DateTime.now(),
-                      prod_Estado: true,
+              child: Column(
+                children: [
+                  // Icono más pequeño
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
-                  );
-                  return _buildProductoItem(
-                    producto.prod_Descripcion ?? 'Producto',
-                    detalle.faDeCantidad,
-                    producto.prod_PrecioUnitario ?? 0.0, // Default to 0.0 if null
-                  );
-                }).toList(),
-              
-              const Divider(thickness: 1, height: 30),
-              
-              // Totales
-              // Calculate and show totals
-              Builder(
-                builder: (context) {
-                  final subtotal = _calculateSubtotal();
-                  final impuestos = _calculateTaxes(subtotal);
-                  final total = subtotal + impuestos;
-                  
-                  return Column(
-                    children: [
-                      _buildTotalRow('Subtotal', subtotal.toStringAsFixed(2)),
-                      _buildTotalRow('Impuestos', impuestos.toStringAsFixed(2)),
-                      _buildTotalRow(
-                        'Total',
-                        total.toStringAsFixed(2),
-                        isTotal: true,
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF98BF4A),
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Venta Exitosa!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Venta procesada correctamente',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            
+            // Contenido compacto
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Información básica
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
+                        ),
                       ),
-                    ],
-                  );
-                },
-              ),
-              
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  // Aquí podrías implementar la generación de PDF o compartir
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF98BF4A),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Detalles',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF141A2F),
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCompactDetailRow('Factura', _ventaModel.factNumero),
+                          _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
+                          _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Botones compactos
+                    Row(
+                      children: [
+                        // Botón Aceptar
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _resetearFormulario();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text(
+                                'Aceptar',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Satoshi',
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 8),
+                        
+                        // Botón Ver Factura
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _navigateToInvoiceDetail(facturaData);
+                                _resetearFormulario();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF98BF4A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.visibility, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ver Factura',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                child: const Text(
-                  'Compartir o Guardar PDF',
-                  style: TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6C757D),
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.w500,
+            ),
           ),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF141A2F),
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  /// Extrae el ID de la factura del mensaje de respuesta del backend
+  /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
+  int? _extractInvoiceIdFromMessage(String message) {
+    try {
+      // Buscar el patrón "ID: [número]"
+      final regex = RegExp(r'ID:\s*(\d+)');
+      final match = regex.firstMatch(message);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('Error al extraer ID de factura del mensaje: $e');
+    }
+    return null;
+  }
+
+  void _navigateToInvoiceDetail(Map<String, dynamic> facturaData) {
+    // Extract invoice ID from the backend response
+    int? facturaId;
+    
+    // Intentar extraer el ID del message_Status
+    if (facturaData['message_Status'] != null) {
+      facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
+      print('ID extraído del message_Status: $facturaId');
+    }
+    
+    // Fallback: intentar obtener de otros campos
+    // Fallback: intentar obtener de otros campos
+    if (facturaId == null) {
+      facturaId = facturaData['fact_Id'] ?? facturaData['id'];
+    }
+    
+    final facturaNumero = _ventaModel.factNumero ?? 'N/A';
+    
+    print('Navegando a InvoiceDetailScreen con ID: $facturaId, Número: $facturaNumero');
+    
+    // Navigate to InvoiceDetailScreen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InvoiceDetailScreen(
+          facturaId: facturaId ?? 0,
+          facturaNumero: facturaNumero,
         ),
       ),
     );
@@ -1691,7 +1815,9 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
+      final product = _allProducts.firstWhere(
+        (p) => p.prod_Id == prodId,
+      );
       final precio = product.prod_PrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
@@ -2396,8 +2522,7 @@ class _VentaScreenState extends State<VentaScreen> {
       // 2. Usar el método existente _procesarVenta para guardar la venta
       await _procesarVenta();
 
-      // 3. Si la venta fue exitosa, mostrar diálogo con opción de impresión
-      await _mostrarDialogoExitoConImpresion({});
+      
 
     } catch (e) {
       if (mounted) {
@@ -2565,33 +2690,78 @@ class _VentaScreenState extends State<VentaScreen> {
   // Método para probar la impresora
   Future<void> _probarImpresora() async {
     try {
+      print('=== INICIANDO PRUEBA DE IMPRESORA ===');
+      
       final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
       
-      if (selectedDevice == null) return;
+      if (selectedDevice == null) {
+        print('Usuario canceló la selección de impresora');
+        return;
+      }
 
+      print('Dispositivo seleccionado: ${selectedDevice.platformName} (${selectedDevice.remoteId})');
+      
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Probando Impresora'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Conectando y enviando prueba...'),
+            ],
+          ),
+        ),
+      );
+
+      print('Intentando conectar...');
       final connected = await _printerService.connect(selectedDevice);
       
       if (!connected) {
+        Navigator.of(context).pop(); // Cerrar loading
         throw Exception('No se pudo conectar a la impresora');
       }
 
+      print('Conexión exitosa, enviando prueba de impresión...');
       final testSuccess = await _printerService.printTest();
       
+      print('Resultado de la prueba: $testSuccess');
+      
+      print('Desconectando...');
       await _printerService.disconnect();
+      
+      // Cerrar indicador de carga
+      Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(testSuccess 
-            ? 'Prueba de impresión exitosa' 
-            : 'Error en la prueba de impresión'),
+            ? '✅ Prueba de impresión exitosa' 
+            : '⚠️ Error en la prueba de impresión'),
           backgroundColor: testSuccess ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 4),
         ),
       );
-    } catch (e) {
+      
+      print('=== FIN PRUEBA DE IMPRESORA ===');
+    } catch (e, stackTrace) {
+      print('ERROR EN PRUEBA DE IMPRESORA: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Cerrar indicador de carga si está abierto
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
+          content: Text('❌ Error: ${e.toString()}'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
         ),
       );
     }
