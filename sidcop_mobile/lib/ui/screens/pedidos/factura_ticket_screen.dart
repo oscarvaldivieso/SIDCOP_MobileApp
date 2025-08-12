@@ -187,8 +187,6 @@ class FacturaTicketScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('C.A.I: 31FB47-AFB25B-872CE0-63BE03-090949-03', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('No. Factura: $numeroFactura', style: const TextStyle(fontWeight: FontWeight.bold)),
                 Text('Fecha Emisión: $fechaFactura'),
                 Text('Fecha Entrega: $fechaEntrega'),
                 const Text('Tipo Factura: Pedido'),
@@ -240,7 +238,6 @@ class FacturaTicketScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             // Pie
-            Center(child: Text('La factura es beneficio de todos, ¡exíjala!', textAlign: TextAlign.center)),
           ],
         ),
       ),
