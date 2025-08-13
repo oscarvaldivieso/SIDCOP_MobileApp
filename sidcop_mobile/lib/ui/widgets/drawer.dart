@@ -17,8 +17,8 @@ import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
-import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
@@ -203,7 +203,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -224,7 +224,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -245,7 +245,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -265,7 +265,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -283,14 +283,14 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const VentaScreen()),
+                  MaterialPageRoute(builder: (context) => const VentasListScreen()),
                   (route) => false,
                 );
               },
@@ -325,7 +325,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               style: TextStyle(
                 color: Colors.white,
                 fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w300,
+                fontWeight: FontWeight.w500,
               ),
             ),
             onTap: () {
@@ -363,7 +363,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -411,7 +411,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -437,7 +437,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () async {
