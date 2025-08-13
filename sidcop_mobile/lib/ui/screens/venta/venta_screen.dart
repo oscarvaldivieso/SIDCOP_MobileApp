@@ -3,7 +3,8 @@ import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.dart';
+import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
@@ -21,8 +22,9 @@ class FormData {
 
 class VentaScreen extends StatefulWidget {
   final int? clienteId;
+  final int? vendedorId;
   
-  const VentaScreen({super.key, this.clienteId});
+  const VentaScreen({super.key, this.clienteId, this.vendedorId});
 
   @override
   State<VentaScreen> createState() => _VentaScreenState();
@@ -52,6 +54,7 @@ class _VentaScreenState extends State<VentaScreen> {
   // Variables para productos
   List<Productos> _allProducts = [];
   List<Productos> _filteredProducts = [];
+  Map<int, ProductoConDescuento> _productosConDescuento = {};
   final Map<int, double> _selectedProducts = {}; // prod_Id -> cantidad
   bool _isLoadingProducts = false;
   final TextEditingController _searchController = TextEditingController();
@@ -76,9 +79,16 @@ class _VentaScreenState extends State<VentaScreen> {
   @override
   void initState() {
     super.initState();
-    _ventaModel = VentaInsertarViewModel.empty()..factNumero = _generateInvoiceNumber();
+    _ventaModel = VentaInsertarViewModel.empty()
+      ..factNumero = _generateInvoiceNumber()
+      ..clieId = widget.clienteId ?? 0
+      ..vendId = widget.vendedorId ?? 0;
+      
     _loadProducts();
     _searchController.addListener(_applyProductFilter);
+    
+    // Debug print to verify the values
+    debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
   }
 
   @override
@@ -90,13 +100,32 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _loadProducts() async {
+    if (widget.clienteId == null || widget.vendedorId == null) {
+      ErrorHandler.showErrorToast('No se pudo cargar los productos: Faltan datos del cliente o vendedor');
+      setState(() => _isLoadingProducts = false);
+      return;
+    }
+
     setState(() => _isLoadingProducts = true);
     try {
-      _allProducts = await _productosService.getProductos();
-      _filteredProducts = List.from(_allProducts);
+      // First try to load products with client/vendor specific discounts
+      try {
+        _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
+          widget.clienteId!,
+          widget.vendedorId!,
+        );
+        _filteredProducts = List.from(_allProducts);
+        debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
+      } catch (e) {
+        debugPrint('Error cargando productos con descuento: $e');
+        // Fallback to regular products if there's an error
+        _allProducts = await _productosService.getProductos();
+        _filteredProducts = List.from(_allProducts);
+        ErrorHandler.showErrorToast('Mostrando productos sin descuentos');
+      }
     } catch (e) {
       debugPrint('Error cargando productos: $e');
-      ErrorHandler.showErrorToast('Error al cargar productos. Verifica tu conexión.');
+      ErrorHandler.showErrorToast('Error al cargar productos');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -1155,6 +1184,15 @@ class _VentaScreenState extends State<VentaScreen> {
   Widget _buildProductCard(Productos product) {
     final currentQuantity = _selectedProducts[product.prod_Id] ?? 0;
     final isSelected = currentQuantity > 0;
+    final productoConDescuento = _productosConDescuento[product.prod_Id];
+    
+    // Obtener el mejor descuento disponible
+    double? mejorDescuento;
+    if (productoConDescuento?.descuentosEscala.isNotEmpty ?? false) {
+      mejorDescuento = productoConDescuento!.descuentosEscala
+          .map((d) => d.porcentajeDescuento)
+          .reduce((a, b) => a > b ? a : b);
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1171,6 +1209,13 @@ class _VentaScreenState extends State<VentaScreen> {
             : null,
         color: isSelected ? null : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
         border: Border.all(
           color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
           width: isSelected ? 2 : 1,
@@ -1269,60 +1314,71 @@ class _VentaScreenState extends State<VentaScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              product.prod_DescripcionCorta ?? 'Sin descripción',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40),
-                                height: 1.3,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            if (product.prod_Codigo != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF262B40).withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'COD: ${product.prod_Codigo}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF262B40),
-                                    letterSpacing: 0.5,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    product.prod_DescripcionCorta,
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40),
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                            const SizedBox(height: 10),
-                            // Precio limpio y simple
+                                if (mejorDescuento != null && mejorDescuento > 0)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF98BF4A).withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${mejorDescuento.toStringAsFixed(0)}% OFF',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1F4B3F),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 Text(
-                                  'L ',
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF262B40).withOpacity(0.7),
-                                  ),
-                                ),
-                                Text(
-                                  product.prod_PrecioUnitario.toStringAsFixed(2),
+                                  'L. ${product.prod_PrecioUnitario.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontFamily: 'Satoshi',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF98774A),
-                                    letterSpacing: -0.5,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF141A2F),
                                   ),
                                 ),
+                                if (mejorDescuento != null && mejorDescuento > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: Text(
+                                      'L. ${(product.prod_PrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF98BF4A),
+                                        decoration: TextDecoration.lineThrough,
+                                        decorationColor: const Color(0xFF6B7280),
+                                        decorationThickness: 2.0,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ],
@@ -1379,7 +1435,8 @@ class _VentaScreenState extends State<VentaScreen> {
                           color: const Color(0xFF262B40).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(25),
                           border: Border.all(
-                            color: const Color(0xFF262B40).withOpacity(0.1),
+                            color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+                            width: isSelected ? 2 : 1,
                           ),
                         ),
                         child: Row(
