@@ -5,13 +5,14 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.Dart';
 
 class ClientesVisitaHistorialService {
-  final String _apiServer = apiServer;
-  final String _apiKey = apikey;
-
-  // GET /ClientesVisitaHistorial/Listar
-  Future<List<ClientesVisitaHistorialModel>> listar() async {
-    final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/Listar');
-    developer.log('Listar ClientesVisitaHistorial Request URL: $url');
+  // GET /ClientesVisitaHistorial/ListarVisitasPorVendedor
+  Future<List<ClientesVisitaHistorialModel>> listarPorVendedor() async {
+    final int? vendId = globalUsuaIdPersona;
+    if (vendId == null) {
+      throw Exception('No se encontró el id del vendedor');
+    }
+    final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId');
+    developer.log('ListarVisitasPorVendedor Request URL: $url');
     try {
       final response = await http.get(
         url,
@@ -24,14 +25,17 @@ class ClientesVisitaHistorialService {
             .toList();
       } else {
         throw Exception(
-          'Error al listar historial: Código ${response.statusCode}, Respuesta: ${response.body}',
+          'Error al listar visitas por vendedor: Código ${response.statusCode}, Respuesta: ${response.body}',
         );
       }
     } catch (e) {
-      developer.log('Listar ClientesVisitaHistorial Error: $e');
+      developer.log('ListarVisitasPorVendedor Error: $e');
       rethrow;
     }
   }
+  final String _apiServer = apiServer;
+  final String _apiKey = apikey;
+
 
   // POST /ClientesVisitaHistorial/Insertar
   Future<Map<String, dynamic>> insertar(

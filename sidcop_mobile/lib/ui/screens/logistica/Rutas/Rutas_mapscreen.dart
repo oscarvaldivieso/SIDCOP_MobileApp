@@ -121,7 +121,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     if (_historialCargado) return; // evitar recargas múltiples en esta sesión
     try {
       final servicio = ClientesVisitaHistorialService();
-      final historial = await servicio.listar();
+      final historial = await servicio.listarPorVendedor();
       final previos = historial
           .where((h) => h.clieId != null && clienteIdsRuta.contains(h.clieId))
           .map((h) => h.clieId!)
@@ -775,6 +775,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         key: _scaffoldKey,
         appBar: AppBar(
           backgroundColor: _darkBg,
+          iconTheme: const IconThemeData(color: _gold),
           title: Text(
             widget.descripcion ?? 'Ubicación Ruta',
             style: const TextStyle(
