@@ -936,7 +936,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                   );
                                                 }
                                               },
-                                        activeColor: _gold,
+                                        activeColor: Colors.green,
                                         checkColor: _darkBg,
                                         side: const BorderSide(
                                           color: _gold,
