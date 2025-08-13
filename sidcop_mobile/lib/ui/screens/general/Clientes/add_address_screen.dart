@@ -114,8 +114,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         dicl_longitud: _selectedLocation.longitude,
         usua_creacion: 1, // TODO: Replace with actual user ID
         dicl_fechacreacion: DateTime.now(),
-        muni_descripcion: _selectedColonia!.muniDescripcion,
-        depa_descripcion: _selectedColonia!.depaDescripcion,
+        muni_descripcion: '',
+        depa_descripcion: '',
+        Colo_Descripcion: '',
       );
 
       // Mostrar los datos de la dirección que se guardarán

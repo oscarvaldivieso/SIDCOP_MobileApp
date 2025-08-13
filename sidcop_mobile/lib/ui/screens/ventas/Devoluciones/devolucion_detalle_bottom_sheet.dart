@@ -108,63 +108,72 @@ class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSh
             Text(
               'Productos a devolver:',
               style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF141A2F),
-                  ),
+                fontFamily: 'Satoshi',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF141A2F),
+              ),
             ),
             const SizedBox(height: 10),
-            FutureBuilder<List<DevolucionDetalleModel>>(
-              future: _detallesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Text('No hay productos para esta devolución');
-                }
+            Container(
+              height: 200, // Altura fija para la lista de productos
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: FutureBuilder<List<DevolucionDetalleModel>>(
+                future: _detallesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No hay productos para esta devolución'));
+                  }
 
-                final detalles = snapshot.data!;
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: detalles.length,
-                  itemBuilder: (context, index) {
-                    final detalle = detalles[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        title: Text(
-                          detalle.prod_Descripcion,
-                          style: const TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                  final detalles = snapshot.data!;
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: detalles.length,
+                    itemBuilder: (context, index) {
+                      final detalle = detalles[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        elevation: 1,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          title: Text(
+                            detalle.prod_Descripcion,
+                            style: const TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Categoría: ${detalle.cate_Descripcion}',
+                            style: const TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: Text(
+                            'Cantidad: 1', // Asumiendo 1 artículo por detalle de devolución
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                        subtitle: Text(
-                          'Categoría: ${detalle.cate_Descripcion}',
-                          style: const TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontSize: 13,
-                          ),
-                        ),
-                        trailing: Text(
-                          'Cantidad: 1', // Asumiendo 1 artículo por detalle de devolución
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 20),
             Padding(

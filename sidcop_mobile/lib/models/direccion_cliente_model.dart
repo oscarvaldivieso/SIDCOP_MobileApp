@@ -2,8 +2,11 @@ class DireccionCliente {
   final int dicl_id;
   final int clie_id;
   final int colo_id;
+  final String? Colo_Descripcion;
   final String dicl_direccionexacta;
   final String dicl_observaciones;
+  final String? depaDescripcion;
+  final String? muniDescripcion;
   final double? dicl_latitud;
   final double? dicl_longitud;
   final String muni_descripcion;
@@ -19,8 +22,11 @@ class DireccionCliente {
     required this.colo_id,
     required this.dicl_direccionexacta,
     required this.dicl_observaciones,
+    this.Colo_Descripcion,
     this.dicl_latitud,
     this.dicl_longitud,
+    this.depaDescripcion,
+    this.muniDescripcion,
     required this.muni_descripcion,
     required this.depa_descripcion,
     required this.usua_creacion,
@@ -34,6 +40,7 @@ class DireccionCliente {
       dicl_id: json['diCl_Id'],
       clie_id: json['clie_Id'],
       colo_id: json['colo_Id'],
+      
       dicl_direccionexacta: json['diCl_DireccionExacta'],
       dicl_observaciones: json['diCl_Observaciones'],
       dicl_latitud: json['diCl_Latitud'] != null
@@ -60,8 +67,11 @@ class DireccionCliente {
       'dicl_id': dicl_id,
       'clie_id': clie_id,
       'colo_id': colo_id,
+      'Colo_Descripcion': Colo_Descripcion,
       'dicl_direccionexacta': dicl_direccionexacta,
       'dicl_observaciones': dicl_observaciones,
+      'Depa_Descripcion': depaDescripcion,
+      'Muni_Descripcion': muniDescripcion,
       'dicl_latitud': dicl_latitud,
       'dicl_longitud': dicl_longitud,
       'muni_descripcion': muni_descripcion,
@@ -83,6 +93,7 @@ class DireccionCliente {
     double? dicl_longitud,
     String? muni_descripcion,
     String? depa_descripcion,
+    String? Colo_Descripcion,
     int? usua_creacion,
     DateTime? dicl_fechacreacion,
     int? usua_modificacion,
@@ -98,6 +109,7 @@ class DireccionCliente {
       dicl_longitud: dicl_longitud ?? this.dicl_longitud,
       muni_descripcion: muni_descripcion ?? this.muni_descripcion,
       depa_descripcion: depa_descripcion ?? this.depa_descripcion,
+      Colo_Descripcion: Colo_Descripcion ?? this.Colo_Descripcion,
       usua_creacion: usua_creacion ?? this.usua_creacion,
       dicl_fechacreacion: dicl_fechacreacion ?? this.dicl_fechacreacion,
       usua_modificacion: usua_modificacion ?? this.usua_modificacion,

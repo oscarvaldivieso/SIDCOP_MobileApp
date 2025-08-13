@@ -12,6 +12,7 @@ import 'package:sidcop_mobile/services/DropdownDataService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -58,13 +59,32 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final _apellidosController = TextEditingController();
   final _dniController = TextEditingController();
   final _nombreNegocioController = TextEditingController();
+  final _telefonoController = TextEditingController();
+  final _rtnController = TextEditingController();
   final List<DireccionCliente> _direcciones = [];
+
+
+    var MKTelefono = new MaskTextInputFormatter(
+  mask: '####-####', 
+  filter: { "#": RegExp(r'[0-9]') },
+  type: MaskAutoCompletionType.lazy
+  );
+
+
+  var MKIdentidad = new MaskTextInputFormatter(
+  mask: '####-####-#####', 
+  filter: { "#": RegExp(r'[0-9]') },
+  type: MaskAutoCompletionType.lazy
+  );
+
 
   // Error text states
   String? _nombresError;
   String? _apellidosError;
   String? _dniError;
+  String? _rtnError;
   String? _nombreNegocioError;
+  String? _telefonoError;
 
   @override
   void dispose() {
@@ -83,17 +103,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       _apellidosError = _apellidosController.text.trim().isEmpty
           ? 'Este campo es requerido'
           : null;
-      _dniError = _dniController.text.trim().isEmpty
-          ? 'Este campo es requerido'
-          : null;
+      _dniError = null; // Identity field is now optional
+      _rtnError = null; // RTN field is now optional
       _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty
           ? 'Este campo es requerido'
           : null;
+      _telefonoError = _telefonoController.text.trim().isEmpty ? 'Este campo es requerido' : null;
     });
-    return _nombresError == null &&
-        _apellidosError == null &&
-        _dniError == null &&
-        _nombreNegocioError == null;
+    return _nombresError == null && _apellidosError == null && _nombreNegocioError == null && _telefonoError == null;
   }
 
   Future<void> _agregarUbicacion() async {
@@ -205,12 +222,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Nombres': _nombresController.text.trim(),
         'clie_Apellidos': _apellidosController.text.trim(),
         'clie_DNI': _dniController.text.trim(),
-        'clie_RTN': 'RTN-${_dniController.text.trim()}',
+        'clie_RTN': _rtnController.text.trim(),
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
-        'clie_Telefono': '0000-0000', // Default value, can be updated later
-        'clie_Correo':
-            '${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
+        'clie_Telefono': _telefonoController.text.trim(), 
+        'clie_Correo':'${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
         'clie_Sexo': 'M', // Default value
         'clie_FechaNacimiento': DateTime(
           1990,
@@ -447,6 +463,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     TextInputType keyboardType = TextInputType.text,
     String? errorText,
     void Function(String)? onChanged,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -457,6 +474,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         keyboardType: keyboardType,
         errorText: errorText,
         onChanged: onChanged,
+      inputFormatters: inputFormatters,        
       ),
     );
   }
@@ -551,6 +569,23 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                                // Nombre del Negocio
+                _buildTextField(
+                  label: 'Nombre del Negocio',
+                  controller: _nombreNegocioController,
+                  hint: 'Ingrese el nombre del negocio',
+                  isRequired: true,
+                  errorText: _nombreNegocioError,
+                  onChanged: (value) {
+                    if (_nombreNegocioError != null) {
+                      setState(() {
+                        _nombreNegocioError = null;
+                      });
+                    }
+                  },
+                ),
+
+
 
                 // Nombres
                 _buildTextField(
@@ -584,12 +619,33 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   },
                 ),
 
+
+                
+                _buildTextField(
+                  label: 'Numero De Telefono',
+                  controller: _telefonoController,
+                  hint: '0000-0000',
+                  inputFormatters: [MKTelefono],
+                  isRequired: true,
+                  errorText: _telefonoError,
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    if (_telefonoError != null) {
+                      setState(() {
+                        _telefonoError = null;
+                      });
+                    }
+                  },
+                ),
+
+
                 // Identidad
                 _buildTextField(
                   label: 'Identidad',
                   controller: _dniController,
-                  hint: 'Ej: 0501-2009-2452',
-                  isRequired: true,
+                  hint: '0000-0000-00000 ',
+                  isRequired: false,
+                  inputFormatters: [MKIdentidad],
                   keyboardType: TextInputType.number,
                   errorText: _dniError,
                   onChanged: (value) {
@@ -601,17 +657,18 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   },
                 ),
 
-                // Nombre del Negocio
                 _buildTextField(
-                  label: 'Nombre del Negocio',
-                  controller: _nombreNegocioController,
-                  hint: 'Ingrese el nombre del negocio',
-                  isRequired: true,
-                  errorText: _nombreNegocioError,
+                  label: 'RTN',
+                  controller: _rtnController,
+                  hint: '0000-0000-00000 ',
+                  isRequired: false,
+                  inputFormatters: [MKIdentidad],
+                  keyboardType: TextInputType.number,
+                  errorText: _rtnError,
                   onChanged: (value) {
-                    if (_nombreNegocioError != null) {
+                    if (_rtnError != null) {
                       setState(() {
-                        _nombreNegocioError = null;
+                        _rtnError = null;
                       });
                     }
                   },
