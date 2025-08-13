@@ -7,21 +7,21 @@ class ProductosPedidosViewModel {
   final String? prodDescripcion;
   final String? prodDescripcionCorta;
   final String? prodImagen;
-  final int subcId;
-  final int marcId;
-  final int provId;
-  final int impuId;
-  final num prodPrecioUnitario;
-  final num prodCostoTotal;
+  final int? subcId;
+  final int? marcId;
+  final int? provId;
+  final int? impuId;
+  final num? prodPrecioUnitario;
+  final num? prodCostoTotal;
   final String? prodPagaImpuesto;
   final bool? prodEsPromo;
   final bool prodEstado;
-  final int usuaCreacion;
-  final String prodFechaCreacion;
+  final int? usuaCreacion;
+  final String? prodFechaCreacion;
   final int? usuaModificacion;
   final String? prodFechaModificacion;
   final int? secuencia;
-  final int cateId;
+  final int? cateId;
   final String? cateDescripcion;
   final String? marcDescripcion;
   final String? provNombreEmpresa;
@@ -43,21 +43,21 @@ class ProductosPedidosViewModel {
     this.prodDescripcion,
     this.prodDescripcionCorta,
     this.prodImagen,
-    required this.subcId,
-    required this.marcId,
-    required this.provId,
-    required this.impuId,
-    required this.prodPrecioUnitario,
-    required this.prodCostoTotal,
+    this.subcId,
+    this.marcId,
+    this.provId,
+    this.impuId,
+    this.prodPrecioUnitario,
+    this.prodCostoTotal,
     this.prodPagaImpuesto,
     this.prodEsPromo,
     required this.prodEstado,
-    required this.usuaCreacion,
-    required this.prodFechaCreacion,
+    this.usuaCreacion,
+    this.prodFechaCreacion,
     this.usuaModificacion,
     this.prodFechaModificacion,
     this.secuencia,
-    required this.cateId,
+    this.cateId,
     this.cateDescripcion,
     this.marcDescripcion,
     this.provNombreEmpresa,
