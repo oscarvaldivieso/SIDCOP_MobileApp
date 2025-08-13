@@ -14,7 +14,7 @@ class ProductosPedidosViewModel {
   final num? prodPrecioUnitario;
   final num? prodCostoTotal;
   final String? prodPagaImpuesto;
-  final bool? prodEsPromo;
+  final String? prodEsPromo;
   final bool prodEstado;
   final int? usuaCreacion;
   final String? prodFechaCreacion;
