@@ -231,6 +231,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
   String _mapEstadoFromApi(dynamic recaConfirmacion) {
     if (recaConfirmacion == "A") return 'Aprobada';
     if (recaConfirmacion == "R") return 'Rechazada';
+    if(recaConfirmacion == "E") return 'Entregado';
     return 'En proceso';
   }
 

@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'ui/screens/splash_lottie_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/home_screen.dart';
+import 'package:sidcop_mobile/services/NavigationService.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -19,9 +20,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SIDCOP',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      //home: UserInfoScreen(), // Widget correcto
-      //home: const HomeScreen(),
-      // home: UserInfoScreen(), // Widget correcto
+      navigatorKey: NavigationService.navigatorKey, // Agregar navigatorKey para el servicio de navegación
       home: const SplashLottieScreen(),
     );
   }
