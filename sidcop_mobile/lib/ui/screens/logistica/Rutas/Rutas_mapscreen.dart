@@ -32,8 +32,7 @@ class RutaMapScreen extends StatefulWidget {
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   // Paleta local (solo para esta pantalla)
-  static const Color _darkBg = Color(0xFF141A2F);
-  static const Color _panelBg = Color(0xFF1B243A);
+    static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
   static const Color _body = Color(0xFFE6E8EC);
   static const Color _bodyDim = Color(0xFFB5B8BF);
@@ -147,7 +146,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: _panelBg,
+          backgroundColor: _darkBg,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -221,7 +220,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: _panelBg,
+            backgroundColor: _darkBg,
             content: const Text(
               'Cliente marcado como visitado',
               style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
@@ -398,7 +397,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       builder: (context) {
                         return Container(
                           decoration: BoxDecoration(
-                            color: _panelBg,
+                            color: _darkBg,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(24),
                             ),
@@ -543,7 +542,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                     ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _panelBg,
+                      color: _darkBg,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
@@ -794,7 +793,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     return Theme(
       data: Theme.of(context).copyWith(
         popupMenuTheme: const PopupMenuThemeData(
-          color: _panelBg,
+          color: _darkBg,
           textStyle: TextStyle(
             fontFamily: 'Satoshi',
             color: _body,
@@ -827,7 +826,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
               },
             ),
             PopupMenuButton<MapType>(
-              color: _panelBg,
+              color: _darkBg,
               icon: const Icon(Icons.map, color: _gold),
               onSelected: (type) {
                 setState(() {
@@ -883,7 +882,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                             if (parada['tipo'] == 'origen') {
                               return ListTile(
                                 leading: const CircleAvatar(
-                                  backgroundColor: _panelBg,
+                                  backgroundColor: _darkBg,
                                   child: Icon(
                                     Icons.person_pin_circle,
                                     color: _gold,
@@ -923,7 +922,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                 collapsedIconColor: _gold,
                                 iconColor: _gold,
                                 leading: CircleAvatar(
-                                  backgroundColor: _panelBg,
+                                  backgroundColor: _darkBg,
                                   child: Text(
                                     '$idx',
                                     style: const TextStyle(
@@ -969,8 +968,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                   );
                                                 }
                                               },
-                                        activeColor: Colors.green,
-                                        checkColor: _darkBg,
+                                        checkColor: Colors.green,
                                         side: const BorderSide(
                                           color: _gold,
                                           width: 1.4,
@@ -1043,7 +1041,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       children: [
                                         ElevatedButton.icon(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: _panelBg,
+                                            backgroundColor: _darkBg,
                                             foregroundColor: _gold,
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
@@ -1079,7 +1077,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         const SizedBox(width: 8),
                                         ElevatedButton.icon(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: _panelBg,
+                                            backgroundColor: _darkBg,
                                             foregroundColor: _gold,
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
@@ -1181,7 +1179,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         FloatingActionButton(
-                          backgroundColor: _panelBg,
+                          backgroundColor: _darkBg,
                           foregroundColor: _gold,
                           onPressed: _userLocation == null || _markers.isEmpty
                               ? null
@@ -1214,7 +1212,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                         ),
                         const SizedBox(height: 16),
                         FloatingActionButton(
-                          backgroundColor: _panelBg,
+                          backgroundColor: _darkBg,
                           foregroundColor: _gold,
                           onPressed: _mapController == null
                               ? null
