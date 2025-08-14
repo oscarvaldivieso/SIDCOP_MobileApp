@@ -12,6 +12,7 @@ import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
 import 'package:sidcop_mobile/models/ConfiguracionFacturaViewModel.dart'; 
 import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
@@ -150,30 +151,34 @@ class FacturaTicketScreen extends StatelessWidget {
                         '¡Hola! Te envío la factura $nombreCliente\n'
                       );
 
-                      // Compartir PDF y abrir WhatsApp
-                      await Printing.sharePdf(
-                        bytes: pdfBytes,
-                        filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
-                      );
+                      // Guardar PDF en almacenamiento temporal
+                      final directory = await getTemporaryDirectory();
+                      // Normalizar nombre de archivo
+                      final safeNombre = nombreCliente.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+                      final safeFecha = fechaFactura.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+                      final filePath = '${directory.path}/factura_${safeNombre}_${safeFecha}.pdf';
+                      final file = File(filePath);
+                      await file.writeAsBytes(pdfBytes);
 
-                      // Abrir WhatsApp con el mensaje
-                      final whatsappUrl = 'https://wa.me/?text=$mensaje';
-                      final uri = Uri.parse(whatsappUrl);
-                      
-                      // if (await canLaunchUrl(uri)) {
-                      //   await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      // } else {
-                      //   if (context.mounted) {
-                      //     ScaffoldMessenger.of(context).showSnackBar(
-                      //       const SnackBar(content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.')),
-                      //     );
-                      //   }
-                      // }
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('PDF generado. Compártelo desde la aplicación que elijas.')),
+                      // Verificar existencia antes de compartir
+                      if (await file.exists()) {
+                        await Share.shareXFiles([
+                          XFile(filePath)
+                        ],
+                          text: '¡Hola! Te envío la factura $nombreCliente',
+                          subject: 'Factura $nombreCliente',
                         );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Selecciona WhatsApp o la app deseada para compartir el archivo.')),
+                          );
+                        }
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Error: el archivo PDF no se generó correctamente.')),
+                          );
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {
