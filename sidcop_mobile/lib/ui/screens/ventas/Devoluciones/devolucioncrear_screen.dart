@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/models/ClientesViewModel.Dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart' show showModalBottomSheet;
 
@@ -179,10 +180,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   }
 
   void _onClienteChanged(Cliente? cliente) {
+    // Dismiss the keyboard when a client is selected
+    FocusManager.instance.primaryFocus?.unfocus();
+    
     setState(() {
       _selectedCliente = cliente;
       _selectedClienteId = cliente?.clie_Id;
-      _selectedFacturaId = null; // Reset factura selection when cliente changes
+      _selectedFacturaId = null;
       _filteredFacturas = _selectedClienteId != null 
           ? _facturas.where((factura) => factura['clie_Id'] == _selectedClienteId).toList()
           : [];
@@ -367,49 +371,86 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: DropdownButtonFormField<int>(
-                                    decoration: const InputDecoration(
-                                      labelText: 'Factura',
-                                      border: OutlineInputBorder(),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.white,
                                     ),
-                                    value: _selectedFacturaId,
-                                    items: _filteredFacturas.isEmpty && _selectedClienteId != null
-                                        ? [
-                                            const DropdownMenuItem<int>(
-                                              value: null,
-                                              child: Text('No hay facturas para este cliente'),
-                                            )
-                                          ]
-                                        : _filteredFacturas.map<DropdownMenuItem<int>>((factura) {
-                                            return DropdownMenuItem<int>(
-                                              value: factura['fact_Id'],
-                                              child: Text(
-                                                '${factura['fact_Numero']} - ${NumberFormat.currency(symbol: 'L ').format(factura['fact_Total'])}',
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            );
-                                          }).toList(),
-                                    onChanged: _onFacturaChanged,
-                                    validator: (value) => value == null ? 'Seleccione una factura' : null,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 0, // Remove vertical padding from container
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minHeight: 56, // Set minimum height to match clientes dropdown
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<int>(
+                                        isExpanded: true,
+                                        value: _selectedFacturaId,
+                                        hint: const Text(
+                                          'Seleccione una factura',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                        items: _filteredFacturas.isEmpty && _selectedClienteId != null
+                                            ? [
+                                                const DropdownMenuItem<int>(
+                                                  value: null,
+                                                  child: Text(
+                                                    'No hay facturas para este cliente',
+                                                    style: TextStyle(color: Colors.grey),
+                                                  ),
+                                                )
+                                              ]
+                                            : _filteredFacturas.map<DropdownMenuItem<int>>((factura) {
+                                                final facturaNumero = factura['fact_Numero']?.toString() ?? '';
+                                                final facturaTotal = NumberFormat.currency(symbol: 'L ').format(factura['fact_Total']);
+                                                
+                                                return DropdownMenuItem<int>(
+                                                  value: factura['fact_Id'],
+                                                  child: Text(
+                                                    '#$facturaNumero • $facturaTotal',
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                        onChanged: _onFacturaChanged,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black87,
+                                          height: 1.5, // Adjust line height for better vertical alignment
+                                        ),
+                                        icon: const Icon(
+                                          Icons.arrow_drop_down,
+                                          size: 24,
+                                        ),
+                                        isDense: true,
+                                        itemHeight: 48, // Set item height to match clientes dropdown
+                                        iconSize: 24, // Set icon size to match clientes dropdown
+                                        dropdownColor: Colors.white, // Ensure dropdown background is white
+                                        elevation: 1, // Add slight elevation to match clientes dropdown
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 if (_selectedFacturaId != null) ...[
                                   const SizedBox(width: 8),
-                                  Container(
+                                  SizedBox(
                                     height: 56, // Match the height of the dropdown
-                                    child: ElevatedButton(
+                                    child: CustomButton(
+                                      text: 'Productos',
                                       onPressed: _showProductosModal,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF141A2F),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      ),
-                                      child: const Text(
-                                        'Productos',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
+                                      width: 120, // Fixed width for the button
+                                      height: 40, // Slightly smaller height
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
@@ -428,60 +469,125 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                         const SizedBox(height: 16),
                         
                         // Fecha
-                        TextFormField(
-                          controller: _fechaController,
-                          decoration: const InputDecoration(
-                            labelText: 'Fecha',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
-                          ),
-                          readOnly: true,
-                          onTap: () async {
-                            final DateTime? picked = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-                            if (picked != null) {
-                              setState(() {
-                                _fechaController.text = DateFormat('yyyy-MM-dd').format(picked);
-                              });
-                            }
-                          },
-                          validator: (value) => value?.isEmpty ?? true ? 'Ingrese una fecha' : null,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Fecha *',
+                              style: _labelStyle.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.shade400,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 0,
+                              ),
+                              constraints: const BoxConstraints(
+                                minHeight: 56,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _fechaController,
+                                      style: _labelStyle,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Seleccione una fecha',
+                                        hintStyle: TextStyle(color: Colors.grey),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                      readOnly: true,
+                                      onTap: () async {
+                                        final DateTime? picked = await showDatePicker(
+                                          context: context,
+                                          initialDate: DateTime.now(),
+                                          firstDate: DateTime(2000),
+                                          lastDate: DateTime(2100),
+                                        );
+                                        if (picked != null) {
+                                          setState(() {
+                                            _fechaController.text = DateFormat('yyyy-MM-dd').format(picked);
+                                          });
+                                        }
+                                      },
+                                      validator: (value) => value?.isEmpty ?? true ? 'Ingrese una fecha' : null,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    color: Colors.grey,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         
                         const SizedBox(height: 16),
                         
                         // Motivo
-                        TextFormField(
-                          controller: _motivoController,
-                          decoration: const InputDecoration(
-                            labelText: 'Motivo de la devolución',
-                            border: OutlineInputBorder(),
-                            alignLabelWithHint: true,
-                          ),
-                          maxLines: 3,
-                          validator: (value) => value?.isEmpty ?? true ? 'Ingrese el motivo de la devolución' : null,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Motivo de la devolución *',
+                              style: _labelStyle.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.shade400,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: TextFormField(
+                                controller: _motivoController,
+                                style: _labelStyle,
+                                decoration: const InputDecoration(
+                                  hintText: 'Ingrese el motivo de la devolución',
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                maxLines: 3,
+                                validator: (value) => value?.isEmpty ?? true ? 'Ingrese el motivo de la devolución' : null,
+                              ),
+                            ),
+                          ],
                         ),
                         
                         const SizedBox(height: 24),
                         
                         // Botón de guardar
-                        ElevatedButton(
+                        CustomButton(
+                          text: 'Guardar Devolución',
                           onPressed: _submitForm,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF141A2F),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text(
-                            'Guardar Devolución',
-                            style: TextStyle(fontSize: 16),
-                          ),
+                          height: 56,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ],
                     ),
@@ -627,18 +733,14 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: CustomButton(
+                  text: 'Aceptar',
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF141A2F),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Aceptar'),
+                  height: 56,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
