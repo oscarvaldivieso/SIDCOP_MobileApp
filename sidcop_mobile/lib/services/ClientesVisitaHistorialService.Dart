@@ -1,17 +1,19 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.Dart';
 
 class ClientesVisitaHistorialService {
   // GET /ClientesVisitaHistorial/ListarVisitasPorVendedor
   Future<List<ClientesVisitaHistorialModel>> listarPorVendedor() async {
-    final int? vendId = globalUsuaIdPersona;
+    final int? vendId = globalVendId;
     if (vendId == null) {
       throw Exception('No se encontró el id del vendedor');
     }
-    final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId');
+    final url = Uri.parse(
+      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId',
+    );
     developer.log('ListarVisitasPorVendedor Request URL: $url');
     try {
       final response = await http.get(
@@ -33,9 +35,9 @@ class ClientesVisitaHistorialService {
       rethrow;
     }
   }
+
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
-
 
   // POST /ClientesVisitaHistorial/Insertar
   Future<Map<String, dynamic>> insertar(

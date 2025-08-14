@@ -1,5 +1,4 @@
-
-int? globalUsuaIdPersona;
+int? globalVendId; // usua_IdPersona del vendedor autenticado
 
 //const String apiServer = 'http://sidcop.somee.com';
 //const String apiServer = 'http://200.59.27.115:8091';
