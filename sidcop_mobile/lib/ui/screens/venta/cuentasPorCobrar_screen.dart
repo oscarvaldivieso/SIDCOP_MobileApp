@@ -32,7 +32,8 @@ class _CxCScreenState extends State<CxCScreen> {
         _errorMessage = null;
       });
 
-      final response = await _cuentasService.getCuentasPorCobrar();
+      // Usar el nuevo endpoint de resumen por cliente
+      final response = await _cuentasService.getResumenCliente();
       final List<CuentasXCobrar> cuentas = response
           .map((item) {
             try {
@@ -76,7 +77,7 @@ class _CxCScreenState extends State<CxCScreen> {
   
   String _formatCurrency(double? amount) => NumberFormat.currency(symbol: 'L ', decimalDigits: 2).format(amount ?? 0);
 
-  // Status logic simplificada
+  // Status logic actualizada para usar los nuevos campos
   Map<String, dynamic> _getAccountStatus(CuentasXCobrar cuenta) {
     if (cuenta.cpCo_Anulado == true) {
       return _createStatusData('Anulado', const Color(0xFF8E44AD), Icons.cancel_rounded);
@@ -84,10 +85,14 @@ class _CxCScreenState extends State<CxCScreen> {
     if (cuenta.cpCo_Saldada == true) {
       return _createStatusData('Saldado', const Color(0xFF2E86AB), Icons.check_circle_rounded);
     }
-    if (cuenta.cpCo_FechaVencimiento != null && cuenta.cpCo_FechaVencimiento!.isBefore(DateTime.now())) {
+    // Usar los nuevos campos de vencimiento
+    if (cuenta.tieneDeudaVencida) {
       return _createStatusData('Vencido', const Color(0xFF1A365D), Icons.warning_rounded);
     }
-    return _createStatusData('Pendiente', const Color(0xFF1E3A8A), Icons.schedule_rounded);
+    if ((cuenta.totalPendiente ?? 0) > 0) {
+      return _createStatusData('Pendiente', const Color(0xFF1E3A8A), Icons.schedule_rounded);
+    }
+    return _createStatusData('Al Día', const Color(0xFF059669), Icons.check_circle_rounded);
   }
 
   Map<String, dynamic> _createStatusData(String status, Color primaryColor, IconData icon) {
@@ -99,11 +104,6 @@ class _CxCScreenState extends State<CxCScreen> {
       'icon': icon,
     };
   }
-
-  bool _isOverdue(CuentasXCobrar cuenta) =>
-      cuenta.cpCo_FechaVencimiento != null &&
-      cuenta.cpCo_FechaVencimiento!.isBefore(DateTime.now()) &&
-      cuenta.cpCo_Saldada != true;
 
   @override
   Widget build(BuildContext context) {
@@ -205,25 +205,57 @@ class _CxCScreenState extends State<CxCScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Resumen de Cuentas', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Satoshi')),
+          const Text('Resumen de Clientes', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Satoshi')),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildSummaryItem('Total', stats['total'].toString(), Icons.receipt_long_rounded)),
+              Expanded(child: _buildSummaryItem('Total', stats['total'].toString(), Icons.people_rounded)),
               Expanded(child: _buildSummaryItem('Pendientes', stats['pending'].toString(), Icons.schedule_rounded)),
-              Expanded(child: _buildSummaryItem('Vencidas', stats['overdue'].toString(), Icons.warning_rounded)),
+              Expanded(child: _buildSummaryItem('Vencidos', stats['overdue'].toString(), Icons.warning_rounded)),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Total por Cobrar:', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.w500, fontFamily: 'Satoshi')),
+                Text(_formatCurrency(stats['totalAmount']), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Satoshi')),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Map<String, int> _calculateStats() {
+  Map<String, dynamic> _calculateStats() {
+    double totalAmount = 0;
+    int pendingCount = 0;
+    int overdueCount = 0;
+
+    for (var cuenta in _cuentasPorCobrar) {
+      totalAmount += (cuenta.totalPendiente ?? 0);
+      
+      if ((cuenta.totalPendiente ?? 0) > 0 && cuenta.cpCo_Anulado != true) {
+        pendingCount++;
+      }
+      
+      if (cuenta.tieneDeudaVencida) {
+        overdueCount++;
+      }
+    }
+
     return {
       'total': _cuentasPorCobrar.length,
-      'pending': _cuentasPorCobrar.where((c) => c.cpCo_Saldada != true && c.cpCo_Anulado != true).length,
-      'overdue': _cuentasPorCobrar.where(_isOverdue).length,
+      'pending': pendingCount,
+      'overdue': overdueCount,
+      'totalAmount': totalAmount,
     };
   }
 
@@ -243,51 +275,50 @@ class _CxCScreenState extends State<CxCScreen> {
   }
 
   Widget _buildCuentaCard(CuentasXCobrar cuenta) {
-  final statusData = _getAccountStatus(cuenta);
-  final primaryColor = statusData['primaryColor'] as Color;
-  final secondaryColor = statusData['secondaryColor'] as Color;
-  final statusIcon = statusData['icon'] as IconData;
-  final status = statusData['status'] as String;
+    final statusData = _getAccountStatus(cuenta);
+    final primaryColor = statusData['primaryColor'] as Color;
+    final secondaryColor = statusData['secondaryColor'] as Color;
+    final statusIcon = statusData['icon'] as IconData;
+    final status = statusData['status'] as String;
 
-  return GestureDetector(  // Agregar GestureDetector
-    onTap: () => _navigateToDetail(cuenta),  // Agregar navegación
-    child: Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: primaryColor.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 4)),
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            _buildCardHeader(status, statusIcon, primaryColor, secondaryColor),
-            _buildCardContent(cuenta, primaryColor),
+    return GestureDetector(
+      onTap: () => _navigateToDetail(cuenta),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: primaryColor.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
           ],
         ),
-      ),
-    ),
-  );
-}
-
-
-void _navigateToDetail(CuentasXCobrar cuenta) {
-  if (cuenta.cpCo_Id != null) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CuentasPorCobrarDetailsScreen(
-          cuentaId: cuenta.cpCo_Id!,
-          cuentaResumen: cuenta, // Pasar la cuenta completa para mostrar info básica mientras carga
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            children: [
+              _buildCardHeader(status, statusIcon, primaryColor, secondaryColor, cuenta),
+              _buildCardContent(cuenta, primaryColor),
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-  Widget _buildCardHeader(String status, IconData statusIcon, Color primaryColor, Color secondaryColor) {
+  void _navigateToDetail(CuentasXCobrar cuenta) {
+    if (cuenta.cpCo_Id != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CuentasPorCobrarDetailsScreen(
+            cuentaId: cuenta.cpCo_Id!,
+            cuentaResumen: cuenta,
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildCardHeader(String status, IconData statusIcon, Color primaryColor, Color secondaryColor, CuentasXCobrar cuenta) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -305,10 +336,22 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(status, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Satoshi')),
-                Text('Cuenta por cobrar', style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w500, fontSize: 10, fontFamily: 'Satoshi')),
+                Text('No. ${cuenta.secuencia ?? "N/A"}', style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w500, fontSize: 10, fontFamily: 'Satoshi')),
               ],
             ),
           ),
+          if ((cuenta.facturasPendientes ?? 0) > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text('${cuenta.facturasPendientes} facturas', 
+                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600, fontFamily: 'Satoshi')
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
@@ -321,7 +364,7 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
 
   Widget _buildCardContent(CuentasXCobrar cuenta, Color primaryColor) {
     return Container(
-      color: Colors.white, // Fondo blanco para el contenido de la tarjeta
+      color: Colors.white,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
@@ -329,19 +372,23 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildInfoBox('Valor Total', _formatCurrency(cuenta.cpCo_Valor), Icons.attach_money_rounded, primaryColor)),
+              Expanded(child: _buildInfoBox('Total Facturado', _formatCurrency(cuenta.totalFacturado), Icons.receipt_rounded, primaryColor)),
               const SizedBox(width: 8),
-              Expanded(child: _buildInfoBox('Saldo Pendiente', _formatCurrency(cuenta.cpCo_Saldo), Icons.account_balance_wallet_rounded, _isOverdue(cuenta) ? Colors.red.shade600 : primaryColor)),
+              Expanded(child: _buildInfoBox('Total Pendiente', _formatCurrency(cuenta.totalPendiente), Icons.account_balance_wallet_rounded, cuenta.tieneDeudaVencida ? Colors.red.shade600 : primaryColor)),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildDateInfo('Emisión', _formatDate(cuenta.cpCo_FechaEmision), Icons.calendar_today_rounded, primaryColor)),
+              Expanded(child: _buildInfoBox('Límite Crédito', _formatCurrency(cuenta.clie_LimiteCredito), Icons.credit_card_rounded, Colors.blue.shade600)),
               const SizedBox(width: 8),
-              Expanded(child: _buildDateInfo('Vencimiento', _formatDate(cuenta.cpCo_FechaVencimiento), Icons.event_rounded, _isOverdue(cuenta) ? Colors.red.shade600 : primaryColor)),
+              Expanded(child: _buildDateInfo('Último Pago', _formatDate(cuenta.ultimoPago), Icons.payment_rounded, Colors.green.shade600)),
             ],
           ),
+          if (cuenta.tieneDeudaVencida) ...[
+            const SizedBox(height: 12),
+            _buildVencimientosInfo(cuenta),
+          ],
         ],
       ),
     );
@@ -353,7 +400,7 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(Icons.person_rounded, color: primaryColor, size: 16),
+          child: Icon(Icons.store_rounded, color: primaryColor, size: 16),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -362,9 +409,17 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
             children: [
               Text('Cliente', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500, fontSize: 10, fontFamily: 'Satoshi')),
               const SizedBox(height: 2),
-              Text('${cuenta.clie_Nombres ?? ''} ${cuenta.clie_Apellidos ?? ''}'.trim(), style: const TextStyle(color: Color(0xFF181E34), fontWeight: FontWeight.w600, fontSize: 14, fontFamily: 'Satoshi')),
+              Text(cuenta.nombreCompleto, style: const TextStyle(color: Color(0xFF181E34), fontWeight: FontWeight.w600, fontSize: 14, fontFamily: 'Satoshi')),
               if (cuenta.clie_NombreNegocio?.isNotEmpty == true)
-                Text(cuenta.clie_NombreNegocio!, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400, fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi')),
+                Text(cuenta.clie_NombreNegocio!, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500, fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi')),
+              if (cuenta.clie_Telefono?.isNotEmpty == true)
+                Row(
+                  children: [
+                    Icon(Icons.phone_rounded, size: 12, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(cuenta.telefonoFormateado, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400, fontSize: 12, fontFamily: 'Satoshi')),
+                  ],
+                ),
             ],
           ),
         ),
@@ -399,6 +454,68 @@ void _navigateToDetail(CuentasXCobrar cuenta) {
         const SizedBox(height: 2),
         Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12, fontFamily: 'Satoshi')),
       ],
+    );
+  }
+
+  Widget _buildVencimientosInfo(CuentasXCobrar cuenta) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_rounded, color: Colors.red.shade600, size: 14),
+              const SizedBox(width: 4),
+              Text('Montos Vencidos', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 12, fontFamily: 'Satoshi')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if ((cuenta.v1_30 ?? 0) > 0)
+                Expanded(child: _buildVencimientoItem('1-30 días', cuenta.v1_30, Colors.orange.shade600)),
+              if ((cuenta.v31_60 ?? 0) > 0)
+                Expanded(child: _buildVencimientoItem('31-60 días', cuenta.v31_60, Colors.red.shade500)),
+            ],
+          ),
+          if ((cuenta.v61_90 ?? 0) > 0 || (cuenta.mayor90 ?? 0) > 0)
+            const SizedBox(height: 8),
+          if ((cuenta.v61_90 ?? 0) > 0 || (cuenta.mayor90 ?? 0) > 0)
+            Row(
+              children: [
+                if ((cuenta.v61_90 ?? 0) > 0)
+                  Expanded(child: _buildVencimientoItem('61-90 días', cuenta.v61_90, Colors.red.shade600)),
+                if ((cuenta.mayor90 ?? 0) > 0)
+                  Expanded(child: _buildVencimientoItem('+90 días', cuenta.mayor90, Colors.red.shade800)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVencimientoItem(String label, double? amount, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500, fontSize: 9, fontFamily: 'Satoshi')),
+          const SizedBox(height: 2),
+          Text(_formatCurrency(amount), style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Satoshi')),
+        ],
+      ),
     );
   }
 }
