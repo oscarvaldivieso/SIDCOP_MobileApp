@@ -4,6 +4,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
@@ -86,11 +88,16 @@ class FacturaTicketScreen extends StatelessWidget {
                         totalEnLetras: totalEnLetras,
                       );
                       
+                      final directory = await getApplicationDocumentsDirectory();
+                      final filePath = '${directory.path}/factura_${nombreCliente}, ${fechaFactura}.pdf';
+                      final file = File(filePath);
+                      await file.writeAsBytes(pdfBytes);
+
                       // Usar printing para mostrar y compartir el PDF
-                      await Printing.sharePdf(
-                        bytes: pdfBytes,
-                        filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
-                      );
+                      // await Printing.sharePdf(
+                      //   bytes: pdfBytes,
+                      //   filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
+                      // );
                       
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -107,8 +114,8 @@ class FacturaTicketScreen extends StatelessWidget {
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.print),
-                  tooltip: 'Imprimir',
+                  icon: const Icon(Icons.share),
+                  tooltip: 'Compartir',
                   onPressed: () {},
                 ),
                 IconButton(
@@ -140,11 +147,7 @@ class FacturaTicketScreen extends StatelessWidget {
 
                       // Crear mensaje para WhatsApp
                       final mensaje = Uri.encodeComponent(
-                        '¡Hola! Te envío la factura #$numeroFactura\n\n'
-                        '📋 Cliente: $nombreCliente\n'
-                        '📅 Fecha: $fechaFactura\n'
-                        '💰 Total: L. ${total.toStringAsFixed(2)}\n\n'
-                        'Gracias por tu compra en COMERCIAL LA ROCA S. DE R.L.'
+                        '¡Hola! Te envío la factura $nombreCliente\n'
                       );
 
                       // Compartir PDF y abrir WhatsApp
@@ -157,15 +160,15 @@ class FacturaTicketScreen extends StatelessWidget {
                       final whatsappUrl = 'https://wa.me/?text=$mensaje';
                       final uri = Uri.parse(whatsappUrl);
                       
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      } else {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.')),
-                          );
-                        }
-                      }
+                      // if (await canLaunchUrl(uri)) {
+                      //   await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      // } else {
+                      //   if (context.mounted) {
+                      //     ScaffoldMessenger.of(context).showSnackBar(
+                      //       const SnackBar(content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.')),
+                      //     );
+                      //   }
+                      // }
 
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
