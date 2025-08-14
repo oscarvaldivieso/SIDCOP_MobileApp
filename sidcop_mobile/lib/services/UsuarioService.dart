@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/Globalservice.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -50,9 +51,17 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        globalUsuaIdPersona = responseData['data']['usua_IdPersona'];
+        // Aquí puedes validar si trae "data" o un objeto directo
+        final result = responseData['data'] ?? responseData;
+
+        // Guardar ID de persona global y registrarlo en logs
+        globalUsuaIdPersona = result['usua_IdPersona'];
         developer.log('Usuario ID: $globalUsuaIdPersona');
-        return responseData['data'] ?? responseData;
+
+        // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
+        _iniciarPrecargaProductos();
+
+        return result;
       } else {
         developer.log('Error en la autenticación: ${response.statusCode}');
         return {
@@ -64,6 +73,64 @@ class UsuarioService {
     } catch (e) {
       developer.log('Iniciar Sesion Error: $e');
       return {'error': true, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  /// Inicia la precarga de productos en segundo plano
+  void _iniciarPrecargaProductos() {
+    developer.log(
+      'UsuarioService: Iniciando precarga de productos en segundo plano',
+    );
+    try {
+      final preloadService = ProductPreloadService();
+      preloadService.preloadInBackground();
+    } catch (e) {
+      developer.log(
+        'UsuarioService: Error al iniciar precarga de productos: $e',
+      );
+    }
+  }
+
+  /// Método público para precargar productos manualmente
+  Future<List<dynamic>> precargarProductos() async {
+    developer.log('UsuarioService: Precargando productos manualmente');
+    try {
+      final preloadService = ProductPreloadService();
+      return await preloadService.preloadProductsAndImages();
+    } catch (e) {
+      developer.log('UsuarioService: Error al precargar productos: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene el estado actual de la precarga de productos
+  Map<String, dynamic> obtenerEstadoPrecarga() {
+    try {
+      final preloadService = ProductPreloadService();
+      return preloadService.getPreloadInfo();
+    } catch (e) {
+      developer.log('UsuarioService: Error al obtener estado de precarga: $e');
+      return {'error': true, 'message': e.toString()};
+    }
+  }
+
+  /// Verifica si los productos están precargados
+  bool productosEstanPrecargados() {
+    try {
+      final preloadService = ProductPreloadService();
+      return preloadService.isPreloaded();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Limpia la precarga de productos para forzar una nueva carga
+  void limpiarPrecarga() {
+    try {
+      final preloadService = ProductPreloadService();
+      preloadService.clearPreload();
+    } catch (e) {
+      developer.log('UsuarioService: Error al limpiar precarga: $e');
     }
   }
 }

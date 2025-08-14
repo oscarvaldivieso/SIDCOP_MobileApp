@@ -53,4 +53,36 @@ class CuentasXCobrarService {
       throw Exception('Error en la solicitud: $e');
     }
   }
+
+  Future<Map<String, dynamic>> getCuentaPorCobrarDetalle(int cuentaId) async {
+  final url = Uri.parse('$_apiServer/CuentasPorCobrar/Detalle/$cuentaId');
+  developer.log('Get CuentaPorCobrar Detalle Request URL: $url');
+  
+  try {
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+    );
+
+    developer.log('Get CuentaPorCobrar Detalle Response Status: ${response.statusCode}');
+    developer.log('Get CuentaPorCobrar Detalle Response Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      
+      if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+        return decoded['data'];
+      } else if (decoded is Map<String, dynamic>) {
+        return decoded;
+      } else {
+        throw Exception('Respuesta inesperada del servidor: formato no reconocido.');
+      }
+    } else {
+      throw Exception('Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}');
+    }
+  } catch (e) {
+    developer.log('Get CuentaPorCobrar Detalle Error: $e');
+    throw Exception('Error en la solicitud: $e');
+  }
+ }
 }

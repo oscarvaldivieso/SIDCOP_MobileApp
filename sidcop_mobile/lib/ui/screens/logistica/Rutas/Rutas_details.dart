@@ -1,225 +1,467 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/RutasViewModel.dart';
-import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
-
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
-import 'Rutas_mapscreen.dart';
 
-class RutasDetailsScreen extends StatelessWidget {
-  Future<Map<String, dynamic>> _getStaticMapData(BuildContext context) async {
-    final clientesService = ClientesService();
-    final direccionesService = DireccionClienteService();
-    final clientesJson = await clientesService.getClientes();
-    final clientes = clientesJson
-        .map<Cliente>((json) => Cliente.fromJson(json))
-        .toList();
-    final clientesFiltrados = clientes
-        .where((c) => c.ruta_Id == ruta.ruta_Id)
-        .toList();
-    final todasDirecciones = await direccionesService
-        .getDireccionesPorCliente();
-    final clienteIds = clientesFiltrados.map((c) => c.clie_Id).toSet();
-    final direccionesFiltradas = todasDirecciones
-        .where((d) => clienteIds.contains(d.clie_id))
-        .toList();
-    final markers = direccionesFiltradas
-        .map((d) => 'markers=color:red%7C${d.dicl_latitud},${d.dicl_longitud}')
-        .join('&');
-    String center = direccionesFiltradas.isNotEmpty
-        ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
-        : '15.525585,-88.013512';
-    final mapUrl =
-        'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=15&size=400x150&$markers&key=$mapApikey';
-    return {
-      'mapUrl': mapUrl,
-      'clientesCount': clientesFiltrados.length,
-      'direccionesCount': direccionesFiltradas.length,
-    };
-  }
+// Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
+class RutasDetailsScreen extends StatefulWidget {
   final Ruta ruta;
   const RutasDetailsScreen({super.key, required this.ruta});
+  @override
+  State<RutasDetailsScreen> createState() => _RutasDetailsScreenState();
+}
 
-  Widget _buildInfoField({required String label, required String value}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
+class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Cliente> _clientes = [];
+  Map<int, List<DireccionCliente>> _direccionesPorCliente = {};
+  String? _staticMapUrl;
+  bool _clientesExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    try {
+      final clientesService = ClientesService();
+      final direccionesService = DireccionClienteService();
+      final clientesJson = await clientesService.getClientes();
+      final clientes = clientesJson
+          .map<Cliente>((j) => Cliente.fromJson(j))
+          .toList();
+      final clientesFiltrados = clientes
+          .where((c) => c.ruta_Id == widget.ruta.ruta_Id)
+          .toList();
+      final todasDirecciones = await direccionesService
+          .getDireccionesPorCliente();
+      final clienteIds = clientesFiltrados
+          .map((c) => c.clie_Id)
+          .whereType<int>()
+          .toSet();
+      final direccionesFiltradas = todasDirecciones
+          .where((d) => clienteIds.contains(d.clie_id))
+          .toList();
+      final mapDirecciones = <int, List<DireccionCliente>>{};
+      for (final d in direccionesFiltradas) {
+        mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
+      }
+      const markerColor = '0xD6B68A';
+      final markers = direccionesFiltradas
+          .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+          .map(
+            (d) =>
+                'markers=color:$markerColor%7C${d.dicl_latitud},${d.dicl_longitud}',
+          )
+          .join('&');
+      final center =
+          (direccionesFiltradas.isNotEmpty &&
+              direccionesFiltradas.first.dicl_latitud != null &&
+              direccionesFiltradas.first.dicl_longitud != null)
+          ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
+          : '15.525585,-88.013512';
+      final staticUrl =
+          'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=600x250&$markers&key=$mapApikey';
+      if (mounted) {
+        setState(() {
+          _clientes = clientesFiltrados;
+          _direccionesPorCliente = mapDirecciones;
+          _staticMapUrl = staticUrl;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Error al cargar datos: $e';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Color(0xFFD6B68A),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, color: Color(0xFFB5B5B5)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniMeta(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$k: ',
+            style: const TextStyle(
+              color: Color(0xFFD6B68A),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              v,
+              style: const TextStyle(color: Color(0xFFB5B5B5), fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClienteTile(Cliente c) {
+    final direcciones = _direccionesPorCliente[c.clie_Id ?? -1] ?? [];
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        collapsedBackgroundColor: const Color(0xFF141A2F),
+        backgroundColor: const Color(0xFF141A2F),
+        leading: const Icon(Icons.person_pin_circle, color: Color(0xFFD6B68A)),
+        title: Text(
+          c.clie_NombreNegocio ?? c.clie_Nombres ?? 'Cliente',
           style: const TextStyle(
-            fontFamily: 'Satoshi',
-            fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF141A2F),
+            fontSize: 15,
+            color: Colors.white,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontFamily: 'Satoshi',
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF6B7280),
-          ),
-        ),
-      ],
+        subtitle: (c.clie_Codigo != null)
+            ? Text(
+                'Código: ${c.clie_Codigo}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+              )
+            : null,
+        children: [
+          if (direcciones.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Sin direcciones asociadas',
+                style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                children: direcciones.map((d) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E253D),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0x33D6B68A),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.dicl_direccionexacta,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        _miniMeta('Municipio', d.muni_descripcion),
+                        _miniMeta('Depto', d.depa_descripcion),
+                        if ((d.dicl_observaciones).isNotEmpty)
+                          _miniMeta('Obs', d.dicl_observaciones),
+                        if (d.dicl_latitud != null && d.dicl_longitud != null)
+                          _miniMeta(
+                            'Coords',
+                            '${d.dicl_latitud!.toStringAsFixed(5)}, ${d.dicl_longitud!.toStringAsFixed(5)}',
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          AppBackground(
-            title: 'Detalles de la Ruta',
-            icon: Icons.alt_route,
-            onRefresh: () async {},
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                    child: Row(
+    return AppBackground(
+      title: 'Detalles de la Ruta',
+      icon: Icons.alt_route,
+      onRefresh: () async => _cargarDatos(),
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.redAccent),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
                         InkWell(
                           onTap: () => Navigator.of(context).pop(),
                           child: const Icon(
                             Icons.arrow_back_ios,
-                            size: 24,
-                            color: Color(0xFF141A2F),
+                            size: 22,
+                            color: Color(0xFFD6B68A),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            ruta.ruta_Descripcion ?? '',
+                            widget.ruta.ruta_Descripcion ?? 'Ruta',
                             style: const TextStyle(
-                              fontFamily: 'Satoshi',
-                              fontSize: 24,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
+                              color: Color.fromARGB(255, 0, 0, 0),
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  // Mapa estático con los marcadores filtrados
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0,
-                      vertical: 8.0,
-                    ),
-                    child: FutureBuilder<Map<String, dynamic>>(
-                      future: _getStaticMapData(context),
-                      builder: (context, snapshot) {
-                        final mapUrl =
-                            snapshot.data?['mapUrl'] ??
-                            'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=15&size=400x150&markers=color:red%7C15.525585,-88.013512&key=$mapApikey';
-                        final clientesCount =
-                            snapshot.data?['clientesCount'] ?? 0;
-                        final direccionesCount =
-                            snapshot.data?['direccionesCount'] ?? 0;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 16),
+                    if (_staticMapUrl != null)
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => RutaMapScreen(
+                                rutaId: widget.ruta.ruta_Id,
+                                descripcion: widget.ruta.ruta_Descripcion,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Stack(
                           children: [
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => RutaMapScreen(
-                                      rutaId: ruta.ruta_Id,
-                                      descripcion: ruta.ruta_Descripcion,
-                                    ),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: Image.network(
+                                _staticMapUrl!,
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  height: 180,
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.map,
+                                    size: 48,
+                                    color: Colors.grey,
                                   ),
-                                );
-                              },
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  mapUrl,
-                                  height: 150,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                        height: 150,
-                                        color: Colors.grey[300],
-                                        child: const Icon(
-                                          Icons.map,
-                                          size: 40,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Clientes en la ruta: $clientesCount',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF141A2F),
-                              ),
-                            ),
-                            Text(
-                              'Visitas en la ruta: $direccionesCount',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF141A2F),
+                            Positioned(
+                              right: 12,
+                              bottom: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xCC141A2F),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: const Color(0xFFD6B68A),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.open_in_full,
+                                      size: 16,
+                                      color: Color(0xFFD6B68A),
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Ver mapa',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
-                        );
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0,
-                      vertical: 8.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInfoField(
-                          label: 'Código:',
-                          value: ruta.ruta_Codigo?.toString() ?? '-',
                         ),
-                        const SizedBox(height: 12),
-                        if (ruta.ruta_Observaciones != null &&
-                            ruta.ruta_Observaciones!.isNotEmpty)
-                          _buildInfoField(
-                            label: 'Observaciones:',
-                            value: ruta.ruta_Observaciones!,
+                      ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141A2F),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFD6B68A),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Información',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFD6B68A),
+                            ),
                           ),
-                        const SizedBox(height: 12),
-                        _buildInfoField(
-                          label: 'Estado:',
-                          value: ruta.ruta_Estado == true
-                              ? 'Activa'
-                              : 'Inactiva',
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          _infoRow(
+                            'Descripción',
+                            widget.ruta.ruta_Descripcion ?? '-',
+                          ),
+                          const SizedBox(height: 2),
+                          _infoRow(
+                            'Código',
+                            widget.ruta.ruta_Codigo?.toString() ?? '-',
+                          ),
+                          _infoRow(
+                            'Paradas',
+                            _direccionesPorCliente.values
+                                .fold<int>(0, (a, b) => a + b.length)
+                                .toString(),
+                          ),
+                          if ((widget.ruta.ruta_Observaciones ?? '')
+                              .trim()
+                              .isNotEmpty)
+                            _infoRow(
+                              'Observaciones',
+                              widget.ruta.ruta_Observaciones ?? '',
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141A2F),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFD6B68A),
+                          width: 1,
+                        ),
+                      ),
+                      child: Theme(
+                        data: Theme.of(
+                          context,
+                        ).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          onExpansionChanged: (v) =>
+                              setState(() => _clientesExpanded = v),
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 6,
+                          ),
+                          childrenPadding: const EdgeInsets.fromLTRB(
+                            12,
+                            0,
+                            12,
+                            16,
+                          ),
+                          title: const Text(
+                            'Clientes',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          trailing: AnimatedRotation(
+                            turns: _clientesExpanded ? 0.25 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: const Icon(
+                              Icons.chevron_right,
+                              color: Color(0xFFD6B68A),
+                            ),
+                          ),
+                          children: [
+                            if (_clientes.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8),
+                                child: Text(
+                                  'No hay clientes en esta ruta',
+                                  style: TextStyle(
+                                    color: Color(0xFF9E9E9E),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: _clientes
+                                    .map(_buildClienteTile)
+                                    .toList(),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
     );
   }
 }

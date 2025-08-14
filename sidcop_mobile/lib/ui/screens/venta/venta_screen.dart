@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/services/printer_service.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/utils/error_handler.dart';
+import 'dart:math';
+import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -15,7 +20,9 @@ class FormData {
 }
 
 class VentaScreen extends StatefulWidget {
-  const VentaScreen({super.key});
+  final int? clienteId;
+  
+  const VentaScreen({super.key, this.clienteId});
 
   @override
   State<VentaScreen> createState() => _VentaScreenState();
@@ -26,7 +33,21 @@ class _VentaScreenState extends State<VentaScreen> {
   final FormData formData = FormData();
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
-  VentaInsertarViewModel _ventaModel = VentaInsertarViewModel.empty();
+  final PrinterService _printerService = PrinterService();
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  late VentaInsertarViewModel _ventaModel;
+  
+  // Genera un número de factura aleatorio
+  String _generateInvoiceNumber() {
+    final random = Random();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
+    return 'FACT-${timestamp}_$randomDigits';
+  }
+  
+  // Variables para impresión
+  bool _isPrinting = false;
+  bool _isProcessingSale = false;
 
   // Variables para productos
   List<Productos> _allProducts = [];
@@ -55,6 +76,7 @@ class _VentaScreenState extends State<VentaScreen> {
   @override
   void initState() {
     super.initState();
+    _ventaModel = VentaInsertarViewModel.empty()..factNumero = _generateInvoiceNumber();
     _loadProducts();
     _searchController.addListener(_applyProductFilter);
   }
@@ -62,6 +84,8 @@ class _VentaScreenState extends State<VentaScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pageController.dispose();
+    _printerService.dispose();
     super.dispose();
   }
 
@@ -72,6 +96,7 @@ class _VentaScreenState extends State<VentaScreen> {
       _filteredProducts = List.from(_allProducts);
     } catch (e) {
       debugPrint('Error cargando productos: $e');
+      ErrorHandler.showErrorToast('Error al cargar productos. Verifica tu conexión.');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -169,9 +194,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   void mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
+    ErrorHandler.showErrorToast(mensaje);
   }
 
   void mostrarResumen() {
@@ -208,108 +231,102 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _procesarVenta() async {
-    try {
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
-            ],
-          ),
+    // Mostrar indicador de carga
+    final loadingContext = Navigator.of(context, rootNavigator: true).overlay!.context;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
+          ],
         ),
-      );
+      ),
+    );
 
-      // Preparar datos de la venta
-      _ventaModel.factNumero = DateTime.now().millisecondsSinceEpoch.toString();
+    try {
+      print('Iniciando procesamiento de venta...');
+      
+      // Generar un nuevo número de factura único
+      final newInvoiceNumber = _generateInvoiceNumber();
+      print('Nuevo número de factura generado: $newInvoiceNumber');
+      
+      // Asignar el número de factura al modelo
+      _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
+      _ventaModel.regCId = 19;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factFechaLimiteEmision = DateTime.now().add(const Duration(days: 30));
+      _ventaModel.factRangoInicialAutorizado = "F001-00000001";
+      _ventaModel.factRangoFinalAutorizado = "F001-00099999";
       _ventaModel.factReferencia = "Venta desde app móvil";
+      _ventaModel.factLatitud = 14.072245;
+      _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // TODO: Estos valores deberían venir de la sesión del usuario y selección de cliente
-      _ventaModel.clieId = 111; // Temporal - debe venir de la selección de cliente
-      _ventaModel.vendId = 1; // Temporal - debe venir de la sesión del usuario
-      _ventaModel.usuaCreacion = 1; // Temporal - debe venir de la sesión del usuario
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
+      
+      if (personaId == null) {
+        throw Exception('No se pudo obtener el ID del vendedor de la sesión');
+      }
+      
+      // Asignar IDs de la sesión del usuario
+      _ventaModel.clieId = widget.clienteId ?? 111; // Usar clienteId pasado desde pantalla de cliente o valor por defecto
+      _ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
+      //_ventaModel.vendId = 12;
+      _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
+      
+      // Validar el modelo antes de enviar
+      print('Validando modelo de venta...');
+      print('Cliente ID: ${_ventaModel.clieId}');
+      print('Vendedor ID: ${_ventaModel.vendId}');
+      print('Productos: ${_ventaModel.detallesFacturaInput.length}');
+      print('Detalles de productos:');
+      for (var detalle in _ventaModel.detallesFacturaInput) {
+        print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
+      }
       
       // Enviar venta al backend
+      print('Enviando datos al servidor...');
       final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
       
       // Cerrar indicador de carga
-      Navigator.pop(context);
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      print('Respuesta del servidor: $resultado');
       
       if (resultado?['success'] == true) {
-        // Venta exitosa
+        // Venta exitosa - mostrar toast y dialog
+        ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
+        
         showDialog(
           context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("¡Venta Exitosa!", style: TextStyle(fontFamily: 'Satoshi', color: Color(0xFF98BF4A))),
-            content: Text(
-              "La venta ha sido procesada correctamente.\n\n"
-              "Método de Pago: ${formData.metodoPago}\n"
-              "Número de Factura: ${_ventaModel.factNumero}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF98BF4A),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Aceptar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _resetearFormulario();
-                },
-              ),
-            ],
-          ),
+          barrierDismissible: false,
+          builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
         );
       } else {
-        // Error en la venta
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Error en la Venta", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-            content: Text(
-              "No se pudo procesar la venta:\n\n${resultado?['message'] ?? 'Error desconocido'}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              TextButton(
-                child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        // Error en la venta - usar toast en lugar de dialog
+        ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
+        print('Error al procesar venta: $resultado');
       }
-    } catch (e) {
-      // Cerrar indicador de carga si está abierto
-      Navigator.pop(context);
+    } catch (e, stackTrace) {
+      print('Excepción al procesar venta: $e');
+      print('Stack trace: $stackTrace');
       
-      // Mostrar error
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Error", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-          content: Text(
-            "Ocurrió un error inesperado:\n\n$e",
-            style: const TextStyle(fontFamily: 'Satoshi'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
+      // Cerrar indicador de carga si está abierto
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      // Mostrar error al usuario con toast
+      ErrorHandler.showErrorToast('Error inesperado al procesar la venta. Intenta nuevamente.');
     }
   }
 
@@ -320,12 +337,418 @@ class _VentaScreenState extends State<VentaScreen> {
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
+      _pageController.jumpToPage(0);
     });
-    _pageController.animateToPage(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+  }
+
+  Widget _buildModernSuccessDialog(BuildContext context, Map<String, dynamic> facturaData) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 500), // Limitar altura máxima
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header compacto
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF98BF4A),
+                    const Color(0xFF98BF4A).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Icono más pequeño
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF98BF4A),
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Venta Exitosa!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Venta procesada correctamente',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            
+            // Contenido compacto
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Información básica
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Detalles',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF141A2F),
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCompactDetailRow('Factura', _ventaModel.factNumero),
+                          _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
+                          _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Botones compactos
+                    Row(
+                      children: [
+                        // Botón Aceptar
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _resetearFormulario();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text(
+                                'Aceptar',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Satoshi',
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 8),
+                        
+                        // Botón Ver Factura
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _navigateToInvoiceDetail(facturaData);
+                                _resetearFormulario();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF98BF4A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.visibility, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ver Factura',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6C757D),
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF141A2F),
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  /// Extrae el ID de la factura del mensaje de respuesta del backend
+  /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
+  int? _extractInvoiceIdFromMessage(String message) {
+    try {
+      // Buscar el patrón "ID: [número]"
+      final regex = RegExp(r'ID:\s*(\d+)');
+      final match = regex.firstMatch(message);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('Error al extraer ID de factura del mensaje: $e');
+    }
+    return null;
+  }
+
+  void _navigateToInvoiceDetail(Map<String, dynamic> facturaData) {
+    // Extract invoice ID from the backend response
+    int? facturaId;
+    
+    // Intentar extraer el ID del message_Status
+    if (facturaData['message_Status'] != null) {
+      facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
+      print('ID extraído del message_Status: $facturaId');
+    }
+    
+    // Fallback: intentar obtener de otros campos
+    // Fallback: intentar obtener de otros campos
+    if (facturaId == null) {
+      facturaId = facturaData['fact_Id'] ?? facturaData['id'];
+    }
+    
+    final facturaNumero = _ventaModel.factNumero ?? 'N/A';
+    
+    print('Navegando a InvoiceDetailScreen con ID: $facturaId, Número: $facturaNumero');
+    
+    // Navigate to InvoiceDetailScreen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InvoiceDetailScreen(
+          facturaId: facturaId ?? 0,
+          facturaNumero: facturaNumero,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFacturaInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Satoshi',
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Calculate subtotal from selected products
+  double _calculateSubtotal() {
+    return _ventaModel.detallesFacturaInput.fold(
+      0.0, 
+      (sum, detalle) {
+        final producto = _allProducts.firstWhere(
+          (p) => p.prod_Id == detalle.prodId,
+          orElse: () => Productos(
+            prod_Id: 0,
+            prod_Descripcion: 'Producto no encontrado',
+            marc_Id: 0,
+            cate_Id: 0,
+            subc_Id: 0,
+            prov_Id: 0,
+            impu_Id: 0,
+            prod_PrecioUnitario: 0,
+            prod_CostoTotal: 0,
+            prod_PromODesc: 0,
+            usua_Creacion: 0,
+            prod_FechaCreacion: DateTime.now(),
+            usua_Modificacion: 0,
+            prod_FechaModificacion: DateTime.now(),
+            prod_Estado: true,
+          ),
+        );
+        return sum + (detalle.faDeCantidad * (producto.prod_PrecioUnitario ?? 0));
+      },
+    );
+  }
+  
+  // Calculate taxes (15%)
+  double _calculateTaxes(double subtotal) {
+    return subtotal * 0.15;
+  }
+
+  // Método para construir un ítem de producto en la factura
+  Widget _buildProductoItem(String nombre, double cantidad, double precioUnitario) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              nombre,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              cantidad.toStringAsFixed(2),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              'L. ${precioUnitario.toStringAsFixed(2)}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalRow(String label, String value, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+            ),
+          ),
+          Text(
+            'L. $value',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+              color: isTotal ? const Color(0xFF98BF4A) : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -511,7 +934,7 @@ class _VentaScreenState extends State<VentaScreen> {
               child: Container(
                 margin: EdgeInsets.only(left: currentStep > 0 ? 12 : 0),
                 child: ElevatedButton(
-                  onPressed: nextStep,
+                  onPressed: _isProcessingSale ? null : (currentStep == totalSteps - 1 ? _procesarVentaConImpresion : nextStep),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF141A2F),
                     foregroundColor: Colors.white,
@@ -521,14 +944,37 @@ class _VentaScreenState extends State<VentaScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
-                    style: const TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isProcessingSale && currentStep == totalSteps - 1
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Procesando...",
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -889,38 +1335,40 @@ class _VentaScreenState extends State<VentaScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Badge de seleccionado
+                      // Botón de deseleccionar cuando está seleccionado
                       if (isSelected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF98774A).withOpacity(0.8),
-                                const Color(0xFFD6B68A).withOpacity(0.8),
+                        GestureDetector(
+                          onTap: () => _updateProductQuantity(product.prod_Id, 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFE74C3C).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Color(0xFFE74C3C),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Quitar',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 12,
+                                    color: const Color(0xFFE74C3C),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check_circle,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Seleccionado',
-                                style: const TextStyle(
-                                  fontFamily: 'Satoshi',
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
                           ),
                         )
                       else
@@ -955,23 +1403,70 @@ class _VentaScreenState extends State<VentaScreen> {
                                 padding: EdgeInsets.zero,
                               ),
                             ),
-                            Container(
-                              width: 50,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isSelected 
-                                    ? const Color(0xFFD6B68A).withOpacity(0.2)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  currentQuantity.toInt().toString(),
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                            InkWell(
+                              onTap: () async {
+                                final TextEditingController controller = TextEditingController(
+                                  text: currentQuantity.toInt().toString(),
+                                );
+                                
+                                final result = await showDialog<double>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    content: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Ingrese la cantidad',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (_) {
+                                        final value = double.tryParse(controller.text) ?? 0;
+                                        Navigator.of(context).pop(value);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final value = double.tryParse(controller.text) ?? 0;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF98774A),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (result != null && result >= 0) {
+                                  _updateProductQuantity(product.prod_Id, result);
+                                }
+                              },
+                              child: Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? const Color(0xFFD6B68A).withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    currentQuantity.toInt().toString(),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1320,7 +1815,9 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
+      final product = _allProducts.firstWhere(
+        (p) => p.prod_Id == prodId,
+      );
       final precio = product.prod_PrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
@@ -1535,6 +2032,88 @@ class _VentaScreenState extends State<VentaScreen> {
                   
                   // Resumen financiero
                   _buildFinancialSummary(subtotal, impuestos, total, totalItems),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Botón para probar impresora
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF141A2F).withOpacity(0.1),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.print,
+                              color: Color(0xFF141A2F),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Verificar Impresora',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF141A2F),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Prueba tu impresora Zebra ZQ310 antes de finalizar la venta',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 12,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isPrinting ? null : _probarImpresora,
+                            icon: _isPrinting 
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
+                                    ),
+                                  )
+                                : const Icon(Icons.print_outlined),
+                            label: Text(_isPrinting ? 'Probando...' : 'Probar Impresora'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF141A2F),
+                              side: const BorderSide(color: Color(0xFF141A2F)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   
                   const SizedBox(height: 24),
                   
@@ -1926,5 +2505,266 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Método para procesar la venta con impresión
+  Future<void> _procesarVentaConImpresion() async {
+    if (_isProcessingSale) return;
+
+    setState(() {
+      _isProcessingSale = true;
+    });
+
+    try {
+      // 1. Validar que hay productos seleccionados
+      if (_selectedProducts.isEmpty) {
+        throw Exception('Debe seleccionar al menos un producto');
+      }
+
+      // 2. Usar el método existente _procesarVenta para guardar la venta
+      await _procesarVenta();
+
+      
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingSale = false;
+        });
+      }
+    }
+  }
+
+  // Método para mostrar diálogo de éxito con opción de impresión
+  Future<void> _mostrarDialogoExitoConImpresion(Map<String, dynamic> facturaData) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 30),
+            const SizedBox(width: 10),
+            const Text('¡Venta Exitosa!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Venta procesada correctamente'),
+            const SizedBox(height: 16),
+            const Text('¿Desea imprimir la factura ahora?'),
+            const SizedBox(height: 8),
+            const Text(
+              'Se buscará automáticamente su impresora Zebra ZQ310',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _resetearFormulario();
+            },
+            child: const Text('No Imprimir'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _imprimirFactura(facturaData);
+              _resetearFormulario();
+            },
+            icon: const Icon(Icons.print),
+            label: const Text('Imprimir'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF141A2F),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Método para imprimir la factura
+  Future<void> _imprimirFactura(Map<String, dynamic> facturaData) async {
+    if (_isPrinting) return;
+
+    setState(() {
+      _isPrinting = true;
+    });
+
+    try {
+      // 1. Mostrar diálogo de selección de impresora
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      
+      if (selectedDevice == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impresión cancelada'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // 2. Conectar a la impresora
+      final connected = await _printerService.connect(selectedDevice);
+      
+      if (!connected) {
+        throw Exception('No se pudo conectar a la impresora ${selectedDevice.name}');
+      }
+
+      // 3. Mostrar diálogo de progreso
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Imprimiendo...'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Enviando datos a la impresora'),
+            ],
+          ),
+        ),
+      );
+
+      // 4. Imprimir la factura
+      final printSuccess = await _printerService.printInvoice(facturaData);
+      
+      // Cerrar diálogo de progreso
+      Navigator.of(context).pop();
+
+      if (printSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Factura impresa correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception('Error al imprimir la factura');
+      }
+
+      // 5. Desconectar de la impresora
+      await _printerService.disconnect();
+
+    } catch (e) {
+      // Cerrar diálogo de progreso si está abierto
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de impresión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Reintentar',
+              onPressed: () => _imprimirFactura(facturaData),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
+        });
+      }
+    }
+  }
+
+  // Método para probar la impresora
+  Future<void> _probarImpresora() async {
+    try {
+      print('=== INICIANDO PRUEBA DE IMPRESORA ===');
+      
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      
+      if (selectedDevice == null) {
+        print('Usuario canceló la selección de impresora');
+        return;
+      }
+
+      print('Dispositivo seleccionado: ${selectedDevice.platformName} (${selectedDevice.remoteId})');
+      
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Probando Impresora'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Conectando y enviando prueba...'),
+            ],
+          ),
+        ),
+      );
+
+      print('Intentando conectar...');
+      final connected = await _printerService.connect(selectedDevice);
+      
+      if (!connected) {
+        Navigator.of(context).pop(); // Cerrar loading
+        throw Exception('No se pudo conectar a la impresora');
+      }
+
+      print('Conexión exitosa, enviando prueba de impresión...');
+      final testSuccess = await _printerService.printTest();
+      
+      print('Resultado de la prueba: $testSuccess');
+      
+      print('Desconectando...');
+      await _printerService.disconnect();
+      
+      // Cerrar indicador de carga
+      Navigator.of(context).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(testSuccess 
+            ? '✅ Prueba de impresión exitosa' 
+            : '⚠️ Error en la prueba de impresión'),
+          backgroundColor: testSuccess ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      
+      print('=== FIN PRUEBA DE IMPRESORA ===');
+    } catch (e, stackTrace) {
+      print('ERROR EN PRUEBA DE IMPRESORA: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Cerrar indicador de carga si está abierto
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
 
 }

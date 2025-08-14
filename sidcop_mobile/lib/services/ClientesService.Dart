@@ -47,6 +47,7 @@ class ClientesService {
       developer.log(
         'Get Cliente by ID Response Status: ${response.statusCode}',
       );
+      print('Get Cliente by ID Response Body: ${response.body}');
       developer.log('Get Cliente by ID Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
