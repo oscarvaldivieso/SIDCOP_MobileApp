@@ -126,12 +126,39 @@ class PagoCuentasXCobrarService {
 
   // Método auxiliar para validar los datos antes de enviar
   bool validarDatosPago(PagosCuentasXCobrar pago) {
-    if (pago.cpCoId <= 0) return false;
-    if (pago.pagoMonto <= 0) return false;
-    if (pago.pagoFormaPago.isEmpty) return false;
-    if (pago.pagoNumeroReferencia.isEmpty) return false;
-    if (pago.usuaCreacion <= 0) return false;
-    if (pago.foPaId <= 0) return false;
+    // Validar campos requeridos según el repository del backend
+    if (pago.cpCoId <= 0) {
+      developer.log('Error validación: cpCoId debe ser mayor a 0');
+      return false;
+    }
+    if (pago.pagoMonto <= 0) {
+      developer.log('Error validación: pagoMonto debe ser mayor a 0');
+      return false;
+    }
+    if (pago.foPaId <= 0) {
+      developer.log('Error validación: foPaId debe ser mayor a 0');
+      return false;
+    }
+    if (pago.pagoNumeroReferencia.trim().isEmpty) {
+      developer.log('Error validación: pagoNumeroReferencia no puede estar vacío');
+      return false;
+    }
+    if (pago.pagoObservaciones.trim().isEmpty) {
+      developer.log('Error validación: pagoObservaciones no puede estar vacío');
+      return false;
+    }
+    if (pago.usuaCreacion <= 0) {
+      developer.log('Error validación: usuaCreacion debe ser mayor a 0');
+      return false;
+    }
+    
+    developer.log('✅ Validación exitosa - Datos del pago:');
+    developer.log('- cpCoId: ${pago.cpCoId}');
+    developer.log('- pagoMonto: ${pago.pagoMonto}');
+    developer.log('- foPaId: ${pago.foPaId}');
+    developer.log('- pagoNumeroReferencia: ${pago.pagoNumeroReferencia}');
+    developer.log('- pagoObservaciones: ${pago.pagoObservaciones}');
+    developer.log('- usuaCreacion: ${pago.usuaCreacion}');
     
     return true;
   }

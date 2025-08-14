@@ -77,6 +77,18 @@ class PagosCuentasXCobrar {
   // Convertir a JSON para envío al API
   Map<String, dynamic> toJson() {
     return {
+      'cpCo_Id': cpCoId,
+      'pago_Monto': pagoMonto,
+      'foPa_Id': foPaId, // Enviar el ID de la forma de pago, no la descripción
+      'pago_NumeroReferencia': pagoNumeroReferencia,
+      'pago_Observaciones': pagoObservaciones,
+      'usua_Creacion': usuaCreacion,
+    };
+  }
+
+  // JSON completo para recibir del API (cuando se consulta)
+  Map<String, dynamic> toFullJson() {
+    return {
       'pago_Id': pagoId,
       'cpCo_Id': cpCoId,
       'pago_Fecha': pagoFecha.toIso8601String(),

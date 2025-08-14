@@ -113,69 +113,109 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
     }
   }
 
-  Future<void> _registrarPago() async {
-    if (!_formKey.currentState!.validate()) return;
+  // Reemplaza el método _registrarPago en tu PagoCuentaPorCobrarScreen
 
-    // Validar que el monto no sea mayor al pendiente
-    final double montoIngresado = double.tryParse(_montoController.text) ?? 0;
-    final double totalPendiente = widget.cuentaResumen.totalPendiente ?? 0;
+Future<void> _registrarPago() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    if (montoIngresado > totalPendiente) {
-      _showErrorDialog('El monto ingresado no puede ser mayor al total pendiente (${_formatCurrency(totalPendiente)})');
-      return;
+  // Validar que el monto no sea mayor al pendiente
+  final double montoIngresado = double.tryParse(_montoController.text) ?? 0;
+  final double totalPendiente = widget.cuentaResumen.totalPendiente ?? 0;
+
+  if (montoIngresado > totalPendiente) {
+    _showErrorDialog('El monto ingresado no puede ser mayor al total pendiente (${_formatCurrency(totalPendiente)})');
+    return;
+  }
+
+  if (montoIngresado <= 0) {
+    _showErrorDialog('El monto debe ser mayor a cero');
+    return;
+  }
+
+  // VALIDACIONES ADICIONALES ANTES DE CREAR EL OBJETO
+  final int cpCoId = widget.cuentaResumen.cpCo_Id ?? 0;
+  final int foPaId = _formaPagoSeleccionada?.foPaId ?? 0;
+
+  if (cpCoId <= 0) {
+    _showErrorDialog('Error: ID de cuenta por cobrar no válido');
+    return;
+  }
+
+  if (foPaId <= 0) {
+    _showErrorDialog('Error: Forma de pago no válida');
+    return;
+  }
+
+  final String numeroReferencia = _numeroReferenciaController.text.trim();
+  if (numeroReferencia.isEmpty) {
+    _showErrorDialog('El número de referencia es requerido');
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    // Crear observaciones - asegurar que no esté vacío
+    String observaciones = _observacionesController.text.trim();
+    if (observaciones.isEmpty) {
+      observaciones = 'Pago registrado desde la aplicación móvil';
     }
 
-    if (montoIngresado <= 0) {
-      _showErrorDialog('El monto debe ser mayor a cero');
-      return;
-    }
+    // Crear el objeto de pago con datos validados
+    final pago = PagosCuentasXCobrar.nuevoPago(
+      cpCoId: cpCoId,
+      pagoMonto: montoIngresado,
+      pagoFormaPago: _formaPagoSeleccionada!.foPaDescripcion,
+      pagoNumeroReferencia: numeroReferencia,
+      pagoObservaciones: observaciones,
+      usuaCreacion: 1, // TODO: Obtener del usuario logueado
+      foPaId: foPaId,
+    );
 
-    setState(() {
-      _isLoading = true;
-    });
+    // Actualizar la fecha seleccionada
+    pago.pagoFecha = _fechaPago;
 
-    try {
-      // Crear el objeto de pago
-      final pago = PagosCuentasXCobrar.nuevoPago(
-        cpCoId: widget.cuentaResumen.cpCo_Id ?? 0,
-        pagoMonto: montoIngresado,
-        pagoFormaPago: _formaPagoSeleccionada?.foPaDescripcion ?? '',
-        pagoNumeroReferencia: _numeroReferenciaController.text.trim(),
-        pagoObservaciones: _observacionesController.text.trim().isEmpty 
-            ? 'Pago registrado desde la aplicación móvil' 
-            : _observacionesController.text.trim(),
-        usuaCreacion: 1, // TODO: Obtener del usuario logueado
-        foPaId: _formaPagoSeleccionada?.foPaId ?? 0,
-      );
+    // DEBUG: Imprimir valores antes de validar
+    print('🔍 DEBUG - Valores del pago:');
+    print('- cpCoId: ${pago.cpCoId}');
+    print('- pagoMonto: ${pago.pagoMonto}');
+    print('- foPaId: ${pago.foPaId}');
+    print('- pagoNumeroReferencia: "${pago.pagoNumeroReferencia}"');
+    print('- pagoObservaciones: "${pago.pagoObservaciones}"');
+    print('- usuaCreacion: ${pago.usuaCreacion}');
 
-      // Actualizar la fecha seleccionada
-      pago.pagoFecha = _fechaPago;
-
-      // Validar datos antes de enviar
-      if (!_pagoService.validarDatosPago(pago)) {
-        _showErrorDialog('Error en los datos del pago. Verifique que todos los campos estén correctos.');
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Enviar al servicio
-      final resultado = await _pagoService.insertarPago(pago);
-
-      if (resultado['success']) {
-        _showSuccessDialog();
-      } else {
-        _showErrorDialog(resultado['message'] ?? 'Error desconocido al registrar el pago');
-      }
-    } catch (e) {
-      _showErrorDialog('Error de conexión: ${e.toString()}');
-    } finally {
+    // Validar datos antes de enviar
+    if (!_pagoService.validarDatosPago(pago)) {
+      
+      _showErrorDialog('Error en los datos del pago. Verifique que todos los campos estén correctos.');
       setState(() {
         _isLoading = false;
+        
       });
+      
+      return;
     }
+
+    
+
+    // Enviar al servicio
+    final resultado = await _pagoService.insertarPago(pago);
+
+    if (resultado['success']) {
+      _showSuccessDialog();
+    } else {
+      _showErrorDialog(resultado['message'] ?? 'Error desconocido al registrar el pago');
+    }
+  } catch (e) {
+    _showErrorDialog('Error de conexión: ${e.toString()}');
+  } finally {
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
 
   void _showSuccessDialog() {
     showDialog(
