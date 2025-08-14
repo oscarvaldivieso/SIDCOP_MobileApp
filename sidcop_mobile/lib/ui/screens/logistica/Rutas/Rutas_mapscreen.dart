@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:custom_info_window/custom_info_window.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -194,20 +195,28 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final servicio = ClientesVisitaHistorialService();
       // TODO: Obtener usuario real autenticado. Usando 1 como placeholder.
       final int usuarioId = 1;
+      // Obtener veRuId correcto usando el endpoint ListarPorRutas
+      final vendedoresService = VendedoresService();
+      final vendedoresPorRuta = await vendedoresService.listarPorRutas();
+      final vendedorRuta = vendedoresPorRuta.firstWhere(
+        (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
+        orElse: () => null,
+      );
+      final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
+
       final registro = ClientesVisitaHistorialModel(
         hcviId: 0,
-        veruId: 2,
+        veruId: veruId,
         clieId: cliente.clie_Id,
         hcviFoto: '',
         hcviObservaciones: 'Visitado',
         hcviFecha: DateTime.now(),
-        hcviLatitud: _userLocation?.latitude ?? paradaLatLng?.latitude,
-        hcviLongitud: _userLocation?.longitude ?? paradaLatLng?.longitude,
+        hcviLatitud: (_userLocation?.latitude ?? paradaLatLng?.latitude) ?? 0.0,
+        hcviLongitud: (_userLocation?.longitude ?? paradaLatLng?.longitude) ?? 0.0,
         usuaCreacion: usuarioId,
         hcviFechaCreacion: DateTime.now(),
         veruDias: '1',
-        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'
-            .trim(),
+        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'.trim(),
         clieNombreNegocio: cliente.clie_NombreNegocio,
         secuencia: indiceLista,
       );

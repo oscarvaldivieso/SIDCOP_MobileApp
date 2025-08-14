@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/models/vendedoresViewModel.dart';
 
 class VendedoresService {
+
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
@@ -34,5 +35,24 @@ class VendedoresService {
       throw Exception('Formato inesperado listar vendedores');
     }
     throw Exception('Error listar vendedores: ${resp.statusCode}');
+  }
+    Future<List<VendedoresViewModel>> listarPorRutas() async {
+    final url = _uri('/Vendedores/ListarPorRutas');
+    developer.log('GET Vendedores por rutas -> $url');
+    final resp = await http.get(url, headers: _headers);
+    developer.log(
+      'Resp ${resp.statusCode}: ${resp.body.substring(0, resp.body.length.clamp(0, 500))}',
+    );
+    if (resp.statusCode == 200) {
+      final data = jsonDecode(resp.body);
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map((e) => VendedoresViewModel.fromJson(e))
+            .toList();
+      }
+      throw Exception('Formato inesperado listar vendedores por rutas');
+    }
+    throw Exception('Error listar vendedores por rutas: ${resp.statusCode}');
   }
 }

@@ -1,84 +1,79 @@
-// Modelo de historial de visitas de clientes basado en ClientesVisitaHistorialViewModel (C#)
-// Incluye mapeo fromJson/toJson y campos opcionales. Ajusta las claves según la API real.
 
 class ClientesVisitaHistorialModel {
-  final int hcviId;
-  final int? veruId; // VeRu_Id
-  final int? clieId; // Clie_Id
-  final String? hcviFoto;
-  final String? hcviObservaciones;
-  final DateTime? hcviFecha;
-  final double? hcviLatitud;
-  final double? hcviLongitud;
-  final int usuaCreacion;
-  final DateTime hcviFechaCreacion;
-  // NotMapped en backend
-  final String? veruDias; // Veru_Dias
-  final String? cliente; // Cliente (nombre completo quizá)
-  final String? clieNombreNegocio; // Clie_NombreNegocio
-  final int? secuencia; // Secuencia
+  final int clVi_Id;
+  final int? veRu_Id;
+  final int? diCl_Id;
+  final int? esVi_Id;
+  final String clVi_Observaciones;
+  final DateTime? clVi_Fecha;
+  final int usua_Creacion;
+  final DateTime clVi_FechaCreacion;
+  // NotMapped fields
+  final String? veru_Dias;
+  final String? cliente;
+  final String? clie_NombreNegocio;
+  final String? diCl_Latitud;
+  final String? diCl_Longitud;
+  final String? esV_Descripcion;
+  final int? secuencia;
 
   ClientesVisitaHistorialModel({
-    required this.hcviId,
-    required this.veruId,
-    required this.clieId,
-    required this.hcviFoto,
-    required this.hcviObservaciones,
-    required this.hcviFecha,
-    required this.hcviLatitud,
-    required this.hcviLongitud,
-    required this.usuaCreacion,
-    required this.hcviFechaCreacion,
-    this.veruDias,
+    required this.clVi_Id,
+    this.veRu_Id,
+    this.diCl_Id,
+    this.esVi_Id,
+    this.clVi_Observaciones = '',
+    this.clVi_Fecha,
+    required this.usua_Creacion,
+    required this.clVi_FechaCreacion,
+    this.veru_Dias,
     this.cliente,
-    this.clieNombreNegocio,
+    this.clie_NombreNegocio,
+    this.diCl_Latitud,
+    this.diCl_Longitud,
+    this.esV_Descripcion,
     this.secuencia,
   });
 
   factory ClientesVisitaHistorialModel.fromJson(Map<String, dynamic> json) {
-    // Aseguramos conversión robusta de numéricos y fechas
-    DateTime? parseDate(dynamic v) {
-      if (v == null) return null;
-      if (v is DateTime) return v;
-      final s = v.toString();
-      if (s.isEmpty) return null;
-      return DateTime.tryParse(s);
-    }
-
-    double? parseDouble(dynamic v) {
-      if (v == null) return null;
-      return double.tryParse(v.toString());
-    }
-
-    int? parseInt(dynamic v) {
-      if (v == null) return null;
-      if (v is int) return v;
-      return int.tryParse(v.toString());
-    }
-
     return ClientesVisitaHistorialModel(
-      hcviId: parseInt(json['hcvi_Id'] ?? json['HCVi_Id']) ?? 0,
-      veruId: parseInt(json['veru_Id'] ?? json['VeRu_Id']),
-      clieId: parseInt(json['clie_Id'] ?? json['Clie_Id']),
-      hcviFoto: json['hcvi_Foto'] ?? json['HCVi_Foto'],
-      hcviObservaciones: json['hcvi_Observaciones'] ?? json['HCVi_Observaciones'],
-      hcviFecha: parseDate(json['hcvi_Fecha'] ?? json['HCVi_Fecha']),
-      hcviLatitud: parseDouble(json['hcvi_Latitud'] ?? json['HCVi_Latitud']),
-      hcviLongitud: parseDouble(json['hcvi_Longitud'] ?? json['HCVi_Longitud']),
-      usuaCreacion: parseInt(json['usua_Creacion'] ?? json['Usua_Creacion']) ?? 0,
-      hcviFechaCreacion: parseDate(json['hcvi_FechaCreacion'] ?? json['HCVi_FechaCreacion']) ?? DateTime.now(),
-      veruDias: json['veru_Dias'] ?? json['Veru_Dias'],
-      cliente: json['cliente'] ?? json['Cliente'],
-      clieNombreNegocio: json['clie_NombreNegocio'] ?? json['Clie_NombreNegocio'],
-      secuencia: parseInt(json['secuencia'] ?? json['Secuencia']),
+      clVi_Id: json['ClVi_Id'] as int,
+      veRu_Id: json['VeRu_Id'] as int?,
+      diCl_Id: json['DiCl_Id'] as int?,
+      esVi_Id: json['EsVi_Id'] as int?,
+      clVi_Observaciones: json['ClVi_Observaciones'] as String? ?? '',
+      clVi_Fecha: json['ClVi_Fecha'] == null ? null : DateTime.tryParse(json['ClVi_Fecha']),
+      usua_Creacion: json['Usua_Creacion'] as int,
+      clVi_FechaCreacion: json['ClVi_FechaCreacion'] == null ? DateTime.now() : DateTime.parse(json['ClVi_FechaCreacion']),
+      veru_Dias: json['Veru_Dias'] as String?,
+      cliente: json['Cliente'] as String?,
+      clie_NombreNegocio: json['Clie_NombreNegocio'] as String?,
+      diCl_Latitud: json['DiCl_Latitud'] as String?,
+      diCl_Longitud: json['DiCl_Longitud'] as String?,
+      esV_Descripcion: json['EsV_Descripcion'] as String?,
+      secuencia: json['Secuencia'] as int?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'HCVi_Id': hcviId,
-      'VeRu_Id': veruId,
-      'Clie_Id': clieId,
+      'ClVi_Id': clVi_Id,
+      'VeRu_Id': veRu_Id,
+      'DiCl_Id': diCl_Id,
+      'EsVi_Id': esVi_Id,
+      'ClVi_Observaciones': clVi_Observaciones,
+      'ClVi_Fecha': clVi_Fecha?.toIso8601String(),
+      'Usua_Creacion': usua_Creacion,
+      'ClVi_FechaCreacion': clVi_FechaCreacion.toIso8601String(),
+      'Veru_Dias': veru_Dias,
+      'Cliente': cliente,
+      'Clie_NombreNegocio': clie_NombreNegocio,
+      'DiCl_Latitud': diCl_Latitud,
+      'DiCl_Longitud': diCl_Longitud,
+      'EsV_Descripcion': esV_Descripcion,
+      'Secuencia': secuencia,
+    };
+  }
       'HCVi_Foto': hcviFoto,
       'HCVi_Observaciones': hcviObservaciones,
       'HCVi_Fecha': hcviFecha?.toIso8601String(),
