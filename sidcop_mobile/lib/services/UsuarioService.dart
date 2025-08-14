@@ -55,9 +55,10 @@ class UsuarioService {
         final result = responseData['data'] ?? responseData;
 
         // Guardar ID de persona global y registrarlo en logs
-        globalUsuaIdPersona = result['usua_IdPersona'];
-        developer.log('Usuario ID: $globalUsuaIdPersona');
-
+        globalVendId = result['personaId'] is int
+            ? result['personaId']
+            : int.tryParse(result['personaId'].toString());
+        developer.log('Usuario ID: $globalVendId');
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         _iniciarPrecargaProductos();
 
