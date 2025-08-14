@@ -134,6 +134,12 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
   int get _cantidadTotal => _productosEditables.fold<int>(0, (sum, p) => sum + p.cantidad);
   num get _subtotal => _productosEditables.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
   num get _total => _productosEditables.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+  num get _totalImpuestos => _productosEditables.fold<num>(0, (sum, p) {
+    if (p.productoOriginal?.impuValor != null && p.productoOriginal?.prodPagaImpuesto == 'S') {
+      return sum + (p.precioFinal * p.productoOriginal!.impuValor! * p.cantidad);
+    }
+    return sum;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +279,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                 children: [
                   Text('Cantidad total de productos: $_cantidadTotal', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Subtotal: L. ${_subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
-                  Text('Total (con descuento): L. ${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('Total (con descuento): L. ${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  Text('Impuestos: L. ${_totalImpuestos.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  Text('Total Final: L. ${(_total + _totalImpuestos).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
