@@ -36,7 +36,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _cargoUsuario = 'Cargando...';
   String? _imagenUsuario;
   String? _imagenVendedor;
-  int? _usuaIdPersona;
+  int? _usuaIdPersona; 
   bool _isLoading = true;
   List<dynamic> permisos = [];
 

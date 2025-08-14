@@ -294,6 +294,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
         backgroundColor = const Color(0xFFE8F5E8);
         statusIcon = Icons.check_circle_rounded;
         break;
+      case 'Entregado':
+        label = 'Entregado';
+        primaryColor = const Color(0xFF141A2F); // Azul oscuro principal del sistema
+        secondaryColor = const Color(0xFF2C3655); // Tono ligeramente más claro para el degradado
+        backgroundColor = const Color(0xFFE8EAF6); // Fondo azul muy claro
+        statusIcon = Icons.check_circle_rounded;
+        break;
       case 'Rechazada':
         label = 'Rechazada';
         primaryColor = const Color(0xFFFF3B30);

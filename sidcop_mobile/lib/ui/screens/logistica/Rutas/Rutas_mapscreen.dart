@@ -121,7 +121,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     if (_historialCargado) return; // evitar recargas múltiples en esta sesión
     try {
       final servicio = ClientesVisitaHistorialService();
-      final historial = await servicio.listar();
+      final historial = await servicio.listarPorVendedor();
       final previos = historial
           .where((h) => h.clieId != null && clienteIdsRuta.contains(h.clieId))
           .map((h) => h.clieId!)
@@ -396,107 +396,139 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                         ),
                       ),
                       builder: (context) {
-                        return Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Center(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child:
-                                        (cliente.clie_ImagenDelNegocio !=
-                                                null &&
-                                            cliente
-                                                .clie_ImagenDelNegocio!
-                                                .isNotEmpty)
-                                        ? Image.network(
-                                            cliente.clie_ImagenDelNegocio!,
-                                            width: 220,
-                                            height: 140,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                                  return Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.store,
-                                                      size: 60,
-                                                    ),
-                                                  );
-                                                },
-                                          )
-                                        : Container(
-                                            color: Colors.grey[300],
-                                            width: 220,
-                                            height: 140,
-                                            child: const Icon(
-                                              Icons.store,
-                                              size: 60,
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: _panelBg,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Center(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child:
+                                          (cliente.clie_ImagenDelNegocio !=
+                                                  null &&
+                                              cliente
+                                                  .clie_ImagenDelNegocio!
+                                                  .isNotEmpty)
+                                          ? Image.network(
+                                              cliente.clie_ImagenDelNegocio!,
+                                              width: 220,
+                                              height: 140,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.store,
+                                                        size: 60,
+                                                      ),
+                                                    );
+                                                  },
+                                            )
+                                          : Container(
+                                              color: Colors.grey[300],
+                                              width: 220,
+                                              height: 140,
+                                              child: const Icon(
+                                                Icons.store,
+                                                size: 60,
+                                              ),
                                             ),
-                                          ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  cliente.clie_NombreNegocio ?? '',
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFD6B68A),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  // Nombre completo del cliente
-                                  'Cliente: ${(cliente.clie_Nombres ?? '')} ${(cliente.clie_Apellidos ?? '')}',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                if (cliente.clie_RTN != null &&
-                                    cliente.clie_RTN!.isNotEmpty)
-                                  Text(
-                                    'RTN: ${cliente.clie_RTN}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                if (cliente.clie_DNI != null &&
-                                    cliente.clie_DNI!.isNotEmpty)
-                                  Text(
-                                    'DNI: ${cliente.clie_DNI}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                const SizedBox(height: 8),
-                                if (cliente.clie_Telefono != null &&
-                                    cliente.clie_Telefono != '')
-                                  Text(
-                                    'Teléfono: ${cliente.clie_Telefono}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Dirección:',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                                if (d.dicl_observaciones.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      'Observaciones: ${d.dicl_observaciones}',
-                                      style: const TextStyle(fontSize: 15),
                                     ),
                                   ),
-                              ],
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    cliente.clie_NombreNegocio ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: _gold,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Cliente: ${(cliente.clie_Nombres ?? '')} ${(cliente.clie_Apellidos ?? '')}',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w500,
+                                      color: _body,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (cliente.clie_RTN != null &&
+                                      cliente.clie_RTN!.isNotEmpty)
+                                    Text(
+                                      'RTN: ${cliente.clie_RTN}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: _body,
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  if (cliente.clie_DNI != null &&
+                                      cliente.clie_DNI!.isNotEmpty)
+                                    Text(
+                                      'DNI: ${cliente.clie_DNI}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: _body,
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  if (cliente.clie_Telefono != null &&
+                                      cliente.clie_Telefono != '')
+                                    Text(
+                                      'Teléfono: ${cliente.clie_Telefono}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: _body,
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Dirección:',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: _gold,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  Text(
+                                    '${d.dicl_direccionexacta}, ${d.muni_descripcion}, ${d.depa_descripcion}',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      color: _body,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  if (d.dicl_observaciones.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        'Observaciones: ${d.dicl_observaciones}',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: _body,
+                                          fontFamily: 'Satoshi',
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -775,6 +807,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         key: _scaffoldKey,
         appBar: AppBar(
           backgroundColor: _darkBg,
+          iconTheme: const IconThemeData(color: _gold),
           title: Text(
             widget.descripcion ?? 'Ubicación Ruta',
             style: const TextStyle(
@@ -936,7 +969,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                   );
                                                 }
                                               },
-                                        activeColor: _gold,
+                                        activeColor: Colors.green,
                                         checkColor: _darkBg,
                                         side: const BorderSide(
                                           color: _gold,
