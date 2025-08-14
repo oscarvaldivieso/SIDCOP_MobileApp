@@ -245,8 +245,7 @@ class FacturaTicketScreen extends StatelessWidget {
                 children: [
                   Text('Sub-total: L. ${subtotal.toStringAsFixed(2)}'),
                   Text('Total Descuento: L. ${totalDescuento.toStringAsFixed(2)}'),
-                  Text('Total Impuesto 15%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.15).toStringAsFixed(2)}'),
-                Text('Total Impuesto 18%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.18).toStringAsFixed(2)}'),
+                  Text('Impuestos: L. ${_calcularTotalImpuestos(productos).toStringAsFixed(2)}'),
                   Text('Total: L. ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
                   Text('*$totalEnLetras*'),
                 ],
@@ -260,13 +259,10 @@ class FacturaTicketScreen extends StatelessWidget {
     );
   }
 
-  double _calcularTotalImpuestoPorcentaje(List<ProductoFactura> productos, double porcentaje) {
+  double _calcularTotalImpuestos(List<ProductoFactura> productos) {
     double total = 0.0;
     for (var p in productos) {
-      // Si el impuesto de este producto es exactamente el porcentaje solicitado
-      if ((p.impuesto / (p.precioFinal * p.cantidad)).toStringAsFixed(2) == porcentaje.toStringAsFixed(2)) {
-        total += p.impuesto * p.cantidad;
-      }
+      total += p.impuesto * p.cantidad;
     }
     return total;
   }
