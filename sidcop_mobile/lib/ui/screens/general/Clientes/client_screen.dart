@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'dart:convert';
 
 class clientScreen extends StatefulWidget {
@@ -48,14 +49,60 @@ class _clientScreenState extends State<clientScreen> {
       _direccionesPorCliente = direcciones;
     });
 
-    // Cargar clientes
-    final clientes = await ClientesService().getClientes();
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+
+    final usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+
+    print('DEBUG: userData usua_IdPersona = $usuaIdPersona');
+    print('DEBUG: userData esVendedor = $esVendedor');
+    print('DEBUG: userData esAdmin = $esAdmin');
+    print('DEBUG: globalUsuaIdPersona = $globalUsuaIdPersona');
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    List<dynamic> clientes = [];
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona);
+      print(
+        'DEBUG: Clientes obtenidos por ruta para vendedor: ${clientes.length}',
+      );
+    } else if (esAdmin) {
+      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
+      final clienteServiceFallback = ClientesService();
+      clientes = await clienteServiceFallback.getClientes();
+      print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
+    }
     setState(() {
       filteredClientes = clientes;
       clientesList = Future.value(clientes); // Actualiza el FutureBuilder
     });
     // Asegurarse que filteredClientes siempre tenga datos frescos si no hay filtro
-    if (_searchController.text.isEmpty && _selectedDepa == null && _selectedMuni == null && _selectedColo == null) {
+    if (_searchController.text.isEmpty &&
+        _selectedDepa == null &&
+        _selectedMuni == null &&
+        _selectedColo == null) {
       setState(() {
         filteredClientes = clientes;
       });
@@ -689,12 +736,8 @@ class _clientScreenState extends State<clientScreen> {
 
           if (result == true) {
             // Refresh the client list if a new client was added
-            setState(() {
-              clientesList = ClientesService().getClientes();
-              clientesList.then((clientes) {
-                _filterClientes(_searchController.text);
-              });
-            });
+            // Recargar toda la data usando el mismo método que initState
+            await _loadAllClientData();
           }
         },
         child: const Icon(Icons.add, color: Colors.white),
@@ -759,65 +802,65 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
-  if (clienteId == null) return 0;
+    if (clienteId == null) return 0;
 
-  final limiteCredito_double =
-      double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+    final limiteCredito_double =
+        double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
-  // Buscar cuentas por cobrar del cliente
-  final cuentasCliente = _cuentasPorCobrar
-      .where(
-        (cuenta) =>
-            cuenta['clie_Id'] == clienteId &&
-            cuenta['cpCo_Anulado'] == false &&
-            cuenta['cpCo_Saldada'] == false,
-      )
-      .toList();
+    // Buscar cuentas por cobrar del cliente
+    final cuentasCliente = _cuentasPorCobrar
+        .where(
+          (cuenta) =>
+              cuenta['clie_Id'] == clienteId &&
+              cuenta['cpCo_Anulado'] == false &&
+              cuenta['cpCo_Saldada'] == false,
+        )
+        .toList();
 
-  // Si no tiene cuentas por cobrar, mostrar el límite de crédito
-  if (cuentasCliente.isEmpty) {
-    return limiteCredito_double;
-  }
+    // Si no tiene cuentas por cobrar, mostrar el límite de crédito
+    if (cuentasCliente.isEmpty) {
+      return limiteCredito_double;
+    }
 
-  // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
-  cuentasCliente.sort((a, b) {
-    final fechaA =
-        DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
-        DateTime(1970);
-    final fechaB =
-        DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
-        DateTime(1970);
-    return fechaB.compareTo(fechaA);
-  });
+    // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
+    cuentasCliente.sort((a, b) {
+      final fechaA =
+          DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      final fechaB =
+          DateTime.tryParse(b['cpCo_Fecha']?.toString() ?? '') ??
+          DateTime(1970);
+      return fechaB.compareTo(fechaA);
+    });
 
-  final saldoReciente =
-      double.tryParse(
-        cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
-      ) ??
-      0;
+    final saldoReciente =
+        double.tryParse(
+          cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
+        ) ??
+        0;
 
-  // VERIFICAR SI TIENE CUENTA VENCIDA
-  final now = DateTime.now();
-  bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-    if (cuenta['cpCo_FechaVencimiento'] == null) return false;
-    final fechaVencimiento = DateTime.tryParse(
-      cuenta['cpCo_FechaVencimiento'].toString(),
-    );
-    if (fechaVencimiento == null) return false;
-    return fechaVencimiento.isBefore(now);
-  });
+    // VERIFICAR SI TIENE CUENTA VENCIDA
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+      final fechaVencimiento = DateTime.tryParse(
+        cuenta['cpCo_FechaVencimiento'].toString(),
+      );
+      if (fechaVencimiento == null) return false;
+      return fechaVencimiento.isBefore(now);
+    });
 
-  // Si tiene cuenta vencida, mostrar el saldo actual (cpCo_Saldo)
-  if (tieneCuentaVencida) {
-    print(
-      'DEBUG _getBadgeAmount: CUENTA VENCIDA - Mostrando saldo actual: $saldoReciente',
-    );
+    // Si tiene cuenta vencida, mostrar el saldo actual (cpCo_Saldo)
+    if (tieneCuentaVencida) {
+      print(
+        'DEBUG _getBadgeAmount: CUENTA VENCIDA - Mostrando saldo actual: $saldoReciente',
+      );
+      return saldoReciente;
+    }
+
+    // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
     return saldoReciente;
   }
-
-  // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
-  return saldoReciente;
-}
 
   // --- Ubicaciones networking y UI ---
   Future<void> _loadAllLocationData() async {
