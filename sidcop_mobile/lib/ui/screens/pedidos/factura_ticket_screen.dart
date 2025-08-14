@@ -107,7 +107,7 @@ class FacturaTicketScreen extends StatelessWidget {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al generar PDF: $e')),
+                          SnackBar(content: Text('Error al generar PDF')),
                         );
                       }
                     }
