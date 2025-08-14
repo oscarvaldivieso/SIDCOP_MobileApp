@@ -5,7 +5,7 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
-import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
@@ -52,11 +52,12 @@ class _VentaScreenState extends State<VentaScreen> {
   bool _isProcessingSale = false;
 
   // Variables para productos
-  List<Productos> _allProducts = [];
-  List<Productos> _filteredProducts = [];
+  List<ProductoConDescuento> _allProducts = [];
+  List<ProductoConDescuento> _filteredProducts = [];
   Map<int, ProductoConDescuento> _productosConDescuento = {};
   final Map<int, double> _selectedProducts = {}; // prod_Id -> cantidad
   bool _isLoadingProducts = false;
+  bool _isCartSummaryExpanded = false;
   final TextEditingController _searchController = TextEditingController();
 
   int currentStep = 0;
@@ -108,24 +109,24 @@ class _VentaScreenState extends State<VentaScreen> {
 
     setState(() => _isLoadingProducts = true);
     try {
-      // First try to load products with client/vendor specific discounts
-      try {
-        _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
-          widget.clienteId!,
-          widget.vendedorId!,
-        );
-        _filteredProducts = List.from(_allProducts);
-        debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
-      } catch (e) {
-        debugPrint('Error cargando productos con descuento: $e');
-        // Fallback to regular products if there's an error
-        _allProducts = await _productosService.getProductos();
-        _filteredProducts = List.from(_allProducts);
-        ErrorHandler.showErrorToast('Mostrando productos sin descuentos');
+      // Load products with client/vendor specific discounts
+      _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
+        widget.clienteId!,
+        widget.vendedorId!,
+      );
+      
+      _filteredProducts = List.from(_allProducts);
+      
+      // Store products in the map for easy access
+      _productosConDescuento.clear();
+      for (var producto in _allProducts) {
+        _productosConDescuento[producto.prodId] = producto;
       }
+      
+      debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
     } catch (e) {
-      debugPrint('Error cargando productos: $e');
-      ErrorHandler.showErrorToast('Error al cargar productos');
+      debugPrint('Error cargando productos con descuento: $e');
+      ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -136,14 +137,32 @@ class _VentaScreenState extends State<VentaScreen> {
     setState(() {
       _filteredProducts = _allProducts.where((product) {
         final matchesSearch = searchTerm.isEmpty ||
-            (product.prod_Descripcion?.toLowerCase().contains(searchTerm) ?? false) ||
-            (product.prod_Codigo?.toLowerCase().contains(searchTerm) ?? false);
+            (product.prodDescripcionCorta?.toLowerCase().contains(searchTerm) ?? false) ||
+            (product.prodId.toString().toLowerCase().contains(searchTerm) ?? false);
         return matchesSearch;
       }).toList();
     });
   }
 
   void _updateProductQuantity(int prodId, double quantity) {
+    final product = _allProducts.firstWhere(
+      (p) => p.prodId == prodId,
+      orElse: () => throw Exception('Producto no encontrado'),
+    );
+
+    // Verificar si la cantidad solicitada excede el stock disponible
+    if (quantity > 0 && product.cantidadDisponible != null && quantity > product.cantidadDisponible!) {
+      // Mostrar mensaje de error al usuario
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay suficiente stock. Disponible: ${product.cantidadDisponible}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       if (quantity > 0) {
         _selectedProducts[prodId] = quantity;
@@ -163,8 +182,8 @@ class _VentaScreenState extends State<VentaScreen> {
     
     // Actualizar el formData para mostrar en el resumen
     final productNames = _selectedProducts.entries.map((entry) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == entry.key);
-      return '${product.prod_DescripcionCorta ?? 'Producto'} (${entry.value})';
+      final product = _allProducts.firstWhere((p) => p.prodId == entry.key);
+      return '${product.prodDescripcionCorta ?? 'Producto'} (${entry.value})';
     }).join(', ');
     formData.productos = productNames;
   }
@@ -684,27 +703,11 @@ class _VentaScreenState extends State<VentaScreen> {
     return _ventaModel.detallesFacturaInput.fold(
       0.0, 
       (sum, detalle) {
-        final producto = _allProducts.firstWhere(
-          (p) => p.prod_Id == detalle.prodId,
-          orElse: () => Productos(
-            prod_Id: 0,
-            prod_Descripcion: 'Producto no encontrado',
-            marc_Id: 0,
-            cate_Id: 0,
-            subc_Id: 0,
-            prov_Id: 0,
-            impu_Id: 0,
-            prod_PrecioUnitario: 0,
-            prod_CostoTotal: 0,
-            prod_PromODesc: 0,
-            usua_Creacion: 0,
-            prod_FechaCreacion: DateTime.now(),
-            usua_Modificacion: 0,
-            prod_FechaModificacion: DateTime.now(),
-            prod_Estado: true,
-          ),
-        );
-        return sum + (detalle.faDeCantidad * (producto.prod_PrecioUnitario ?? 0));
+        final producto = _productosConDescuento[detalle.prodId];
+        if (producto != null) {
+          return sum + (detalle.faDeCantidad * producto.prodPrecioUnitario);
+        }
+        return sum;
       },
     );
   }
@@ -1181,16 +1184,16 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  Widget _buildProductCard(Productos product) {
-    final currentQuantity = _selectedProducts[product.prod_Id] ?? 0;
+  Widget _buildProductCard(ProductoConDescuento product) {
+    final currentQuantity = _selectedProducts[product.prodId] ?? 0;
     final isSelected = currentQuantity > 0;
-    final productoConDescuento = _productosConDescuento[product.prod_Id];
+    final productoConDescuento = _productosConDescuento[product.prodId];
     
     // Obtener el mejor descuento disponible
     double? mejorDescuento;
     if (productoConDescuento?.descuentosEscala.isNotEmpty ?? false) {
       mejorDescuento = productoConDescuento!.descuentosEscala
-          .map((d) => d.porcentajeDescuento)
+          .map((d) => d.deEsValor)
           .reduce((a, b) => a > b ? a : b);
     }
 
@@ -1207,15 +1210,8 @@ class _VentaScreenState extends State<VentaScreen> {
                 ],
               )
             : null,
-        color: isSelected ? null : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
         border: Border.all(
           color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
           width: isSelected ? 2 : 1,
@@ -1224,9 +1220,9 @@ class _VentaScreenState extends State<VentaScreen> {
           BoxShadow(
             color: isSelected 
                 ? const Color(0xFF98774A).withOpacity(0.2)
-                : const Color(0xFF262B40).withOpacity(0.08),
-            blurRadius: isSelected ? 12 : 8,
-            offset: Offset(0, isSelected ? 4 : 2),
+                : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 12 : 10,
+            offset: Offset(0, isSelected ? 4 : 4),
           ),
         ],
       ),
@@ -1260,9 +1256,9 @@ class _VentaScreenState extends State<VentaScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(11),
-                          child: product.prod_Imagen != null && product.prod_Imagen!.isNotEmpty
+                          child: product.prodImagen != null && product.prodImagen!.isNotEmpty
                               ? Image.network(
-                                  product.prod_Imagen!,
+                                  product.prodImagen!,
                                   width: 70,
                                   height: 70,
                                   fit: BoxFit.cover,
@@ -1319,12 +1315,12 @@ class _VentaScreenState extends State<VentaScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    product.prod_DescripcionCorta,
-                                    style: const TextStyle(
+                                    product.prodDescripcionCorta,
+                                    style: TextStyle(
                                       fontFamily: 'Satoshi',
                                       fontSize: 17,
                                       fontWeight: FontWeight.w700,
-                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40),
+                                      color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
                                       height: 1.3,
                                     ),
                                     maxLines: 2,
@@ -1355,7 +1351,7 @@ class _VentaScreenState extends State<VentaScreen> {
                             Row(
                               children: [
                                 Text(
-                                  'L. ${product.prod_PrecioUnitario.toStringAsFixed(2)}',
+                                  'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontFamily: 'Satoshi',
                                     fontSize: 16,
@@ -1367,7 +1363,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                   Padding(
                                     padding: const EdgeInsets.only(left: 8),
                                     child: Text(
-                                      'L. ${(product.prod_PrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
+                                      'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
                                       style: TextStyle(
                                         fontFamily: 'Satoshi',
                                         fontSize: 14,
@@ -1394,7 +1390,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       // Botón de deseleccionar cuando está seleccionado
                       if (isSelected)
                         GestureDetector(
-                          onTap: () => _updateProductQuantity(product.prod_Id, 0),
+                          onTap: () => _updateProductQuantity(product.prodId, 0),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
@@ -1453,7 +1449,7 @@ class _VentaScreenState extends State<VentaScreen> {
                               ),
                               child: IconButton(
                                 onPressed: currentQuantity > 0
-                                    ? () => _updateProductQuantity(product.prod_Id, currentQuantity - 1)
+                                    ? () => _updateProductQuantity(product.prodId, currentQuantity - 1)
                                     : null,
                                 icon: const Icon(Icons.remove, size: 18),
                                 color: Colors.white,
@@ -1503,7 +1499,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                 );
 
                                 if (result != null && result >= 0) {
-                                  _updateProductQuantity(product.prod_Id, result);
+                                  _updateProductQuantity(product.prodId, result);
                                 }
                               },
                               child: Container(
@@ -1548,7 +1544,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                 ],
                               ),
                               child: IconButton(
-                                onPressed: () => _updateProductQuantity(product.prod_Id, currentQuantity + 1),
+                                onPressed: () => _updateProductQuantity(product.prodId, currentQuantity + 1),
                                 icon: const Icon(Icons.add, size: 18),
                                 color: Colors.white,
                                 padding: EdgeInsets.zero,
@@ -1597,50 +1593,149 @@ class _VentaScreenState extends State<VentaScreen> {
 
   // Paso 3: Carrito de Compras
   Widget paso3() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20),
-          // Título del carrito
-          const Text(
-            'Carrito de Compras',
-            style: TextStyle(
-              fontFamily: 'Satoshi',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF141A2F),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Lista de productos seleccionados
-          Expanded(
-            child: _selectedProducts.isEmpty
-                ? _buildEmptyCart()
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: _selectedProducts.length,
-                          itemBuilder: (context, index) {
-                            final prodId = _selectedProducts.keys.elementAt(index);
-                            final cantidad = _selectedProducts[prodId]!;
-                            final product = _allProducts.firstWhere(
-                              (p) => p.prod_Id == prodId,
-                            );
-                            return _buildCartItem(product, cantidad);
-                          },
-                        ),
+    final double total = _calculateTotal();
+    
+    return Stack(
+      children: [
+        // Contenido principal con padding inferior para el resumen colapsado
+        Padding(
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 80),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Título del carrito
+              const Text(
+                'Carrito de Compras',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF141A2F),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Lista de productos seleccionados
+              Expanded(
+                child: _selectedProducts.isEmpty
+                    ? _buildEmptyCart()
+                    : ListView.builder(
+                        itemCount: _selectedProducts.length,
+                        itemBuilder: (context, index) {
+                          final prodId = _selectedProducts.keys.elementAt(index);
+                          final cantidad = _selectedProducts[prodId]!;
+                          final product = _allProducts.firstWhere(
+                            (p) => p.prodId == prodId,
+                          );
+                          return _buildCartItem(product, cantidad);
+                        },
                       ),
-                      const SizedBox(height: 16),
-                      _buildCartSummary(),
+              ),
+            ],
+          ),
+        ),
+        
+        // Resumen del carrito (fijo en la parte inferior)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            children: [
+              // Línea decorativa superior
+              Container(
+                width: 60,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Contenedor del resumen
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isCartSummaryExpanded = !_isCartSummaryExpanded;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
                     ],
                   ),
+                  child: Column(
+                    children: [
+                      // Encabezado del resumen (siempre visible)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Resumen del pedido',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF141A2F),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                'L. ${total.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                _isCartSummaryExpanded 
+                                    ? Icons.keyboard_arrow_down 
+                                    : Icons.keyboard_arrow_up,
+                                color: const Color(0xFF98BF4A),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      // Contenido expandible
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox(height: 16),
+                        secondChild: Column(
+                          children: [
+                            const SizedBox(height: 16),
+                            _buildCartSummary(),
+                          ],
+                        ),
+                        crossFadeState: _isCartSummaryExpanded 
+                            ? CrossFadeState.showSecond 
+                            : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 200),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1681,8 +1776,8 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Widget para cada item del carrito
-  Widget _buildCartItem(Productos product, double cantidad) {
-    final precio = product.prod_PrecioUnitario;
+  Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
+    final precio = product.prodPrecioUnitario;
     final subtotal = precio * cantidad;
 
     return Container(
@@ -1723,7 +1818,7 @@ class _VentaScreenState extends State<VentaScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  product.prod_DescripcionCorta ?? 'Producto sin nombre',
+                  product.prodDescripcionCorta ?? 'Producto sin nombre',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
                     fontSize: 16,
@@ -1735,7 +1830,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Código: ${product.prod_Codigo ?? 'N/A'}',
+                  'Código: ${product.prodId ?? 'N/A'}',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
                     fontSize: 12,
@@ -1798,9 +1893,9 @@ class _VentaScreenState extends State<VentaScreen> {
                   GestureDetector(
                     onTap: () {
                       if (cantidad > 1) {
-                        _updateProductQuantity(product.prod_Id, cantidad - 1);
+                        _updateProductQuantity(product.prodId, cantidad - 1);
                       } else {
-                        _updateProductQuantity(product.prod_Id, 0);
+                        _updateProductQuantity(product.prodId, 0);
                       }
                     },
                     child: Container(
@@ -1841,7 +1936,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   // Botón aumentar cantidad
                   GestureDetector(
                     onTap: () {
-                      _updateProductQuantity(product.prod_Id, cantidad + 1);
+                      _updateProductQuantity(product.prodId, cantidad + 1);
                     },
                     child: Container(
                       width: 32,
@@ -1866,6 +1961,65 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Método para calcular descuentos por escalas de cantidad
+  Map<String, dynamic> _calculateDiscounts() {
+    double totalDescuentos = 0.0;
+    List<Map<String, dynamic>> detalleDescuentos = [];
+    
+    _selectedProducts.forEach((prodId, cantidad) {
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      
+      // Buscar descuento aplicable según la cantidad
+      DescuentoEscala? descuentoAplicable;
+      for (var descuento in product.descuentosEscala) {
+        if (cantidad >= descuento.deEsInicioEscala && 
+            (descuento.deEsFinEscala == -1 || cantidad <= descuento.deEsFinEscala)) {
+          descuentoAplicable = descuento;
+          break;
+        }
+      }
+      
+      if (descuentoAplicable != null) {
+        final precioOriginal = product.prodPrecioUnitario * cantidad;
+        final descuentoValor = precioOriginal * (descuentoAplicable.deEsValor / 100);
+        totalDescuentos += descuentoValor;
+        
+        detalleDescuentos.add({
+          'producto': product.prodDescripcionCorta,
+          'cantidad': cantidad,
+          'porcentaje': descuentoAplicable.deEsValor,
+          'valor': descuentoValor,
+        });
+      }
+    });
+    
+    return {
+      'total': totalDescuentos,
+      'detalles': detalleDescuentos,
+    };
+  }
+
+  // Calcular el total del carrito
+  double _calculateTotal() {
+    double subtotal = 0.0;
+    _selectedProducts.forEach((prodId, cantidad) {
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      final precio = product.prodPrecioUnitario;
+      subtotal += precio * cantidad;
+    });
+    
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15;
+    
+    return subtotalConDescuento + impuestos;
+  }
+
   // Widget para el resumen del carrito
   Widget _buildCartSummary() {
     double subtotal = 0.0;
@@ -1873,17 +2027,21 @@ class _VentaScreenState extends State<VentaScreen> {
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
-        (p) => p.prod_Id == prodId,
+        (p) => p.prodId == prodId,
       );
-      final precio = product.prod_PrecioUnitario;
+      final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
     });
 
-    // TODO: Aquí se agregarán descuentos y promociones en el futuro
-    final double descuentos = 0.0; // Placeholder para descuentos futuros
-    final double impuestos = subtotal * 0.15; // ISV 15% (ejemplo)
-    final double total = subtotal - descuentos + impuestos;
+    // Calcular descuentos reales
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    final List<Map<String, dynamic>> detalleDescuentos = descuentosInfo['detalles'];
+    
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    final double total = subtotalConDescuento + impuestos;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1935,9 +2093,16 @@ class _VentaScreenState extends State<VentaScreen> {
           // Subtotal
           _buildSummaryRowCart('Subtotal:', 'L. ${subtotal.toStringAsFixed(2)}'),
           
-          // Descuentos (placeholder para futuro)
+          // Descuentos aplicados
+          if (descuentos > 0) ...[
+            const SizedBox(height: 8),
+            _buildDiscountSection(detalleDescuentos, descuentos),
+            const SizedBox(height: 8),
+          ],
+          
+          // Subtotal después de descuentos
           if (descuentos > 0)
-            _buildSummaryRowCart('Descuentos:', '- L. ${descuentos.toStringAsFixed(2)}', isDiscount: true),
+            _buildSummaryRowCart('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
           
           // Impuestos
           _buildSummaryRowCart('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
@@ -1973,8 +2138,97 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Widget para mostrar la sección de descuentos
+  Widget _buildDiscountSection(List<Map<String, dynamic>> detalleDescuentos, double totalDescuentos) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10B981).withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.local_offer,
+                size: 16,
+                color: Color(0xFF10B981),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Descuentos Aplicados',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...detalleDescuentos.map((descuento) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${descuento['producto']} (${descuento['cantidad'].toInt()}x) - ${descuento['porcentaje']}%',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  '- L. ${descuento['valor'].toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+          const Divider(height: 16, thickness: 1, color: Color(0xFFE5E7EB)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Descuentos:',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+              Text(
+                '- L. ${totalDescuentos.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper para las filas del resumen
-  Widget _buildSummaryRowCart(String label, String value, {bool isDiscount = false}) {
+  Widget _buildSummaryRowCart(String label, String value, {bool isDiscount = false, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1982,10 +2236,11 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              color: Color(0xFF6B7280),
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+              color: const Color(0xFF6B7280),
             ),
           ),
           Text(
@@ -1993,7 +2248,7 @@ class _VentaScreenState extends State<VentaScreen> {
             style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
               color: isDiscount ? const Color(0xFF10B981) : const Color(0xFF374151),
             ),
           ),
@@ -2009,14 +2264,19 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
-      final precio = product.prod_PrecioUnitario;
+      final product = _allProducts.firstWhere((p) => p.prodId == prodId);
+      final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
     });
 
-    final double impuestos = subtotal * 0.15; // ISV 15%
-    final double total = subtotal + impuestos;
+    // Calcular descuentos para la confirmación
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    final double total = subtotalConDescuento + impuestos;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -2088,7 +2348,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   const SizedBox(height: 16),
                   
                   // Resumen financiero
-                  _buildFinancialSummary(subtotal, impuestos, total, totalItems),
+                  _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
                   const SizedBox(height: 16),
                   
@@ -2325,8 +2585,8 @@ class _VentaScreenState extends State<VentaScreen> {
           ..._selectedProducts.entries.map((entry) {
             final prodId = entry.key;
             final cantidad = entry.value;
-            final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
-            final precio = product.prod_PrecioUnitario;
+            final product = _allProducts.firstWhere((p) => p.prodId == prodId);
+            final precio = product.prodPrecioUnitario;
             final subtotal = precio * cantidad;
             
             return Container(
@@ -2347,7 +2607,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          product.prod_DescripcionCorta ?? 'Producto sin nombre',
+                          product.prodDescripcionCorta ?? 'Producto sin nombre',
                           style: const TextStyle(
                             fontFamily: 'Satoshi',
                             fontSize: 14,
@@ -2357,7 +2617,7 @@ class _VentaScreenState extends State<VentaScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Código: ${product.prod_Codigo ?? 'N/A'}',
+                          'Código: ${product.prodId ?? 'N/A'}',
                           style: const TextStyle(
                             fontFamily: 'Satoshi',
                             fontSize: 12,
@@ -2400,7 +2660,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Widget para resumen financiero
-  Widget _buildFinancialSummary(double subtotal, double impuestos, double total, int totalItems) {
+  Widget _buildFinancialSummary(double subtotal, double descuentos, double subtotalConDescuento, double impuestos, double total, int totalItems) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -2464,6 +2724,13 @@ class _VentaScreenState extends State<VentaScreen> {
           const SizedBox(height: 16),
           
           _buildFinancialRow('Subtotal:', 'L. ${subtotal.toStringAsFixed(2)}'),
+          
+          // Mostrar descuentos si existen
+          if (descuentos > 0) ...[
+            _buildFinancialRow('Descuentos:', '- L. ${descuentos.toStringAsFixed(2)}', isDiscount: true),
+            _buildFinancialRow('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
+          ],
+          
           _buildFinancialRow('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
           
           const Padding(
@@ -2499,8 +2766,8 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  // Helper para filas financieras
-  Widget _buildFinancialRow(String label, String value) {
+  // Helper para las filas financieras
+  Widget _buildFinancialRow(String label, String value, {bool isDiscount = false, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -2508,19 +2775,20 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
               color: Colors.white70,
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: isDiscount ? const Color(0xFF10B981) : Colors.white,
             ),
           ),
         ],

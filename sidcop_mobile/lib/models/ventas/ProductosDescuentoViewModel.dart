@@ -32,7 +32,7 @@ class ProductoConDescuento {
   factory ProductoConDescuento.fromJson(Map<String, dynamic> json) {
     return ProductoConDescuento(
       prodId: json['prod_Id'] as int,
-      prodDescripcionCorta: json['prod_DescripcionCorta'] as String,
+      prodDescripcionCorta: json['prod_DescripcionCorta'] as String? ?? '',
       prodImagen: json['prod_Imagen'] as String?,
       impuId: json['impu_Id'] as int,
       impuValor: (json['impu_Valor'] as num).toDouble(),
@@ -40,12 +40,16 @@ class ProductoConDescuento {
       prodCostoTotal: (json['prod_CostoTotal'] as num).toDouble(),
       prodPagaImpuesto: json['prod_PagaImpuesto'] as String,
       cantidadDisponible: json['cantidadDisponible'] as int,
-      listasPrecio: List<ListaPrecio>.from(
-        (jsonDecode(json['listasPrecio_JSON']) as List)
-            .map((x) => ListaPrecio.fromJson(x))),
-      descuentosEscala: List<DescuentoEscala>.from(
-        (jsonDecode(json['descuentosEscala_JSON']) as List)
-            .map((x) => DescuentoEscala.fromJson(x))),
+      listasPrecio: json['listasPrecio_JSON'] != null 
+          ? List<ListaPrecio>.from(
+              (jsonDecode(json['listasPrecio_JSON']) as List)
+                  .map((x) => ListaPrecio.fromJson(x)))
+          : <ListaPrecio>[],
+      descuentosEscala: json['descuentosEscala_JSON'] != null 
+          ? List<DescuentoEscala>.from(
+              (jsonDecode(json['descuentosEscala_JSON']) as List)
+                  .map((x) => DescuentoEscala.fromJson(x)))
+          : <DescuentoEscala>[],
     );
   }
 }
