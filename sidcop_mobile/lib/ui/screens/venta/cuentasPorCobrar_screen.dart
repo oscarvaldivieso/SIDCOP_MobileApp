@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 
 
 class CxCScreen extends StatefulWidget {
@@ -362,37 +363,100 @@ class _CxCScreenState extends State<CxCScreen> {
     );
   }
 
-  Widget _buildCardContent(CuentasXCobrar cuenta, Color primaryColor) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildClientInfo(cuenta, primaryColor),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildInfoBox('Total Facturado', _formatCurrency(cuenta.totalFacturado), Icons.receipt_rounded, primaryColor)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildInfoBox('Total Pendiente', _formatCurrency(cuenta.totalPendiente), Icons.account_balance_wallet_rounded, cuenta.tieneDeudaVencida ? Colors.red.shade600 : primaryColor)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildInfoBox('Límite Crédito', _formatCurrency(cuenta.clie_LimiteCredito), Icons.credit_card_rounded, Colors.blue.shade600)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildDateInfo('Último Pago', _formatDate(cuenta.ultimoPago), Icons.payment_rounded, Colors.green.shade600)),
-            ],
-          ),
-          if (cuenta.tieneDeudaVencida) ...[
-            const SizedBox(height: 12),
-            _buildVencimientosInfo(cuenta),
+Widget _buildCardContent(CuentasXCobrar cuenta, Color primaryColor) {
+  return Container(
+    color: Colors.white,
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        _buildClientInfo(cuenta, primaryColor),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _buildInfoBox('Total Facturado', _formatCurrency(cuenta.totalFacturado), Icons.receipt_rounded, primaryColor)),
+            const SizedBox(width: 8),
+            Expanded(child: _buildInfoBox('Total Pendiente', _formatCurrency(cuenta.totalPendiente), Icons.account_balance_wallet_rounded, cuenta.tieneDeudaVencida ? Colors.red.shade600 : primaryColor)),
           ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _buildInfoBox('Límite Crédito', _formatCurrency(cuenta.clie_LimiteCredito), Icons.credit_card_rounded, Colors.blue.shade600)),
+            const SizedBox(width: 8),
+            Expanded(child: _buildDateInfo('Último Pago', _formatDate(cuenta.ultimoPago), Icons.payment_rounded, Colors.green.shade600)),
+          ],
+        ),
+        if (cuenta.tieneDeudaVencida) ...[
+          const SizedBox(height: 12),
+          _buildVencimientosInfo(cuenta),
         ],
+        // NUEVO: Agregar botón de Registrar Pago
+        const SizedBox(height: 16),
+        _buildActionButtons(cuenta, primaryColor),
+      ],
+    ),
+  );
+}
+
+Widget _buildActionButtons(CuentasXCobrar cuenta, Color primaryColor) {
+  final bool tienePendiente = (cuenta.totalPendiente ?? 0) > 0;
+  final bool estaAnulado = cuenta.cpCo_Anulado == true;
+  final bool estaSaldado = cuenta.cpCo_Saldada == true;
+  
+  return Row(
+    children: [
+      // Botón Ver Detalles
+      Expanded(
+        flex: 2,
+        child: OutlinedButton.icon(
+          onPressed: () => _navigateToDetail(cuenta),
+          icon: Icon(Icons.visibility_rounded, size: 16, color: primaryColor),
+          label: const Text('Ver Detalles', style: TextStyle(fontSize: 12, fontFamily: 'Satoshi')),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: primaryColor,
+            side: BorderSide(color: primaryColor),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        ),
       ),
-    );
+      
+      const SizedBox(width: 8),
+      
+      // Botón Registrar Pago (solo si tiene pendiente y no está anulado ni saldado)
+      if (tienePendiente && !estaAnulado && !estaSaldado)
+        Expanded(
+          flex: 2,
+          child: ElevatedButton.icon(
+            onPressed: () => _navigateToPaymentScreen(cuenta),
+            icon: const Icon(Icons.payment_rounded, size: 16, color: Colors.white),
+            label: const Text('Registrar Pago', style: TextStyle(fontSize: 12, fontFamily: 'Satoshi', color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+void _navigateToPaymentScreen(CuentasXCobrar cuenta) async {
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => PagoCuentaPorCobrarScreen(
+        cuentaResumen: cuenta,
+      ),
+    ),
+  );
+  
+  // Si el pago fue exitoso, recargar la lista
+  if (result == true) {
+    _loadCuentasPorCobrar();
   }
+}
 
   Widget _buildClientInfo(CuentasXCobrar cuenta, Color primaryColor) {
     return Row(

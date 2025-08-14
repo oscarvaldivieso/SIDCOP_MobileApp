@@ -101,35 +101,57 @@ class CuentasXCobrarService {
     }
   }
 
-  Future<Map<String, dynamic>> getCuentaPorCobrarDetalle(int cuentaId) async {
-    final url = Uri.parse('$_apiServer/CuentasPorCobrar/Detalle/$cuentaId');
-    developer.log('Get CuentaPorCobrar Detalle Request URL: $url');
-    
-    try {
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
-      );
+// Agregar este método a tu CuentasXCobrarService
 
-      developer.log('Get CuentaPorCobrar Detalle Response Status: ${response.statusCode}');
-      developer.log('Get CuentaPorCobrar Detalle Response Body: ${response.body}');
+Future<List<dynamic>> getTimelineCliente(int clienteId) async {
+  final url = Uri.parse('$_apiServer/CuentasPorCobrar/timeLineCliente/$clienteId');
+  developer.log('Get Timeline Cliente Request URL: $url');
+  
+  try {
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+    );
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        
-        if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
-          return decoded['data'];
-        } else if (decoded is Map<String, dynamic>) {
-          return decoded;
+    developer.log(
+      'Get Timeline Cliente Response Status: ${response.statusCode}',
+    );
+    developer.log('Get Timeline Cliente Response Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      
+      // Verificar si la respuesta tiene la estructura con "data"
+      if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+        final data = decoded['data'];
+        if (data is List) {
+          return data;
+        } else if (data is Map) {
+          // Si es un solo objeto, lo convertimos en una lista
+          return [data];
         } else {
-          throw Exception('Respuesta inesperada del servidor: formato no reconocido.');
+          throw Exception('La clave "data" no es una lista o mapa válido.');
         }
+      } 
+      // Si no tiene "data", asumir que es directamente una lista o mapa
+      else if (decoded is List) {
+        return decoded;
+      } else if (decoded is Map) {
+        return [decoded];
       } else {
-        throw Exception('Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}');
+        throw Exception(
+          'Respuesta inesperada del servidor: formato no reconocido.',
+        );
       }
-    } catch (e) {
-      developer.log('Get CuentaPorCobrar Detalle Error: $e');
-      throw Exception('Error en la solicitud: $e');
+    } else {
+      throw Exception(
+        'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+      );
     }
+  } catch (e) {
+    developer.log('Get Timeline Cliente Error: $e');
+    throw Exception('Error en la solicitud: $e');
   }
+}
+
 }
