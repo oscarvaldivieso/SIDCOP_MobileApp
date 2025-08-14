@@ -187,13 +187,13 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    const markerColor = '0xD6B68A';
-    final markers = direccionesFiltradas
-        .map(
-          (d) =>
-              'markers=color:$markerColor%7C${d.dicl_latitud},${d.dicl_longitud}',
-        )
-        .join('&');
+  const iconUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+  final markers = direccionesFiltradas
+    .map(
+      (d) =>
+        'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+    )
+    .join('&');
     final center = direccionesFiltradas.isNotEmpty
         ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
         : '15.525585,-88.013512';
