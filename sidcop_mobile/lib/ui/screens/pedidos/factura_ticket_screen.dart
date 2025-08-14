@@ -89,7 +89,7 @@ class FacturaTicketScreen extends StatelessWidget {
                       );
                       
                       final directory = await getApplicationDocumentsDirectory();
-                      final filePath = '${directory.path}/factura_${nombreCliente}, ${fechaFactura}.pdf';
+                      final filePath = '${directory.path}/factura_${numeroFactura.replaceAll('/', '_')}.pdf';
                       final file = File(filePath);
                       await file.writeAsBytes(pdfBytes);
 
@@ -153,7 +153,7 @@ class FacturaTicketScreen extends StatelessWidget {
                       // Compartir PDF y abrir WhatsApp
                       await Printing.sharePdf(
                         bytes: pdfBytes,
-                        filename: 'factura_${numeroFactura.replaceAll('/', '_')}.pdf',
+                        filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
                       );
 
                       // Abrir WhatsApp con el mensaje
