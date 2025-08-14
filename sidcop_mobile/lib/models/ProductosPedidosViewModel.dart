@@ -35,6 +35,8 @@ class ProductosPedidosViewModel {
   final List<ListaPrecioModel>? listasPrecio;
   final List<DescuentoEscalaModel>? descuentosEscala;
   final DescEspecificacionesModel? descEspecificaciones;
+  final double? impuValor;
+  final List<dynamic>? infoPromocion;
 
   ProductosPedidosViewModel({
     required this.prodId,
@@ -71,6 +73,8 @@ class ProductosPedidosViewModel {
     this.listasPrecio,
     this.descuentosEscala,
     this.descEspecificaciones,
+    this.impuValor,
+    this.infoPromocion,
   });
 
   factory ProductosPedidosViewModel.fromJson(Map<String, dynamic> json) {
@@ -105,6 +109,15 @@ class ProductosPedidosViewModel {
         descEspecificaciones = DescEspecificacionesModel.fromJson(parsed);
       } catch (_) {
         descEspecificaciones = null;
+      }
+    }
+
+    List<dynamic>? infoPromocion;
+    if (json['infoPromocion_JSON'] != null && json['infoPromocion_JSON'].toString().isNotEmpty) {
+      try {
+        infoPromocion = jsonDecode(json['infoPromocion_JSON']);
+      } catch (_) {
+        infoPromocion = null;
       }
     }
 
@@ -143,6 +156,8 @@ class ProductosPedidosViewModel {
       listasPrecio: listasPrecio,
       descuentosEscala: descuentosEscala,
       descEspecificaciones: descEspecificaciones,
+      impuValor: json['impu_Valor']?.toDouble(),
+      infoPromocion: infoPromocion,
     );
   }
 }

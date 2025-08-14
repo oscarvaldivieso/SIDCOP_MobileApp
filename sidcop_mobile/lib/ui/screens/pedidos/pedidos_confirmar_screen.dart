@@ -427,18 +427,28 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                   ? 'L. ${descuento.toStringAsFixed(0)}'
                                   : 'L. ${descuento.toStringAsFixed(2)}';
                             }
+                            // Calcular impuesto usando el nuevo campo impuValor del modelo
+                            // impuValor ya viene como decimal (ej. 0.15 para 15%)
+                            double impuestoCalculado = 0.0;
+                            if (p.productoOriginal?.impuValor != null && 
+                                p.productoOriginal?.prodPagaImpuesto == 'S') {
+                              impuestoCalculado = p.precioFinal * p.productoOriginal!.impuValor!;
+                            }
+                            
                             return ProductoFactura(
                               nombre: p.nombre,
                               cantidad: p.cantidad,
                               precio: p.precioBase,
                               precioFinal: p.precioFinal,
                               descuentoStr: descuentoStr,
-                              impuesto: 0, // Agregar cálculo de impuesto si es necesario
+                              impuesto: impuestoCalculado,
                             );
                           }).toList();
                           
-                          final totalDescuento = productosFactura.fold<num>(0, (s, p) => s + ((p.precio - p.precioFinal) * p.cantidad));
-                          final totalEnLetras = NumeroEnLetras.convertir(_total.truncate());
+                          final totalDescuento = productosFactura.fold<num>(0, (s, p) => s + ((p.precio - p.precioFinal) * p.cantidad)).abs();
+                          final totalImpuestos = productosFactura.fold<num>(0, (s, p) => s + (p.impuesto * p.cantidad));
+                          final totalFinal = _total + totalImpuestos;
+                          final totalEnLetras = NumeroEnLetras.convertir(totalFinal.truncate());
                           
                           // Cerrar loading
                           if (context.mounted) {
@@ -474,7 +484,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                   productos: productosFactura,
                                   subtotal: _subtotal,
                                   totalDescuento: totalDescuento,
-                                  total: _total,
+                                  total: totalFinal,
                                   totalEnLetras: totalEnLetras,
                                 ),
                               ),
