@@ -284,6 +284,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     final cantidad = _cantidades[producto.prodId] ?? 0;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Row(
