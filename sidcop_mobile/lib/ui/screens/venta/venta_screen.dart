@@ -66,7 +66,7 @@ class _VentaScreenState extends State<VentaScreen> {
   final List<String> stepTitles = [
     'Método de Pago',
     'Productos disponibles',
-    'Selección de Productos',
+    'Carrito de compras',
     'Confirmación de venta'
   ];
   
@@ -803,7 +803,7 @@ class _VentaScreenState extends State<VentaScreen> {
           children: [
             // Header con título y chip de paso
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -813,7 +813,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       stepTitles[currentStep],
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF141A2F),
                       ),
@@ -821,7 +821,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   ),
                   // Chip de paso
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical:6),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color.fromARGB(255, 4, 4, 27), Color.fromARGB(255, 18, 18, 53)],
@@ -832,7 +832,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       '${currentStep + 1}/$totalSteps',
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -845,7 +845,7 @@ class _VentaScreenState extends State<VentaScreen> {
             // Barra de progreso moderna
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 color: const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(12),
@@ -898,7 +898,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 stepDescriptions[currentStep],
                 style: const TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 14,
                   color: Color.fromARGB(255, 17, 19, 29)
                 ),
                 textAlign: TextAlign.left,
@@ -1105,12 +1105,13 @@ class _VentaScreenState extends State<VentaScreen> {
       children: [
         // Barra de búsqueda
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(13),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Buscar productos...',
               hintStyle: const TextStyle(
+                fontSize: 14,
                 fontFamily: 'Satoshi',
                 color: Color(0xFF9CA3AF),
               ),
@@ -1131,7 +1132,7 @@ class _VentaScreenState extends State<VentaScreen> {
         // Contador de productos seleccionados
         if (_selectedProducts.isNotEmpty)
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: const EdgeInsets.symmetric(horizontal: 14),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF98BF4A).withOpacity(0.1),
@@ -1145,6 +1146,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 Text(
                   '${_selectedProducts.length} productos seleccionados',
                   style: const TextStyle(
+                    fontSize: 14,
                     fontFamily: 'Satoshi',
                     color: Color(0xFF98BF4A),
                     fontWeight: FontWeight.w600,
@@ -1245,14 +1247,7 @@ class _VentaScreenState extends State<VentaScreen> {
                           border: Border.all(
                             color: const Color(0xFF262B40).withOpacity(0.1),
                             width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF262B40).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          )
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(11),
@@ -1318,7 +1313,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                     product.prodDescripcionCorta,
                                     style: TextStyle(
                                       fontFamily: 'Satoshi',
-                                      fontSize: 17,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w700,
                                       color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
                                       height: 1.3,
@@ -1354,7 +1349,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                   'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontFamily: 'Satoshi',
-                                    fontSize: 16,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                     color: Color(0xFF141A2F),
                                   ),
@@ -1366,12 +1361,12 @@ class _VentaScreenState extends State<VentaScreen> {
                                       'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
                                       style: TextStyle(
                                         fontFamily: 'Satoshi',
-                                        fontSize: 14,
+                                        fontSize: 13,
                                         fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF98BF4A),
+                                        color: const Color.fromARGB(255, 255, 0, 0),
                                         decoration: TextDecoration.lineThrough,
-                                        decorationColor: const Color(0xFF6B7280),
-                                        decorationThickness: 2.0,
+                                        decorationColor: const Color.fromARGB(255, 206, 7, 7),
+                                        decorationThickness: 3.0,
                                       ),
                                     ),
                                   ),
@@ -1439,8 +1434,8 @@ class _VentaScreenState extends State<VentaScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: currentQuantity > 0 
                                     ? const Color(0xFF262B40) 
@@ -1504,7 +1499,7 @@ class _VentaScreenState extends State<VentaScreen> {
                               },
                               child: Container(
                                 width: 50,
-                                height: 40,
+                                height: 30,
                                 decoration: BoxDecoration(
                                   color: isSelected 
                                       ? const Color(0xFFD6B68A).withOpacity(0.2)
@@ -1525,15 +1520,10 @@ class _VentaScreenState extends State<VentaScreen> {
                               ),
                             ),
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF98774A),
-                                    const Color(0xFFD6B68A),
-                                  ],
-                                ),
+                                color: const Color(0xFF98774A),
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
@@ -1603,17 +1593,6 @@ class _VentaScreenState extends State<VentaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Título del carrito
-              const Text(
-                'Carrito de Compras',
-                style: TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF141A2F),
-                ),
-              ),
-              const SizedBox(height: 16),
               
               // Lista de productos seleccionados
               Expanded(
@@ -1796,22 +1775,6 @@ class _VentaScreenState extends State<VentaScreen> {
       ),
       child: Row(
         children: [
-          // Imagen del producto (placeholder)
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFF6B7280),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          
           // Información del producto
           Expanded(
             child: Column(
