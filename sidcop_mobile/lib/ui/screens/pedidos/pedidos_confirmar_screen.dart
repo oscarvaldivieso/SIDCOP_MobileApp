@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
@@ -156,18 +157,306 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     return sum;
   });
 
+  Future<void> _confirmarPedido() async {
+    // Validar productos y clienteId (ya están en la pantalla)
+    if (_productosEditables.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay productos seleccionados.')));
+      return;
+    }
+    if (widget.clienteId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se seleccionó cliente.')));
+      return;
+    }
+    
+    // Mostrar loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      // Obtener datos del usuario actual para la API
+      final perfilService = PerfilUsuarioService();
+      final datosUsuario = await perfilService.obtenerDatosUsuario();
+      if (datosUsuario == null) {
+        throw Exception('No se encontraron datos del usuario');
+      }
+      
+      // Debug: Imprimir todos los datos del usuario
+      print('Datos completos del usuario: $datosUsuario');
+      print('Claves disponibles: ${datosUsuario.keys.toList()}');
+      
+      final int usuaId = datosUsuario['usua_Id'] is String 
+          ? int.tryParse(datosUsuario['usua_Id']) ?? 0
+          : datosUsuario['usua_Id'] ?? 0;
+      
+      // Usar usuaIdPersona como vendId (común en sistemas donde el vendedor es una persona)
+      final int vendId = datosUsuario['usua_IdPersona'] is String 
+          ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
+          : datosUsuario['usua_IdPersona'] ?? 0;
+      
+      print('usuaId obtenido: $usuaId');
+      print('vendId (usuaIdPersona) obtenido: $vendId');
+      print('usuaEsVendedor: ${datosUsuario['usua_EsVendedor']}');
+          
+      if (usuaId == 0) {
+        throw Exception('Usuario ID no válido: $usuaId');
+      }
+      
+      if (vendId == 0) {
+        throw Exception('Vendedor ID no válido: $vendId (usuaIdPersona)');
+      }
+      
+      // Verificar que el usuario es vendedor
+      final bool esVendedor = datosUsuario['usua_EsVendedor'] ?? false;
+      if (!esVendedor) {
+        throw Exception('El usuario actual no es un vendedor autorizado');
+      }
+
+      // Preparar detalles del pedido para la API
+      final detallesApi = _productosEditables.map((p) {
+        // Buscar el prod_Id del producto (necesitamos agregarlo al ProductoConfirmacion)
+        return {
+          "prod_Id": p.prodId ?? 0, // Necesitamos agregar este campo
+          "peDe_Cantidad": p.cantidad,
+          "peDe_ProdPrecio": p.precioBase,
+          "peDe_ProdPrecioFinal": p.precioFinal,
+        };
+      }).toList();
+
+      // Obtener DiCl_Id de la dirección seleccionada
+      print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
+      print('Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}');
+      
+      final int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                       widget.direccionSeleccionada['DiCl_Id'] ?? 
+                       widget.direccionSeleccionada['dicl_Id'] ?? 
+                       widget.direccionSeleccionada['Id'] ?? 
+                       widget.direccionSeleccionada['id'] ?? 
+                       widget.direccionSeleccionada['ID'] ?? 0;
+      
+      print('DiCl_Id obtenido: $diClId');
+      
+      if (diClId == 0) {
+        throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+      }
+
+      // Llamar a la API para insertar el pedido
+      final pedidosService = PedidosService();
+      final resultado = await pedidosService.insertarPedido(
+        diClId: diClId,
+        vendId: vendId,
+        fechaPedido: DateTime.now(),
+        fechaEntrega: widget.fechaEntrega,
+        usuaCreacion: usuaId,
+        clieId: widget.clienteId,
+        detalles: detallesApi,
+      );
+
+      if (!resultado['success']) {
+        throw Exception(resultado['message'] ?? 'Error al crear el pedido');
+      }
+
+      // Obtener número de pedido real de la respuesta de la API
+      final pedidoData = resultado['data'];
+      final numeroPedidoReal = pedidoData != null && pedidoData['pedi_Id'] != null 
+          ? 'PED-${pedidoData['pedi_Id']}'
+          : 'PED-${DateTime.now().millisecondsSinceEpoch}';
+
+      // Si el pedido se creó exitosamente, obtener datos para la factura
+      final clienteService = ClientesService();
+      final cliente = await clienteService.getClienteById(widget.clienteId);
+      final empresaService = EmpresaService();
+      final empresa = await empresaService.getConfiguracionFactura();
+      final nombreCliente = ((cliente['clie_Nombres'] ?? '') + ' ' + (cliente['clie_Apellidos'] ?? '')).trim();
+      final codigoCliente = cliente['clie_Codigo'] ?? '';
+      
+      // Usar la dirección seleccionada
+      final direccion = widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? 
+                       widget.direccionSeleccionada['descripcion'] ?? 
+                       'Dirección no especificada';
+      final rtn = cliente['clie_RTN'] ?? '';
+
+      // Obtener datos reales del usuario (vendedor) - reutilizar variables existentes
+      String vendedor = 'Vendedor no especificado';
+      if (datosUsuario['usua_Id'] != null) {
+        final usuario = await perfilService.obtenerDatosCompletoUsuario(datosUsuario['usua_Id']);
+        if (usuario != null) {
+          if (usuario['nombreCompleto'] != null && usuario['nombreCompleto'].toString().isNotEmpty) {
+            vendedor = usuario['nombreCompleto'];
+          } else if (usuario['nombres'] != null) {
+            vendedor = usuario['nombres'];
+            if (usuario['apellidos'] != null) {
+              vendedor += ' ' + usuario['apellidos'];
+            }
+          }
+        }
+      }
+
+      final fechaFactura = DateTime.now();
+      
+      // Mapeo productos
+      final productosFactura = _productosEditables.map((p) {
+        final descuento = p.precioBase - p.precioFinal;
+        String descuentoStr = '';
+        if (descuento > 0) {
+          descuentoStr = (descuento % 1 == 0)
+              ? 'L. ${descuento.toStringAsFixed(0)}'
+              : 'L. ${descuento.toStringAsFixed(2)}';
+        }
+        // Calcular impuesto usando el nuevo campo impuValor del modelo
+        // impuValor ya viene como decimal (ej. 0.15 para 15%)
+        double impuestoCalculado = 0.0;
+        if (p.productoOriginal?.impuValor != null && 
+            p.productoOriginal?.prodPagaImpuesto == 'S') {
+          impuestoCalculado = p.precioFinal * p.productoOriginal!.impuValor!;
+        }
+        
+        return ProductoFactura(
+          nombre: p.nombre,
+          cantidad: p.cantidad,
+          precio: p.precioBase,
+          precioFinal: p.precioFinal,
+          descuentoStr: descuentoStr,
+          impuesto: impuestoCalculado,
+        );
+      }).toList();
+      
+      final totalDescuento = productosFactura.fold<num>(0, (s, p) => s + ((p.precio - p.precioFinal) * p.cantidad)).abs();
+      final totalImpuestos = productosFactura.fold<num>(0, (s, p) => s + (p.impuesto * p.cantidad));
+      final totalFinal = _total + totalImpuestos;
+      final totalEnLetras = NumeroEnLetras.convertir(totalFinal.truncate());
+      
+      // Cerrar loading
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // Mostrar mensaje de éxito
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡Pedido creado exitosamente! Número: $numeroPedidoReal'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Navegar a la factura
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FacturaTicketScreen(
+              empresa: empresa,
+              nombreCliente: nombreCliente,
+              codigoCliente: codigoCliente,
+              direccion: direccion,
+              rtn: rtn,
+              vendedor: vendedor,
+              fechaFactura: '${fechaFactura.day.toString().padLeft(2, '0')}/${fechaFactura.month.toString().padLeft(2, '0')}/${fechaFactura.year}',
+              fechaEntrega: '${widget.fechaEntrega.day.toString().padLeft(2, '0')}/${widget.fechaEntrega.month.toString().padLeft(2, '0')}/${widget.fechaEntrega.year}',
+              numeroFactura: numeroPedidoReal,
+              productos: productosFactura,
+              subtotal: _subtotal,
+              totalDescuento: totalDescuento,
+              total: totalFinal,
+              totalEnLetras: totalEnLetras,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Cerrar loading si hay error
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear el pedido: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      print('Error completo al crear pedido: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Confirmar Pedido',
-      icon: Icons.check_circle_outline,
-      child: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0), // Padding bottom para el botón
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    return Scaffold(
+      appBar: const AppBarWidget(),
+      drawer: const CustomDrawer(permisos: []),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF6F6F6), Color(0xFFF6F6F6)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header similar to AppBackground
+            Padding(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).size.height * 0.03,
+                left: 16,
+                right: 16,
+              ),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
+                child: Container(
+                  color: const Color(0xFF141A2F),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.height * 0.10,
+                    child: Stack(
+                      children: [
+                        // Título alineado a la izquierda y centrado verticalmente
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                            child: Text(
+                              'Confirmar Pedido',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Icono alineado a la esquina inferior derecha
+                        Positioned(
+                          bottom: 12,
+                          right: 18,
+                          child: Icon(
+                            Icons.check_circle_outline,
+                            color: const Color(0xFFE0C7A0),
+                            size: 32,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Contenido scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             const Text('Productos seleccionados:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 10),
             ..._productosEditables.asMap().entries.map((entry) {
@@ -212,9 +501,6 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                     );
                   },
                   child: ListTile(
-                    leading: p.imagen != null && p.imagen!.isNotEmpty
-                        ? Image.network(p.imagen!, width: 48, height: 48, fit: BoxFit.cover)
-                        : const Icon(Icons.image, size: 40),
                     title: Text(p.nombre),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,14 +509,19 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                         Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
                       ],
                     ),
-                    trailing: Container(
-                      width: 120,
+                    trailing: SizedBox(
+                      width: 110,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                            onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
+                          SizedBox(
+                            width: 32,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+                              onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
+                            ),
                           ),
                           Container(
                             width: 30,
@@ -240,9 +531,14 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                            onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
+                          SizedBox(
+                            width: 32,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
+                              onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
+                            ),
                           ),
                         ],
                       ),
@@ -299,273 +595,44 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                   Text('Descuento: L. ${_totalDescuento.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Impuestos: L. ${_totalImpuestos.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Total Final: L. ${(_total + _totalImpuestos).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 80), // Espacio para el botón fijo
                 ],
               ),
             ),
-              ],
-            ),
-          ),
-          // Botón flotante fijo en la parte inferior
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () async {
-                        // Validar productos y clienteId (ya están en la pantalla)
-                        if (_productosEditables.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay productos seleccionados.')));
-                          return;
-                        }
-                        if (widget.clienteId == 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se seleccionó cliente.')));
-                          return;
-                        }
-                        
-                        // Mostrar loading
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(child: CircularProgressIndicator()),
-                        );
-                        
-                        try {
-                          // Obtener datos del usuario actual para la API
-                          final perfilService = PerfilUsuarioService();
-                          final datosUsuario = await perfilService.obtenerDatosUsuario();
-                          if (datosUsuario == null) {
-                            throw Exception('No se encontraron datos del usuario');
-                          }
-                          
-                          // Debug: Imprimir todos los datos del usuario
-                          print('Datos completos del usuario: $datosUsuario');
-                          print('Claves disponibles: ${datosUsuario.keys.toList()}');
-                          
-                          final int usuaId = datosUsuario['usua_Id'] is String 
-                              ? int.tryParse(datosUsuario['usua_Id']) ?? 0
-                              : datosUsuario['usua_Id'] ?? 0;
-                          
-                          // Usar usuaIdPersona como vendId (común en sistemas donde el vendedor es una persona)
-                          final int vendId = datosUsuario['usua_IdPersona'] is String 
-                              ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
-                              : datosUsuario['usua_IdPersona'] ?? 0;
-                          
-                          print('usuaId obtenido: $usuaId');
-                          print('vendId (usuaIdPersona) obtenido: $vendId');
-                          print('usuaEsVendedor: ${datosUsuario['usua_EsVendedor']}');
-                              
-                          if (usuaId == 0) {
-                            throw Exception('Usuario ID no válido: $usuaId');
-                          }
-                          
-                          if (vendId == 0) {
-                            throw Exception('Vendedor ID no válido: $vendId (usuaIdPersona)');
-                          }
-                          
-                          // Verificar que el usuario es vendedor
-                          final bool esVendedor = datosUsuario['usua_EsVendedor'] ?? false;
-                          if (!esVendedor) {
-                            throw Exception('El usuario actual no es un vendedor autorizado');
-                          }
-
-                          // Preparar detalles del pedido para la API
-                          final detallesApi = _productosEditables.map((p) {
-                            // Buscar el prod_Id del producto (necesitamos agregarlo al ProductoConfirmacion)
-                            return {
-                              "prod_Id": p.prodId ?? 0, // Necesitamos agregar este campo
-                              "peDe_Cantidad": p.cantidad,
-                              "peDe_ProdPrecio": p.precioBase,
-                              "peDe_ProdPrecioFinal": p.precioFinal,
-                            };
-                          }).toList();
-
-                          // Obtener DiCl_Id de la dirección seleccionada
-                          print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
-                          print('Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}');
-                          
-                          final int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
-                                           widget.direccionSeleccionada['DiCl_Id'] ?? 
-                                           widget.direccionSeleccionada['dicl_Id'] ?? 
-                                           widget.direccionSeleccionada['Id'] ?? 
-                                           widget.direccionSeleccionada['id'] ?? 
-                                           widget.direccionSeleccionada['ID'] ?? 0;
-                          
-                          print('DiCl_Id obtenido: $diClId');
-                          
-                          if (diClId == 0) {
-                            throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
-                          }
-
-                          // Llamar a la API para insertar el pedido
-                          final pedidosService = PedidosService();
-                          final resultado = await pedidosService.insertarPedido(
-                            diClId: diClId,
-                            vendId: vendId,
-                            fechaPedido: DateTime.now(),
-                            fechaEntrega: widget.fechaEntrega,
-                            usuaCreacion: usuaId,
-                            clieId: widget.clienteId,
-                            detalles: detallesApi,
-                          );
-
-                          if (!resultado['success']) {
-                            throw Exception(resultado['message'] ?? 'Error al crear el pedido');
-                          }
-
-                          // Obtener número de pedido real de la respuesta de la API
-                          final pedidoData = resultado['data'];
-                          final numeroPedidoReal = pedidoData != null && pedidoData['pedi_Id'] != null 
-                              ? 'PED-${pedidoData['pedi_Id']}'
-                              : 'PED-${DateTime.now().millisecondsSinceEpoch}';
-
-                          // Si el pedido se creó exitosamente, obtener datos para la factura
-                          final clienteService = ClientesService();
-                          final cliente = await clienteService.getClienteById(widget.clienteId);
-                          final empresaService = EmpresaService();
-                          final empresa = await empresaService.getConfiguracionFactura();
-                          final nombreCliente = ((cliente['clie_Nombres'] ?? '') + ' ' + (cliente['clie_Apellidos'] ?? '')).trim();
-                          final codigoCliente = cliente['clie_Codigo'] ?? '';
-                          
-                          // Usar la dirección seleccionada
-                          final direccion = widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? 
-                                           widget.direccionSeleccionada['descripcion'] ?? 
-                                           'Dirección no especificada';
-                          final rtn = cliente['clie_RTN'] ?? '';
-
-                          // Obtener datos reales del usuario (vendedor) - reutilizar variables existentes
-                          String vendedor = 'Vendedor no especificado';
-                          if (datosUsuario != null && datosUsuario['usua_Id'] != null) {
-                            final usuario = await perfilService.obtenerDatosCompletoUsuario(datosUsuario['usua_Id']);
-                            if (usuario != null) {
-                              if (usuario['nombreCompleto'] != null && usuario['nombreCompleto'].toString().isNotEmpty) {
-                                vendedor = usuario['nombreCompleto'];
-                              } else if (usuario['nombres'] != null) {
-                                vendedor = usuario['nombres'];
-                                if (usuario['apellidos'] != null) {
-                                  vendedor += ' ' + usuario['apellidos'];
-                                }
-                              }
-                            }
-                          }
-
-                          final fechaFactura = DateTime.now();
-                          
-                          // Mapeo productos
-                          final productosFactura = _productosEditables.map((p) {
-                            final descuento = p.precioBase - p.precioFinal;
-                            String descuentoStr = '';
-                            if (descuento > 0) {
-                              descuentoStr = (descuento % 1 == 0)
-                                  ? 'L. ${descuento.toStringAsFixed(0)}'
-                                  : 'L. ${descuento.toStringAsFixed(2)}';
-                            }
-                            // Calcular impuesto usando el nuevo campo impuValor del modelo
-                            // impuValor ya viene como decimal (ej. 0.15 para 15%)
-                            double impuestoCalculado = 0.0;
-                            if (p.productoOriginal?.prodPagaImpuesto == 'S' && p.productoOriginal?.impuValor != null) {
-                              impuestoCalculado = p.precioFinal * p.productoOriginal!.impuValor!;
-                            }
-                            
-                            return ProductoFactura(
-                              nombre: p.nombre,
-                              cantidad: p.cantidad,
-                              precio: p.precioBase,
-                              precioFinal: p.precioFinal,
-                              descuentoStr: descuentoStr,
-                              impuesto: impuestoCalculado,
-                            );
-                          }).toList();
-                          
-                          final totalDescuento = productosFactura.fold<num>(0, (s, p) => s + ((p.precio - p.precioFinal) * p.cantidad)).abs();
-                          final totalImpuestos = productosFactura.fold<num>(0, (s, p) => s + (p.impuesto * p.cantidad));
-                          final totalFinal = _total + totalImpuestos;
-                          final totalEnLetras = NumeroEnLetras.convertir(totalFinal.truncate());
-                          
-                          // Cerrar loading
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                          }
-                          
-                          // Mostrar mensaje de éxito
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('¡Pedido creado exitosamente! Número: $numeroPedidoReal'),
-                                backgroundColor: Colors.green,
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                          
-                          // Navegar a la factura
-                          if (context.mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => FacturaTicketScreen(
-                                  empresa: empresa,
-                                  nombreCliente: nombreCliente,
-                                  codigoCliente: codigoCliente,
-                                  direccion: direccion,
-                                  rtn: rtn,
-                                  vendedor: vendedor,
-                                  fechaFactura: '${fechaFactura.day.toString().padLeft(2, '0')}/${fechaFactura.month.toString().padLeft(2, '0')}/${fechaFactura.year}',
-                                  fechaEntrega: '${widget.fechaEntrega.day.toString().padLeft(2, '0')}/${widget.fechaEntrega.month.toString().padLeft(2, '0')}/${widget.fechaEntrega.year}',
-                                  numeroFactura: numeroPedidoReal,
-                                  productos: productosFactura,
-                                  subtotal: _subtotal,
-                                  totalDescuento: totalDescuento,
-                                  total: totalFinal,
-                                  totalEnLetras: totalEnLetras,
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          // Cerrar loading si hay error
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error al crear el pedido: ${e.toString()}'),
-                                backgroundColor: Colors.red,
-                                duration: const Duration(seconds: 5),
-                              ),
-                            );
-                          }
-                          print('Error completo al crear pedido: $e');
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE0C7A0),
-                        foregroundColor: Colors.black,
-                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 4,
-                      ),
-                      child: const Text('Confirmar'),
-                    ),
-                  ),
+                  ],
                 ),
               ),
+            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _confirmarPedido,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE0C7A0),
+              foregroundColor: Colors.black,
+              textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Confirmar'),
+          ),
         ),
       ),
     );

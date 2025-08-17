@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
@@ -335,6 +336,67 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   // Verificar si hay productos seleccionados
   bool _hasSelectedProducts() {
     return _cantidades.values.any((cantidad) => cantidad > 0);
+  }
+
+  Future<void> _navegarASiguientePantalla() async {
+    // 1. Validar productos seleccionados
+    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
+    if (productosSeleccionados.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
+      );
+      return;
+    }
+    // 2. Validar fecha de entrega
+    if (_fechaEntrega == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una fecha de entrega.')),
+      );
+      return;
+    }
+    // 3. Validar dirección seleccionada
+    if (_direccionSeleccionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una dirección de entrega.')),
+      );
+      return;
+    }
+    // 4. Preparar productos para confirmación
+    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+    final productosConfirmacion = productosSeleccionadosList.map((e) {
+      final producto = _productos.firstWhere((p) => p.prodId == e.key);
+      final precioFinal = _getPrecioPorCantidad(producto, e.value);
+      return ProductoConfirmacion(
+        prodId: producto.prodId, // Agregar el ID del producto
+        nombre: producto.prodDescripcionCorta ?? '',
+        cantidad: e.value,
+        precioBase: producto.prodPrecioUnitario ?? 0,
+        precioFinal: precioFinal,
+        imagen: producto.prodImagen,
+        productoOriginal: producto, // Pasar el producto original para cálculos
+      );
+    }).toList();
+
+    // 5. Calcular totales
+    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
+    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
+    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+
+    // 6. Navegar a pantalla de confirmación
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PedidoConfirmarScreen(
+          productosSeleccionados: productosConfirmacion,
+          cantidadTotal: cantidadTotal,
+          subtotal: subtotal,
+          total: total,
+          clienteId: widget.clienteId,
+          fechaEntrega: _fechaEntrega!,
+          direccionSeleccionada: _direccionSeleccionada!,
+        ),
+      ),
+    );
   }
 
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
@@ -705,6 +767,36 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   ),
                 ),
               ),
+            // Faja de promoción si el producto es promo
+            if (producto.prodEsPromo == 'S')
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'PROMO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Satoshi',
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -713,15 +805,78 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Nuevo Pedido',
-      icon: Icons.add_shopping_cart,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Scaffold(
+      appBar: const AppBarWidget(),
+      drawer: const CustomDrawer(permisos: []),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF6F6F6), Color(0xFFF6F6F6)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header similar to AppBackground
+            Padding(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).size.height * 0.03,
+                left: 16,
+                right: 16,
+              ),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
+                child: Container(
+                  color: const Color(0xFF141A2F),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.height * 0.10,
+                    child: Stack(
+                      children: [
+                        // Título alineado a la izquierda y centrado verticalmente
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                            child: Text(
+                              'Nuevo Pedido',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Icono alineado a la esquina inferior derecha
+                        Positioned(
+                          bottom: 12,
+                          right: 18,
+                          child: Icon(
+                            Icons.add_shopping_cart,
+                            color: const Color(0xFFE0C7A0),
+                            size: 32,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Contenido scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
               Text('Selecciona fecha de entrega:', 
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
@@ -834,83 +989,44 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
               _buildProductList(),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    // 1. Validar productos seleccionados
-                    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
-                    if (productosSeleccionados.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
-                      );
-                      return;
-                    }
-                    // 2. Validar fecha de entrega
-                    if (_fechaEntrega == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona una fecha de entrega.')),
-                      );
-                      return;
-                    }
-                    // 3. Validar dirección seleccionada
-                    if (_direccionSeleccionada == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona una dirección de entrega.')),
-                      );
-                      return;
-                    }
-                    // 4. Preparar productos para confirmación
-                    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
-                    final productosConfirmacion = productosSeleccionadosList.map((e) {
-                      final producto = _productos.firstWhere((p) => p.prodId == e.key);
-                      final precioFinal = _getPrecioPorCantidad(producto, e.value);
-                      return ProductoConfirmacion(
-                        prodId: producto.prodId, // Agregar el ID del producto
-                        nombre: producto.prodDescripcionCorta ?? '',
-                        cantidad: e.value,
-                        precioBase: producto.prodPrecioUnitario ?? 0,
-                        precioFinal: precioFinal,
-                        imagen: producto.prodImagen,
-                        productoOriginal: producto, // Pasar el producto original para cálculos
-                      );
-                    }).toList();
-
-                    // 5. Calcular totales
-                    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
-                    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
-                    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
-
-                    // 6. Navegar a pantalla de confirmación
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PedidoConfirmarScreen(
-                          productosSeleccionados: productosConfirmacion,
-                          cantidadTotal: cantidadTotal,
-                          subtotal: subtotal,
-                          total: total,
-                          clienteId: widget.clienteId,
-                          fechaEntrega: _fechaEntrega!,
-                          direccionSeleccionada: _direccionSeleccionada!,
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
-                    foregroundColor: Colors.black,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                      // Padding at bottom to prevent overlap with fixed button
+                      const SizedBox(height: 80),
+                    ],
                   ),
-                  child: const Text('Siguiente'),
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _navegarASiguientePantalla,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
+                foregroundColor: Colors.black,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Siguiente'),
+            ),
           ),
         ),
       ),
