@@ -134,6 +134,21 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
   int get _cantidadTotal => _productosEditables.fold<int>(0, (sum, p) => sum + p.cantidad);
   num get _subtotal => _productosEditables.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
   num get _total => _productosEditables.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+  num get _totalDescuento {
+    // Solo calcular descuentos reales (no listas de precios)
+    num descuentoReal = 0;
+    for (final p in _productosEditables) {
+      if (p.productoOriginal != null) {
+        // Obtener precio base original del producto (sin listas de precios)
+        final precioOriginal = p.productoOriginal!.prodPrecioUnitario ?? 0;
+        // Solo considerar como descuento si el precio final es menor al precio original
+        if (p.precioFinal < precioOriginal) {
+          descuentoReal += (precioOriginal - p.precioFinal) * p.cantidad;
+        }
+      }
+    }
+    return descuentoReal;
+  }
   num get _totalImpuestos => _productosEditables.fold<num>(0, (sum, p) {
     if (p.productoOriginal?.impuValor != null && p.productoOriginal?.prodPagaImpuesto == 'S') {
       return sum + (p.precioFinal * p.productoOriginal!.impuValor! * p.cantidad);
@@ -202,7 +217,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Precio unitario: L. ${p.precioFinal.toStringAsFixed(2)}'),
+                        Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
                         Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
                       ],
                     ),
@@ -279,7 +294,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                 children: [
                   Text('Cantidad total de productos: $_cantidadTotal', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Subtotal: L. ${_subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
-                  Text('Total (con descuento): L. ${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  Text('Descuento: L. ${_totalDescuento.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Impuestos: L. ${_totalImpuestos.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Total Final: L. ${(_total + _totalImpuestos).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 20),

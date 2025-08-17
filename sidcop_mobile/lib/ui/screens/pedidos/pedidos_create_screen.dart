@@ -101,6 +101,57 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       children: [
         _buildSearchBar(),
         const SizedBox(height: 16),
+        
+        // Header de productos seleccionados si hay al menos uno
+        if (_hasSelectedProducts()) ...[
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0C7A0).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.shopping_cart,
+                  color: Color(0xFF141A2F),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Productos Seleccionados',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0C7A0),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '${_cantidades.values.where((c) => c > 0).fold<int>(0, (sum, c) => sum + c)} items',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+        
+        
         _filteredProductos.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -280,87 +331,380 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return precioBase;
   }
 
+
+  // Verificar si hay productos seleccionados
+  bool _hasSelectedProducts() {
+    return _cantidades.values.any((cantidad) => cantidad > 0);
+  }
+
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (producto.prodImagen != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  producto.prodImagen!,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                ),
+    final isSelected = cantidad > 0;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  const Color(0xFFD6B68A).withOpacity(0.1),
+                ],
               )
-            else
-              const Icon(Icons.image, size: 40, color: Colors.grey),
-            const SizedBox(width: 12),
-            Expanded(
+            : null,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+          width: isSelected ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected 
+                ? const Color(0xFF98774A).withOpacity(0.2)
+                : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 12 : 10,
+            offset: Offset(0, isSelected ? 4 : 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    producto.prodDescripcionCorta ?? 'Sin descripción',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Imagen del producto con mejor diseño
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF262B40).withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF262B40).withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: producto.prodImagen != null && producto.prodImagen!.isNotEmpty
+                              ? Image.network(
+                                  producto.prodImagen!,
+                                  width: 70,
+                                  height: 70,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                        width: 70,
+                                        height: 70,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              const Color(0xFFD6B68A).withOpacity(0.2),
+                                              const Color(0xFF98774A).withOpacity(0.1),
+                                            ],
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.inventory_2_outlined,
+                                          color: Color(0xFF98774A),
+                                          size: 28,
+                                        ),
+                                      ),
+                                )
+                              : Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        const Color(0xFFD6B68A).withOpacity(0.2),
+                                        const Color(0xFF98774A).withOpacity(0.1),
+                                      ],
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: Color(0xFF98774A),
+                                    size: 28,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Información del producto
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              producto.prodDescripcionCorta ?? 'Sin descripción',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'L. ${_getPrecioPorCantidad(producto, cantidad).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF141A2F),
+                              ),
+                            ),
+                            if (isSelected)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Subtotal: L. ${(_getPrecioPorCantidad(producto, cantidad) * cantidad).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF98774A),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Precio: L. ${_getPrecioPorCantidad(producto, cantidad).toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  const SizedBox(height: 16),
+                  // Controles de cantidad mejorados
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Botón de deseleccionar cuando está seleccionado
+                      if (isSelected)
+                        GestureDetector(
+                          onTap: () => setState(() {
+                            _cantidades[producto.prodId] = 0;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFE74C3C).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Color(0xFFE74C3C),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Quitar',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 12,
+                                    color: const Color(0xFFE74C3C),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(),
+                      // Controles de cantidad con mejor diseño
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF262B40).withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: cantidad > 0 
+                                    ? const Color(0xFF262B40) 
+                                    : const Color(0xFF262B40).withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: IconButton(
+                                onPressed: cantidad > 0
+                                    ? () => setState(() {
+                                        _cantidades[producto.prodId] = cantidad - 1;
+                                      })
+                                    : null,
+                                icon: const Icon(Icons.remove, size: 18),
+                                color: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                final TextEditingController controller = TextEditingController(
+                                  text: cantidad.toString(),
+                                );
+                                
+                                final result = await showDialog<int>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    content: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Ingrese la cantidad',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (_) {
+                                        final value = int.tryParse(controller.text) ?? 0;
+                                        Navigator.of(context).pop(value);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final value = int.tryParse(controller.text) ?? 0;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF98774A),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (result != null && result >= 0) {
+                                  setState(() {
+                                    _cantidades[producto.prodId] = result;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? const Color(0xFFD6B68A).withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    cantidad.toString(),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF98774A),
+                                    const Color(0xFFD6B68A),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF98774A).withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                onPressed: () => setState(() {
+                                  _cantidades[producto.prodId] = cantidad + 1;
+                                }),
+                                icon: const Icon(Icons.add, size: 18),
+                                color: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: cantidad > 0
-                      ? () {
-                          setState(() {
-                            _cantidades[producto.prodId] = cantidad - 1;
-                          });
-                        }
-                      : null,
-                ),
-                SizedBox(
-                  width: 38,
-                  child: TextField(
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    controller: TextEditingController(text: cantidad.toString()),
-                    onChanged: (val) {
-                      final value = int.tryParse(val) ?? 0;
-                      setState(() {
-                        _cantidades[producto.prodId] = value;
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      border: OutlineInputBorder(),
+            // Indicador visual de selección en la esquina
+            if (isSelected)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF98774A),
+                        const Color(0xFFD6B68A),
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
                     ),
                   ),
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      _cantidades[producto.prodId] = cantidad + 1;
-                    });
-                  },
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
