@@ -161,11 +161,13 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     return AppBackground(
       title: 'Confirmar Pedido',
       icon: Icons.check_circle_outline,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0), // Padding bottom para el botón
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             const Text('Productos seleccionados:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 10),
             ..._productosEditables.asMap().entries.map((entry) {
@@ -297,12 +299,34 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                   Text('Descuento: L. ${_totalDescuento.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Impuestos: L. ${_totalImpuestos.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text('Total Final: L. ${(_total + _totalImpuestos).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () async {
+                ],
+              ),
+            ),
+              ],
+            ),
+          ),
+          // Botón flotante fijo en la parte inferior
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () async {
                         // Validar productos y clienteId (ya están en la pantalla)
                         if (_productosEditables.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay productos seleccionados.')));
@@ -453,8 +477,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                             // Calcular impuesto usando el nuevo campo impuValor del modelo
                             // impuValor ya viene como decimal (ej. 0.15 para 15%)
                             double impuestoCalculado = 0.0;
-                            if (p.productoOriginal?.impuValor != null && 
-                                p.productoOriginal?.prodPagaImpuesto == 'S') {
+                            if (p.productoOriginal?.prodPagaImpuesto == 'S' && p.productoOriginal?.impuValor != null) {
                               impuestoCalculado = p.precioFinal * p.productoOriginal!.impuValor!;
                             }
                             
@@ -533,15 +556,15 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                         foregroundColor: Colors.black,
                         textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        elevation: 4,
                       ),
                       child: const Text('Confirmar'),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
           ],
         ),
       ),
