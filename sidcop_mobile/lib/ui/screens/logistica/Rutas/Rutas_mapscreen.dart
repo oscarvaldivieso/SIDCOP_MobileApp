@@ -33,7 +33,7 @@ class RutaMapScreen extends StatefulWidget {
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   // Paleta local (solo para esta pantalla)
-    static const Color _darkBg = Color(0xFF141A2F);
+  static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
   static const Color _body = Color(0xFFE6E8EC);
   static const Color _bodyDim = Color(0xFFB5B8BF);
@@ -212,11 +212,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         hcviObservaciones: 'Visitado',
         hcviFecha: DateTime.now(),
         hcviLatitud: (_userLocation?.latitude ?? paradaLatLng?.latitude) ?? 0.0,
-        hcviLongitud: (_userLocation?.longitude ?? paradaLatLng?.longitude) ?? 0.0,
+        hcviLongitud:
+            (_userLocation?.longitude ?? paradaLatLng?.longitude) ?? 0.0,
         usuaCreacion: usuarioId,
         hcviFechaCreacion: DateTime.now(),
         veruDias: '1',
-        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'.trim(),
+        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'
+            .trim(),
         clieNombreNegocio: cliente.clie_NombreNegocio,
         secuencia: indiceLista,
       );
