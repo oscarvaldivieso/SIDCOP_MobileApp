@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/models/vendedoresViewModel.dart';
@@ -20,6 +21,7 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
   final TextEditingController _searchController = TextEditingController();
   List<Ruta> _rutas = [];
@@ -66,14 +68,43 @@ class _RutasScreenState extends State<RutasScreen> {
         _filteredRutas = List.from(rutasFiltradas);
         _isLoading = false;
       });
+      // Guardar rutas encriptadas offline
+      await _guardarRutasOffline(_rutas);
     } catch (e) {
+      // Si falla, intentar leer rutas offline
+      final rutasOffline = await _leerRutasOffline();
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _rutas = rutasOffline;
+          _filteredRutas = List.from(rutasOffline);
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar las rutas: $e')),
+          SnackBar(
+            content: Text(
+              'Error al cargar las rutas: $e. Mostrando rutas offline.',
+            ),
+          ),
         );
       }
     }
+  }
+
+  // Guarda la lista de rutas encriptada
+  Future<void> _guardarRutasOffline(List<Ruta> rutas) async {
+    final rutasJson = rutas.map((r) => r.toJson()).toList();
+    await secureStorage.write(
+      key: 'rutas_offline',
+      value: jsonEncode(rutasJson),
+    );
+  }
+
+  // Lee la lista de rutas encriptada
+  Future<List<Ruta>> _leerRutasOffline() async {
+    final rutasString = await secureStorage.read(key: 'rutas_offline');
+    if (rutasString == null) return [];
+    final rutasList = jsonDecode(rutasString) as List;
+    return rutasList.map((json) => Ruta.fromJson(json)).toList();
   }
 
   Future<void> _cargarRutasAsignadasVendedor() async {
@@ -81,7 +112,7 @@ class _RutasScreenState extends State<RutasScreen> {
     final int? vendId = globalVendId;
     if (vendId == null) {
       _vendedorNoIdentificado = true;
-      return; // no hay vendedor, marcamos bandera
+      return; // no hay vendedor,
     }
     try {
       final lista = await _vendedoresService.listar();
@@ -187,13 +218,13 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-  const iconUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
-  final markers = direccionesFiltradas
-    .map(
-      (d) =>
-        'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
-    )
-    .join('&');
+    const iconUrl =
+        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+    final markers = direccionesFiltradas
+        .map(
+          (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+        )
+        .join('&');
     final center = direccionesFiltradas.isNotEmpty
         ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
         : '15.525585,-88.013512';
