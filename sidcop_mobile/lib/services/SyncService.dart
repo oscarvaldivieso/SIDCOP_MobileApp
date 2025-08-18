@@ -63,8 +63,7 @@ class SyncService {
       
       bool allSuccess = true;
       
-      // TODO: Implementar sincronización de datos modificados offline
-      // Por ahora solo reportamos éxito
+      // Falta
       
       print('Sincronización completa finalizada');
       return allSuccess;
@@ -103,6 +102,82 @@ class SyncService {
     } catch (e) {
       print('Error cacheando imágenes de clientes: $e');
       return false;
+    }
+  }
+
+  /// Obtiene clientes por ruta con soporte offline
+  static Future<List<Map<String, dynamic>>> getClientesByRuta(int usuaIdPersona) async {
+    try {
+      final isOfflineMode = await OfflineConfigService.isOfflineModeEnabled();
+      final hasConnection = await hasInternetConnection();
+
+      if (!isOfflineMode && hasConnection) {
+        // Modo online - obtener desde API
+        print('SyncService: Obteniendo clientes por ruta desde API para vendedor $usuaIdPersona');
+        
+        final clientsResponse = await _clientesService.getClientesPorRuta(usuaIdPersona);
+        
+        // Convertir a formato Map
+        final clientsData = clientsResponse.map((client) {
+          if (client is Map<String, dynamic>) {
+            return client;
+          } else {
+            return Map<String, dynamic>.from(client);
+          }
+        }).toList();
+
+        // Guardar en caché para uso offline futuro
+        await CacheService.cacheClientsData(clientsData);
+        await OfflineDatabaseService.saveClientsData(clientsData);
+        
+        print('SyncService: ${clientsData.length} clientes por ruta obtenidos y cacheados');
+        return clientsData;
+        
+      } else {
+        // Modo offline - buscar en caché local
+        print('SyncService: Modo offline - buscando clientes por ruta en caché para vendedor $usuaIdPersona');
+        
+        // Intentar obtener desde caché rápido
+        List<Map<String, dynamic>>? cachedClients = await CacheService.getCachedClientsData();
+        
+        // Si no hay en caché rápido, buscar en SQLite
+        if (cachedClients == null || cachedClients.isEmpty) {
+          cachedClients = await OfflineDatabaseService.loadClientsData();
+          
+          // Actualizar caché rápido si encontramos datos en SQLite
+          if (cachedClients.isNotEmpty) {
+            await CacheService.cacheClientsData(cachedClients);
+          }
+        }
+        
+        if (cachedClients != null && cachedClients.isNotEmpty) {
+          // En modo offline, devolver todos los clientes cacheados
+          // ya que no podemos filtrar por ruta sin conexión
+          print('SyncService: ${cachedClients.length} clientes encontrados en caché offline');
+          return cachedClients;
+        } else {
+          print('SyncService: No hay clientes en caché offline');
+          return [];
+        }
+      }
+    } catch (e) {
+      print('SyncService: Error obteniendo clientes por ruta: $e');
+      
+      // Fallback: intentar caché como último recurso
+      try {
+        final cachedClients = await CacheService.getCachedClientsData();
+        if (cachedClients != null) {
+          return cachedClients;
+        }
+        
+        // Último recurso: SQLite
+        final sqliteClients = await OfflineDatabaseService.loadClientsData();
+        return sqliteClients;
+      } catch (fallbackError) {
+        print('SyncService: Error en fallback de clientes por ruta: $fallbackError');
+      }
+      
+      return [];
     }
   }
 

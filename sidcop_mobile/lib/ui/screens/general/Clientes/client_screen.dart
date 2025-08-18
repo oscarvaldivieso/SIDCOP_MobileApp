@@ -76,11 +76,11 @@ class _clientScreenState extends State<clientScreen> {
 
     if (esVendedor && usuaIdPersona != null) {
       print(
-        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+        'DEBUG: Usuario es VENDEDOR - Usando SyncService.getClientesByRuta con ID: $usuaIdPersona',
       );
-      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona);
+      clientes = await SyncService.getClientesByRuta(usuaIdPersona);
       print(
-        'DEBUG: Clientes obtenidos por ruta para vendedor: ${clientes.length}',
+        'DEBUG: Clientes obtenidos por ruta para vendedor (con soporte offline): ${clientes.length}',
       );
     } else if (esAdmin) {
       print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
