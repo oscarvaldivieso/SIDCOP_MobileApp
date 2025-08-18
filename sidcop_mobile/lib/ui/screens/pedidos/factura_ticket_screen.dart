@@ -12,7 +12,7 @@ import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
 import 'package:sidcop_mobile/models/ConfiguracionFacturaViewModel.dart';
 import 'package:screenshot/screenshot.dart';
-//import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
