@@ -20,6 +20,7 @@ List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
 List<Cliente> _clientesFiltrados = [];
 final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+final Set<int> _direccionesVisitadas = {}; // IDs de direcciones visitadas
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
@@ -113,27 +114,31 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   BitmapDescriptor? _negocioIcon;
   bool _generatingNegocioIcon = false;
   // Clientes marcados como visitados (checkbox en la barra lateral)
-  final Set<int> _clientesVisitados = {};
+  // Eliminado: Set<int> _clientesVisitados
   bool _enviandoVisita = false;
   bool _historialCargado = false;
 
   Future<void> _cargarHistorialVisitas(Set<int?> clienteIdsRuta) async {
-    if (_historialCargado) return; // evitar recargas múltiples en esta sesión
     try {
       final servicio = ClientesVisitaHistorialService();
       final historial = await servicio.listarPorVendedor();
-      final previos = historial
-          .where((h) => h.clie_Id != null && clienteIdsRuta.contains(h.clie_Id))
-          .map((h) => h.clie_Id!)
-          .toSet();
-      if (previos.isNotEmpty) {
-        setState(() {
-          _clientesVisitados.addAll(previos);
-        });
+      print('Historial de visitas recibido:');
+      for (var h in historial) {
+        print('diCl_Id: [32m${h.diCl_Id}[0m');
       }
+      // Marcar direcciones visitadas (por diCl_Id)
+      final direccionesPrevias = historial
+          .where((h) => h.diCl_Id != null)
+          .map((h) => h.diCl_Id!)
+          .toSet();
+      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
+      setState(() {
+        _direccionesVisitadas.clear();
+        _direccionesVisitadas.addAll(direccionesPrevias);
+      });
       _historialCargado = true;
-    } catch (_) {
-      // Silencioso: si falla no bloquea la pantalla
+    } catch (e) {
+      print('Error al cargar historial: $e');
     }
   }
 
@@ -227,12 +232,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         clVi_FechaCreacion: DateTime.now(),
       );
       await servicio.insertar(registro);
+      // Recargar historial para actualizar los checks
+      await _cargarHistorialVisitas({cliente.clie_Id});
       if (mounted) {
-        setState(() {
-          if (cliente.clie_Id != null) {
-            _clientesVisitados.add(cliente.clie_Id!);
-          }
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: _darkBg,
@@ -962,32 +964,65 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (cliente != null &&
-                                        cliente.clie_Id != null)
-                                      Checkbox(
-                                        value: _clientesVisitados.contains(
-                                          cliente.clie_Id,
-                                        ),
-                                        onChanged:
-                                            _clientesVisitados.contains(
-                                                  cliente.clie_Id,
-                                                ) ||
-                                                _enviandoVisita
-                                            ? null
-                                            : (val) async {
-                                                if (val == true) {
-                                                  await _confirmarVisitaCliente(
-                                                    cliente,
-                                                    idx,
-                                                    parada['latlng'],
-                                                  );
-                                                }
-                                              },
-                                        checkColor: Colors.green,
-                                        side: const BorderSide(
-                                          color: _gold,
-                                          width: 1.4,
-                                        ),
+                                    // Marcar dirección como visitada si su dicl_id está en _direccionesVisitadas
+                                    if (parada['latlng'] != null)
+                                      Builder(
+                                        builder: (context) {
+                                          int? diclId;
+                                          final paradaLatLng =
+                                              parada['latlng'] as LatLng?;
+                                          if (paradaLatLng != null) {
+                                            final idxDireccion =
+                                                _direccionesFiltradas
+                                                    .indexWhere(
+                                                      (d) =>
+                                                          d.dicl_latitud ==
+                                                              paradaLatLng
+                                                                  .latitude &&
+                                                          d.dicl_longitud ==
+                                                              paradaLatLng
+                                                                  .longitude,
+                                                    );
+                                            if (idxDireccion != -1) {
+                                              diclId =
+                                                  _direccionesFiltradas[idxDireccion]
+                                                      .dicl_id;
+                                            }
+                                          }
+                                          print(
+                                            'Render Checkbox: diclId=$diclId, visitados=$_direccionesVisitadas',
+                                          );
+                                          return Checkbox(
+                                            value:
+                                                diclId != null &&
+                                                _direccionesVisitadas.contains(
+                                                  diclId,
+                                                ),
+                                            onChanged:
+                                                (diclId != null &&
+                                                        _direccionesVisitadas
+                                                            .contains(
+                                                              diclId,
+                                                            )) ||
+                                                    _enviandoVisita
+                                                ? null
+                                                : (val) async {
+                                                    if (val == true &&
+                                                        cliente != null) {
+                                                      await _confirmarVisitaCliente(
+                                                        cliente,
+                                                        idx,
+                                                        parada['latlng'],
+                                                      );
+                                                    }
+                                                  },
+                                            checkColor: Colors.green,
+                                            side: const BorderSide(
+                                              color: _gold,
+                                              width: 1.4,
+                                            ),
+                                          );
+                                        },
                                       ),
                                   ],
                                 ),

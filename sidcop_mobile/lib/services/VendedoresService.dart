@@ -37,7 +37,7 @@ class VendedoresService {
     throw Exception('Error listar vendedores: ${resp.statusCode}');
   }
 
-  Future<List<VendedoreRutasViewModel>> listarPorRutas() async {
+  Future<List<VendedoresPorRutaModel>> listarPorRutas() async {
     final url = _uri('/Vendedores/ListarPorRutas');
     developer.log('GET Vendedores por rutas -> $url');
     final resp = await http.get(url, headers: _headers);
@@ -49,7 +49,7 @@ class VendedoresService {
       if (data is List) {
         return data
             .whereType<Map<String, dynamic>>()
-            .map((e) => VendedoreRutasViewModel.fromJson(e))
+            .map((e) => VendedoresPorRutaModel.fromJson(e))
             .toList();
       }
       throw Exception('Formato inesperado listar vendedores por rutas');
