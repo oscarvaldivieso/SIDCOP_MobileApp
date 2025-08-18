@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
@@ -265,9 +266,29 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           ),
         );
 
-        // Regresar a la pantalla anterior con éxito
+        // Navegar a la pantalla de lista de devoluciones con recarga forzada
         if (!mounted) return;
-        Navigator.pop(context, true);
+        
+        // Cerrar todas las pantallas y volver a la raíz
+        Navigator.popUntil(context, (route) => route.isFirst);
+        
+        // Navegar a la pantalla de lista de devoluciones
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DevolucioneslistScreen(),
+          ),
+        );
+        
+        // Mostrar mensaje de éxito
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Devolución #$devoId registrada exitosamente'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       } catch (e) {
         // Cerrar diálogo de carga
         if (!mounted) return;
@@ -275,13 +296,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         
         // Mostrar error
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al registrar la devolución: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
       }
     }
   }
