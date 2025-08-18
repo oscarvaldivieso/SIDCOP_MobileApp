@@ -200,27 +200,31 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final vendedoresPorRuta = await vendedoresService.listarPorRutas();
       final vendedorRuta = vendedoresPorRuta.firstWhere(
         (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
-        orElse: () => null,
       );
       final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
 
+      // Obtener la dirección seleccionada para este cliente/parada
+      int? diclId;
+      if (paradaLatLng != null) {
+        final idxDireccion = _direccionesFiltradas.indexWhere(
+          (d) =>
+              d.dicl_latitud == paradaLatLng.latitude &&
+              d.dicl_longitud == paradaLatLng.longitude,
+        );
+        if (idxDireccion != -1) {
+          diclId = _direccionesFiltradas[idxDireccion].dicl_id;
+        }
+      }
       final registro = ClientesVisitaHistorialModel(
-        hcviId: 0,
-        veruId: veruId,
-        clieId: cliente.clie_Id,
-        hcviFoto: '',
-        hcviObservaciones: 'Visitado',
-        hcviFecha: DateTime.now(),
-        hcviLatitud: (_userLocation?.latitude ?? paradaLatLng?.latitude) ?? 0.0,
-        hcviLongitud:
-            (_userLocation?.longitude ?? paradaLatLng?.longitude) ?? 0.0,
-        usuaCreacion: usuarioId,
-        hcviFechaCreacion: DateTime.now(),
-        veruDias: '1',
-        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'
-            .trim(),
-        clieNombreNegocio: cliente.clie_NombreNegocio,
-        secuencia: indiceLista,
+        veRu_Id: veruId,
+        diCl_Id:
+            diclId ??
+            0, // Usa el id de la dirección seleccionada, o 0 si no se encuentra
+        esVi_Id: 1, // O el estado que corresponda
+        clVi_Observaciones: 'Visitado',
+        clVi_Fecha: DateTime.now(),
+        usua_Creacion: usuarioId,
+        clVi_FechaCreacion: DateTime.now(),
       );
       await servicio.insertar(registro);
       if (mounted) {
