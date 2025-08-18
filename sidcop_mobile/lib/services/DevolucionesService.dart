@@ -1,14 +1,18 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/models/devolucion_detalle_model.dart';
+import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 
 class DevolucionesService {
   final String _endpoint = 'Devoluciones';
   final String _apiServer;
   final String _apiKey;
+  final VentaService _ventaService = VentaService();
 
   DevolucionesService() : _apiServer = apiServer, _apiKey = apikey;
 
@@ -16,7 +20,7 @@ class DevolucionesService {
     // Usar print para que sea visible en la consola del navegador
     final prefix = isError ? '❌ [ERROR]' : 'ℹ️ [INFO]';
     print('$prefix $message');
-    
+
     // También intentar con developer.log por si acaso
     try {
       developer.log(message, name: 'DevolucionesService');
@@ -25,9 +29,12 @@ class DevolucionesService {
     }
   }
 
-  Future<http.Response> _post(String endpoint, Map<String, dynamic> data) async {
+  Future<http.Response> _post(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
     final url = '$_apiServer/$endpoint';
-    
+
     // Log detallado de la petición
     _log('\n=== INICIO DE PETICIÓN ===');
     _log('URL: $url');
@@ -42,7 +49,7 @@ class DevolucionesService {
     try {
       final stopwatch = Stopwatch()..start();
       http.Response response;
-      
+
       try {
         _log('\nRealizando petición HTTP...');
         response = await http.post(
@@ -60,9 +67,9 @@ class DevolucionesService {
         _log('Stack trace: $stackTrace', isError: true);
         rethrow;
       }
-      
+
       stopwatch.stop();
-      
+
       // Log detallado de la respuesta
       _log('\n=== RESPUESTA ===');
       _log('URL: $url');
@@ -228,9 +235,11 @@ class DevolucionesService {
 
       // Construir el XML de detalles con la estructura esperada por la API
       final detalleXml = StringBuffer('<DevolucionDetalle>');
-      
+
       for (var detalle in detalles) {
-        detalleXml.write('''<Producto><Prod_Id>${detalle['prod_Id']}</Prod_Id><DevD_Cantidad>${detalle['cantidadDevolver']}</DevD_Cantidad></Producto>''');
+        detalleXml.write(
+          '''<Producto><Prod_Id>${detalle['prod_Id']}</Prod_Id><DevD_Cantidad>${detalle['cantidadDevolver']}</DevD_Cantidad></Producto>''',
+        );
       }
       detalleXml.write('</DevolucionDetalle>');
 
@@ -256,20 +265,326 @@ class DevolucionesService {
       };
 
       final response = await _post('Devoluciones/Insertar', body);
-      
+
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData is Map && responseData.containsKey('success') && responseData['success'] == true) {
+        if (responseData is Map &&
+            responseData.containsKey('success') &&
+            responseData['success'] == true) {
           // Convertir el Map dinámico a Map<String, dynamic>
           return Map<String, dynamic>.from(responseData);
         } else {
-          throw Exception(responseData['message'] ?? 'Error al procesar la devolución');
+          throw Exception(
+            responseData['message'] ?? 'Error al procesar la devolución',
+          );
         }
       } else {
         throw Exception('Error en la solicitud: ${response.statusCode}');
       }
     } catch (e) {
       developer.log('Error en insertarDevolucion: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtiene la factura completa usando el endpoint GET /Facturas/ObtenerCompleta/{id}
+  Future<Map<String, dynamic>?> obtenerFacturaCompleta(int facturaId) async {
+    _log('\n=== INICIO DE obtenerFacturaCompleta ===');
+    _log('facturaId: $facturaId');
+
+    try {
+      final url = '$_apiServer/Facturas/ObtenerCompleta/$facturaId';
+      _log('URL: $url');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+          'Accept': '*/*',
+        },
+      );
+
+      _log('Response status: ${response.statusCode}');
+      _log('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['success'] == true) {
+          return responseData;
+        } else {
+          throw Exception(
+            responseData['message'] ?? 'Error al obtener factura completa',
+          );
+        }
+      } else {
+        throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      _log('Error en obtenerFacturaCompleta: $e', isError: true);
+      rethrow;
+    }
+  }
+
+  /// Anula una factura usando el endpoint POST /Facturas/AnularFactura
+  Future<Map<String, dynamic>?> anularFactura({
+    required int factId,
+    required String motivo,
+    required int usuaModificacion,
+  }) async {
+    _log('\n=== INICIO DE anularFactura ===');
+    _log('factId: $factId');
+    _log('motivo: $motivo');
+    _log('usuaModificacion: $usuaModificacion');
+
+    try {
+      final url = '$_apiServer/Facturas/AnularFactura';
+      _log('URL: $url');
+
+      final requestBody = {
+        'fact_Id': factId,
+        'motivo': motivo,
+        'usua_Modificacion': usuaModificacion,
+      };
+
+      _log('Request body: ${json.encode(requestBody)}');
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+          'Accept': '*/*',
+        },
+        body: json.encode(requestBody),
+      );
+
+      _log('Response status: ${response.statusCode}');
+      _log('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['success'] == true) {
+          _log('Factura anulada exitosamente');
+          return responseData;
+        } else {
+          throw Exception(
+            responseData['message'] ?? 'Error al anular la factura',
+          );
+        }
+      } else {
+        throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      _log('Error en anularFactura: $e', isError: true);
+      rethrow;
+    }
+  }
+
+  /// Crea una nueva factura excluyendo los productos devueltos
+  Future<Map<String, dynamic>?> crearFacturaAjustada({
+    required int facturaId,
+    required List<Map<String, dynamic>> productosDevueltos,
+    required int usuaCreacion,
+  }) async {
+    _log('\n=== INICIO DE crearFacturaAjustada ===');
+    _log('facturaId: $facturaId');
+    _log('usuaCreacion: $usuaCreacion');
+    _log('productosDevueltos: $productosDevueltos');
+
+    try {
+      // 1. Obtener la factura completa original
+      final facturaCompleta = await obtenerFacturaCompleta(facturaId);
+      if (facturaCompleta == null) {
+        throw Exception('No se pudo obtener la factura original');
+      }
+
+      final facturaData = facturaCompleta['data'];
+      final detalleFacturaOriginal =
+          facturaData['detalleFactura'] as List<dynamic>? ?? [];
+
+      _log('Factura original: ${facturaData['fact_Numero']}');
+      _log('Productos originales: ${detalleFacturaOriginal.length}');
+
+      // 2. Crear mapa de productos devueltos
+      final Map<int, int> productosDevueltosMap = {};
+      for (var producto in productosDevueltos) {
+        final prodId = producto['prod_Id'] as int;
+        final cantidadDevuelta = producto['cantidadDevolver'] as int;
+        productosDevueltosMap[prodId] = cantidadDevuelta;
+      }
+
+      // 3. Calcular productos restantes
+      final List<DetalleFacturaInput> nuevosDetalles = [];
+      for (var detalle in detalleFacturaOriginal) {
+        final prodId = detalle['prod_Id'] as int;
+        final cantidadOriginal = (detalle['faDe_Cantidad'] as num).toDouble();
+        final cantidadDevuelta = productosDevueltosMap[prodId] ?? 0;
+        final cantidadRestante = cantidadOriginal - cantidadDevuelta;
+
+        _log(
+          'Producto $prodId: original=$cantidadOriginal, devuelta=$cantidadDevuelta, restante=$cantidadRestante',
+        );
+
+        if (cantidadRestante > 0) {
+          nuevosDetalles.add(
+            DetalleFacturaInput(prodId: prodId, faDeCantidad: cantidadRestante),
+          );
+        }
+      }
+
+      // 4. Si no quedan productos, no crear factura
+      if (nuevosDetalles.isEmpty) {
+        _log('No hay productos restantes');
+        return {
+          'success': true,
+          'facturaCreada': false,
+          'message': 'Devolución completa - no se requiere nueva factura',
+        };
+      }
+
+      // 5. Generar nuevo número de factura
+      final random = Random();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final randomDigits = 100000 + random.nextInt(900000);
+      final nuevoNumero = 'FACT-${timestamp}_$randomDigits';
+
+      // 6. Crear nueva factura con datos originales pero productos ajustados
+      final nuevaVenta = VentaInsertarViewModel(
+        factNumero: nuevoNumero,
+        factTipoDeDocumento: facturaData['fact_TipoDeDocumento'] ?? 'FAC',
+        regCId: 19, // Usar mismo valor que VentaScreen
+        clieId: facturaData['clie_Id'],
+        vendId: facturaData['vend_Id'],
+        factTipoVenta: facturaData['fact_TipoVenta'] ?? 'Contado',
+        factFechaEmision: DateTime.now(),
+        factFechaLimiteEmision: DateTime.now().add(const Duration(days: 30)),
+        factRangoInicialAutorizado: "F001-00000001",
+        factRangoFinalAutorizado: "F001-00099999",
+        factLatitud: facturaData['fact_Latitud']?.toDouble() ?? 14.072245,
+        factLongitud: facturaData['fact_Longitud']?.toDouble() ?? -88.212665,
+        factReferencia:
+            "Ajuste por devolución - Factura original: ${facturaData['fact_Numero']}",
+        factAutorizadoPor: facturaData['fact_AutorizadoPor'] ?? "Sistema",
+        usuaCreacion: usuaCreacion,
+        detallesFacturaInput: nuevosDetalles,
+      );
+
+      // 7. Anular la factura original antes de crear la nueva
+      _log('Anulando factura original...');
+      await anularFactura(
+        factId: facturaId,
+        motivo:
+            'Anulación por devolución - Nueva factura ajustada: $nuevoNumero',
+        usuaModificacion: usuaCreacion,
+      );
+      _log('Factura original anulada exitosamente');
+
+      // 8. Insertar nueva factura
+      _log('Insertando nueva factura ajustada...');
+      final resultado = await _ventaService.insertarFacturaConValidacion(
+        nuevaVenta,
+      );
+
+      if (resultado != null && resultado['success'] == true) {
+        _log('Factura ajustada creada exitosamente');
+        _log('Estructura completa del resultado: ${resultado.toString()}');
+        
+        // Extraer el ID de la nueva factura del resultado
+        int? nuevaFacturaId;
+        
+        // Intentar extraer del message_Status (igual que en VentaService)
+        final messageStatus = resultado['data']?['message_Status'];
+        _log('message_Status: $messageStatus');
+        
+        if (messageStatus != null) {
+          final regex = RegExp(r'ID:\s*(\d+)');
+          final match = regex.firstMatch(messageStatus.toString());
+          if (match != null) {
+            nuevaFacturaId = int.parse(match.group(1)!);
+            _log('ID extraído del message_Status: $nuevaFacturaId');
+          }
+        }
+        
+        // Fallback: intentar otros campos
+        if (nuevaFacturaId == null) {
+          nuevaFacturaId = resultado['data']?['fact_Id'] ?? 
+                          resultado['data']?['id'] ??
+                          resultado['data']?['facturaId'];
+          _log('ID extraído de campos alternativos: $nuevaFacturaId');
+        }
+
+        return {
+          'success': true,
+          'facturaCreada': true,
+          'facturaNumero': nuevoNumero,
+          'facturaId': nuevaFacturaId, // ID de la nueva factura
+          'facturaOriginal': facturaData['fact_Numero'],
+          'productosRestantes': nuevosDetalles.length,
+          'data': resultado['data'],
+        };
+      } else {
+        throw Exception(
+          resultado?['message'] ?? 'Error al crear factura ajustada',
+        );
+      }
+    } catch (e) {
+      _log('Error en crearFacturaAjustada: $e', isError: true);
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Error al crear factura ajustada: $e',
+      };
+    }
+  }
+
+  /// Inserta devolución y crea factura ajustada en un solo proceso
+  Future<Map<String, dynamic>> insertarDevolucionConFacturaAjustada({
+    required int clieId,
+    required int factId,
+    required String devoMotivo,
+    required int usuaCreacion,
+    required List<Map<String, dynamic>> detalles,
+    DateTime? devoFecha,
+    bool crearNuevaFactura = true,
+  }) async {
+    _log('\n=== INICIO DE insertarDevolucionConFacturaAjustada ===');
+    _log('crearNuevaFactura: $crearNuevaFactura');
+
+    try {
+      // 1. Insertar la devolución
+      _log('Insertando devolución...');
+      final resultadoDevolucion = await insertarDevolucion(
+        clieId: clieId,
+        factId: factId,
+        devoMotivo: devoMotivo,
+        usuaCreacion: usuaCreacion,
+        detalles: detalles,
+        devoFecha: devoFecha,
+      );
+
+      _log('Devolución insertada exitosamente');
+
+      // 2. Crear factura ajustada si se solicita
+      Map<String, dynamic>? resultadoFactura;
+      if (crearNuevaFactura) {
+        _log('Creando factura ajustada...');
+        resultadoFactura = await crearFacturaAjustada(
+          facturaId: factId,
+          productosDevueltos: detalles,
+          usuaCreacion: usuaCreacion,
+        );
+      }
+
+      // 3. Retornar resultados combinados
+      return {
+        'success': true,
+        'devolucion': resultadoDevolucion,
+        'facturaAjustada': resultadoFactura,
+        'message': 'Proceso completado exitosamente',
+      };
+    } catch (e) {
+      _log('Error en insertarDevolucionConFacturaAjustada: $e', isError: true);
       rethrow;
     }
   }
