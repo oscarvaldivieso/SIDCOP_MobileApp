@@ -226,48 +226,33 @@ class DevolucionesService {
         throw Exception('La devolución debe incluir al menos un producto');
       }
 
-      // Construir el XML de detalles con la estructura completa
-      final detalleXml = StringBuffer('<Detalles>');
-      final now = DateTime.now().toIso8601String();
+      // Construir el XML de detalles con la estructura esperada por la API
+      final detalleXml = StringBuffer('<DevolucionDetalle>');
       
-      int secuencia = 1;
       for (var detalle in detalles) {
-        detalleXml.write('''
-          <Detalle>
-            <devD_Id>0</devD_Id>
-            <devo_Id>0</devo_Id>
-            <prod_Id>${detalle['prod_Id']}</prod_Id>
-            <usua_Creacion>$usuaCreacion</usua_Creacion>
-            <devD_FechaCreacion>$now</devD_FechaCreacion>
-            <devD_Estado>true</devD_Estado>
-            <secuencia>${secuencia++}</secuencia>
-            <cate_Descripcion>${detalle['cate_Descripcion'] ?? 'Sin categoría'}</cate_Descripcion>
-            <prod_Imagen>${detalle['prod_Imagen'] ?? ''}</prod_Imagen>
-            <prod_Descripcion>${detalle['prod_Descripcion'] ?? ''}</prod_Descripcion>
-            <productos_Devueltos>${detalle['cantidadDevolver']}</productos_Devueltos>
-            <prod_DescripcionCorta>${detalle['prod_DescripcionCorta'] ?? ''}</prod_DescripcionCorta>
-            <usuarioCreacion>${detalle['usuarioCreacion'] ?? 'Sistema'}</usuarioCreacion>
-          </Detalle>
-        ''');
+        detalleXml.write('''<Producto><Prod_Id>${detalle['prod_Id']}</Prod_Id><DevD_Cantidad>${detalle['cantidadDevolver']}</DevD_Cantidad></Producto>''');
       }
-      detalleXml.write('</Detalles>');
+      detalleXml.write('</DevolucionDetalle>');
+
+      final now = DateTime.now().toIso8601String();
 
       final body = {
-        'Clie_Id': clieId,
-        'Fact_Id': factId,
-        'Devo_Motivo': devoMotivo,
-        'Usua_Creacion': usuaCreacion,
-        'Devo_Fecha': (devoFecha ?? DateTime.now()).toIso8601String(),
-        'Devo_Estado': devoEstado,
-        'Detalle': detalleXml.toString(),
-        'devoDetalle_XML': detalleXml.toString(), // Añadido el campo devoDetalle_XML
-        // Campos requeridos por el servidor
-        'Nombre_Completo': ' ',  // Espacio en blanco como solicitado
-        'UsuarioCreacion': ' ',  // Espacio en blanco como solicitado
-        'Clie_NombreNegocio': ' ',  // Espacio en blanco como solicitado
-        'UsuarioModificacion': ' ',  // Espacio en blanco como solicitado
-        // Campo opcional
-        if (usuaModificacion != null) 'Usua_Modificacion': usuaModificacion,
+        'devo_Id': 0,
+        'clie_Id': clieId,
+        'fact_Id': factId,
+        'devo_Fecha': (devoFecha ?? DateTime.now()).toIso8601String(),
+        'devo_Motivo': devoMotivo,
+        'usua_Creacion': usuaCreacion,
+        'devo_FechaCreacion': now,
+        'usua_Modificacion': usuaModificacion ?? 0,
+        'devo_FechaModificacion': now,
+        'devo_Estado': devoEstado,
+        'nombre_Completo': ' ',
+        'clie_NombreNegocio': ' ',
+        'usuarioCreacion': ' ',
+        'usuarioModificacion': ' ',
+        'devoDetalle_XML': detalleXml.toString(),
+        'item': [],
       };
 
       final response = await _post('Devoluciones/Insertar', body);
