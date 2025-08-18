@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
@@ -255,55 +256,56 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Crear la devolución
+      // Crear la devolución con factura ajustada
       try {
-        final response = await _devolucionesService.insertarDevolucion(
+        final response = await _devolucionesService.insertarDevolucionConFacturaAjustada(
           clieId: _selectedClienteId!,
           factId: _selectedFacturaId!,
           devoMotivo: _motivoController.text,
           usuaCreacion: 1, // TODO: Reemplazar con el ID del usuario autenticado
           detalles: productosADevolver,
           devoFecha: DateTime.tryParse(_fechaController.text),
+          crearNuevaFactura: true,
         );
 
         // Cerrar el diálogo de carga
         if (!mounted) return;
         Navigator.pop(context);
 
-        // Mostrar mensaje de éxito con el ID de la devolución
+        // Extraer datos de la respuesta
+        final devoId = response['devolucion']?['data']?['devo_Id'] ?? 'N/A';
+        final facturaAjustada = response['facturaAjustada'];
+        final facturaCreada = facturaAjustada?['facturaCreada'] == true;
+        final facturaNumero = facturaAjustada?['facturaNumero'];
+        final nuevaFacturaId = facturaAjustada?['facturaId']; // ID de la nueva factura
+        
+        print('Datos extraídos - devoId: $devoId, facturaCreada: $facturaCreada');
+        print('facturaNumero: $facturaNumero, nuevaFacturaId: $nuevaFacturaId');
+        
+        // Mostrar modal de éxito
         if (!mounted) return;
-        final devoId = response['data']?['devo_Id'] ?? 'N/A';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Devolución #$devoId registrada exitosamente'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-
-        // Navegar a la pantalla de lista de devoluciones con recarga forzada
-        if (!mounted) return;
-
-        // Cerrar todas las pantallas y volver a la raíz
-        Navigator.popUntil(context, (route) => route.isFirst);
-
-        // Navegar a la pantalla de lista de devoluciones
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DevolucioneslistScreen(),
-          ),
-        );
-
-        // Mostrar mensaje de éxito
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Devolución #$devoId registrada exitosamente'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        if (facturaCreada && nuevaFacturaId != null) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => _buildReturnSuccessDialog(context, {
+              'devoId': devoId,
+              'facturaNumero': facturaNumero,
+              'facturaId': nuevaFacturaId, // Pasar el ID correcto
+              'productosDevueltos': productosADevolver.length,
+            }),
+          );
+        } else {
+          // Fallback: mostrar mensaje simple y navegar
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Devolución #$devoId registrada exitosamente'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          _navigateToReturnsList();
+        }
       } catch (e) {
         // Cerrar diálogo de carga
         if (!mounted) return;
@@ -741,6 +743,293 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  /// Navega a la lista de devoluciones
+  void _navigateToReturnsList() {
+    Navigator.popUntil(context, (route) => route.isFirst);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DevolucioneslistScreen(),
+      ),
+    );
+  }
+
+  /// Resetea el formulario para una nueva devolución
+  void _resetForm() {
+    setState(() {
+      _selectedCliente = null;
+      _selectedClienteId = null;
+      _selectedFacturaId = null;
+      _filteredFacturas = [];
+      _productosFactura = [];
+      _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      _motivoController.clear();
+      _clienteController.clear();
+    });
+  }
+
+
+  /// Navega a la pantalla de detalle de factura
+  void _navigateToInvoiceDetail(Map<String, dynamic> data) {
+    // Usar el ID que viene directamente en data (pasado desde el modal)
+    final facturaId = data['facturaId'];
+    final facturaNumero = data['facturaNumero'] ?? 'N/A';
+    
+    print('Navegando a nueva factura - ID: $facturaId, Número: $facturaNumero');
+    
+    if (facturaId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvoiceDetailScreen(
+            facturaId: facturaId,
+            facturaNumero: facturaNumero,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo obtener el ID de la nueva factura'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  /// Construye el diálogo de éxito para devoluciones
+  Widget _buildReturnSuccessDialog(BuildContext context, Map<String, dynamic> data) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 500),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF98BF4A),
+                    const Color(0xFF98BF4A).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF98BF4A),
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Devolución Exitosa!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Devolución procesada y factura ajustada creada',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            
+            // Contenido
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Información básica
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Detalles',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF141A2F),
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCompactDetailRow('Devolución', '#${data['devoId']}'),
+                          _buildCompactDetailRow('Nueva Factura', data['facturaNumero'] ?? 'N/A'),
+                          _buildCompactDetailRow('Productos', '${data['productosDevueltos']} devueltos'),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Botones
+                    Row(
+                      children: [
+                        // Botón Nueva Devolución
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _resetForm();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text(
+                                'Nueva Devolución',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Satoshi',
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 8),
+                        
+                        // Botón Ver Factura
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _navigateToInvoiceDetail(data);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF98BF4A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.visibility, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ver Factura',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Construye una fila de detalle compacta
+  Widget _buildCompactDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6C757D),
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF141A2F),
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
