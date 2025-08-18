@@ -9,6 +9,8 @@ import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'dart:ui' as ui; // Para generar el bitmap custom
@@ -33,6 +35,27 @@ class RutaMapScreen extends StatefulWidget {
 }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  String? _rutaImagenMapaStatic;
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error guardando imagen de mapa: $e');
+    }
+    return null;
+  }
+
   // Paleta local (solo para esta pantalla)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
@@ -282,6 +305,36 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     });
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
+
+    // Descargar y guardar imagen de mapa static al cargar pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final url = await _getStaticMapUrl();
+      if (url != null) {
+        final localPath = await guardarImagenDeMapaStatic(
+          url,
+          'map_static_${widget.rutaId}',
+        );
+        setState(() {
+          _rutaImagenMapaStatic = localPath;
+        });
+      }
+    });
+  }
+
+  // Genera la URL del mapa static para la ruta actual
+  Future<String?> _getStaticMapUrl() async {
+    if (_direccionesFiltradas.isEmpty) return null;
+    const iconUrl =
+        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+    final markers = _direccionesFiltradas
+        .map(
+          (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+        )
+        .join('&');
+    final center = _direccionesFiltradas.isNotEmpty
+        ? '${_direccionesFiltradas.first.dicl_latitud},${_direccionesFiltradas.first.dicl_longitud}'
+        : '15.525585,-88.013512';
+    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=400x150&$markers&key=$_googleApiKey';
   }
 
   void _updateUserMarker() {
