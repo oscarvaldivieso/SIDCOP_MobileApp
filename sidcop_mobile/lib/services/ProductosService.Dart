@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart'; 
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 
 
 class ProductosService {
@@ -191,4 +192,45 @@ Future<List<Productos>> getProductos() async {
       rethrow;
     }
   }
+
+  Future<List<ProductoConDescuento>> getProductosConDescuentoPorClienteVendedor(int clieId, int vendId) async {
+  final url = Uri.parse('$_apiServer/Productos/ProductosDescuentoPorClienteVendedor/$clieId/$vendId');
+  developer.log('Get Productos con Descuento Request URL: $url');
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': _apiKey
+      },
+    );
+
+    developer.log('Get Productos con Descuento Response Status: ${response.statusCode}');
+    developer.log('Get Productos con Descuento Response Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final responseBody = response.body;
+      if (responseBody.isEmpty) {
+        developer.log('Response body is empty');
+        return [];
+      }
+      
+      final List<dynamic> productosList = jsonDecode(responseBody);
+      return productosList
+          .map((json) => ProductoConDescuento.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception(
+        'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+      );
+    }
+  } catch (e) {
+    developer.log('Error en getProductosConDescuentoPorClienteVendedor: $e');
+    rethrow;
+  }
+}
+ 
+
+  
 }

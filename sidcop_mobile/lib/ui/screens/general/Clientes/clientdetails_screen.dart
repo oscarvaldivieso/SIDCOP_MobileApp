@@ -32,12 +32,15 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     _loadTipoVendedor();
   }
 
+  String? _usuaIdPersona;
+  
   Future<void> _loadTipoVendedor() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
     setState(() {
       _vendTipo =
           userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+      _usuaIdPersona = userData?['usua_IdPersona']?.toString();
     });
   }
 
@@ -369,7 +372,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  VentaScreen(),
+                                                  VentaScreen(
+                                                    vendedorId: _usuaIdPersona != null ? int.tryParse(_usuaIdPersona!) : null,
+                                                  ),
                                             ),
                                           );
                                         }
@@ -424,6 +429,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => VentaScreen(
                                     clienteId: widget.clienteId,
+                                    vendedorId: _usuaIdPersona != null ? int.tryParse(_usuaIdPersona!) : null,
                                   ),
                                 ),
                               );

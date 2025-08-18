@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:sidcop_mobile/services/RutasService.dart';
+import 'package:sidcop_mobile/services/VendedoresService.dart';
+import 'package:sidcop_mobile/models/vendedoresViewModel.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/models/ClientesViewModel.dart';
@@ -23,6 +26,9 @@ class _RutasScreenState extends State<RutasScreen> {
   List<Ruta> _filteredRutas = [];
   bool _isLoading = true;
   List<dynamic> permisos = [];
+  Set<int> _rutasPermitidas = {}; // ids de rutas asignadas al vendedor
+  final VendedoresService _vendedoresService = VendedoresService();
+  bool _vendedorNoIdentificado = false;
 
   @override
   void initState() {
@@ -40,13 +46,24 @@ class _RutasScreenState extends State<RutasScreen> {
 
   Future<void> _fetchRutas() async {
     try {
+      // 1. Obtener rutas asignadas al vendedor (si existe variable global)
+      await _cargarRutasAsignadasVendedor();
+
+      // 2. Obtener todas las rutas
       final rutasJson = await _rutasService.getRutas();
       final rutasList = rutasJson
           .map<Ruta>((json) => Ruta.fromJson(json))
           .toList();
+
+      // 3. Filtrar si hay rutas permitidas (si _rutasPermitidas vacío, muestra todas)
+      final List<Ruta> rutasFiltradas = _rutasPermitidas.isEmpty
+          ? rutasList
+          : rutasList
+                .where((r) => _rutasPermitidas.contains(r.ruta_Id))
+                .toList();
       setState(() {
-        _rutas = rutasList;
-        _filteredRutas = List.from(rutasList);
+        _rutas = rutasFiltradas;
+        _filteredRutas = List.from(rutasFiltradas);
         _isLoading = false;
       });
     } catch (e) {
@@ -56,6 +73,85 @@ class _RutasScreenState extends State<RutasScreen> {
           SnackBar(content: Text('Error al cargar las rutas: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _cargarRutasAsignadasVendedor() async {
+    // Usa globalUsuaIdPersona como vend_Id
+    final int? vendId = globalVendId;
+    if (vendId == null) {
+      _vendedorNoIdentificado = true;
+      return; // no hay vendedor, marcamos bandera
+    }
+    try {
+      final lista = await _vendedoresService.listar();
+      final vendedor = lista.firstWhere(
+        (v) => v.vend_Id == vendId,
+        orElse: () => VendedoresViewModel(
+          vend_Id: -1,
+          vend_Codigo: null,
+          vend_DNI: null,
+          vend_Nombres: null,
+          vend_Apellidos: null,
+          vend_Telefono: null,
+          vend_Correo: null,
+          vend_Sexo: null,
+          vend_DireccionExacta: null,
+          sucu_Id: 0,
+          colo_Id: 0,
+          vend_Supervisor: null,
+          vend_Ayudante: null,
+          vend_Tipo: null,
+          vend_EsExterno: null,
+          vend_Estado: false,
+          usua_Creacion: 0,
+          vend_FechaCreacion: DateTime.fromMillisecondsSinceEpoch(0),
+          usua_Modificacion: null,
+          vend_FechaModificacion: null,
+          sucu_Descripcion: null,
+          sucu_DireccionExacta: null,
+          colo_Descripcion: null,
+          muni_Codigo: null,
+          muni_Descripcion: null,
+          depa_Codigo: null,
+          depa_Descripcion: null,
+          nombreSupervisor: null,
+          apellidoSupervisor: null,
+          nombreAyudante: null,
+          apellidoAyudante: null,
+          usuarioCreacion: null,
+          usuarioModificacion: null,
+          rutas: null,
+          rutas_Json: const [],
+        ),
+      );
+      if (vendedor.vend_Id == -1) {
+        _vendedorNoIdentificado = true; // no encontrado
+        return;
+      }
+      // Parsear campo rutas (string JSON con estructura [{"id":2,"dias":"1"}, ...])
+      final rutasStr = vendedor.rutas;
+      if (rutasStr == null || rutasStr.isEmpty) return;
+      final dynamic dec = jsonDecode(rutasStr);
+      if (dec is List) {
+        final ids = dec
+            .whereType<Map>()
+            .map((m) => m['id'])
+            .where((v) => v is int || v is num || v is String)
+            .map<int?>((v) {
+              if (v is int) return v;
+              if (v is num) return v.toInt();
+              if (v is String) return int.tryParse(v);
+              return null;
+            })
+            .whereType<int>()
+            .toSet();
+        if (ids.isNotEmpty) {
+          _rutasPermitidas = ids;
+        }
+      }
+    } catch (_) {
+      // Silencioso, en caso de error no se filtra
     }
   }
 
@@ -91,13 +187,13 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    const markerColor = '0xD6B68A';
-    final markers = direccionesFiltradas
-        .map(
-          (d) =>
-              'markers=color:$markerColor%7C${d.dicl_latitud},${d.dicl_longitud}',
-        )
-        .join('&');
+  const iconUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+  final markers = direccionesFiltradas
+    .map(
+      (d) =>
+        'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+    )
+    .join('&');
     final center = direccionesFiltradas.isNotEmpty
         ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
         : '15.525585,-88.013512';
@@ -118,6 +214,17 @@ class _RutasScreenState extends State<RutasScreen> {
         },
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
+            : _vendedorNoIdentificado
+            ? const Center(
+                child: Text(
+                  'El vendedor no ha sido identificado',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+              )
             : _rutas.isEmpty
             ? const Center(child: Text('No hay rutas'))
             : SingleChildScrollView(

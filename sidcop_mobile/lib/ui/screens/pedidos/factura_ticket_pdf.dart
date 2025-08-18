@@ -85,8 +85,7 @@ Future<Uint8List> generarFacturaPdf({
                 children: [
                   pw.Text('Sub-total: L. ${subtotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9)),
                   pw.Text('Total Descuento: L. ${totalDescuento.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9)),
-                  pw.Text('Impuesto 15%: L. ${(subtotal * 0.15).toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9)),
-                  pw.Text('Impuesto 18%: L. ${(subtotal * 0.18).toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9)),
+                  pw.Text('Impuestos: L. ${_calcularTotalImpuestos(productos).toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9)),
                   pw.Text('Total: L. ${total.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                   pw.Text('*$totalEnLetras*', style: pw.TextStyle(fontSize: 8)),
                 ],
@@ -103,4 +102,12 @@ Future<Uint8List> generarFacturaPdf({
   );
 
   return pdf.save();
+}
+
+double _calcularTotalImpuestos(List<ProductoFactura> productos) {
+  double total = 0.0;
+  for (var p in productos) {
+    total += p.impuesto * p.cantidad;
+  }
+  return total;
 }

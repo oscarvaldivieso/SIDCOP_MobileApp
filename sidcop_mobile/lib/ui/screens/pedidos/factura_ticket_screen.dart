@@ -4,12 +4,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_pdf.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
 import 'package:sidcop_mobile/models/ConfiguracionFacturaViewModel.dart'; 
 import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
 
 class FacturaTicketScreen extends StatelessWidget {
   final String nombreCliente;
@@ -86,11 +89,16 @@ class FacturaTicketScreen extends StatelessWidget {
                         totalEnLetras: totalEnLetras,
                       );
                       
+                      final directory = await getApplicationDocumentsDirectory();
+                      final filePath = '${directory.path}/factura_${numeroFactura.replaceAll('/', '_')}.pdf';
+                      final file = File(filePath);
+                      await file.writeAsBytes(pdfBytes);
+
                       // Usar printing para mostrar y compartir el PDF
-                      await Printing.sharePdf(
-                        bytes: pdfBytes,
-                        filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
-                      );
+                      // await Printing.sharePdf(
+                      //   bytes: pdfBytes,
+                      //   filename: 'factura_${nombreCliente}, ${fechaFactura}.pdf',
+                      // );
                       
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -100,15 +108,15 @@ class FacturaTicketScreen extends StatelessWidget {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al generar PDF: $e')),
+                          SnackBar(content: Text('Error al generar PDF')),
                         );
                       }
                     }
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.print),
-                  tooltip: 'Imprimir',
+                  icon: const Icon(Icons.share),
+                  tooltip: 'Compartir',
                   onPressed: () {},
                 ),
                 IconButton(
@@ -140,37 +148,37 @@ class FacturaTicketScreen extends StatelessWidget {
 
                       // Crear mensaje para WhatsApp
                       final mensaje = Uri.encodeComponent(
-                        '¡Hola! Te envío la factura #$numeroFactura\n\n'
-                        '📋 Cliente: $nombreCliente\n'
-                        '📅 Fecha: $fechaFactura\n'
-                        '💰 Total: L. ${total.toStringAsFixed(2)}\n\n'
-                        'Gracias por tu compra en COMERCIAL LA ROCA S. DE R.L.'
+                        '¡Hola! Te envío la factura $nombreCliente\n'
                       );
 
-                      // Compartir PDF y abrir WhatsApp
-                      await Printing.sharePdf(
-                        bytes: pdfBytes,
-                        filename: 'factura_${numeroFactura.replaceAll('/', '_')}.pdf',
-                      );
+                      // Guardar PDF en almacenamiento temporal
+                      final directory = await getTemporaryDirectory();
+                      // Normalizar nombre de archivo
+                      final safeNombre = nombreCliente.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+                      final safeFecha = fechaFactura.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+                      final filePath = '${directory.path}/factura_${safeNombre}_${safeFecha}.pdf';
+                      final file = File(filePath);
+                      await file.writeAsBytes(pdfBytes);
 
-                      // Abrir WhatsApp con el mensaje
-                      final whatsappUrl = 'https://wa.me/?text=$mensaje';
-                      final uri = Uri.parse(whatsappUrl);
-                      
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      // Verificar existencia antes de compartir
+                      if (await file.exists()) {
+                        await Share.shareXFiles([
+                          XFile(filePath)
+                        ],
+                          text: '¡Hola! Te envío la factura $nombreCliente',
+                          subject: 'Factura $nombreCliente',
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Selecciona WhatsApp o la app deseada para compartir el archivo.')),
+                          );
+                        }
                       } else {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.')),
+                            const SnackBar(content: Text('Error: el archivo PDF no se generó correctamente.')),
                           );
                         }
-                      }
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('PDF generado. Compártelo desde la aplicación que elijas.')),
-                        );
                       }
                     } catch (e) {
                       if (context.mounted) {
@@ -245,8 +253,7 @@ class FacturaTicketScreen extends StatelessWidget {
                 children: [
                   Text('Sub-total: L. ${subtotal.toStringAsFixed(2)}'),
                   Text('Total Descuento: L. ${totalDescuento.toStringAsFixed(2)}'),
-                  Text('Total Impuesto 15%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.15).toStringAsFixed(2)}'),
-                Text('Total Impuesto 18%: L. ${_calcularTotalImpuestoPorcentaje(productos, 0.18).toStringAsFixed(2)}'),
+                  Text('Impuestos: L. ${_calcularTotalImpuestos(productos).toStringAsFixed(2)}'),
                   Text('Total: L. ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
                   Text('*$totalEnLetras*'),
                 ],
@@ -260,13 +267,10 @@ class FacturaTicketScreen extends StatelessWidget {
     );
   }
 
-  double _calcularTotalImpuestoPorcentaje(List<ProductoFactura> productos, double porcentaje) {
+  double _calcularTotalImpuestos(List<ProductoFactura> productos) {
     double total = 0.0;
     for (var p in productos) {
-      // Si el impuesto de este producto es exactamente el porcentaje solicitado
-      if ((p.impuesto / (p.precioFinal * p.cantidad)).toStringAsFixed(2) == porcentaje.toStringAsFixed(2)) {
-        total += p.impuesto * p.cantidad;
-      }
+      total += p.impuesto * p.cantidad;
     }
     return total;
   }

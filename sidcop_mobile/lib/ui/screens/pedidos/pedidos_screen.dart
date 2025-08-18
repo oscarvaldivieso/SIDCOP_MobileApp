@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedido_detalle_bottom_sheet.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 class PedidosScreen extends StatefulWidget {
   const PedidosScreen({super.key});
@@ -14,9 +15,44 @@ class PedidosScreen extends StatefulWidget {
 
 class _PedidosScreenState extends State<PedidosScreen> {
   final PedidosService _service = PedidosService();
+  final PerfilUsuarioService _perfilService = PerfilUsuarioService();
 
   static const Color primaryColor = Color(0xFF141A2F); // Drawer principal
   static const Color goldColor = Color(0xFFE0C7A0); // Íconos y títulos
+
+  Future<List<PedidosViewModel>> _getPedidosDelVendedor() async {
+    try {
+      // Obtener todos los pedidos del endpoint original
+      final todosPedidos = await _service.getPedidos();
+      
+      // Obtener datos del usuario actual
+      final datosUsuario = await _perfilService.obtenerDatosUsuario();
+      if (datosUsuario == null) {
+        print('No se encontraron datos del usuario');
+        return todosPedidos; // Si no se puede obtener el vendedor, mostrar todos
+      }
+
+      // Obtener el ID del vendedor (usuaIdPersona)
+      final int vendedorId = datosUsuario['usua_IdPersona'] is String 
+          ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
+          : datosUsuario['usua_IdPersona'] ?? 0;
+
+      if (vendedorId == 0) {
+        print('ID de vendedor no válido: $vendedorId');
+        return todosPedidos; // Si no se puede obtener el vendedor, mostrar todos
+      }
+
+      print('Filtrando pedidos para vendedor ID: $vendedorId');
+      // Filtrar los pedidos que pertenecen al vendedor actual
+      final pedidosFiltrados = todosPedidos.where((pedido) => pedido.vendId == vendedorId).toList();
+      print('Pedidos encontrados para el vendedor: ${pedidosFiltrados.length} de ${todosPedidos.length} totales');
+      
+      return pedidosFiltrados;
+    } catch (e) {
+      print('Error obteniendo pedidos del vendedor: $e');
+      return [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +63,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
         setState(() {});
       },
       child: FutureBuilder<List<PedidosViewModel>>(
-        future: _service.getPedidos(),
+        future: _getPedidosDelVendedor(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

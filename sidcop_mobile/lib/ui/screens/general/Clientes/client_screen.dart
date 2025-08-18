@@ -60,11 +60,6 @@ class _clientScreenState extends State<clientScreen> {
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
     final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
 
-    print('DEBUG: userData usua_IdPersona = $usuaIdPersona');
-    print('DEBUG: userData esVendedor = $esVendedor');
-    print('DEBUG: userData esAdmin = $esAdmin');
-    print('DEBUG: globalUsuaIdPersona = $globalUsuaIdPersona');
-
     // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
     List<dynamic> clientes = [];
 
