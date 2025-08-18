@@ -270,20 +270,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         if (!mounted) return;
         Navigator.pop(context);
 
-        // Mostrar mensaje de éxito con el ID de la devolución
-        if (!mounted) return;
-        final devoId = response['data']?['devo_Id'] ?? 'N/A';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Devolución #$devoId registrada exitosamente'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-
-        // Navegar a la pantalla de lista de devoluciones con recarga forzada
-        if (!mounted) return;
-
         // Cerrar todas las pantallas y volver a la raíz
         Navigator.popUntil(context, (route) => route.isFirst);
 
@@ -299,7 +285,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Devolución #$devoId registrada exitosamente'),
+            content: Text('Devolución registrada exitosamente'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
