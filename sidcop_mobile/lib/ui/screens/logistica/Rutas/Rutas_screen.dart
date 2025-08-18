@@ -117,7 +117,7 @@ class _RutasScreenState extends State<RutasScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Error al cargar las rutas: $e. Mostrando rutas offline.',
+              'Error al cargar las rutas. Mostrando rutas precargadas.',
             ),
           ),
         );
