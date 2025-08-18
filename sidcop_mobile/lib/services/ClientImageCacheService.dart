@@ -1,35 +1,29 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.dart';
+import 'package:sidcop_mobile/models/ClientesViewModel.Dart';
 import 'package:sidcop_mobile/services/CacheService.dart';
 import 'package:sidcop_mobile/services/OfflineDatabaseService.dart';
 
-/// Servicio especializado para el caché de imágenes de productos usando cached_network_image
-class ProductImageCacheService {
-  static final ProductImageCacheService _instance =
-      ProductImageCacheService._internal();
-  factory ProductImageCacheService() => _instance;
-  ProductImageCacheService._internal();
-
-  // Note: CacheService and OfflineDatabaseService methods are static
-  // No need to create instances
+/// Servicio especializado para el caché de imágenes de clientes usando cached_network_image
+class ClientImageCacheService {
+  static final ClientImageCacheService _instance =
+      ClientImageCacheService._internal();
+  factory ClientImageCacheService() => _instance;
+  ClientImageCacheService._internal();
 
   bool _isCaching = false;
   int _totalImages = 0;
   int _cachedImages = 0;
   Map<String, String> _imageUrlToIdMap = {};
 
-  /// Cachea todas las imágenes de productos para visualización offline
-  Future<bool> cacheAllProductImages(List<Productos> products) async {
+  /// Cachea todas las imágenes de clientes para visualización offline
+  Future<bool> cacheAllClientImages(List<Cliente> clients) async {
     if (_isCaching) {
-      developer.log(
-        '🔄 ProductImageCacheService: Ya hay un proceso de caché en curso',
-      );
+      print('ClientImageCacheService: Ya hay un proceso de caché en curso');
       return false;
     }
 
@@ -39,39 +33,33 @@ class ProductImageCacheService {
     _imageUrlToIdMap.clear();
 
     try {
-      developer.log(
-        '🖼️ ProductImageCacheService: Iniciando caché de imágenes de productos',
-      );
+      print('ClientImageCacheService: Iniciando caché de imágenes de clientes');
 
-      // Filtrar productos con imágenes válidas
-      final productsWithImages = products
+      // Filtrar clientes con imágenes válidas
+      final clientsWithImages = clients
           .where(
-            (product) =>
-                product.prod_Imagen != null &&
-                product.prod_Imagen!.isNotEmpty &&
-                product.prod_Imagen!.startsWith('http'),
+            (client) =>
+                client.clie_ImagenDelNegocio != null &&
+                client.clie_ImagenDelNegocio!.isNotEmpty &&
+                client.clie_ImagenDelNegocio!.startsWith('http'),
           )
           .toList();
 
-      _totalImages = productsWithImages.length;
-      developer.log(
-        '📊 ProductImageCacheService: ${_totalImages} imágenes para cachear',
-      );
+      _totalImages = clientsWithImages.length;
+      print('ClientImageCacheService: ${_totalImages} imágenes para cachear');
 
       if (_totalImages == 0) {
-        developer.log(
-          '⚠️ ProductImageCacheService: No hay imágenes válidas para cachear',
-        );
+        print('ClientImageCacheService: No hay imágenes válidas para cachear');
         return true;
       }
 
       // Procesar en lotes de 5 para no sobrecargar
       const batchSize = 5;
-      for (int i = 0; i < productsWithImages.length; i += batchSize) {
-        final end = (i + batchSize < productsWithImages.length)
+      for (int i = 0; i < clientsWithImages.length; i += batchSize) {
+        final end = (i + batchSize < clientsWithImages.length)
             ? i + batchSize
-            : productsWithImages.length;
-        final batch = productsWithImages.sublist(i, end);
+            : clientsWithImages.length;
+        final batch = clientsWithImages.sublist(i, end);
 
         await _cacheBatchImages(batch, i + 1);
 
@@ -82,14 +70,12 @@ class ProductImageCacheService {
       // Guardar mapeo de imágenes en caché
       await _saveImageMapping();
 
-      developer.log(
-        '🎉 ProductImageCacheService: Caché completado - ${_cachedImages}/${_totalImages} imágenes',
+      print(
+        'ClientImageCacheService: Caché completado - ${_cachedImages}/${_totalImages} imágenes',
       );
       return true;
     } catch (e) {
-      developer.log(
-        '❌ ProductImageCacheService: Error en caché de imágenes: $e',
-      );
+      print('ClientImageCacheService: Error en caché de imágenes: $e');
       return false;
     } finally {
       _isCaching = false;
@@ -97,21 +83,21 @@ class ProductImageCacheService {
   }
 
   /// Cachea un lote de imágenes
-  Future<void> _cacheBatchImages(List<Productos> batch, int startIndex) async {
+  Future<void> _cacheBatchImages(List<Cliente> batch, int startIndex) async {
     final futures = batch.asMap().entries.map((entry) async {
       final index = entry.key;
-      final product = entry.value;
+      final client = entry.value;
       final globalIndex = startIndex + index;
 
       try {
-        developer.log(
-          '🔄 ProductImageCacheService: Cacheando imagen ${globalIndex}/${_totalImages} - ${product.prod_Descripcion}',
+        print(
+          'ClientImageCacheService: Cacheando imagen ${globalIndex}/${_totalImages} - ${client.clie_NombreNegocio}',
         );
 
         // Usar CachedNetworkImageProvider para forzar el caché
         final imageProvider = CachedNetworkImageProvider(
-          product.prod_Imagen!,
-          cacheKey: 'product_${product.prod_Id}',
+          client.clie_ImagenDelNegocio!,
+          cacheKey: 'client_${client.clie_Id}',
         );
 
         // Resolver la imagen para forzar la descarga y caché
@@ -122,17 +108,17 @@ class ProductImageCacheService {
         listener = ImageStreamListener(
           (ImageInfo info, bool synchronousCall) {
             // Imagen cargada exitosamente
-            _imageUrlToIdMap[product.prod_Imagen!] = product.prod_Id.toString();
+            _imageUrlToIdMap[client.clie_ImagenDelNegocio!] = client.clie_Id.toString();
             _cachedImages++;
-            developer.log(
-              '✅ ProductImageCacheService: Imagen ${globalIndex} cacheada - ${product.prod_Descripcion}',
+            print(
+              'ClientImageCacheService: Imagen ${globalIndex} cacheada - ${client.clie_NombreNegocio}',
             );
             imageStream.removeListener(listener);
             completer.complete();
           },
           onError: (exception, stackTrace) {
-            developer.log(
-              '❌ ProductImageCacheService: Error cacheando imagen ${globalIndex} - ${product.prod_Descripcion}: $exception',
+            print(
+              'ClientImageCacheService: Error cacheando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $exception',
             );
             imageStream.removeListener(listener);
             completer
@@ -146,50 +132,50 @@ class ProductImageCacheService {
         await completer.future.timeout(
           Duration(seconds: 15),
           onTimeout: () {
-            developer.log(
-              '⏰ ProductImageCacheService: Timeout para imagen ${globalIndex} - ${product.prod_Descripcion}',
+            print(
+              'ClientImageCacheService: Timeout para imagen ${globalIndex} - ${client.clie_NombreNegocio}',
             );
             imageStream.removeListener(listener);
           },
         );
       } catch (e) {
-        developer.log(
-          '❌ ProductImageCacheService: Error procesando imagen ${globalIndex} - ${product.prod_Descripcion}: $e',
+        print(
+          'ClientImageCacheService: Error procesando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $e',
         );
       }
     });
 
     await Future.wait(futures);
-    developer.log(
-      '📦 ProductImageCacheService: Lote completado - ${_cachedImages}/${_totalImages} imágenes cacheadas',
+    print(
+      'ClientImageCacheService: Lote completado - ${_cachedImages}/${_totalImages} imágenes cacheadas',
     );
   }
 
-  /// Guarda el mapeo de imágenes en caché y CSV cifrado
+  /// Guarda el mapeo de imágenes en caché y SQLite cifrado
   Future<void> _saveImageMapping() async {
     try {
       // Guardar en caché rápido
-      await CacheService.cacheProductImagesData(_imageUrlToIdMap);
+      await CacheService.cacheClientImagesData(_imageUrlToIdMap);
 
-      // Guardar en CSV cifrado para persistencia offline
+      // Guardar en SQLite cifrado para persistencia offline
       final csvData = _imageUrlToIdMap.entries
           .map((entry) => '${entry.key},${entry.value}')
           .toList();
 
-      await OfflineDatabaseService.saveData('product_images_mapping', csvData);
+      await OfflineDatabaseService.saveData('client_images_mapping', csvData);
 
-      developer.log(
-        '💾 ProductImageCacheService: Mapeo de imágenes guardado en caché y CSV cifrado',
+      print(
+        'ClientImageCacheService: Mapeo de imágenes guardado en caché y SQLite cifrado',
       );
     } catch (e) {
-      developer.log('❌ ProductImageCacheService: Error guardando mapeo: $e');
+      print('ClientImageCacheService: Error guardando mapeo: $e');
     }
   }
 
-  /// Obtiene el widget de imagen con caché para un producto
-  Widget getCachedProductImage({
+  /// Obtiene el widget de imagen con caché para un cliente
+  Widget getCachedClientImage({
     required String? imageUrl,
-    required String productId,
+    required String clientId,
     double? width,
     double? height,
     BoxFit fit = BoxFit.cover,
@@ -197,12 +183,12 @@ class ProductImageCacheService {
     Widget? errorWidget,
   }) {
     if (imageUrl == null || imageUrl.isEmpty) {
-      return errorWidget ?? Icon(Icons.image_not_supported, size: 50);
+      return errorWidget ?? Icon(Icons.business, size: 50);
     }
 
     return CachedNetworkImage(
       imageUrl: imageUrl,
-      cacheKey: 'product_$productId',
+      cacheKey: 'client_$clientId',
       width: width,
       height: height,
       fit: fit,
@@ -226,7 +212,7 @@ class ProductImageCacheService {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, color: Colors.grey, size: 30),
+                Icon(Icons.business_outlined, color: Colors.grey, size: 30),
                 SizedBox(height: 4),
                 Text(
                   'Error al cargar imagen',
@@ -246,15 +232,15 @@ class ProductImageCacheService {
   }
 
   /// Verifica si una imagen está en caché
-  Future<bool> isImageCached(String imageUrl, String productId) async {
+  Future<bool> isImageCached(String imageUrl, String clientId) async {
     try {
       final cacheManager = DefaultCacheManager();
       final fileInfo = await cacheManager.getFileFromCache(
-        'product_$productId',
+        'client_$clientId',
       );
       return fileInfo != null && fileInfo.file.existsSync();
     } catch (e) {
-      developer.log('❌ ProductImageCacheService: Error verificando caché: $e');
+      print('ClientImageCacheService: Error verificando caché: $e');
       return false;
     }
   }
@@ -262,31 +248,30 @@ class ProductImageCacheService {
   /// Limpia el caché de imágenes
   Future<void> clearImageCache() async {
     try {
-      developer.log('🧹 ProductImageCacheService: Limpiando caché de imágenes');
+      print('ClientImageCacheService: Limpiando caché de imágenes');
 
       // Limpiar caché de CachedNetworkImage
       await DefaultCacheManager().emptyCache();
 
       // Limpiar mapeo en caché rápido
-      await CacheService.clearProductImagesCache();
+      await CacheService.clearClientImagesCache();
 
       // Limpiar SQLite cifrado
-      await OfflineDatabaseService.clearData('product_images_mapping');
+      await OfflineDatabaseService.clearData('client_images_mapping');
 
       _imageUrlToIdMap.clear();
       _cachedImages = 0;
       _totalImages = 0;
 
-      developer.log('✅ ProductImageCacheService: Caché de imágenes limpiado');
+      print('ClientImageCacheService: Caché de imágenes limpiado');
     } catch (e) {
-      developer.log('❌ ProductImageCacheService: Error limpiando caché: $e');
+      print('ClientImageCacheService: Error limpiando caché: $e');
     }
   }
 
   /// Obtiene información del caché
   Future<Map<String, dynamic>> getCacheInfo() async {
     try {
-      final cacheManager = DefaultCacheManager();
       final cacheSize = await _calculateCacheSize();
 
       return {
@@ -297,9 +282,7 @@ class ProductImageCacheService {
         'mappingCount': _imageUrlToIdMap.length,
       };
     } catch (e) {
-      developer.log(
-        '❌ ProductImageCacheService: Error obteniendo info de caché: $e',
-      );
+      print('ClientImageCacheService: Error obteniendo info de caché: $e');
       return {
         'isCaching': _isCaching,
         'totalImages': _totalImages,
@@ -314,7 +297,6 @@ class ProductImageCacheService {
   /// Calcula el tamaño del caché en MB
   Future<double> _calculateCacheSize() async {
     try {
-      final cacheManager = DefaultCacheManager();
       final cacheDir = await getTemporaryDirectory();
 
       if (!cacheDir.existsSync()) return 0.0;
@@ -328,19 +310,17 @@ class ProductImageCacheService {
 
       return totalSize / (1024 * 1024); // Convertir a MB
     } catch (e) {
-      developer.log(
-        '❌ ProductImageCacheService: Error calculando tamaño de caché: $e',
-      );
+      print('ClientImageCacheService: Error calculando tamaño de caché: $e');
       return 0.0;
     }
   }
 
   /// Precarga una imagen específica
-  Future<bool> precacheProductImage(String imageUrl, String productId) async {
+  Future<bool> precacheClientImage(String imageUrl, String clientId) async {
     try {
       final imageProvider = CachedNetworkImageProvider(
         imageUrl,
-        cacheKey: 'product_$productId',
+        cacheKey: 'client_$clientId',
       );
 
       final imageStream = imageProvider.resolve(const ImageConfiguration());
@@ -368,7 +348,7 @@ class ProductImageCacheService {
         },
       );
     } catch (e) {
-      developer.log('❌ ProductImageCacheService: Error precargando imagen: $e');
+      print('ClientImageCacheService: Error precargando imagen: $e');
       return false;
     }
   }
