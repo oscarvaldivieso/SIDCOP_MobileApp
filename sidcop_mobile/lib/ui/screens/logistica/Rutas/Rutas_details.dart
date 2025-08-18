@@ -9,6 +9,9 @@ import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
@@ -20,6 +23,35 @@ class RutasDetailsScreen extends StatefulWidget {
 }
 
 class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
+  // Obtiene la ruta local de la imagen static si existe
+  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final filePath = '${directory.path}/map_static_$rutaId.png';
+    final file = File(filePath);
+    if (await file.exists()) {
+      return filePath;
+    }
+    return null;
+  }
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error guardando imagen de mapa: $e');
+    }
+    return null;
+  }
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   bool _loading = true;
   String? _error;
@@ -82,6 +114,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
+    // Guardar imagen estática offline igual que en Rutas_screen.dart
+    await guardarImagenDeMapaStatic(staticUrl, 'map_static_${widget.ruta.ruta_Id}');
       // Guardar detalles encriptados offline
       await _guardarDetallesOffline(
         clientesFiltrados,
@@ -91,20 +125,20 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     } catch (e) {
       // Si falla, intentar leer detalles offline
       final detallesOffline = await _leerDetallesOffline();
-      if (detallesOffline != null) {
+      if (detallesOffline != null && detallesOffline['clientes'] != null && (detallesOffline['clientes'] as List).isNotEmpty) {
         if (mounted) {
           setState(() {
             _clientes = detallesOffline['clientes'] ?? [];
-            _direccionesPorCliente =
-                detallesOffline['direccionesPorCliente'] ?? {};
+            _direccionesPorCliente = detallesOffline['direccionesPorCliente'] ?? {};
             _staticMapUrl = detallesOffline['staticMapUrl'];
             _loading = false;
+            _error = null; // No mostrar error si hay datos offline
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _error = 'Error al cargar datos: $e';
+            _error = 'No hay datos disponibles. Compruebe su conexión a Internet.';
             _loading = false;
           });
         }
@@ -341,78 +375,151 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    if (_staticMapUrl != null)
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => RutaMapScreen(
-                                rutaId: widget.ruta.ruta_Id,
-                                descripcion: widget.ruta.ruta_Descripcion,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: Image.network(
-                                _staticMapUrl!,
-                                height: 180,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  height: 180,
-                                  color: Colors.grey[300],
-                                  child: const Icon(
-                                    Icons.map,
-                                    size: 48,
-                                    color: Colors.grey,
+                    FutureBuilder<String?>(
+                      future: obtenerImagenLocalStatic(widget.ruta.ruta_Id),
+                      builder: (context, snapshotLocal) {
+                        if (snapshotLocal.connectionState == ConnectionState.done && snapshotLocal.data != null) {
+                          // Mostrar imagen local offline
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RutaMapScreen(
+                                    rutaId: widget.ruta.ruta_Id,
+                                    descripcion: widget.ruta.ruta_Descripcion,
                                   ),
                                 ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 12,
-                              bottom: 12,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xCC141A2F),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: const Color(0xFFD6B68A),
-                                    width: 1,
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Image.file(
+                                    File(snapshotLocal.data!),
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(
-                                      Icons.open_in_full,
-                                      size: 16,
-                                      color: Color(0xFFD6B68A),
+                                Positioned(
+                                  right: 12,
+                                  bottom: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
                                     ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Ver mapa',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xCC141A2F),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                        color: const Color(0xFFD6B68A),
+                                        width: 1,
                                       ),
                                     ),
-                                  ],
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(
+                                          Icons.open_in_full,
+                                          size: 16,
+                                          color: Color(0xFFD6B68A),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Ver mapa',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
+                          );
+                        } else if (_staticMapUrl != null) {
+                          // Mostrar imagen online si no existe local
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RutaMapScreen(
+                                    rutaId: widget.ruta.ruta_Id,
+                                    descripcion: widget.ruta.ruta_Descripcion,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Image.network(
+                                    _staticMapUrl!,
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      height: 180,
+                                      color: Colors.grey[300],
+                                      child: const Icon(
+                                        Icons.map,
+                                        size: 48,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 12,
+                                  bottom: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xCC141A2F),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                        color: const Color(0xFFD6B68A),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(
+                                          Icons.open_in_full,
+                                          size: 16,
+                                          color: Color(0xFFD6B68A),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Ver mapa',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          return const SizedBox.shrink();
+                        }
+                      },
+                    ),
                     const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
