@@ -154,4 +154,41 @@ Future<List<Productos>> getProductos() async {
       rethrow;
     }
   }
+
+  /// Obtiene los productos asociados a una factura específica
+  Future<List<Map<String, dynamic>>> getProductosPorFactura(int facturaId) async {
+    final url = Uri.parse('$_apiServer/Productos/BuscarPorFactura/$facturaId');
+    developer.log('Get Productos por Factura Request URL: $url');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      );
+
+      developer.log('Get Productos por Factura Response Status: ${response.statusCode}');
+      developer.log('Get Productos por Factura Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseBody = response.body;
+        if (responseBody.isEmpty) {
+          developer.log('Response body is empty');
+          return [];
+        }
+        
+        final List<dynamic> productosList = jsonDecode(responseBody);
+        return List<Map<String, dynamic>>.from(productosList);
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Productos por Factura Error: $e');
+      rethrow;
+    }
+  }
 }
