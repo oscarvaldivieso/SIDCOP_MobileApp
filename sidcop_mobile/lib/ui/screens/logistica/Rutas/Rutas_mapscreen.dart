@@ -33,6 +33,20 @@ class RutaMapScreen extends StatefulWidget {
   @override
   State<RutaMapScreen> createState() => _RutaMapScreenState();
 }
+  bool isOnline = true;
+
+  Future<void> verificarConexion() async {
+    try {
+      final response = await http.get(Uri.parse('https://www.google.com'));
+      if (response.statusCode == 200) {
+          isOnline = true;
+      } else {
+          isOnline = false;
+      }
+    } catch (e) {
+        isOnline = false;
+    }
+  }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   String? _rutaImagenMapaStatic;
@@ -318,6 +332,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           _rutaImagenMapaStatic = localPath;
         });
       }
+  await verificarConexion();
     });
   }
 
