@@ -58,22 +58,22 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       for (final d in direccionesFiltradas) {
         mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
       }
-      const markerColor = '0xD6B68A';
-      final markers = direccionesFiltradas
-          .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
-          .map(
-            (d) =>
-                'markers=color:$markerColor%7C${d.dicl_latitud},${d.dicl_longitud}',
-          )
-          .join('&');
-      final center =
-          (direccionesFiltradas.isNotEmpty &&
-              direccionesFiltradas.first.dicl_latitud != null &&
-              direccionesFiltradas.first.dicl_longitud != null)
-          ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
-          : '15.525585,-88.013512';
-      final staticUrl =
-          'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=600x250&$markers&key=$mapApikey';
+    // Usar el mismo icono marker que en Rutas_screen.dart
+    const iconUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+    final markers = direccionesFiltradas
+      .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+      .map(
+      (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+      )
+      .join('&');
+    final center =
+      (direccionesFiltradas.isNotEmpty &&
+        direccionesFiltradas.first.dicl_latitud != null &&
+        direccionesFiltradas.first.dicl_longitud != null)
+      ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
+      : '15.525585,-88.013512';
+    final staticUrl =
+      'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=600x250&$markers&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
