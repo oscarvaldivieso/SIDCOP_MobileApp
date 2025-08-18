@@ -17,6 +17,13 @@ final TextStyle _labelStyle = const TextStyle(
   fontWeight: FontWeight.w500,
 );
 
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
+
 final TextStyle _hintStyle = const TextStyle(
   fontFamily: 'Satoshi',
   color: Colors.grey,
@@ -324,6 +331,23 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                                    Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        color: Color(0xFF141A2F),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Text(
+                      'Devolucion',
+                      style: _titleStyle.copyWith(fontSize: 18),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
