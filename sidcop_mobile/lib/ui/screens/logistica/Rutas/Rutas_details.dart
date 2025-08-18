@@ -7,6 +7,8 @@ import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
@@ -18,6 +20,7 @@ class RutasDetailsScreen extends StatefulWidget {
 }
 
 class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   bool _loading = true;
   String? _error;
   List<Cliente> _clientes = [];
@@ -79,14 +82,80 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
+      // Guardar detalles encriptados offline
+      await _guardarDetallesOffline(
+        clientesFiltrados,
+        direccionesFiltradas,
+        staticUrl,
+      );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Error al cargar datos: $e';
-          _loading = false;
-        });
+      // Si falla, intentar leer detalles offline
+      final detallesOffline = await _leerDetallesOffline();
+      if (detallesOffline != null) {
+        if (mounted) {
+          setState(() {
+            _clientes = detallesOffline['clientes'] ?? [];
+            _direccionesPorCliente =
+                detallesOffline['direccionesPorCliente'] ?? {};
+            _staticMapUrl = detallesOffline['staticMapUrl'];
+            _loading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Error al cargar datos: $e';
+            _loading = false;
+          });
+        }
       }
     }
+  }
+
+  // Guarda los detalles encriptados offline por ruta
+  Future<void> _guardarDetallesOffline(
+    List<Cliente> clientes,
+    List<DireccionCliente> direcciones,
+    String staticMapUrl,
+  ) async {
+    final detalles = {
+      'clientes': clientes.map((c) => c.toJson()).toList(),
+      'direcciones': direcciones.map((d) => d.toJson()).toList(),
+      'staticMapUrl': staticMapUrl,
+    };
+    await secureStorage.write(
+      key: 'details_ruta_${widget.ruta.ruta_Id}',
+      value: jsonEncode(detalles),
+    );
+  }
+
+  // Lee los detalles encriptados offline por ruta
+  Future<Map<String, dynamic>?> _leerDetallesOffline() async {
+    final detallesString = await secureStorage.read(
+      key: 'details_ruta_${widget.ruta.ruta_Id}',
+    );
+    if (detallesString == null) return null;
+    final detallesMap = jsonDecode(detallesString);
+    // Reconstruir objetos
+    final clientes =
+        (detallesMap['clientes'] as List?)
+            ?.map((j) => Cliente.fromJson(j))
+            .toList() ??
+        [];
+    final direcciones =
+        (detallesMap['direcciones'] as List?)
+            ?.map((j) => DireccionCliente.fromJson(j))
+            .toList() ??
+        [];
+    final mapDirecciones = <int, List<DireccionCliente>>{};
+    for (final d in direcciones) {
+      mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
+    }
+    return {
+      'clientes': clientes,
+      'direccionesPorCliente': mapDirecciones,
+      'staticMapUrl': detallesMap['staticMapUrl'],
+    };
   }
 
   Widget _infoRow(String label, String value) {

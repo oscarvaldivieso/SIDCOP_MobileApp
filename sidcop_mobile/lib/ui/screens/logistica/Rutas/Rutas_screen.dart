@@ -1,3 +1,5 @@
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -11,6 +13,7 @@ import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:http/http.dart' as http;
 import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 
@@ -21,6 +24,38 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
+  Map<int, String?> _mapasStaticLocales = {};
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error guardando imagen de mapa: $e');
+    }
+    return null;
+  }
+
+  // Obtiene la ruta local de la imagen static si existe
+  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final filePath = '${directory.path}/map_static_$rutaId.png';
+    final file = File(filePath);
+    if (await file.exists()) {
+      return filePath;
+    }
+    return null;
+  }
+
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
   final TextEditingController _searchController = TextEditingController();
@@ -333,184 +368,379 @@ class _RutasScreenState extends State<RutasScreen> {
                     ),
                     const SizedBox(height: 6),
                     ..._filteredRutas.map(
-                      (ruta) => FutureBuilder<String>(
-                        future: _getStaticMapMarkers(ruta),
-                        builder: (context, snapshot) {
-                          final mapUrl =
-                              snapshot.data ??
-                              'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=12&size=400x150&markers=color:0xFFD6B68A%7C15.525585,-88.013512&key=$mapApiKey';
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                              vertical: 6.0,
-                            ),
-                            child: Card(
-                              color: const Color(0xFF141A2F),
-                              margin: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(
-                                  color: Color(0xFFD6B68A),
-                                  width: 1,
-                                ),
+                      (ruta) => FutureBuilder<String?>(
+                        future: obtenerImagenLocalStatic(ruta.ruta_Id),
+                        builder: (context, snapshotLocal) {
+                          if (snapshotLocal.connectionState ==
+                                  ConnectionState.done &&
+                              snapshotLocal.data != null) {
+                            // Mostrar imagen local offline
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                                vertical: 6.0,
                               ),
-                              elevation: 4,
-                              child: Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RutaMapScreen(
-                                            rutaId: ruta.ruta_Id,
-                                            descripcion: ruta.ruta_Descripcion,
+                              child: Card(
+                                color: const Color(0xFF141A2F),
+                                margin: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: const BorderSide(
+                                    color: Color(0xFFD6B68A),
+                                    width: 1,
+                                  ),
+                                ),
+                                elevation: 4,
+                                child: Row(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => RutaMapScreen(
+                                              rutaId: ruta.ruta_Id,
+                                              descripcion:
+                                                  ruta.ruta_Descripcion,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Card(
+                                        color: const Color(0xFFF5F5F5),
+                                        margin: const EdgeInsets.only(
+                                          left: 8,
+                                          top: 8,
+                                          bottom: 8,
+                                        ),
+                                        elevation: 2,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: Radius.circular(16),
+                                            bottomLeft: Radius.circular(16),
                                           ),
                                         ),
-                                      );
-                                    },
-                                    child: Card(
-                                      color: const Color(0xFFF5F5F5),
-                                      margin: const EdgeInsets.only(
-                                        left: 8,
-                                        top: 8,
-                                        bottom: 8,
-                                      ),
-                                      elevation: 2,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.only(
-                                          topLeft: Radius.circular(16),
-                                          bottomLeft: Radius.circular(16),
-                                        ),
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(16),
-                                          bottomLeft: Radius.circular(16),
-                                        ),
-                                        child: Stack(
-                                          children: [
-                                            Image.network(
-                                              mapUrl,
-                                              height: 120,
-                                              width: 140,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => Container(
-                                                    height: 120,
-                                                    width: 140,
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.map,
-                                                      size: 40,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                            ),
-                                            Positioned(
-                                              right: 6,
-                                              bottom: 6,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 3,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(
-                                                    0xCC141A2F,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  border: Border.all(
+                                        child: ClipRRect(
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(16),
+                                            bottomLeft: Radius.circular(16),
+                                          ),
+                                          child: Stack(
+                                            children: [
+                                              Image.file(
+                                                File(snapshotLocal.data!),
+                                                height: 120,
+                                                width: 140,
+                                                fit: BoxFit.cover,
+                                              ),
+                                              Positioned(
+                                                right: 6,
+                                                bottom: 6,
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 3,
+                                                      ),
+                                                  decoration: BoxDecoration(
                                                     color: const Color(
-                                                      0xFFD6B68A,
+                                                      0xCC141A2F,
                                                     ),
-                                                    width: 1,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: const Color(
+                                                        0xFFD6B68A,
+                                                      ),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: const Text(
+                                                    'Mapa',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
                                                   ),
                                                 ),
-                                                child: const Text(
-                                                  'Mapa',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              ruta.ruta_Descripcion ??
+                                                  'Sin descripción',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFFB5B5B5),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF9E9E9E),
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12.0),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            ruta.ruta_Descripcion ??
-                                                'Sin descripción',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Color(0xFFB5B5B5),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Color(0xFF9E9E9E),
-                                            ),
-                                          ),
-                                        ],
+                                    InkWell(
+                                      borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(16),
+                                        bottomRight: Radius.circular(16),
                                       ),
-                                    ),
-                                  ),
-                                  InkWell(
-                                    borderRadius: const BorderRadius.only(
-                                      topRight: Radius.circular(16),
-                                      bottomRight: Radius.circular(16),
-                                    ),
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              RutasDetailsScreen(ruta: ruta),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                RutasDetailsScreen(ruta: ruta),
+                                          ),
+                                        );
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.only(right: 12.0),
+                                        child: Icon(
+                                          Icons.chevron_right,
+                                          color: Color(0xFFD6B68A),
+                                          size: 30,
                                         ),
-                                      );
-                                    },
-                                    child: const Padding(
-                                      padding: EdgeInsets.only(right: 12.0),
-                                      child: Icon(
-                                        Icons.chevron_right,
-                                        color: Color(0xFFD6B68A),
-                                        size: 30,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          } else {
+                            // Si no existe imagen local, descargar y mostrar online, y guardar para futuro offline
+                            return FutureBuilder<String>(
+                              future: _getStaticMapMarkers(ruta),
+                              builder: (context, snapshot) {
+                                final mapUrl =
+                                    snapshot.data ??
+                                    'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=12&size=400x150&markers=color:0xFFD6B68A%7C15.525585,-88.013512&key=$mapApiKey';
+                                if (snapshot.connectionState ==
+                                        ConnectionState.done &&
+                                    snapshot.hasData) {
+                                  guardarImagenDeMapaStatic(
+                                    mapUrl,
+                                    'map_static_${ruta.ruta_Id}',
+                                  );
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                    vertical: 6.0,
+                                  ),
+                                  child: Card(
+                                    color: const Color(0xFF141A2F),
+                                    margin: EdgeInsets.zero,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: const BorderSide(
+                                        color: Color(0xFFD6B68A),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    elevation: 4,
+                                    child: Row(
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => RutaMapScreen(
+                                                  rutaId: ruta.ruta_Id,
+                                                  descripcion:
+                                                      ruta.ruta_Descripcion,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          child: Card(
+                                            color: const Color(0xFFF5F5F5),
+                                            margin: const EdgeInsets.only(
+                                              left: 8,
+                                              top: 8,
+                                              bottom: 8,
+                                            ),
+                                            elevation: 2,
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: Radius.circular(16),
+                                                bottomLeft: Radius.circular(16),
+                                              ),
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topLeft: Radius.circular(
+                                                      16,
+                                                    ),
+                                                    bottomLeft: Radius.circular(
+                                                      16,
+                                                    ),
+                                                  ),
+                                              child: Stack(
+                                                children: [
+                                                  Image.network(
+                                                    mapUrl,
+                                                    height: 120,
+                                                    width: 140,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder:
+                                                        (
+                                                          context,
+                                                          error,
+                                                          stackTrace,
+                                                        ) => Container(
+                                                          height: 120,
+                                                          width: 140,
+                                                          color:
+                                                              Colors.grey[300],
+                                                          child: const Icon(
+                                                            Icons.map,
+                                                            size: 40,
+                                                            color: Colors.grey,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                  Positioned(
+                                                    right: 6,
+                                                    bottom: 6,
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 3,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xCC141A2F,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              20,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: const Color(
+                                                            0xFFD6B68A,
+                                                          ),
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: const Text(
+                                                        'Mapa',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12.0),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  ruta.ruta_Descripcion ??
+                                                      'Sin descripción',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 16,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Color(0xFFB5B5B5),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Color(0xFF9E9E9E),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        InkWell(
+                                          borderRadius: const BorderRadius.only(
+                                            topRight: Radius.circular(16),
+                                            bottomRight: Radius.circular(16),
+                                          ),
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RutasDetailsScreen(
+                                                      ruta: ruta,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          child: const Padding(
+                                            padding: EdgeInsets.only(
+                                              right: 12.0,
+                                            ),
+                                            child: Icon(
+                                              Icons.chevron_right,
+                                              color: Color(0xFFD6B68A),
+                                              size: 30,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }
                         },
                       ),
                     ),
