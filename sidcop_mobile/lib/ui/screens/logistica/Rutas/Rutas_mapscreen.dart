@@ -123,8 +123,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final servicio = ClientesVisitaHistorialService();
       final historial = await servicio.listarPorVendedor();
       final previos = historial
-          .where((h) => h.clieId != null && clienteIdsRuta.contains(h.clieId))
-          .map((h) => h.clieId!)
+          .where((h) => h.clie_Id != null && clienteIdsRuta.contains(h.clie_Id))
+          .map((h) => h.clie_Id!)
           .toSet();
       if (previos.isNotEmpty) {
         setState(() {
