@@ -3,6 +3,8 @@ import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
+import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
+import 'package:sidcop_mobile/ui/screens/venta/detailsCxC_screen.dart';
 
 class CuentasPorCobrarDetailsScreen extends StatefulWidget {
   final int cuentaId;
@@ -271,7 +273,7 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
 
   Widget _buildMovimientoCard(CuentasXCobrar movimiento) {
     final isPago = movimiento.tipo?.toUpperCase() == 'PAGO';
-    final isFactura = movimiento.tipo?.toUpperCase() == 'FACTURA';
+    final isFactura = movimiento.tipo?.toUpperCase() == 'FACTURA' || movimiento.referencia?.contains('F') == true;
     
     Color primaryColor;
     Color secondaryColor;
@@ -330,7 +332,7 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(movimiento.tipo ?? 'MOVIMIENTO', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Satoshi')),
+                Text(_getMovimientoTipo(movimiento), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Satoshi')),
                 Text(_formatDate(fecha), style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w500, fontSize: 10, fontFamily: 'Satoshi')),
               ],
             ),
@@ -343,13 +345,26 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
                 color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text('Ref: ${movimiento.referencia}', 
+              child: Text('${movimiento.referencia}', 
                 style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600, fontFamily: 'Satoshi')
               ),
             ),
         ],
       ),
     );
+  }
+
+  String _getMovimientoTipo(CuentasXCobrar movimiento) {
+    if (movimiento.tipo?.isNotEmpty == true) {
+      return movimiento.tipo!.toUpperCase();
+    }
+    
+    // Si no tiene tipo pero tiene referencia que parece factura
+    if (movimiento.referencia?.contains('F') == true) {
+      return 'FACTURA';
+    }
+    
+    return 'MOVIMIENTO';
   }
 
   Widget _buildMovimientoContent(CuentasXCobrar movimiento, Color primaryColor) {
@@ -364,19 +379,141 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
                 child: _buildInfoBox('Monto', _formatCurrency(movimiento.monto), Icons.attach_money_rounded, primaryColor),
               ),
               const SizedBox(width: 8),
-              if (movimiento.formaPago?.isNotEmpty == true)
+              if (movimiento.totalPendiente != null && movimiento.totalPendiente! > 0)
                 Expanded(
-                  child: _buildInfoBox('Forma de Pago', movimiento.formaPago ?? 'N/A', Icons.payment_rounded, Colors.blue.shade600),
+                  child: _buildInfoBox('Pendiente', _formatCurrency(movimiento.totalPendiente), Icons.pending_actions_rounded, Colors.orange.shade600),
                 ),
             ],
           ),
-          if (movimiento.referencia?.isNotEmpty == true) ...[
+          if (movimiento.formaPago?.isNotEmpty == true) ...[
             const SizedBox(height: 12),
+            _buildInfoRow('Forma de Pago:', movimiento.formaPago ?? 'N/A', Icons.payment_rounded, Colors.blue.shade600),
+          ],
+          if (movimiento.referencia?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
             _buildInfoRow('Referencia:', movimiento.referencia ?? 'N/A', Icons.confirmation_number_rounded, Colors.grey.shade700),
+          ],
+          // NUEVO: Agregar botones de acción (siempre mostrar si tiene cpCo_Id)
+          if (movimiento.cpCo_Id != null) ...[
+            const SizedBox(height: 16),
+            _buildPaymentButton(movimiento),
           ],
         ],
       ),
     );
+  }
+
+  // Determinar si debe mostrar el botón de pago
+  bool _shouldShowPaymentButton(CuentasXCobrar movimiento) {
+    // Mostrar si:
+    // - Tiene totalPendiente > 0
+    // - No está anulado ni saldado
+    // - Tiene cpCo_Id (es una cuenta por cobrar)
+    final tienePendiente = (movimiento.totalPendiente ?? 0) > 0;
+    final noEstaAnulado = movimiento.cpCo_Anulado != true;
+    final noEstaSaldado = movimiento.cpCo_Saldada != true;
+    final tieneCuentaId = movimiento.cpCo_Id != null;
+    
+    return tienePendiente && noEstaAnulado && noEstaSaldado && tieneCuentaId;
+  }
+
+  Widget _buildPaymentButton(CuentasXCobrar movimiento) {
+    final bool shouldShowPaymentButton = _shouldShowPaymentButton(movimiento);
+    
+    return Row(
+      children: [
+        // Botón Ver Detalle (siempre visible si tiene cpCo_Id)
+        if (movimiento.cpCo_Id != null) ...[
+          Expanded(
+            flex: shouldShowPaymentButton ? 1 : 2,
+            child: OutlinedButton.icon(
+              onPressed: () => _navigateToDetailScreen(movimiento),
+              icon: Icon(Icons.visibility_rounded, size: 16, color: Colors.blue.shade600),
+              label: const Text(
+                'Ver Detalle', 
+                style: TextStyle(fontSize: 12, fontFamily: 'Satoshi', fontWeight: FontWeight.w600)
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.blue.shade600,
+                side: BorderSide(color: Colors.blue.shade600),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ),
+          
+          if (shouldShowPaymentButton) const SizedBox(width: 8),
+        ],
+        
+        // Botón Registrar Pago (condicional)
+        if (shouldShowPaymentButton)
+          Expanded(
+            flex: 1,
+            child: ElevatedButton.icon(
+              onPressed: () => _navigateToPaymentScreen(movimiento),
+              icon: const Icon(Icons.payment_rounded, size: 16, color: Colors.white),
+              label: const Text(
+                'Pagar', 
+                style: TextStyle(fontSize: 12, fontFamily: 'Satoshi', color: Colors.white, fontWeight: FontWeight.w600)
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                elevation: 2,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _navigateToDetailScreen(CuentasXCobrar movimiento) async {
+    if (movimiento.cpCo_Id == null) return;
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailsCxCScreen(
+          cpCoId: movimiento.cpCo_Id!,
+        ),
+      ),
+    );
+    
+    // Si se hizo algún cambio en el detalle, recargar el timeline
+    if (result == true) {
+      _loadTimelineCliente();
+    }
+  }
+
+  void _navigateToPaymentScreen(CuentasXCobrar movimiento) async {
+    // Crear un objeto de resumen para el pago basado en el movimiento específico
+    final cuentaParaPago = CuentasXCobrar(
+      cpCo_Id: movimiento.cpCo_Id,
+      clie_Id: widget.cuentaResumen.clie_Id,
+      fact_Id: movimiento.fact_Id,
+      referencia: movimiento.referencia,
+      totalPendiente: movimiento.totalPendiente,
+      cliente: widget.cuentaResumen.nombreCompleto,
+      clie_Nombres: widget.cuentaResumen.clie_Nombres,
+      clie_Apellidos: widget.cuentaResumen.clie_Apellidos,
+      clie_NombreNegocio: widget.cuentaResumen.clie_NombreNegocio,
+      clie_Telefono: widget.cuentaResumen.clie_Telefono,
+    );
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PagoCuentaPorCobrarScreen(
+          cuentaResumen: cuentaParaPago,
+        ),
+      ),
+    );
+    
+    // Si el pago fue exitoso, recargar el timeline
+    if (result == true) {
+      _loadTimelineCliente();
+    }
   }
 
   Widget _buildInfoBox(String label, String value, IconData icon, Color color) {
