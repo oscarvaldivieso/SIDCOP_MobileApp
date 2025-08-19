@@ -19,6 +19,7 @@ class PedidosCreateScreen extends StatefulWidget {
 class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   DateTime? _fechaEntrega;
   List<ProductosPedidosViewModel> _productos = [];
+  List<DescuentoEscalaModel> _descuentos = [];
   List<ProductosPedidosViewModel> _filteredProductos = [];
   final Map<int, int> _cantidades = {};
   bool _isLoading = true;
@@ -399,6 +400,38 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
+  Widget _buildDescuentosItem() {
+    final descuento = DescuentoEscalaModel(
+      deEsInicioEscala: 0,
+      deEsFinEscala: 0,
+      deEsValor: 0,
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      // decoration: BoxDecoration(
+      //   gradient: isSelected
+      //       ? LinearGradient(
+      //           begin: Alignment.topLeft,
+      //           end: Alignment.bottomRight,
+      //           colors: [
+      //             Colors.white,
+      //             const Color(0xFFD6B68A).withOpacity(0.1),
+      //           ],
+      //         )
+      //       : null,
+      //   color: Colors.white,
+      //   borderRadius: BorderRadius.circular(16),
+      // ),
+      child: Column(
+        children: [
+          Text(descuento.deEsInicioEscala.toString()),
+          Text(descuento.deEsFinEscala.toString()),
+          Text(descuento.deEsValor.toString()),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
     final isSelected = cantidad > 0;
@@ -737,6 +770,22 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       ),
                     ],
                   ),
+                  Container(
+                    child: ExpansionTile(
+                      title: const Text('Descuentos de Precio'),
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          
+                          child: Column(
+                            children: [
+                              _buildDescuentosItem(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  )
                 ],
               ),
             ),
