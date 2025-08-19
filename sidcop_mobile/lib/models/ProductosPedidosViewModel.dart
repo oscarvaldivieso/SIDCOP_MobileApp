@@ -13,6 +13,7 @@ class ProductosPedidosViewModel {
   final int? impuId;
   final num? prodPrecioUnitario;
   final num? prodCostoTotal;
+  final bool prodImpulsado;
   final String? prodPagaImpuesto;
   final String? prodEsPromo;
   final bool prodEstado;
@@ -51,6 +52,7 @@ class ProductosPedidosViewModel {
     this.impuId,
     this.prodPrecioUnitario,
     this.prodCostoTotal,
+    required this.prodImpulsado,
     this.prodPagaImpuesto,
     this.prodEsPromo,
     required this.prodEstado,
@@ -134,6 +136,7 @@ class ProductosPedidosViewModel {
       impuId: json['impu_Id'],
       prodPrecioUnitario: json['prod_PrecioUnitario'],
       prodCostoTotal: json['prod_CostoTotal'],
+      prodImpulsado: json['prod_Impulsado'],
       prodPagaImpuesto: json['prod_PagaImpuesto'],
       prodEsPromo: json['prod_EsPromo'],
       prodEstado: json['prod_Estado'] ?? false,

@@ -101,7 +101,7 @@ class _clientScreenState extends State<clientScreen> {
       print(
         'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
       );
-      clientes = [];
+      clientes = await SyncService.getClients();
       print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
     }
     setState(() {

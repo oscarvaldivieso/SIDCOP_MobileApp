@@ -305,8 +305,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
               ? 'L. ${descuento.toStringAsFixed(0)}'
               : 'L. ${descuento.toStringAsFixed(2)}';
         }
-        // Calcular impuesto usando el nuevo campo impuValor del modelo
-        // impuValor ya viene como decimal (ej. 0.15 para 15%)
+
         double impuestoCalculado = 0.0;
         if (p.productoOriginal?.impuValor != null && 
             p.productoOriginal?.prodPagaImpuesto == 'S') {
