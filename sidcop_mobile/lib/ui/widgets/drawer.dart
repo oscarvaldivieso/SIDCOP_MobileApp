@@ -16,7 +16,7 @@ import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_sc
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
-import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';

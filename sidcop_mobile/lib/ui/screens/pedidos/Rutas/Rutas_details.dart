@@ -542,11 +542,11 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                             }
                           },
                         ),
-                          Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141A2F),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF141A2F),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: const Color(0xFFD6B68A),

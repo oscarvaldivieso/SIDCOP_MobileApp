@@ -13,7 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 import 'package:sidcop_mobile/services/GlobalService.Dart';
-import 'dart:ui' as ui; // Para generar el bitmap custom
+import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.Dart';
@@ -22,7 +22,7 @@ List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
 List<Cliente> _clientesFiltrados = [];
 final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-final Set<int> _direccionesVisitadas = {}; // IDs de direcciones visitadas
+final Set<int> _direccionesVisitadas = {};
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
@@ -34,19 +34,6 @@ class RutaMapScreen extends StatefulWidget {
   State<RutaMapScreen> createState() => _RutaMapScreenState();
 }
   bool isOnline = true;
-
-  Future<void> verificarConexion() async {
-    try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
-      if (response.statusCode == 200) {
-          isOnline = true;
-      } else {
-          isOnline = false;
-      }
-    } catch (e) {
-        isOnline = false;
-    }
-  }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   String? _rutaImagenMapaStatic;
@@ -161,14 +148,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final historial = await servicio.listarPorVendedor();
       print('Historial de visitas recibido:');
       for (var h in historial) {
-        print('diCl_Id: [32m${h.diCl_Id}[0m');
+        print('diCl_Id: [32m${h.diCl_Id}[0m');
       }
       // Marcar direcciones visitadas (por diCl_Id)
       final direccionesPrevias = historial
           .where((h) => h.diCl_Id != null)
           .map((h) => h.diCl_Id!)
           .toSet();
-      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
+      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
       setState(() {
         _direccionesVisitadas.clear();
         _direccionesVisitadas.addAll(direccionesPrevias);
@@ -319,11 +306,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     });
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
-
-    // Solo verificar conexión al cargar pantalla
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await verificarConexion();
-    });
   }
   void _updateUserMarker() {
     _markers = _markers

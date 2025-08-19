@@ -89,6 +89,7 @@ flutter:
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
     - assets/Ellipse1.png
+    - assets/tiles
   
   fonts:
   - family: Satoshi

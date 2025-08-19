@@ -16,6 +16,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:http/http.dart' as http;
 import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
+import 'Rutas_offline_mapscreen.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -24,6 +25,20 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
+  bool isOnline = true;
+
+  Future<void> verificarConexion() async {
+    try {
+      final response = await http.get(Uri.parse('https://www.google.com'));
+      if (response.statusCode == 200) {
+        isOnline = true;
+      } else {
+        isOnline = false;
+      }
+    } catch (e) {
+      isOnline = false;
+    }
+  }
   Map<int, String?> _mapasStaticLocales = {};
   // Descarga y guarda la imagen de Google Maps Static
   Future<String?> guardarImagenDeMapaStatic(
@@ -417,16 +432,29 @@ class _RutasScreenState extends State<RutasScreen> {
                                 child: Row(
                                   children: [
                                     GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => RutaMapScreen(
-                                              rutaId: ruta.ruta_Id,
-                                              descripcion: ruta.ruta_Descripcion,
+                                      onTap: () async {
+                                        await verificarConexion();
+                                        if (isOnline) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RutaMapScreen(
+                                                rutaId: ruta.ruta_Id,
+                                                descripcion: ruta.ruta_Descripcion,
+                                              ),
                                             ),
-                                          ),
-                                        );
+                                          );
+                                        } else {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RutasOfflineMapScreen(
+                                                rutaId: ruta.ruta_Id,
+                                                descripcion: ruta.ruta_Descripcion,
+                                              ),
+                                            ),
+                                          );
+                                        }
                                       },
                                       child: Card(
                                         color: const Color(0xFFF5F5F5),
