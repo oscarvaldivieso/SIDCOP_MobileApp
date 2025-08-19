@@ -400,12 +400,8 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
-  Widget _buildDescuentosItem() {
-    final descuento = DescuentoEscalaModel(
-      deEsInicioEscala: 0,
-      deEsFinEscala: 0,
-      deEsValor: 0,
-    );
+  Widget _buildDescuentosItem(ProductosPedidosViewModel producto) {
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       // decoration: BoxDecoration(
