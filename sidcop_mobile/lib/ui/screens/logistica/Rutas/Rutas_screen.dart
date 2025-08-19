@@ -275,7 +275,7 @@ class _RutasScreenState extends State<RutasScreen> {
       if (count > 0) {
         double avgLat = sumLat / count;
         double avgLng = sumLng / count;
-        center = ' $avgLat,$avgLng';
+        center = '$avgLat,$avgLng';
       } else {
         center = '15.525585,-88.013512';
       }
