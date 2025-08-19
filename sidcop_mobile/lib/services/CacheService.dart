@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:developer' as developer;
 
 /// Servicio para manejar el caché de datos en memoria y SharedPreferences
 class CacheService {
@@ -8,6 +7,7 @@ class CacheService {
   static const String _clientsCacheKey = 'clients_cache';
   static const String _productsCacheKey = 'products_cache';
   static const String _productImagesCacheKey = 'product_images_cache';
+  static const String _clientImagesCacheKey = 'client_images_cache';
 
   // Caché en memoria para acceso rápido
   static final Map<String, dynamic> _memoryCache = {};
@@ -23,9 +23,9 @@ class CacheService {
       // Guardar en memoria
       _memoryCache[_userCacheKey] = userData;
 
-      developer.log('Datos de usuario guardados en caché');
+      print('Datos de usuario guardados en caché');
     } catch (e) {
-      developer.log('Error guardando datos de usuario en caché: $e');
+      print('Error guardando datos de usuario en caché: $e');
     }
   }
 
@@ -34,7 +34,7 @@ class CacheService {
     try {
       // Intentar obtener desde memoria primero
       if (_memoryCache.containsKey(_userCacheKey)) {
-        developer.log('Datos de usuario obtenidos desde caché en memoria');
+        print('Datos de usuario obtenidos desde caché en memoria');
         return _memoryCache[_userCacheKey] as Map<String, dynamic>;
       }
 
@@ -48,13 +48,13 @@ class CacheService {
         // Actualizar caché en memoria
         _memoryCache[_userCacheKey] = userData;
 
-        developer.log('Datos de usuario obtenidos desde caché persistente');
+        print('Datos de usuario obtenidos desde caché persistente');
         return userData;
       }
 
       return null;
     } catch (e) {
-      developer.log('Error obteniendo datos de usuario desde caché: $e');
+      print('Error obteniendo datos de usuario desde caché: $e');
       return null;
     }
   }
@@ -72,11 +72,9 @@ class CacheService {
       // Guardar en memoria
       _memoryCache[_clientsCacheKey] = clients;
 
-      developer.log(
-        'Datos de clientes guardados en caché: ${clients.length} registros',
-      );
+      print('Datos de clientes guardados en caché: ${clients.length} registros');
     } catch (e) {
-      developer.log('Error guardando datos de clientes en caché: $e');
+      print('Error guardando datos de clientes en caché: $e');
     }
   }
 
@@ -85,7 +83,7 @@ class CacheService {
     try {
       // Intentar obtener desde memoria primero
       if (_memoryCache.containsKey(_clientsCacheKey)) {
-        developer.log('Datos de clientes obtenidos desde caché en memoria');
+        print('Datos de clientes obtenidos desde caché en memoria');
         return (_memoryCache[_clientsCacheKey] as List)
             .cast<Map<String, dynamic>>();
       }
@@ -101,15 +99,13 @@ class CacheService {
         // Actualizar caché en memoria
         _memoryCache[_clientsCacheKey] = clients;
 
-        developer.log(
-          'Datos de clientes obtenidos desde caché persistente: ${clients.length} registros',
-        );
+        print('Datos de clientes obtenidos desde caché persistente: ${clients.length} registros');
         return clients;
       }
 
       return null;
     } catch (e) {
-      developer.log('Error obteniendo datos de clientes desde caché: $e');
+      print('Error obteniendo datos de clientes desde caché: $e');
       return null;
     }
   }
@@ -127,11 +123,9 @@ class CacheService {
       // Guardar en memoria
       _memoryCache[_productsCacheKey] = products;
 
-      developer.log(
-        'Datos de productos guardados en caché: ${products.length} registros',
-      );
+      print('Datos de productos guardados en caché: ${products.length} registros');
     } catch (e) {
-      developer.log('Error guardando datos de productos en caché: $e');
+      print('Error guardando datos de productos en caché: $e');
     }
   }
 
@@ -140,7 +134,7 @@ class CacheService {
     try {
       // Intentar obtener desde memoria primero
       if (_memoryCache.containsKey(_productsCacheKey)) {
-        developer.log('Datos de productos obtenidos desde caché en memoria');
+        print('Datos de productos obtenidos desde caché en memoria');
         return (_memoryCache[_productsCacheKey] as List)
             .cast<Map<String, dynamic>>();
       }
@@ -156,15 +150,13 @@ class CacheService {
         // Actualizar caché en memoria
         _memoryCache[_productsCacheKey] = products;
 
-        developer.log(
-          'Datos de productos obtenidos desde caché persistente: ${products.length} registros',
-        );
+        print('Datos de productos obtenidos desde caché persistente: ${products.length} registros');
         return products;
       }
 
       return null;
     } catch (e) {
-      developer.log('Error obteniendo datos de productos desde caché: $e');
+      print('Error obteniendo datos de productos desde caché: $e');
       return null;
     }
   }
@@ -181,13 +173,14 @@ class CacheService {
       await prefs.remove(_clientsCacheKey);
       await prefs.remove(_productsCacheKey);
       await prefs.remove(_productImagesCacheKey);
+      await prefs.remove(_clientImagesCacheKey);
 
       // Limpiar caché en memoria
       _memoryCache.clear();
 
-      developer.log('Todo el caché ha sido limpiado');
+      print('Todo el caché ha sido limpiado');
     } catch (e) {
-      developer.log('Error limpiando el caché: $e');
+      print('Error limpiando el caché: $e');
     }
   }
 
@@ -202,9 +195,9 @@ class CacheService {
       // Guardar en memoria
       _memoryCache[_productImagesCacheKey] = imagesData;
 
-      developer.log('Mapeo de imágenes de productos guardado en caché');
+      print('Mapeo de imágenes de productos guardado en caché');
     } catch (e) {
-      developer.log('Error guardando mapeo de imágenes en caché: $e');
+      print('Error guardando mapeo de imágenes en caché: $e');
     }
   }
 
@@ -213,7 +206,7 @@ class CacheService {
     try {
       // Intentar obtener desde memoria primero
       if (_memoryCache.containsKey(_productImagesCacheKey)) {
-        developer.log('Mapeo de imágenes obtenido desde caché en memoria');
+        print('Mapeo de imágenes obtenido desde caché en memoria');
         return Map<String, String>.from(_memoryCache[_productImagesCacheKey] as Map);
       }
 
@@ -227,13 +220,13 @@ class CacheService {
         // Actualizar caché en memoria
         _memoryCache[_productImagesCacheKey] = imagesData;
 
-        developer.log('Mapeo de imágenes obtenido desde caché persistente');
+        print('Mapeo de imágenes obtenido desde caché persistente');
         return imagesData;
       }
 
       return null;
     } catch (e) {
-      developer.log('Error obteniendo mapeo de imágenes desde caché: $e');
+      print('Error obteniendo mapeo de imágenes desde caché: $e');
       return null;
     }
   }
@@ -244,9 +237,76 @@ class CacheService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_productImagesCacheKey);
       _memoryCache.remove(_productImagesCacheKey);
-      developer.log('Caché de imágenes de productos limpiado');
+      print('CacheService: Caché de imágenes de productos limpiado');
     } catch (e) {
-      developer.log('Error limpiando caché de imágenes: $e');
+      print('CacheService: Error limpiando caché de imágenes de productos: $e');
+    }
+  }
+
+  /// Guarda mapeo de imágenes de clientes en caché
+  static Future<void> cacheClientImagesData(Map<String, String> imagesData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Convertir Map a JSON string
+      final jsonString = jsonEncode(imagesData);
+
+      // Guardar en SharedPreferences
+      await prefs.setString(_clientImagesCacheKey, jsonString);
+
+      // Guardar en memoria para acceso rápido
+      _memoryCache[_clientImagesCacheKey] = imagesData;
+
+      print('CacheService: Mapeo de imágenes de clientes guardado en caché (${imagesData.length} entradas)');
+    } catch (e) {
+      print('CacheService: Error guardando mapeo de imágenes de clientes: $e');
+    }
+  }
+
+  /// Obtiene mapeo de imágenes de clientes desde caché
+  static Future<Map<String, String>?> getCachedClientImagesData() async {
+    try {
+      // Intentar obtener desde memoria primero
+      if (_memoryCache.containsKey(_clientImagesCacheKey)) {
+        final cachedData = _memoryCache[_clientImagesCacheKey] as Map<String, String>?;
+        if (cachedData != null) {
+          print('CacheService: Mapeo de imágenes de clientes obtenido desde memoria (${cachedData.length} entradas)');
+          return cachedData;
+        }
+      }
+
+      // Si no está en memoria, obtener desde SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_clientImagesCacheKey);
+
+      if (jsonString != null) {
+        final Map<String, dynamic> jsonData = jsonDecode(jsonString);
+        final Map<String, String> imagesData = jsonData.cast<String, String>();
+
+        // Guardar en memoria para próxima vez
+        _memoryCache[_clientImagesCacheKey] = imagesData;
+
+        print('CacheService: Mapeo de imágenes de clientes obtenido desde SharedPreferences (${imagesData.length} entradas)');
+        return imagesData;
+      }
+
+      print('CacheService: No hay mapeo de imágenes de clientes en caché');
+      return null;
+    } catch (e) {
+      print('CacheService: Error obteniendo mapeo de imágenes de clientes: $e');
+      return null;
+    }
+  }
+
+  /// Limpia el caché de imágenes de clientes
+  static Future<void> clearClientImagesCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_clientImagesCacheKey);
+      _memoryCache.remove(_clientImagesCacheKey);
+      print('CacheService: Caché de imágenes de clientes limpiado');
+    } catch (e) {
+      print('CacheService: Error limpiando caché de imágenes de clientes: $e');
     }
   }
 
@@ -259,7 +319,7 @@ class CacheService {
         'cache_entries': {},
       };
 
-      final keys = [_userCacheKey, _clientsCacheKey, _productsCacheKey, _productImagesCacheKey];
+      final keys = [_userCacheKey, _clientsCacheKey, _productsCacheKey, _productImagesCacheKey, _clientImagesCacheKey];
 
       for (String key in keys) {
         final cachedData = prefs.getString(key);
@@ -273,7 +333,7 @@ class CacheService {
 
       return info;
     } catch (e) {
-      developer.log('Error obteniendo información del caché: $e');
+      print('Error obteniendo información del caché: $e');
       return {};
     }
   }
