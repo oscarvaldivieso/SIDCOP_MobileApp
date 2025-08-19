@@ -320,38 +320,11 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
 
-    // Descargar y guardar imagen de mapa static al cargar pantalla
+    // Solo verificar conexión al cargar pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final url = await _getStaticMapUrl();
-      if (url != null) {
-        final localPath = await guardarImagenDeMapaStatic(
-          url,
-          'map_static_${widget.rutaId}',
-        );
-        setState(() {
-          _rutaImagenMapaStatic = localPath;
-        });
-      }
-  await verificarConexion();
+      await verificarConexion();
     });
   }
-
-  // Genera la URL del mapa static para la ruta actual
-  Future<String?> _getStaticMapUrl() async {
-    if (_direccionesFiltradas.isEmpty) return null;
-    const iconUrl =
-        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
-    final markers = _direccionesFiltradas
-        .map(
-          (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
-        )
-        .join('&');
-    final center = _direccionesFiltradas.isNotEmpty
-        ? '${_direccionesFiltradas.first.dicl_latitud},${_direccionesFiltradas.first.dicl_longitud}'
-        : '15.525585,-88.013512';
-    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=400x150&$markers&key=$_googleApiKey';
-  }
-
   void _updateUserMarker() {
     _markers = _markers
         .where((m) => m.markerId.value != 'user_location')

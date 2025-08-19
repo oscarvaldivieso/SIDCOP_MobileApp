@@ -105,7 +105,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
       : '15.525585,-88.013512';
     final staticUrl =
-      'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=600x250&$markers&key=$mapApikey';
+      'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
@@ -375,153 +375,174 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    FutureBuilder<String?>(
-                      future: obtenerImagenLocalStatic(widget.ruta.ruta_Id),
-                      builder: (context, snapshotLocal) {
-                        if (snapshotLocal.connectionState == ConnectionState.done && snapshotLocal.data != null) {
-                          // Mostrar imagen local offline
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => RutaMapScreen(
-                                    rutaId: widget.ruta.ruta_Id,
-                                    descripcion: widget.ruta.ruta_Descripcion,
-                                  ),
+                    _staticMapUrl != null
+                      ? GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => RutaMapScreen(
+                                  rutaId: widget.ruta.ruta_Id,
+                                  descripcion: widget.ruta.ruta_Descripcion,
                                 ),
-                              );
-                            },
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: Image.file(
-                                    File(snapshotLocal.data!),
-                                    height: 180,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
+                              ),
+                            );
+                          },
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: Image.network(
+                                  _staticMapUrl!,
+                                  height: 180,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) {
+                                    return FutureBuilder<String?>(
+                                      future: obtenerImagenLocalStatic(widget.ruta.ruta_Id),
+                                      builder: (context, snapshotLocal) {
+                                        if (snapshotLocal.connectionState == ConnectionState.done && snapshotLocal.data != null) {
+                                          return Image.file(
+                                            File(snapshotLocal.data!),
+                                            height: 180,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                          );
+                                        } else {
+                                          return Container(
+                                            height: 180,
+                                            color: Colors.grey[300],
+                                            child: const Icon(
+                                              Icons.map,
+                                              size: 40,
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
                                 ),
-                                Positioned(
-                                  right: 12,
-                                  bottom: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
+                              ),
+                              Positioned(
+                                right: 12,
+                                bottom: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xCC141A2F),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: const Color(0xFFD6B68A),
+                                      width: 1,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xCC141A2F),
-                                      borderRadius: BorderRadius.circular(30),
-                                      border: Border.all(
-                                        color: const Color(0xFFD6B68A),
-                                        width: 1,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.open_in_full,
+                                        size: 16,
+                                        color: Color(0xFFD6B68A),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Ver mapa',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : FutureBuilder<String?>(
+                          future: obtenerImagenLocalStatic(widget.ruta.ruta_Id),
+                          builder: (context, snapshotLocal) {
+                            if (snapshotLocal.connectionState == ConnectionState.done && snapshotLocal.data != null) {
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => RutaMapScreen(
+                                        rutaId: widget.ruta.ruta_Id,
+                                        descripcion: widget.ruta.ruta_Descripcion,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(
-                                          Icons.open_in_full,
-                                          size: 16,
-                                          color: Color(0xFFD6B68A),
+                                  );
+                                },
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(18),
+                                      child: Image.file(
+                                        File(snapshotLocal.data!),
+                                        height: 180,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 12,
+                                      bottom: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
                                         ),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Ver mapa',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xCC141A2F),
+                                          borderRadius: BorderRadius.circular(30),
+                                          border: Border.all(
+                                            color: const Color(0xFFD6B68A),
+                                            width: 1,
                                           ),
                                         ),
-                                      ],
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.open_in_full,
+                                              size: 16,
+                                              color: Color(0xFFD6B68A),
+                                            ),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              'Ver mapa',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else if (_staticMapUrl != null) {
-                          // Mostrar imagen online si no existe local
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => RutaMapScreen(
-                                    rutaId: widget.ruta.ruta_Id,
-                                    descripcion: widget.ruta.ruta_Descripcion,
-                                  ),
+                                  ],
                                 ),
                               );
-                            },
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: Image.network(
-                                    _staticMapUrl!,
-                                    height: 180,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      height: 180,
-                                      color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.map,
-                                        size: 48,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
+                            } else {
+                              return Container(
+                                height: 180,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.map,
+                                  size: 40,
+                                  color: Colors.grey,
                                 ),
-                                Positioned(
-                                  right: 12,
-                                  bottom: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xCC141A2F),
-                                      borderRadius: BorderRadius.circular(30),
-                                      border: Border.all(
-                                        color: const Color(0xFFD6B68A),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(
-                                          Icons.open_in_full,
-                                          size: 16,
-                                          color: Color(0xFFD6B68A),
-                                        ),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Ver mapa',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else {
-                          return const SizedBox.shrink();
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    Container(
+                              );
+                            }
+                          },
+                        ),
+                          Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -569,6 +590,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                         ],
                       ),
                     ),
+
+                    // Bloque de clientes
                     const SizedBox(height: 24),
                     Container(
                       decoration: BoxDecoration(
@@ -580,22 +603,11 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                         ),
                       ),
                       child: Theme(
-                        data: Theme.of(
-                          context,
-                        ).copyWith(dividerColor: Colors.transparent),
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
-                          onExpansionChanged: (v) =>
-                              setState(() => _clientesExpanded = v),
-                          tilePadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 6,
-                          ),
-                          childrenPadding: const EdgeInsets.fromLTRB(
-                            12,
-                            0,
-                            12,
-                            16,
-                          ),
+                          onExpansionChanged: (v) => setState(() => _clientesExpanded = v),
+                          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                           title: const Text(
                             'Clientes',
                             style: TextStyle(
@@ -626,9 +638,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                               )
                             else
                               Column(
-                                children: _clientes
-                                    .map(_buildClienteTile)
-                                    .toList(),
+                                children: _clientes.map(_buildClienteTile).toList(),
                               ),
                           ],
                         ),
