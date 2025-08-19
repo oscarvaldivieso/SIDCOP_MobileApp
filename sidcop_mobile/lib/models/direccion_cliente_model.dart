@@ -16,6 +16,12 @@ class DireccionCliente {
   final int? usua_modificacion;
   final DateTime? dicl_fechamodificacion;
 
+  // Campos del cliente
+  final String? clie_Nombres;
+  final String? clie_Apellidos;
+  final String? clie_NombreNegocio;
+  final String? clie_Codigo;
+
   DireccionCliente({
     required this.dicl_id,
     required this.clie_id,
@@ -33,6 +39,10 @@ class DireccionCliente {
     required this.dicl_fechacreacion,
     this.usua_modificacion,
     this.dicl_fechamodificacion,
+    this.clie_Nombres,
+    this.clie_Apellidos,
+    this.clie_NombreNegocio,
+    this.clie_Codigo,
   });
 
   static DireccionCliente fromJson(Map<String, dynamic> json) {
@@ -59,6 +69,10 @@ class DireccionCliente {
       dicl_fechamodificacion: json['diCl_FechaModificacion'] != null
           ? DateTime.tryParse(json['diCl_FechaModificacion'])
           : null,
+      clie_Nombres: json['clie_Nombres'],
+      clie_Apellidos: json['clie_Apellidos'],
+      clie_NombreNegocio: json['clie_NombreNegocio'],
+      clie_Codigo: json['clie_Codigo'],
     );
   }
 

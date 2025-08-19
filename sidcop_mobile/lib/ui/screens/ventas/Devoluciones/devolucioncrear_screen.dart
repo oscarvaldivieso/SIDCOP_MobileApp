@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/models/ClientesViewModel.dart';
-import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
+import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
@@ -31,16 +31,9 @@ class DevolucioncrearScreen extends StatefulWidget {
 }
 
 class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
-  // Simple counter variable
-  int _counter = 0;
 
-  // Simple counter update function
-  void _updateCounter(int change) {
-    // This method is no longer used but kept for compatibility
-    // The counter is now managed directly in the TextFormField
-  }
   final _formKey = GlobalKey<FormState>();
-  final ClientesService _clientesService = ClientesService();
+  final DireccionClienteService _direccionClienteService = DireccionClienteService();
 
   // Services
   final FacturaService _facturaService = FacturaService();
@@ -63,9 +56,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   String? _productosError;
 
   // Dropdown data
-  List<Cliente> _clientes = [];
-  Cliente? _selectedCliente;
-  List<dynamic> _facturas = [];
+  List<DireccionCliente> _direcciones = [];
+  DireccionCliente? _selectedDireccion;
+  List<Map<String, dynamic>> _facturas = [];
   List<dynamic> _filteredFacturas = [];
 
   // Controllers
@@ -82,7 +75,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     _loadData();
   }
 
-  Widget _buildClienteOption(BuildContext context, Cliente cliente) {
+  Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
@@ -94,20 +87,20 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${cliente.clie_Nombres} ${cliente.clie_Apellidos}',
+            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
-          if (cliente.clie_NombreNegocio?.isNotEmpty == true) ...[
+          if (direccion.clie_NombreNegocio?.isNotEmpty == true) ...[
             const SizedBox(height: 2),
             Text(
-              cliente.clie_NombreNegocio!,
+              direccion.clie_NombreNegocio!,
               style: _hintStyle.copyWith(fontSize: 12),
             ),
           ],
-          if (cliente.clie_Codigo?.isNotEmpty == true) ...[
+          if (direccion.dicl_direccionexacta.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
-              'Código: ${cliente.clie_Codigo}',
+              direccion.dicl_direccionexacta,
               style: _hintStyle.copyWith(fontSize: 12),
             ),
           ],
@@ -118,15 +111,18 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
   Future<void> _loadData() async {
     try {
-      final clientesData = await _clientesService.getClientes();
-      final facturas = await _facturaService.getFacturas();
+      final direccionesData = await _direccionClienteService.getDireccionesPorCliente();
+      final facturasData = await _facturaService.getFacturas();
+
+      if (!mounted) return;
 
       setState(() {
-        _clientes = clientesData.map((json) => Cliente.fromJson(json)).toList();
-        _facturas = facturas;
+        _direcciones = direccionesData;
+        _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Error al cargar los datos: $e';
         _isLoading = false;
@@ -134,19 +130,25 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     }
   }
 
-  void _onClienteChanged(Cliente? cliente) {
+  void _onClienteChanged(DireccionCliente? direccion) {
     // Dismiss the keyboard when a client is selected
     FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
-      _selectedCliente = cliente;
-      _selectedClienteId = cliente?.clie_Id;
+      _selectedDireccion = direccion;
+      _selectedClienteId = direccion?.clie_id;
       _selectedFacturaId = null;
-      _filteredFacturas = _selectedClienteId != null
+      _filteredFacturas = direccion != null
           ? _facturas
-                .where((factura) => factura['clie_Id'] == _selectedClienteId)
-                .toList()
+              .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
+              .toList()
           : [];
+      // Actualizar el texto del controlador para reflejar la selección
+      if (direccion != null) {
+        _clienteController.text = '${direccion.clie_Nombres} ${direccion.clie_Apellidos}';
+      } else {
+        _clienteController.clear();
+      }
     });
   }
 
@@ -346,141 +348,126 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: RawAutocomplete<Cliente>(
-                        textEditingController: _clienteController,
-                        focusNode: FocusNode(),
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.isEmpty) {
-                            return _clientes.take(10);
-                          }
-                          return _clientes.where((cliente) {
-                            final searchValue = textEditingValue.text
-                                .toLowerCase();
-                            return (cliente.clie_Nombres
-                                        ?.toLowerCase()
-                                        .contains(searchValue) ??
-                                    false) ||
-                                (cliente.clie_Apellidos?.toLowerCase().contains(
-                                      searchValue,
-                                    ) ??
-                                    false) ||
-                                (cliente.clie_NombreNegocio
-                                        ?.toLowerCase()
-                                        .contains(searchValue) ??
-                                    false) ||
-                                (cliente.clie_Codigo?.toLowerCase().contains(
-                                      searchValue,
-                                    ) ??
-                                    false);
-                          });
-                        },
-                        displayStringForOption: (Cliente cliente) =>
-                            '${cliente.clie_Nombres} ${cliente.clie_Apellidos}',
-                        fieldViewBuilder:
-                            (
-                              BuildContext context,
-                              TextEditingController textEditingController,
-                              FocusNode focusNode,
-                              VoidCallback onFieldSubmitted,
-                            ) {
-                              // Clear the controller and let the hint text show when no cliente is selected
-                              if (_selectedCliente == null) {
-                                textEditingController.clear();
-                              } else {
-                                textEditingController.text =
-                                    '${_selectedCliente!.clie_Nombres} ${_selectedCliente!.clie_Apellidos}';
-                              }
+                    RawAutocomplete<DireccionCliente>(
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          final sortedDirecciones = List<DireccionCliente>.from(_direcciones);
+                          sortedDirecciones.sort((a, b) => b.dicl_fechacreacion.compareTo(a.dicl_fechacreacion));
+                          return sortedDirecciones;
+                        }
+                        return _direcciones.where((DireccionCliente direccion) {
+                          final searchValue = textEditingValue.text.toLowerCase();
+                          return (direccion.clie_Nombres?.toLowerCase().contains(searchValue) ?? false) ||
+                                 (direccion.clie_Apellidos?.toLowerCase().contains(searchValue) ?? false) ||
+                                 (direccion.clie_NombreNegocio?.toLowerCase().contains(searchValue) ?? false) ||
+                                 (direccion.clie_Codigo?.toLowerCase().contains(searchValue) ?? false);
+                        });
+                      },
+                      displayStringForOption: (DireccionCliente direccion) =>
+                          '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
+                      fieldViewBuilder:
+                          (
+                            BuildContext context,
+                            TextEditingController textEditingController,
+                            FocusNode focusNode,
+                            VoidCallback onFieldSubmitted,
+                          ) {
+                            // Clear the controller and let the hint text show when no cliente is selected
+                            if (_selectedDireccion == null) {
+                              textEditingController.clear();
+                            } else {
+                              textEditingController.text =
+                                  '${_selectedDireccion!.clie_Nombres} ${_selectedDireccion!.clie_Apellidos}';
+                            }
 
-                              return TextFormField(
-                                controller: textEditingController,
-                                focusNode: focusNode,
-                                style: _labelStyle,
-                                decoration: InputDecoration(
-                                  hintText: 'Buscar cliente...',
-                                  hintStyle: _hintStyle,
-                                  border: InputBorder.none,
-                                  suffixIcon: const Icon(
-                                    Icons.arrow_drop_down,
-                                    size: 24,
-                                  ),
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
+                            return Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade400),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
                                 ),
-                                onTap: () {
-                                  if (_selectedCliente != null) {
-                                    setState(() {
-                                      _selectedCliente = null;
-                                      _selectedClienteId = null;
-                                      _selectedFacturaId = null;
-                                      _filteredFacturas = [];
-                                      textEditingController.clear();
-                                    });
-                                  }
-                                },
-                              );
-                            },
-                        optionsViewBuilder:
-                            (
-                              BuildContext context,
-                              AutocompleteOnSelected<Cliente> onSelected,
-                              Iterable<Cliente> options,
-                            ) {
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 4.0,
-                                  child: Container(
-                                    width:
-                                        MediaQuery.of(context).size.width * 0.9,
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 200,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                child: TextFormField(
+                                  controller: textEditingController,
+                                  focusNode: focusNode,
+                                  style: _labelStyle,
+                                  decoration: InputDecoration(
+                                    hintText: 'Buscar cliente...',
+                                    hintStyle: _hintStyle,
+                                    border: InputBorder.none,
+                                    suffixIcon: const Icon(
+                                      Icons.arrow_drop_down,
+                                      size: 24,
                                     ),
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      itemCount: options.length,
-                                      itemBuilder:
-                                          (BuildContext context, int index) {
-                                            final Cliente option = options
-                                                .elementAt(index);
-                                            return InkWell(
-                                              onTap: () {
-                                                onSelected(option);
-                                                _onClienteChanged(option);
-                                              },
-                                              child: _buildClienteOption(
-                                                context,
-                                                option,
-                                              ),
-                                            );
-                                          },
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 12,
                                     ),
                                   ),
+                                  onTap: () {
+                                    if (_selectedDireccion != null) {
+                                      setState(() {
+                                        _selectedDireccion = null;
+                                        _selectedClienteId = null;
+                                        _selectedFacturaId = null;
+                                        _filteredFacturas = [];
+                                        textEditingController.clear();
+                                      });
+                                    }
+                                  },
                                 ),
-                              );
-                            },
-                        onSelected: _onClienteChanged,
-                      ),
+                            );
+                          },
+                      optionsViewBuilder:
+                          (
+                            BuildContext context,
+                            AutocompleteOnSelected<DireccionCliente> onSelected,
+                            Iterable<DireccionCliente> options,
+                          ) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                child: Container(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.9,
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 200,
+                                  ),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder:
+                                        (BuildContext context, int index) {
+                                          final DireccionCliente option = options.elementAt(index);
+                                          return InkWell(
+                                            onTap: () {
+                                              onSelected(option);
+                                              _onClienteChanged(option);
+                                            },
+                                            child: _buildClienteOption(
+                                              context,
+                                              option,
+                                            ),
+                                          );
+                                        },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                      onSelected: _onClienteChanged,
                     ),
-                    if (_selectedCliente != null) ...[
+                    if (_selectedDireccion != null) ...[
                       const SizedBox(height: 4),
                       Padding(
                         padding: const EdgeInsets.only(left: 8.0),
                         child: Text(
-                          _selectedCliente!.clie_NombreNegocio?.isNotEmpty ==
-                                  true
-                              ? _selectedCliente!.clie_NombreNegocio!
+                          _selectedDireccion!.clie_NombreNegocio?.isNotEmpty == true
+                              ? _selectedDireccion!.clie_NombreNegocio!
                               : 'Sin negocio registrado',
                           style: _hintStyle.copyWith(fontSize: 12),
                           maxLines: 1,
@@ -760,7 +747,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   /// Resetea el formulario para una nueva devolución
   void _resetForm() {
     setState(() {
-      _selectedCliente = null;
+      _selectedDireccion = null;
       _selectedClienteId = null;
       _selectedFacturaId = null;
       _filteredFacturas = [];
@@ -770,7 +757,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _clienteController.clear();
     });
   }
-
 
   /// Navega a la pantalla de detalle de factura
   void _navigateToInvoiceDetail(Map<String, dynamic> data) {
@@ -1123,8 +1109,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                         ) ??
                                         0);
 
-                        final cantidadDevolver = _counter;
-
                         final precio = (producto['fade_Precio'] ?? 0.0)
                             .toDouble();
 
@@ -1323,29 +1307,24 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                                 ),
                                                 enabledBorder:
                                                     OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      borderSide: BorderSide(
-                                                        color:
-                                                            Colors.grey[300]!,
-                                                        width: 1.5,
-                                                      ),
-                                                    ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide(
+                                                    color: Colors.grey[300]!,
+                                                    width: 1.5,
+                                                  ),
+                                                ),
                                                 focusedBorder:
                                                     OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      borderSide: BorderSide(
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).primaryColor,
-                                                        width: 1.5,
-                                                      ),
-                                                    ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide(
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).primaryColor,
+                                                    width: 1.5,
+                                                  ),
+                                                ),
                                                 hintText: '0',
                                                 isDense: true,
                                                 suffix: Text(
@@ -1377,11 +1356,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                                           .toInt();
 
                                                 if (cantidad > maxCantidad) {
-                                                  final controller =
-                                                      TextEditingController(
-                                                        text: maxCantidad
-                                                            .toString(),
-                                                      );
                                                   setState(
                                                     () =>
                                                         _productosFactura[index]['cantidadDevolver'] =
@@ -1414,40 +1388,38 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 ),
 
                                 // Total to return
-                                if (cantidadDevolver > 0) ...[
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green[50],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          'Total a devolver:',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        Text(
-                                          'L ${NumberFormat('#,##0.00').format(precio * cantidadDevolver)}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
                                   ),
-                                ],
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Total a devolver:',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        'L ${NumberFormat('#,##0.00').format(precio * (_productosFactura[index]['cantidadDevolver'] ?? 0))}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1532,10 +1504,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         ),
       ),
     );
-  }
-
-  void _updateCantidad(int index, int change) {
-    _updateCounter(change);
   }
 
   @override
