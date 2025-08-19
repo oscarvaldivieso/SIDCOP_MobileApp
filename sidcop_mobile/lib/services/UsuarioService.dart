@@ -51,25 +51,82 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        // Aquí puedes validar si trae "data" o un objeto directo
-        final result = responseData['data'] ?? responseData;
+        
+        // Obtener los datos del SP
+        final data = responseData['data'];
+        
+        // Verificar si los datos existen
+        if (data == null) {
+          return {
+            'error': true,
+            'message': 'Respuesta inválida del servidor',
+            'details': responseData,
+          };
+        }
+        
+        // Verificar el code_Status del SP
+        final codeStatus = data['code_Status'];
+        
+        if (codeStatus == null || codeStatus != 1) {
+          // Login falló - el SP devolvió error
+          final errorMessage = data['message_Status'] ?? 'Error de autenticación';
+          return {
+            'error': true,
+            'message': errorMessage,
+            'details': data,
+          };
+        }
+        
+        // code_Status == 1, login exitoso
+        // Verificar que tenga los campos esenciales del usuario
+        if (!data.containsKey('personaId') || data['personaId'] == null) {
+          return {
+            'error': true,
+            'message': 'Error al obtener datos del usuario',
+            'details': data,
+          };
+        }
 
         // Guardar ID de persona global y registrarlo en logs
-        globalVendId = result['personaId'] is int
-            ? result['personaId']
-            : int.tryParse(result['personaId'].toString());
+        globalVendId = data['personaId'] is int
+            ? data['personaId']
+            : int.tryParse(data['personaId'].toString());
+        
         developer.log('Usuario ID: $globalVendId');
+        
+        // Validar que se haya guardado correctamente el ID
+        if (globalVendId == null || globalVendId == 0) {
+          return {
+            'error': true,
+            'message': 'Error al procesar ID del usuario',
+            'details': data,
+          };
+        }
+        
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         _iniciarPrecargaProductos();
 
-        return result;
+        return data;
       } else {
+        // Status code diferente a 200
         developer.log('Error en la autenticación: ${response.statusCode}');
-        return {
-          'error': true,
-          'message': 'Error de autenticación: ${response.statusCode}',
-          'details': response.body,
-        };
+        
+        // Intentar extraer mensaje de error del body si existe
+        try {
+          final errorData = jsonDecode(response.body);
+          final errorMessage = errorData['message'] ?? 'Error de autenticación';
+          return {
+            'error': true,
+            'message': errorMessage,
+            'details': response.body,
+          };
+        } catch (e) {
+          return {
+            'error': true,
+            'message': 'Error de autenticación: ${response.statusCode}',
+            'details': response.body,
+          };
+        }
       }
     } catch (e) {
       developer.log('Iniciar Sesion Error: $e');
