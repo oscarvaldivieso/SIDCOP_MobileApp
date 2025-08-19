@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
 import 'dart:math';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
@@ -37,7 +38,15 @@ class _VentaScreenState extends State<VentaScreen> {
   final ProductosService _productosService = ProductosService();
   final PrinterService _printerService = PrinterService();
   final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   late VentaInsertarViewModel _ventaModel;
+  
+  // Variables para control de crédito
+  bool _verificandoCredito = false;
+  bool _tieneCredito = true; // Asumimos que tiene crédito por defecto hasta que se verifique lo contrario
+  double _creditoDisponible = 0.0;
+  double _limiteCredito = 0.0;
+  double _saldoActual = 0.0;
   
   // Genera un número de factura aleatorio
   String _generateInvoiceNumber() {
@@ -47,6 +56,73 @@ class _VentaScreenState extends State<VentaScreen> {
     return 'FACT-${timestamp}_$randomDigits';
   }
   
+  // Método para construir una fila de información de crédito
+  Widget _buildCreditInfoRow(String label, double amount, {bool isAvailable = false, bool isBalance = false}) {
+    final bool isNegative = amount < 0;
+    final bool isHighlight = isAvailable || isBalance;
+    
+    Color textColor = const Color(0xFF262B40);
+    if (isAvailable) {
+      textColor = const Color.fromARGB(255, 237, 211, 175); // Color dorado para crédito disponible
+    } else if (isBalance && amount > 0) {
+      textColor = const Color(0xFFE53E3E); // Rojo para saldo a favor
+    } else if (isBalance && isNegative) {
+      textColor = const Color(0xFF98BF4A); // Verde para saldo negativo (a favor del cliente)
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 14,
+              color: Color(0xFF4A5568),
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isHighlight ? const Color.fromARGB(255, 46, 60, 92) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'L. ${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 15,
+                color: textColor,
+                fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Variables para impresión
   bool _isPrinting = false;
   bool _isProcessingSale = false;
@@ -90,6 +166,11 @@ class _VentaScreenState extends State<VentaScreen> {
     
     // Debug print to verify the values
     debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
+
+    // Verificar crédito al iniciar si ya hay un cliente seleccionado
+    if (widget.clienteId != null) {
+      _verificarCreditoCliente();
+    }
   }
 
   @override
@@ -1017,8 +1098,9 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Paso 1: Método de Pago
-  Widget paso1() {
-    return Padding(
+Widget paso1() {
+  return SingleChildScrollView(
+    child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,19 +1118,176 @@ class _VentaScreenState extends State<VentaScreen> {
           const SizedBox(height: 24),
           _buildPaymentOption('Efectivo', Icons.money, 'EFECTIVO'),
           const SizedBox(height: 16),
-          _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO')
+          Opacity(
+            opacity: _tieneCredito ? 1.0 : 0.6,
+            child: AbsorbPointer(
+              absorbing: !_tieneCredito,
+              child: _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO'),
+            ),
+          ),
+          if (!_tieneCredito && widget.clienteId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+              child: Text(
+                'Crédito no disponible para este cliente',
+                style: TextStyle(
+                  color: Colors.orange[700],
+                  fontSize: 13,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+            ),
+          if (_verificandoCredito) 
+            const Padding(
+              padding: EdgeInsets.only(top: 16.0),
+              child: CircularProgressIndicator(),
+            )
+          else if (formData.metodoPago == 'CREDITO' && widget.clienteId != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFFFFF), Color(0xFFF8F9FF)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF262B40).withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: const Color(0xFF262B40).withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF262B40).withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.credit_card_rounded,
+                            color: Color(0xFF262B40),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Información de Crédito',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF262B40),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildCreditInfoRow('Límite de Crédito', _limiteCredito),
+                        const SizedBox(height: 4),
+                        _buildCreditInfoRow('Saldo Actual', _saldoActual, isBalance: true),
+                        const SizedBox(height: 12),
+                        _buildCreditInfoRow(
+                          'Crédito Disponible', 
+                          _creditoDisponible,
+                          isAvailable: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+  Future<void> _verificarCreditoCliente() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _verificandoCredito = true);
+    
+    try {
+      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+      
+      setState(() {
+        _limiteCredito = limiteCredito;
+        _saldoActual = saldoActual;
+        _creditoDisponible = creditoDisponible;
+        _tieneCredito = creditoDisponible > 0;
+      });
+      
+      // Si no hay crédito disponible, volver a efectivo
+      if (!_tieneCredito) {
+        setState(() {
+          formData.metodoPago = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'EFECTIVO';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al verificar crédito: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      // En caso de error, asumimos que no tiene crédito
+      setState(() {
+        _tieneCredito = false;
+        formData.metodoPago = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'EFECTIVO';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _verificandoCredito = false);
+      }
+    }
   }
+  
 
   Widget _buildPaymentOption(String title, IconData icon, String value) {
     bool isSelected = formData.metodoPago == value;
+    bool isCredit = value == 'CREDITO';
+    
     return GestureDetector(
-      onTap: () => setState(() {
-        formData.metodoPago = value;
-        _ventaModel.factTipoVenta = value;
-      }),
+      onTap: () async {
+        setState(() {
+          formData.metodoPago = value;
+          _ventaModel.factTipoVenta = value;
+        });
+        
+        if (isCredit && widget.clienteId != null) {
+          await _verificarCreditoCliente();
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
@@ -1345,29 +1584,37 @@ class _VentaScreenState extends State<VentaScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text(
-                                  'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF141A2F),
+                                if (mejorDescuento != null && mejorDescuento > 0) ...[
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFFEF4444),
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: Color(0xFFEF4444),
+                                      decorationThickness: 2.0,
+                                    ),
                                   ),
-                                ),
-                                if (mejorDescuento != null && mejorDescuento > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: Text(
-                                      'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color.fromARGB(255, 255, 0, 0),
-                                        decoration: TextDecoration.lineThrough,
-                                        decorationColor: const Color.fromARGB(255, 206, 7, 7),
-                                        decorationThickness: 3.0,
-                                      ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
+                                    ),
+                                  ),
+                                ] else
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
                                     ),
                                   ),
                               ],
