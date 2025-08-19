@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
-import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
@@ -36,8 +36,8 @@ class _VentaScreenState extends State<VentaScreen> {
   final FormData formData = FormData();
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
-  final PrinterService _printerService = PrinterService();
-  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final ClientesService _clientesService = ClientesService();
+final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   late VentaInsertarViewModel _ventaModel;
   
@@ -123,10 +123,14 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  // Variables para impresión
-  bool _isPrinting = false;
+  // Variables para control de venta
   bool _isProcessingSale = false;
 
+  // Variables para direcciones del cliente
+  List<dynamic> _clientAddresses = [];
+  Map<String, dynamic>? _selectedAddress;
+  bool _isLoadingAddresses = false;
+  
   // Variables para productos
   List<ProductoConDescuento> _allProducts = [];
   List<ProductoConDescuento> _filteredProducts = [];
@@ -135,6 +139,8 @@ class _VentaScreenState extends State<VentaScreen> {
   bool _isLoadingProducts = false;
   bool _isCartSummaryExpanded = false;
   final TextEditingController _searchController = TextEditingController();
+
+
 
   int currentStep = 0;
   final int totalSteps = 4;
@@ -153,15 +159,38 @@ class _VentaScreenState extends State<VentaScreen> {
     'Revisa y confirma la información'
   ];
 
+  // Cargar direcciones del cliente
+  Future<void> _loadClientAddresses() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _isLoadingAddresses = true);
+    try {
+      _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
+      
+      // Seleccionar la primera dirección por defecto si hay direcciones disponibles
+      if (_clientAddresses.isNotEmpty) {
+        _selectedAddress = _clientAddresses.first;
+        _ventaModel.diClId = _selectedAddress!['diCl_Id'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint('Error cargando direcciones: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAddresses = false);
+      }
+    }
+  }
+  
   @override
   void initState() {
     super.initState();
     _ventaModel = VentaInsertarViewModel.empty()
       ..factNumero = _generateInvoiceNumber()
-      ..clieId = widget.clienteId ?? 0
       ..vendId = widget.vendedorId ?? 0;
       
     _loadProducts();
+    _verificarCreditoCliente();
+    _loadClientAddresses();
     _searchController.addListener(_applyProductFilter);
     
     // Debug print to verify the values
@@ -177,7 +206,6 @@ class _VentaScreenState extends State<VentaScreen> {
   void dispose() {
     _searchController.dispose();
     _pageController.dispose();
-    _printerService.dispose();
     super.dispose();
   }
 
@@ -386,11 +414,8 @@ class _VentaScreenState extends State<VentaScreen> {
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
-      _ventaModel.regCId = 19;
+      _ventaModel.regCId = 20;
       _ventaModel.factFechaEmision = DateTime.now();
-      _ventaModel.factFechaLimiteEmision = DateTime.now().add(const Duration(days: 30));
-      _ventaModel.factRangoInicialAutorizado = "F001-00000001";
-      _ventaModel.factRangoFinalAutorizado = "F001-00099999";
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
       _ventaModel.factLongitud = -88.212665;
@@ -404,15 +429,14 @@ class _VentaScreenState extends State<VentaScreen> {
         throw Exception('No se pudo obtener el ID del vendedor de la sesión');
       }
       
-      // Asignar IDs de la sesión del usuario
-      _ventaModel.clieId = widget.clienteId ?? 111; // Usar clienteId pasado desde pantalla de cliente o valor por defecto
+      
       _ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
       //_ventaModel.vendId = 12;
       _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
       // Validar el modelo antes de enviar
       print('Validando modelo de venta...');
-      print('Cliente ID: ${_ventaModel.clieId}');
+      print('Direccion por cliente ID: ${_ventaModel.diClId}');
       print('Vendedor ID: ${_ventaModel.vendId}');
       print('Productos: ${_ventaModel.detallesFacturaInput.length}');
       print('Detalles de productos:');
@@ -2474,7 +2498,9 @@ Widget paso1() {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prodId == prodId);
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
       final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
@@ -2547,6 +2573,67 @@ Widget paso1() {
                     Icons.person_outline,
                     [
                       _buildConfirmationRow('Cliente:', formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente),
+                      const SizedBox(height: 12),
+                      _isLoadingAddresses
+                          ? const Center(child: CircularProgressIndicator())
+                          : _clientAddresses.isEmpty
+                              ? const Text(
+                                  'No hay direcciones registradas para este cliente',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Colors.grey,
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Dirección de entrega:',
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                        color: Color(0xFF141A2F),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<Map<String, dynamic>>(
+                                          isExpanded: true,
+                                          value: _selectedAddress,
+                                          hint: const Text('Seleccione una dirección'),
+                                          items: _clientAddresses.map<DropdownMenuItem<Map<String, dynamic>>>((address) {
+                                            return DropdownMenuItem(
+                                              value: address,
+                                              child: Text(
+                                                '${address['diCl_DireccionExacta']} - ${address['muni_Descripcion']}',
+                                                style: const TextStyle(
+                                                  fontFamily: 'Satoshi',
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (newValue) {
+                                            if (newValue != null) {
+                                              setState(() {
+                                                _selectedAddress = newValue;
+                                                _ventaModel.diClId = newValue['diCl_Id'] ?? 0;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                     ],
                   ),
                   
@@ -2561,88 +2648,6 @@ Widget paso1() {
                   _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
                   const SizedBox(height: 16),
-                  
-                  // Botón para probar impresora
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF141A2F).withOpacity(0.1),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.print,
-                              color: Color(0xFF141A2F),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Verificar Impresora',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF141A2F),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Prueba tu impresora Zebra ZQ310 antes de finalizar la venta',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontSize: 12,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _isPrinting ? null : _probarImpresora,
-                            icon: _isPrinting 
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
-                                    ),
-                                  )
-                                : const Icon(Icons.print_outlined),
-                            label: Text(_isPrinting ? 'Probando...' : 'Probar Impresora'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF141A2F),
-                              side: const BorderSide(color: Color(0xFF141A2F)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
                   
                   // Checkbox de confirmación
                   Container(
@@ -3057,8 +3062,6 @@ Widget paso1() {
       // 2. Usar el método existente _procesarVenta para guardar la venta
       await _procesarVenta();
 
-      
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3077,9 +3080,9 @@ Widget paso1() {
     }
   }
 
-  // Método para mostrar diálogo de éxito con opción de impresión
-  Future<void> _mostrarDialogoExitoConImpresion(Map<String, dynamic> facturaData) async {
-    return showDialog(
+  // Mostrar diálogo de éxito
+  void _showSuccessDialog() {
+    showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -3090,216 +3093,18 @@ Widget paso1() {
             const Text('¡Venta Exitosa!'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Venta procesada correctamente'),
-            const SizedBox(height: 16),
-            const Text('¿Desea imprimir la factura ahora?'),
-            const SizedBox(height: 8),
-            const Text(
-              'Se buscará automáticamente su impresora Zebra ZQ310',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
+        content: const Text('Venta procesada correctamente'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               _resetearFormulario();
             },
-            child: const Text('No Imprimir'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _imprimirFactura(facturaData);
-              _resetearFormulario();
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('Imprimir'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-            ),
-          ),
+            child: const Text('Aceptar'),
+          )
         ],
       ),
     );
-  }
-
-  // Método para imprimir la factura
-  Future<void> _imprimirFactura(Map<String, dynamic> facturaData) async {
-    if (_isPrinting) return;
-
-    setState(() {
-      _isPrinting = true;
-    });
-
-    try {
-      // 1. Mostrar diálogo de selección de impresora
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      if (selectedDevice == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Impresión cancelada'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      // 2. Conectar a la impresora
-      final connected = await _printerService.connect(selectedDevice);
-      
-      if (!connected) {
-        throw Exception('No se pudo conectar a la impresora ${selectedDevice.name}');
-      }
-
-      // 3. Mostrar diálogo de progreso
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Imprimiendo...'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Enviando datos a la impresora'),
-            ],
-          ),
-        ),
-      );
-
-      // 4. Imprimir la factura
-      final printSuccess = await _printerService.printInvoice(facturaData);
-      
-      // Cerrar diálogo de progreso
-      Navigator.of(context).pop();
-
-      if (printSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Factura impresa correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        throw Exception('Error al imprimir la factura');
-      }
-
-      // 5. Desconectar de la impresora
-      await _printerService.disconnect();
-
-    } catch (e) {
-      // Cerrar diálogo de progreso si está abierto
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error de impresión: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Reintentar',
-              onPressed: () => _imprimirFactura(facturaData),
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPrinting = false;
-        });
-      }
-    }
-  }
-
-  // Método para probar la impresora
-  Future<void> _probarImpresora() async {
-    try {
-      print('=== INICIANDO PRUEBA DE IMPRESORA ===');
-      
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      if (selectedDevice == null) {
-        print('Usuario canceló la selección de impresora');
-        return;
-      }
-
-      print('Dispositivo seleccionado: ${selectedDevice.platformName} (${selectedDevice.remoteId})');
-      
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Probando Impresora'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Conectando y enviando prueba...'),
-            ],
-          ),
-        ),
-      );
-
-      print('Intentando conectar...');
-      final connected = await _printerService.connect(selectedDevice);
-      
-      if (!connected) {
-        Navigator.of(context).pop(); // Cerrar loading
-        throw Exception('No se pudo conectar a la impresora');
-      }
-
-      print('Conexión exitosa, enviando prueba de impresión...');
-      final testSuccess = await _printerService.printTest();
-      
-      print('Resultado de la prueba: $testSuccess');
-      
-      print('Desconectando...');
-      await _printerService.disconnect();
-      
-      // Cerrar indicador de carga
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(testSuccess 
-            ? '✅ Prueba de impresión exitosa' 
-            : '⚠️ Error en la prueba de impresión'),
-          backgroundColor: testSuccess ? Colors.green : Colors.orange,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      
-      print('=== FIN PRUEBA DE IMPRESORA ===');
-    } catch (e, stackTrace) {
-      print('ERROR EN PRUEBA DE IMPRESORA: $e');
-      print('Stack trace: $stackTrace');
-      
-      // Cerrar indicador de carga si está abierto
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 6),
-        ),
-      );
-    }
   }
 
 }
