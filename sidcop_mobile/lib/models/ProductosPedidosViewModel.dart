@@ -13,7 +13,7 @@ class ProductosPedidosViewModel {
   final int? impuId;
   final num? prodPrecioUnitario;
   final num? prodCostoTotal;
-  final bool prodImpulsado;
+  final bool prod_Impulsado;
   final String? prodPagaImpuesto;
   final String? prodEsPromo;
   final bool prodEstado;
@@ -52,7 +52,7 @@ class ProductosPedidosViewModel {
     this.impuId,
     this.prodPrecioUnitario,
     this.prodCostoTotal,
-    required this.prodImpulsado,
+    required this.prod_Impulsado,
     this.prodPagaImpuesto,
     this.prodEsPromo,
     required this.prodEstado,
@@ -78,6 +78,48 @@ class ProductosPedidosViewModel {
     this.impuValor,
     this.infoPromocion,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'prod_Id': prodId,
+      'prod_Codigo': prodCodigo,
+      'prod_CodigoBarra': prodCodigoBarra,
+      'prod_Descripcion': prodDescripcion,
+      'prod_DescripcionCorta': prodDescripcionCorta,
+      'prod_Imagen': prodImagen,
+      'subc_Id': subcId,
+      'marc_Id': marcId,
+      'prov_Id': provId,
+      'impu_Id': impuId,
+      'prod_PrecioUnitario': prodPrecioUnitario,
+      'prod_CostoTotal': prodCostoTotal,
+      'prod_Impulsado': prod_Impulsado,
+      'prod_PagaImpuesto': prodPagaImpuesto,
+      'prod_EsPromo': prodEsPromo,
+      'prod_Estado': prodEstado,
+      'usua_Creacion': usuaCreacion,
+      'prod_FechaCreacion': prodFechaCreacion,
+      'usua_Modificacion': usuaModificacion,
+      'prod_FechaModificacion': prodFechaModificacion,
+      'secuencia': secuencia,
+      'cate_Id': cateId,
+      'cate_Descripcion': cateDescripcion,
+      'marc_Descripcion': marcDescripcion,
+      'prov_NombreEmpresa': provNombreEmpresa,
+      'subc_Descripcion': subcDescripcion,
+      'impu_Descripcion': impuDescripcion,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'clientes': clientes,
+      'productos': productos,
+      'idClientes': idClientes,
+      'listasPrecio': listasPrecio,
+      'descuentosEscala': descuentosEscala,
+      'descEspecificaciones': descEspecificaciones,
+      'impu_Valor': impuValor,
+      'infoPromocion': infoPromocion,
+    };
+  }
 
   factory ProductosPedidosViewModel.fromJson(Map<String, dynamic> json) {
     List<ListaPrecioModel>? listasPrecio;
@@ -136,7 +178,7 @@ class ProductosPedidosViewModel {
       impuId: json['impu_Id'],
       prodPrecioUnitario: json['prod_PrecioUnitario'],
       prodCostoTotal: json['prod_CostoTotal'],
-      prodImpulsado: json['prod_Impulsado'],
+      prod_Impulsado: json['prod_Impulsado'],
       prodPagaImpuesto: json['prod_PagaImpuesto'],
       prodEsPromo: json['prod_EsPromo'],
       prodEstado: json['prod_Estado'] ?? false,
@@ -164,6 +206,7 @@ class ProductosPedidosViewModel {
     );
   }
 }
+
 
 class ListaPrecioModel {
   final int prePListaPrecios;
