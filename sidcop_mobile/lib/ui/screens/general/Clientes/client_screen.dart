@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
@@ -43,11 +45,20 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   Future<void> _loadAllClientData() async {
-    // Cargar direcciones por cliente
-    final direcciones = await _clienteService.getDireccionesPorCliente();
-    setState(() {
-      _direccionesPorCliente = direcciones;
-    });
+    try {
+      // Cargar direcciones por cliente (solo si hay conexión)
+      final hasConnection = await SyncService.hasInternetConnection();
+      if (hasConnection) {
+        final direcciones = await _clienteService.getDireccionesPorCliente();
+        setState(() {
+          _direccionesPorCliente = direcciones;
+        });
+      } else {
+        print('Sin conexion - saltando carga de direcciones');
+      }
+    } catch (e) {
+      print('Error cargando direcciones: $e');
+    }
 
     // Obtener el usua_IdPersona del usuario logueado
     final perfilService = PerfilUsuarioService();
@@ -73,9 +84,13 @@ class _clientScreenState extends State<clientScreen> {
       );
     } else if (esAdmin) {
       print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
-      final clienteServiceFallback = ClientesService();
-      clientes = await clienteServiceFallback.getClientes();
-      print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+      try {
+        clientes = await SyncService.getClients();
+        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+      } catch (e) {
+        print('DEBUG: Error obteniendo clientes para admin: $e');
+        clientes = [];
+      }
     } else if (esVendedor && usuaIdPersona == null) {
       print(
         'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
@@ -86,7 +101,7 @@ class _clientScreenState extends State<clientScreen> {
       print(
         'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
       );
-      clientes = [];
+      clientes = await SyncService.getClients();
       print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
     }
     setState(() {
@@ -521,22 +536,22 @@ class _clientScreenState extends State<clientScreen> {
                           topLeft: Radius.circular(16),
                           bottomLeft: Radius.circular(16),
                         ),
-                        child: Image.network(
-                          '${cliente['clie_ImagenDelNegocio'] ?? ''}',
+                        child: ClientImageCacheService().getCachedClientImage(
+                          imageUrl: cliente['clie_ImagenDelNegocio'],
+                          clientId: cliente['clie_Id'].toString(),
                           height: 140,
-                          width: 140, // Fixed width for the image
+                          width: 140,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                                height: 140,
-                                width: 140,
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.grey,
-                                ),
-                              ),
+                          errorWidget: Container(
+                            height: 140,
+                            width: 140,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.person,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                          ),
                         ),
                       ),
                       // Content on the right
