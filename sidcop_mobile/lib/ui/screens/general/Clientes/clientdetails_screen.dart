@@ -205,8 +205,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   ? ClientImageCacheService().getCachedClientImage(
                                       imageUrl: _cliente!['clie_ImagenDelNegocio'],
                                       clientId: _cliente!['clie_Id'].toString(),
-                                      width: double.infinity,
-                                      height: double.infinity,
+                                      width: 10,
+                                      height: 10,
                                       fit: BoxFit.cover,
                                       errorWidget: _buildDefaultAvatar(),
                                     )
