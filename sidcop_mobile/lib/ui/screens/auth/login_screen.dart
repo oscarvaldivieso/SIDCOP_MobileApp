@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String _syncStatus = '';
   bool _rememberMe = false;
+  bool _obscurePassword = true; // true = oculto, false = visible
 
   Future<void> _handleLogin() async {
     // Limpiar errores previos
@@ -202,20 +203,32 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 20),
                             CustomInput(
-                              label: 'Contraseña',
-                              hint: 'Ingresa tu contraseña',
-                              controller: _passwordController,
-                              obscureText: true,
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              errorText: _passwordError,
-                              onChanged: (_) {
-                                if (_passwordError != null) {
-                                  setState(() {
-                                    _passwordError = null;
-                                  });
-                                }
-                              },
-                            ),
+  label: 'Contraseña',
+  hint: 'Ingresa tu contraseña',
+  controller: _passwordController,
+  obscureText: _obscurePassword,
+  prefixIcon: const Icon(Icons.lock_outline),
+  suffixIcon: IconButton(
+    icon: Icon(
+      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+      color: const Color(0xFF98774A), // mantiene tu color de diseño
+    ),
+    onPressed: () {
+      setState(() {
+        _obscurePassword = !_obscurePassword;
+      });
+    },
+  ),
+  errorText: _passwordError,
+  onChanged: (_) {
+    if (_passwordError != null) {
+      setState(() {
+        _passwordError = null;
+      });
+    }
+  },
+),
+
                             Row(
   children: [
     Checkbox(
