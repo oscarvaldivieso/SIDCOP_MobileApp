@@ -307,7 +307,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   style: TextStyle(
                     color: Colors.white,
                     fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w300,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               onTap: () {
@@ -318,23 +318,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               },
               ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
-          ListTile(
-            leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Perfil y configuracion',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => ConfiguracionScreen()),
-              );
-            },
-          ),
+
           ListTile(
   leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
   title: const Text(
@@ -342,7 +326,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     style: TextStyle(
       color: Colors.white,
       fontFamily: 'Satoshi',
-      fontWeight: FontWeight.w300,
+      fontWeight: FontWeight.w500,
     ),
   ),
   onTap: () {
@@ -387,7 +371,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -464,6 +448,23 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 }
               },
             ),
+                      ListTile(
+            leading: const Icon(Icons.settings, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Configuración',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ConfiguracionScreen()),
+              );
+            },
+          ),
         ],
       ),
     );
