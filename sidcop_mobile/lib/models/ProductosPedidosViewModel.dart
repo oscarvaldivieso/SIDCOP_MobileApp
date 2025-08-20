@@ -7,6 +7,7 @@ class ProductosPedidosViewModel {
   final String? prodDescripcion;
   final String? prodDescripcionCorta;
   final String? prodImagen;
+  final String? pedi_Codigo;
   final int? subcId;
   final int? marcId;
   final int? provId;
@@ -46,6 +47,7 @@ class ProductosPedidosViewModel {
     this.prodDescripcion,
     this.prodDescripcionCorta,
     this.prodImagen,
+    this.pedi_Codigo,
     this.subcId,
     this.marcId,
     this.provId,
@@ -87,6 +89,7 @@ class ProductosPedidosViewModel {
       'prod_Descripcion': prodDescripcion,
       'prod_DescripcionCorta': prodDescripcionCorta,
       'prod_Imagen': prodImagen,
+      'pedi_Codigo': pedi_Codigo,
       'subc_Id': subcId,
       'marc_Id': marcId,
       'prov_Id': provId,
@@ -172,6 +175,7 @@ class ProductosPedidosViewModel {
       prodDescripcion: json['prod_Descripcion'],
       prodDescripcionCorta: json['prod_DescripcionCorta'],
       prodImagen: json['prod_Imagen'],
+      pedi_Codigo: json['pedi_Codigo'],
       subcId: json['subc_Id'],
       marcId: json['marc_Id'],
       provId: json['prov_Id'],

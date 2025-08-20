@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../utils/numero_en_letras.dart';
 
 class PrinterService {
   List<BluetoothDevice> _devices = [];
@@ -501,7 +502,7 @@ class PrinterService {
 final detalles = invoiceData['detalleFactura'] as List<dynamic>? ?? [];
 
 String productosZPL = '';
-int yPosition = 860; // Posición inicial de productos
+int yPosition = 870; // Posición inicial de productos
 
 // Procesar TODOS los productos
 for (var detalle in detalles) {
@@ -597,6 +598,12 @@ totalY += 10;
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal: L$total^FS\n';
 totalY += 25;
 
+// Total en letras (convertir el total a número, quitar el signo de L si existe)
+final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
+final totalEnLetras = 'Son: ${NumeroEnLetras.convertir(totalNum)} lempiras';
+totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
+totalY += 50; // Espacio adicional para el total en letras
+
     // Footer con posiciones dinámicas
     final footerY = totalY + 50; // Espacio antes del footer
 
@@ -662,36 +669,36 @@ $logoZPL
 ^FO0,250^FB360,2,0,C,0^FH^FD$empresaDireccion^FS
 
 ^CF0,22,24
-^FO0,280^FB360,1,0,C,0^FH^FDTel: $empresaTelefono^FS
-^FO0,305^FB360,1,0,C,0^FH^FD$empresaCorreo^FS
-^FO0,330^FB360,1,0,C,0^FH^FD $empresaRTN^FS
+^FO0,290^FB360,1,0,C,0^FH^FDTel: $empresaTelefono^FS
+^FO0,315^FB360,1,0,C,0^FH^FD$empresaCorreo^FS
+^FO0,340^FB360,1,0,C,0^FH^FD $empresaRTN^FS
 
-^FO0,355^GB360,2,2^FS                                 ← Cambié de 320 a 355
+^FO0,365^GB360,2,2^FS                                 ← Cambié de 320 a 355
 
 
 ^FX ===== INFORMACION DE FACTURA IZQUIERDA =====
 ^CF0,22,24
-^FO0,380^FB360,2,0,L,0^FDCAI: $cai^FS
-^FO0,430^FB360,2,0,L,0^FDNo. Factura: $factNumero^FS
-^FO0,480^FB360,1,0,L,0^FDFecha Emision: $factFecha^FS
-^FO0,505^FB360,1,0,L,0^FDTipo Venta: $factTipo^FS
-^FO0,530^FB360,1,0,L,0^FDCliente: $clienteNombre^FS
-^FO0,555^FB360,1,0,L,0^FDCodigo Cliente: $clienteCodigo^FS
-^FO0,580^FB360,2,0,L,0^FDDireccion cliente: $clienteDireccion^FS
-^FO0,630^FB360,1,0,L,0^FDRTN cliente: $clienteRTN^FS
-^FO0,655^FB360,1,0,L,0^FDVendedor: $vendedorNombre^FS
-^FO0,680^FB360,1,0,L,0^FDNo Orden de compra exenta:^FS
-^FO0,705^FB360,2,0,L,0^FDNo Constancia de reg de exonerados:^FS
-^FO0,755^FB360,1,0,L,0^FDNo Registro de la SAG:^FS
+^FO0,390^FB360,2,0,L,0^FDCAI: $cai^FS
+^FO0,440^FB360,2,0,L,0^FDNo. Factura: $factNumero^FS
+^FO0,490^FB360,1,0,L,0^FDFecha Emision: $factFecha^FS
+^FO0,515^FB360,1,0,L,0^FDTipo Venta: $factTipo^FS
+^FO0,540^FB360,1,0,L,0^FDCliente: $clienteNombre^FS
+^FO0,565^FB360,1,0,L,0^FDCodigo Cliente: $clienteCodigo^FS
+^FO0,590^FB360,2,0,L,0^FDDireccion cliente: $clienteDireccion^FS
+^FO0,640^FB360,1,0,L,0^FDRTN cliente: $clienteRTN^FS
+^FO0,665^FB360,1,0,L,0^FDVendedor: $vendedorNombre^FS
+^FO0,690^FB360,1,0,L,0^FDNo Orden de compra exenta:^FS
+^FO0,715^FB360,2,0,L,0^FDNo Constancia de reg de exonerados:^FS
+^FO0,765^FB360,1,0,L,0^FDNo Registro de la SAG:^FS
 
 
 ^FX ===== TABLA PRODUCTOS (4 COLUMNAS) =====
-^FO0,800^GB360,2,2^FS
-^FO0,815^CF0,22,24^FDProd^FS
-^FO165,815^CF0,22,24^FDCant^FS
-^FO210,815^CF0,22,24^FDPrecio^FS
-^FO295,815^CF0,22,24^FDMonto^FS
-^FO0,835^GB360,1,1^FS
+^FO0,810^GB360,2,2^FS
+^FO0,825^CF0,22,24^FDProd^FS
+^FO165,825^CF0,22,24^FDCant^FS
+^FO210,825^CF0,22,24^FDPrecio^FS
+^FO295,825^CF0,22,24^FDMonto^FS
+^FO0,845^GB360,1,1^FS
 
 ^FX ===== PRODUCTOS =====
 $productosZPL

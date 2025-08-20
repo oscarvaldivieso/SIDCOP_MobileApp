@@ -219,6 +219,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
       },
     );
   }
+  
 
   Widget _buildVentaCard(dynamic venta) {
     final factId = venta['fact_Id'] ?? 0;

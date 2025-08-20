@@ -5,6 +5,7 @@ class PedidosViewModel {
   final int vendId;
   final DateTime pediFechaPedido;
   final DateTime? pediFechaEntrega;
+  final String? pedi_Codigo;
   final int usuaCreacion;
   final DateTime pediFechaCreacion;
   final int? usuaModificacion;
@@ -37,6 +38,7 @@ class PedidosViewModel {
     required this.vendId,
     required this.pediFechaPedido,
     this.pediFechaEntrega,
+    this.pedi_Codigo,
     required this.usuaCreacion,
     required this.pediFechaCreacion,
     this.usuaModificacion,
@@ -71,6 +73,7 @@ class PedidosViewModel {
       vendId: json['vend_Id'],
       pediFechaPedido: DateTime.parse(json['pedi_FechaPedido']),
       pediFechaEntrega: json['pedi_FechaEntrega'] != null ? DateTime.parse(json['pedi_FechaEntrega']) : null,
+      pedi_Codigo: json['pedi_Codigo'],
       usuaCreacion: json['usua_Creacion'],
       pediFechaCreacion: DateTime.parse(json['pedi_FechaCreacion']),
       usuaModificacion: json['usua_Modificacion'],
