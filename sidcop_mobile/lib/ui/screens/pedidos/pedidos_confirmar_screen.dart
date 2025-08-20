@@ -247,6 +247,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       final resultado = await pedidosService.insertarPedido(
         diClId: diClId,
         vendId: vendId,
+        pediCodigo: '',
         fechaPedido: DateTime.now(),
         fechaEntrega: widget.fechaEntrega,
         usuaCreacion: usuaId,

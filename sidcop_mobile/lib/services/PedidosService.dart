@@ -67,6 +67,7 @@ class PedidosService {
   Future<Map<String, dynamic>> insertarPedido({
     required int diClId,
     required int vendId,
+    required String pediCodigo,
     required DateTime fechaPedido,
     required DateTime fechaEntrega,
     required int usuaCreacion,
@@ -79,6 +80,7 @@ class PedidosService {
     final body = {
       "secuencia": 0,
       "pedi_Id": 0,
+      "pedi_Codigo": pediCodigo,
       "diCl_Id": diClId,
       "vend_Id": vendId,
       "pedi_FechaPedido": fechaPedido.toIso8601String(),
