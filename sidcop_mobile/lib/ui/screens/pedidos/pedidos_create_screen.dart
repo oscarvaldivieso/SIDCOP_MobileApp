@@ -400,29 +400,37 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
-  Widget _buildDescuentosItem(ProductosPedidosViewModel producto) {
-    
+  Widget _buildDescuentosItem(DescuentoEscalaModel descuento) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      // decoration: BoxDecoration(
-      //   gradient: isSelected
-      //       ? LinearGradient(
-      //           begin: Alignment.topLeft,
-      //           end: Alignment.bottomRight,
-      //           colors: [
-      //             Colors.white,
-      //             const Color(0xFFD6B68A).withOpacity(0.1),
-      //           ],
-      //         )
-      //       : null,
-      //   color: Colors.white,
-      //   borderRadius: BorderRadius.circular(16),
-      // ),
-      child: Column(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0C7A0).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFFE0C7A0).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
         children: [
-          Text(descuento.deEsInicioEscala.toString()),
-          Text(descuento.deEsFinEscala.toString()),
-          Text(descuento.deEsValor.toString()),
+          Icon(
+            Icons.local_offer,
+            color: const Color(0xFF98774A),
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Desde ${descuento.deEsInicioEscala} hasta ${descuento.deEsFinEscala} unidades: ${descuento.deEsValor}% descuento',
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF141A2F),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -766,22 +774,31 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       ),
                     ],
                   ),
-                  Container(
-                    child: ExpansionTile(
-                      title: const Text('Descuentos de Precio'),
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          
-                          child: Column(
-                            children: [
-                              _buildDescuentosItem(),
-                            ],
+                  // Mostrar descuentos si existen
+                  if (producto.descuentosEscala != null && producto.descuentosEscala!.isNotEmpty)
+                    Container(
+                      child: ExpansionTile(
+                        title: Text(
+                          'Descuentos de Precio (${producto.descuentosEscala!.length})',
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF141A2F),
                           ),
                         ),
-                      ],
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Column(
+                              children: producto.descuentosEscala!
+                                  .map((descuento) => _buildDescuentosItem(descuento))
+                                  .toList(),
+                            ),
+                          ),
+                        ],
+                      ),
                     )
-                  )
                 ],
               ),
             ),
