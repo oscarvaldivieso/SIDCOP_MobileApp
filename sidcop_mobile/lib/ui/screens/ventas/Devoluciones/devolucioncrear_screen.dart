@@ -11,6 +11,12 @@ import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart' show showModalBottomSheet;
 
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
 // Text style constants for consistent typography
 final TextStyle _labelStyle = const TextStyle(
   fontFamily: 'Satoshi',
@@ -301,7 +307,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           // Fallback: mostrar mensaje simple y navegar
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Devolución #$devoId registrada exitosamente'),
+              content: Text('Devolución registrada exitosamente'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -342,6 +348,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                       Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        color: Color(0xFF141A2F),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Text(
+                      'Devoluciones',
+                      style: _titleStyle.copyWith(fontSize: 18),
+                    ),
+                  ],
+                ),
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
@@ -466,8 +488,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       Padding(
                         padding: const EdgeInsets.only(left: 8.0),
                         child: Text(
-                          _selectedDireccion!.clie_NombreNegocio?.isNotEmpty == true
-                              ? _selectedDireccion!.clie_NombreNegocio!
+                          _selectedDireccion!.muni_descripcion.isNotEmpty
+                              ? _selectedDireccion!.muni_descripcion
                               : 'Sin negocio registrado',
                           style: _hintStyle.copyWith(fontSize: 12),
                           maxLines: 1,
@@ -1389,37 +1411,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
                                 // Total to return
                                 const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[50],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Total a devolver:',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      Text(
-                                        'L ${NumberFormat('#,##0.00').format(precio * (_productosFactura[index]['cantidadDevolver'] ?? 0))}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
                           ),
