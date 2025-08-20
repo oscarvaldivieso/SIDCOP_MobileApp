@@ -49,7 +49,12 @@ class PedidosService {
       print('Get Productos ListaPrecio Response Body: ${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => ProductosPedidosViewModel.fromJson(json)).toList();
+        print('Get Productos ListaPrecio Response Data: ${data}');
+
+        final List<ProductosPedidosViewModel> productos = data.map((json)=> ProductosPedidosViewModel.fromJson(json)).toList();
+        final ProdList = productos.map((p) => p.toJson()).toList();
+        print('Get Productos ListaPrecio Response Productos: ${ProdList}');
+        return productos;
       } else {
         return [];
       }

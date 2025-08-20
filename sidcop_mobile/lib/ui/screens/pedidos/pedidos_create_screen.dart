@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/appBar.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
@@ -101,6 +102,57 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       children: [
         _buildSearchBar(),
         const SizedBox(height: 16),
+        
+        // Header de productos seleccionados si hay al menos uno
+        if (_hasSelectedProducts()) ...[
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0C7A0).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.shopping_cart,
+                  color: Color(0xFF141A2F),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Productos Seleccionados',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0C7A0),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '${_cantidades.values.where((c) => c > 0).fold<int>(0, (sum, c) => sum + c)} items',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+        
+        
         _filteredProductos.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -280,86 +332,471 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return precioBase;
   }
 
+
+  // Verificar si hay productos seleccionados
+  bool _hasSelectedProducts() {
+    return _cantidades.values.any((cantidad) => cantidad > 0);
+  }
+
+  Future<void> _navegarASiguientePantalla() async {
+    // 1. Validar productos seleccionados
+    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
+    if (productosSeleccionados.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
+      );
+      return;
+    }
+    // 2. Validar fecha de entrega
+    if (_fechaEntrega == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una fecha de entrega.')),
+      );
+      return;
+    }
+    // 3. Validar dirección seleccionada
+    if (_direccionSeleccionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una dirección de entrega.')),
+      );
+      return;
+    }
+    // 4. Preparar productos para confirmación
+    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+    final productosConfirmacion = productosSeleccionadosList.map((e) {
+      final producto = _productos.firstWhere((p) => p.prodId == e.key);
+      final precioFinal = _getPrecioPorCantidad(producto, e.value);
+      return ProductoConfirmacion(
+        prodId: producto.prodId, // Agregar el ID del producto
+        nombre: producto.prodDescripcionCorta ?? '',
+        cantidad: e.value,
+        precioBase: producto.prodPrecioUnitario ?? 0,
+        precioFinal: precioFinal,
+        imagen: producto.prodImagen,
+        productoOriginal: producto, // Pasar el producto original para cálculos
+      );
+    }).toList();
+
+    // 5. Calcular totales
+    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
+    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
+    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+
+    // 6. Navegar a pantalla de confirmación
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PedidoConfirmarScreen(
+          productosSeleccionados: productosConfirmacion,
+          cantidadTotal: cantidadTotal,
+          subtotal: subtotal,
+          total: total,
+          clienteId: widget.clienteId,
+          fechaEntrega: _fechaEntrega!,
+          direccionSeleccionada: _direccionSeleccionada!,
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (producto.prodImagen != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  producto.prodImagen!,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                ),
+    final isSelected = cantidad > 0;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  const Color(0xFFD6B68A).withOpacity(0.1),
+                ],
               )
-            else
-              const Icon(Icons.image, size: 40, color: Colors.grey),
-            const SizedBox(width: 12),
-            Expanded(
+            : null,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+          width: isSelected ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected 
+                ? const Color(0xFF98774A).withOpacity(0.2)
+                : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 12 : 10,
+            offset: Offset(0, isSelected ? 4 : 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    producto.prodDescripcionCorta ?? 'Sin descripción',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Imagen del producto con mejor diseño
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF262B40).withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF262B40).withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: producto.prodImagen != null && producto.prodImagen!.isNotEmpty
+                              ? Image.network(
+                                  producto.prodImagen!,
+                                  width: 70,
+                                  height: 70,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                        width: 70,
+                                        height: 70,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              const Color(0xFFD6B68A).withOpacity(0.2),
+                                              const Color(0xFF98774A).withOpacity(0.1),
+                                            ],
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.inventory_2_outlined,
+                                          color: Color(0xFF98774A),
+                                          size: 28,
+                                        ),
+                                      ),
+                                )
+                              : Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        const Color(0xFFD6B68A).withOpacity(0.2),
+                                        const Color(0xFF98774A).withOpacity(0.1),
+                                      ],
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: Color(0xFF98774A),
+                                    size: 28,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Información del producto
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              producto.prodDescripcionCorta ?? 'Sin descripción',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'L. ${_getPrecioPorCantidad(producto, cantidad).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF141A2F),
+                              ),
+                            ),
+                            if (isSelected)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Subtotal: L. ${(_getPrecioPorCantidad(producto, cantidad) * cantidad).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF98774A),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Precio: L. ${_getPrecioPorCantidad(producto, cantidad).toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  const SizedBox(height: 16),
+                  // Controles de cantidad mejorados
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Botón de deseleccionar cuando está seleccionado
+                      if (isSelected)
+                        GestureDetector(
+                          onTap: () => setState(() {
+                            _cantidades[producto.prodId] = 0;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFE74C3C).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Color(0xFFE74C3C),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Quitar',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 12,
+                                    color: const Color(0xFFE74C3C),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(),
+                      // Controles de cantidad con mejor diseño
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF262B40).withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: cantidad > 0 
+                                    ? const Color(0xFF262B40) 
+                                    : const Color(0xFF262B40).withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: IconButton(
+                                onPressed: cantidad > 0
+                                    ? () => setState(() {
+                                        _cantidades[producto.prodId] = cantidad - 1;
+                                      })
+                                    : null,
+                                icon: const Icon(Icons.remove, size: 18),
+                                color: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                final TextEditingController controller = TextEditingController(
+                                  text: cantidad.toString(),
+                                );
+                                
+                                final result = await showDialog<int>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    content: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Ingrese la cantidad',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (_) {
+                                        final value = int.tryParse(controller.text) ?? 0;
+                                        Navigator.of(context).pop(value);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final value = int.tryParse(controller.text) ?? 0;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF98774A),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (result != null && result >= 0) {
+                                  setState(() {
+                                    _cantidades[producto.prodId] = result;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? const Color(0xFFD6B68A).withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    cantidad.toString(),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF98774A),
+                                    const Color(0xFFD6B68A),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF98774A).withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                onPressed: () => setState(() {
+                                  _cantidades[producto.prodId] = cantidad + 1;
+                                }),
+                                icon: const Icon(Icons.add, size: 18),
+                                color: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: cantidad > 0
-                      ? () {
-                          setState(() {
-                            _cantidades[producto.prodId] = cantidad - 1;
-                          });
-                        }
-                      : null,
+            // Indicador visual de selección en la esquina
+            if (isSelected)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF98774A),
+                        const Color(0xFFD6B68A),
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
-                SizedBox(
-                  width: 38,
-                  child: TextField(
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    controller: TextEditingController(text: cantidad.toString()),
-                    onChanged: (val) {
-                      final value = int.tryParse(val) ?? 0;
-                      setState(() {
-                        _cantidades[producto.prodId] = value;
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      border: OutlineInputBorder(),
+              ),
+            // Faja de promoción si el producto es promo
+            if (producto.prodEsPromo == 'S')
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'PROMO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Satoshi',
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      _cantidades[producto.prodId] = cantidad + 1;
-                    });
-                  },
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
@@ -368,15 +805,78 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Nuevo Pedido',
-      icon: Icons.add_shopping_cart,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Scaffold(
+      appBar: const AppBarWidget(),
+      drawer: const CustomDrawer(permisos: []),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF6F6F6), Color(0xFFF6F6F6)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header similar to AppBackground
+            Padding(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).size.height * 0.03,
+                left: 16,
+                right: 16,
+              ),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAliasWithSaveLayer,
+                child: Container(
+                  color: const Color(0xFF141A2F),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.height * 0.10,
+                    child: Stack(
+                      children: [
+                        // Título alineado a la izquierda y centrado verticalmente
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                            child: Text(
+                              'Nuevo Pedido',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Icono alineado a la esquina inferior derecha
+                        Positioned(
+                          bottom: 12,
+                          right: 18,
+                          child: Icon(
+                            Icons.add_shopping_cart,
+                            color: const Color(0xFFE0C7A0),
+                            size: 32,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Contenido scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
               Text('Selecciona fecha de entrega:', 
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
@@ -489,83 +989,44 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
               _buildProductList(),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    // 1. Validar productos seleccionados
-                    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
-                    if (productosSeleccionados.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
-                      );
-                      return;
-                    }
-                    // 2. Validar fecha de entrega
-                    if (_fechaEntrega == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona una fecha de entrega.')),
-                      );
-                      return;
-                    }
-                    // 3. Validar dirección seleccionada
-                    if (_direccionSeleccionada == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Selecciona una dirección de entrega.')),
-                      );
-                      return;
-                    }
-                    // 4. Preparar productos para confirmación
-                    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
-                    final productosConfirmacion = productosSeleccionadosList.map((e) {
-                      final producto = _productos.firstWhere((p) => p.prodId == e.key);
-                      final precioFinal = _getPrecioPorCantidad(producto, e.value);
-                      return ProductoConfirmacion(
-                        prodId: producto.prodId, // Agregar el ID del producto
-                        nombre: producto.prodDescripcionCorta ?? '',
-                        cantidad: e.value,
-                        precioBase: producto.prodPrecioUnitario ?? 0,
-                        precioFinal: precioFinal,
-                        imagen: producto.prodImagen,
-                        productoOriginal: producto, // Pasar el producto original para cálculos
-                      );
-                    }).toList();
-
-                    // 5. Calcular totales
-                    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
-                    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
-                    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
-
-                    // 6. Navegar a pantalla de confirmación
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PedidoConfirmarScreen(
-                          productosSeleccionados: productosConfirmacion,
-                          cantidadTotal: cantidadTotal,
-                          subtotal: subtotal,
-                          total: total,
-                          clienteId: widget.clienteId,
-                          fechaEntrega: _fechaEntrega!,
-                          direccionSeleccionada: _direccionSeleccionada!,
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
-                    foregroundColor: Colors.black,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                      // Padding at bottom to prevent overlap with fixed button
+                      const SizedBox(height: 80),
+                    ],
                   ),
-                  child: const Text('Siguiente'),
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _navegarASiguientePantalla,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
+                foregroundColor: Colors.black,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Siguiente'),
+            ),
           ),
         ),
       ),
