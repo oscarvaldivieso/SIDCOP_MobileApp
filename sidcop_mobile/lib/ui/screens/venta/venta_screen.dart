@@ -2925,31 +2925,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   
                   const SizedBox(height: 16),
                   
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _procesarVentaConImpresion,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF98BF4A),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: const Text(
-                        'CONFIRMAR VENTA',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 24)
                 ],
               ),
             ),
