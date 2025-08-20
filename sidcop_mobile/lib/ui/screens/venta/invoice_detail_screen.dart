@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
 import 'generateInvoicePdf.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -222,54 +223,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-  void _showDownloadProgress(File pdfFile) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
-    );
-
-    if (selectedDirectory == null) {
-      return;
-    }
-
-    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
-    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
-    await pdfFile.copy(newPath);
-
-    double progress = 0.0;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (progress < 1.0) {
-                setState(() => progress += 0.25);
-              } else {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Factura descargada en: $newPath")),
-                );
-              }
-            });
-
-            return AlertDialog(
-              title: const Text("Descargando..."),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: progress),
-                  const SizedBox(height: 16),
-                  Text("${(progress * 100).toInt()}%"),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   String _formatDate(dynamic date) {
     if (date == null) return 'N/A';
     try {
@@ -357,7 +310,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       items: [
         PopupMenuItem(
           child: ListTile(
-            leading: const Icon(Icons.download, color: Colors.green),
+            leading: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
             title: const Text("WhatsApp"),
             onTap: () async {
               await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
@@ -367,7 +320,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         ),
         PopupMenuItem(
           child: ListTile(
-            leading: const Icon(Icons.download, color: Color.fromARGB(255, 117, 19, 12)),
+            leading: const Icon(FontAwesomeIcons.filePdf, color: Color.fromARGB(255, 117, 19, 12)),
             title: const Text("Descargar PDF"),
             onTap: () async {
               Navigator.pop(context);
@@ -389,6 +342,53 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
+  void _showDownloadProgress(File pdfFile) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
+    );
+
+    if (selectedDirectory == null) {
+      return;
+    }
+
+    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
+    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
+    await pdfFile.copy(newPath);
+
+    double progress = 0.0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (progress < 1.0) {
+                setState(() => progress += 0.25);
+              } else {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Factura descargada en: $newPath")),
+                );
+              }
+            });
+
+            return AlertDialog(
+              title: const Text("Descargando..."),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 16),
+                  Text("${(progress * 100).toInt()}%"),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildErrorState() {
     return Center(
