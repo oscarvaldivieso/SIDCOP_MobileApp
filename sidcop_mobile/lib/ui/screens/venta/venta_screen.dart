@@ -2925,40 +2925,29 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   
                   const SizedBox(height: 16),
                   
-                  // Checkbox de confirmación
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF98BF4A).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF98BF4A).withOpacity(0.2),
-                        width: 1,
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _procesarVentaConImpresion,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF98BF4A),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: formData.confirmacion,
-                          onChanged: (value) => setState(() => formData.confirmacion = value ?? false),
-                          activeColor: const Color(0xFF98BF4A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                      child: const Text(
+                        'CONFIRMAR VENTA',
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
                         ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'He revisado toda la información y confirmo que es correcta. Proceder con la venta.',
-                            style: TextStyle(
-                              fontFamily: 'Satoshi',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -2967,6 +2956,65 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
           ),
         ],
       ),
+    );
+  }
+
+  // Mostrar diálogo de confirmación
+  Future<void> _showConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap a button to close
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            '¿Confirmar venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF141A2F),
+            ),
+          ),
+          content: const Text(
+            '¿Estás seguro de que deseas confirmar esta venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: Color(0xFF64748B),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'CANCELAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'CONFIRMAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF98BF4A),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                _procesarVentaConImpresion(); // Proceder con la venta
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
