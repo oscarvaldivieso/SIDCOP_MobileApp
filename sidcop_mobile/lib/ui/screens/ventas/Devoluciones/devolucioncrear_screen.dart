@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/models/ClientesViewModel.dart';
-import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
+import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
@@ -10,6 +10,12 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart' show showModalBottomSheet;
+
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
 
 // Text style constants for consistent typography
 final TextStyle _labelStyle = const TextStyle(
@@ -31,16 +37,9 @@ class DevolucioncrearScreen extends StatefulWidget {
 }
 
 class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
-  // Simple counter variable
-  int _counter = 0;
-
-  // Simple counter update function
-  void _updateCounter(int change) {
-    // This method is no longer used but kept for compatibility
-    // The counter is now managed directly in the TextFormField
-  }
   final _formKey = GlobalKey<FormState>();
-  final ClientesService _clientesService = ClientesService();
+  final DireccionClienteService _direccionClienteService =
+      DireccionClienteService();
 
   // Services
   final FacturaService _facturaService = FacturaService();
@@ -63,9 +62,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   String? _productosError;
 
   // Dropdown data
-  List<Cliente> _clientes = [];
-  Cliente? _selectedCliente;
-  List<dynamic> _facturas = [];
+  List<DireccionCliente> _direcciones = [];
+  DireccionCliente? _selectedDireccion;
+  List<Map<String, dynamic>> _facturas = [];
   List<dynamic> _filteredFacturas = [];
 
   // Controllers
@@ -82,7 +81,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     _loadData();
   }
 
-  Widget _buildClienteOption(BuildContext context, Cliente cliente) {
+  Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
@@ -94,20 +93,20 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${cliente.clie_Nombres} ${cliente.clie_Apellidos}',
+            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
-          if (cliente.clie_NombreNegocio?.isNotEmpty == true) ...[
+          if (direccion.clie_NombreNegocio?.isNotEmpty == true) ...[
             const SizedBox(height: 2),
             Text(
-              cliente.clie_NombreNegocio!,
+              direccion.clie_NombreNegocio!,
               style: _hintStyle.copyWith(fontSize: 12),
             ),
           ],
-          if (cliente.clie_Codigo?.isNotEmpty == true) ...[
+          if (direccion.dicl_direccionexacta.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
-              'Código: ${cliente.clie_Codigo}',
+              direccion.dicl_direccionexacta,
               style: _hintStyle.copyWith(fontSize: 12),
             ),
           ],
@@ -118,15 +117,19 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
   Future<void> _loadData() async {
     try {
-      final clientesData = await _clientesService.getClientes();
-      final facturas = await _facturaService.getFacturas();
+      final direccionesData = await _direccionClienteService
+          .getDireccionesPorCliente();
+      final facturasData = await _facturaService.getFacturas();
+
+      if (!mounted) return;
 
       setState(() {
-        _clientes = clientesData.map((json) => Cliente.fromJson(json)).toList();
-        _facturas = facturas;
+        _direcciones = direccionesData;
+        _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Error al cargar los datos: $e';
         _isLoading = false;
@@ -134,19 +137,26 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     }
   }
 
-  void _onClienteChanged(Cliente? cliente) {
+  void _onClienteChanged(DireccionCliente? direccion) {
     // Dismiss the keyboard when a client is selected
     FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
-      _selectedCliente = cliente;
-      _selectedClienteId = cliente?.clie_Id;
+      _selectedDireccion = direccion;
+      _selectedClienteId = direccion?.clie_id;
       _selectedFacturaId = null;
-      _filteredFacturas = _selectedClienteId != null
+      _filteredFacturas = direccion != null
           ? _facturas
-                .where((factura) => factura['clie_Id'] == _selectedClienteId)
+                .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
                 .toList()
           : [];
+      // Actualizar el texto del controlador para reflejar la selección
+      if (direccion != null) {
+        _clienteController.text =
+            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}';
+      } else {
+        _clienteController.clear();
+      }
     });
   }
 
@@ -258,53 +268,102 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
       // Crear la devolución con factura ajustada
       try {
-        final response = await _devolucionesService.insertarDevolucionConFacturaAjustada(
-          clieId: _selectedClienteId!,
-          factId: _selectedFacturaId!,
-          devoMotivo: _motivoController.text,
-          usuaCreacion: 1, // TODO: Reemplazar con el ID del usuario autenticado
-          detalles: productosADevolver,
-          devoFecha: DateTime.tryParse(_fechaController.text),
-          crearNuevaFactura: true,
-        );
+        final response = await _devolucionesService
+            .insertarDevolucionConFacturaAjustada(
+              clieId: _selectedClienteId!,
+              factId: _selectedFacturaId!,
+              devoMotivo: _motivoController.text,
+              usuaCreacion:
+                  1, // TODO: Reemplazar con el ID del usuario autenticado
+              detalles: productosADevolver,
+              devoFecha: DateTime.tryParse(_fechaController.text),
+              crearNuevaFactura: true,
+            );
 
         // Cerrar el diálogo de carga
         if (!mounted) return;
         Navigator.pop(context);
 
-        // Extraer datos de la respuesta
+        // DEBUG: Imprimir toda la respuesta para entender la estructura
+        print('🔍 DEBUGGING - Respuesta completa del servicio:');
+        print(response);
+
+        // VALIDACIÓN CRÍTICA: Verificar si el proceso fue exitoso
+        final success = response['success'] == true;
+        final hasError = response['error'] == true;
+
+        print('🔍 DEBUG - success: $success, hasError: $hasError');
+
+        if (!success || hasError) {
+          // El proceso falló - mostrar error
+          final errorMessage =
+              response['message'] ??
+              'Error desconocido en el proceso de devolución';
+          print('❌ MOSTRANDO ERROR: $errorMessage');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $errorMessage'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          return; // Salir sin mostrar modal de éxito
+        }
+
+        // Extraer datos de la respuesta SOLO si fue exitoso
         final devoId = response['devolucion']?['data']?['devo_Id'] ?? 'N/A';
         final facturaAjustada = response['facturaAjustada'];
         final facturaCreada = facturaAjustada?['facturaCreada'] == true;
         final facturaNumero = facturaAjustada?['facturaNumero'];
-        final nuevaFacturaId = facturaAjustada?['facturaId']; // ID de la nueva factura
-        
-        print('Datos extraídos - devoId: $devoId, facturaCreada: $facturaCreada');
-        print('facturaNumero: $facturaNumero, nuevaFacturaId: $nuevaFacturaId');
-        
-        // Mostrar modal de éxito
+
+        // Extraer datos de la respuesta del VentaService
+        final ventaServiceResponse = facturaAjustada?['ventaServiceResponse'];
+        final ventaServiceData = ventaServiceResponse?['data'];
+
+        print(
+          '✅ Proceso exitoso - devoId: $devoId, facturaCreada: $facturaCreada',
+        );
+        print('facturaNumero: $facturaNumero');
+        print('ventaServiceData: $ventaServiceData');
+
+        // VALIDACIÓN ADICIONAL: Verificar que realmente tenemos una factura válida
+        if (facturaAjustada == null || facturaCreada != true) {
+          print('❌ ERROR: Factura ajustada no fue creada correctamente');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: No se pudo crear la factura ajustada'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          return;
+        }
+
+        // Mostrar modal de éxito SOLO si todo fue exitoso
         if (!mounted) return;
-        if (facturaCreada && nuevaFacturaId != null) {
+        if (ventaServiceData != null) {
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (_) => _buildReturnSuccessDialog(context, {
               'devoId': devoId,
               'facturaNumero': facturaNumero,
-              'facturaId': nuevaFacturaId, // Pasar el ID correcto
+              'facturaData':
+                  ventaServiceData, // Pasar los datos completos de la factura
               'productosDevueltos': productosADevolver.length,
             }),
           );
         } else {
-          // Fallback: mostrar mensaje simple y navegar
+          print(
+            '❌ ERROR: No hay datos de factura válidos para mostrar el modal',
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Devolución #$devoId registrada exitosamente'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              content: Text('Error: Datos de factura incompletos'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
             ),
           );
-          _navigateToReturnsList();
         }
       } catch (e) {
         // Cerrar diálogo de carga
@@ -340,68 +399,90 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios,
+                            size: 20,
+                            color: Color(0xFF141A2F),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        Text(
+                          'Devoluciones',
+                          style: _titleStyle.copyWith(fontSize: 18),
+                        ),
+                      ],
+                    ),
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
                       style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: RawAutocomplete<Cliente>(
-                        textEditingController: _clienteController,
-                        focusNode: FocusNode(),
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.isEmpty) {
-                            return _clientes.take(10);
-                          }
-                          return _clientes.where((cliente) {
-                            final searchValue = textEditingValue.text
-                                .toLowerCase();
-                            return (cliente.clie_Nombres
-                                        ?.toLowerCase()
-                                        .contains(searchValue) ??
-                                    false) ||
-                                (cliente.clie_Apellidos?.toLowerCase().contains(
-                                      searchValue,
-                                    ) ??
-                                    false) ||
-                                (cliente.clie_NombreNegocio
-                                        ?.toLowerCase()
-                                        .contains(searchValue) ??
-                                    false) ||
-                                (cliente.clie_Codigo?.toLowerCase().contains(
-                                      searchValue,
-                                    ) ??
-                                    false);
-                          });
-                        },
-                        displayStringForOption: (Cliente cliente) =>
-                            '${cliente.clie_Nombres} ${cliente.clie_Apellidos}',
-                        fieldViewBuilder:
-                            (
-                              BuildContext context,
-                              TextEditingController textEditingController,
-                              FocusNode focusNode,
-                              VoidCallback onFieldSubmitted,
-                            ) {
-                              // Clear the controller and let the hint text show when no cliente is selected
-                              if (_selectedCliente == null) {
-                                textEditingController.clear();
-                              } else {
-                                textEditingController.text =
-                                    '${_selectedCliente!.clie_Nombres} ${_selectedCliente!.clie_Apellidos}';
-                              }
+                    RawAutocomplete<DireccionCliente>(
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          final sortedDirecciones = List<DireccionCliente>.from(
+                            _direcciones,
+                          );
+                          sortedDirecciones.sort(
+                            (a, b) => b.dicl_fechacreacion.compareTo(
+                              a.dicl_fechacreacion,
+                            ),
+                          );
+                          return sortedDirecciones;
+                        }
+                        return _direcciones.where((DireccionCliente direccion) {
+                          final searchValue = textEditingValue.text
+                              .toLowerCase();
+                          return (direccion.clie_Nombres
+                                      ?.toLowerCase()
+                                      .contains(searchValue) ??
+                                  false) ||
+                              (direccion.clie_Apellidos?.toLowerCase().contains(
+                                    searchValue,
+                                  ) ??
+                                  false) ||
+                              (direccion.clie_NombreNegocio
+                                      ?.toLowerCase()
+                                      .contains(searchValue) ??
+                                  false) ||
+                              (direccion.clie_Codigo?.toLowerCase().contains(
+                                    searchValue,
+                                  ) ??
+                                  false);
+                        });
+                      },
+                      displayStringForOption: (DireccionCliente direccion) =>
+                          '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
+                      fieldViewBuilder:
+                          (
+                            BuildContext context,
+                            TextEditingController textEditingController,
+                            FocusNode focusNode,
+                            VoidCallback onFieldSubmitted,
+                          ) {
+                            // Clear the controller and let the hint text show when no cliente is selected
+                            if (_selectedDireccion == null) {
+                              textEditingController.clear();
+                            } else {
+                              textEditingController.text =
+                                  '${_selectedDireccion!.clie_Nombres} ${_selectedDireccion!.clie_Apellidos}';
+                            }
 
-                              return TextFormField(
+                            return Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              child: TextFormField(
                                 controller: textEditingController,
                                 focusNode: focusNode,
                                 style: _labelStyle,
@@ -419,9 +500,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                   ),
                                 ),
                                 onTap: () {
-                                  if (_selectedCliente != null) {
+                                  if (_selectedDireccion != null) {
                                     setState(() {
-                                      _selectedCliente = null;
+                                      _selectedDireccion = null;
                                       _selectedClienteId = null;
                                       _selectedFacturaId = null;
                                       _filteredFacturas = [];
@@ -429,58 +510,57 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                     });
                                   }
                                 },
-                              );
-                            },
-                        optionsViewBuilder:
-                            (
-                              BuildContext context,
-                              AutocompleteOnSelected<Cliente> onSelected,
-                              Iterable<Cliente> options,
-                            ) {
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 4.0,
-                                  child: Container(
-                                    width:
-                                        MediaQuery.of(context).size.width * 0.9,
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 200,
-                                    ),
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      itemCount: options.length,
-                                      itemBuilder:
-                                          (BuildContext context, int index) {
-                                            final Cliente option = options
-                                                .elementAt(index);
-                                            return InkWell(
-                                              onTap: () {
-                                                onSelected(option);
-                                                _onClienteChanged(option);
-                                              },
-                                              child: _buildClienteOption(
-                                                context,
-                                                option,
-                                              ),
-                                            );
-                                          },
-                                    ),
+                              ),
+                            );
+                          },
+                      optionsViewBuilder:
+                          (
+                            BuildContext context,
+                            AutocompleteOnSelected<DireccionCliente> onSelected,
+                            Iterable<DireccionCliente> options,
+                          ) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                child: Container(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.9,
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 200,
+                                  ),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder:
+                                        (BuildContext context, int index) {
+                                          final DireccionCliente option =
+                                              options.elementAt(index);
+                                          return InkWell(
+                                            onTap: () {
+                                              onSelected(option);
+                                              _onClienteChanged(option);
+                                            },
+                                            child: _buildClienteOption(
+                                              context,
+                                              option,
+                                            ),
+                                          );
+                                        },
                                   ),
                                 ),
-                              );
-                            },
-                        onSelected: _onClienteChanged,
-                      ),
+                              ),
+                            );
+                          },
+                      onSelected: _onClienteChanged,
                     ),
-                    if (_selectedCliente != null) ...[
+                    if (_selectedDireccion != null) ...[
                       const SizedBox(height: 4),
                       Padding(
                         padding: const EdgeInsets.only(left: 8.0),
                         child: Text(
-                          _selectedCliente!.clie_NombreNegocio?.isNotEmpty ==
-                                  true
-                              ? _selectedCliente!.clie_NombreNegocio!
+                          _selectedDireccion!.muni_descripcion.isNotEmpty
+                              ? _selectedDireccion!.muni_descripcion
                               : 'Sin negocio registrado',
                           style: _hintStyle.copyWith(fontSize: 12),
                           maxLines: 1,
@@ -751,16 +831,14 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     Navigator.popUntil(context, (route) => route.isFirst);
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const DevolucioneslistScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const DevolucioneslistScreen()),
     );
   }
 
   /// Resetea el formulario para una nueva devolución
   void _resetForm() {
     setState(() {
-      _selectedCliente = null;
+      _selectedDireccion = null;
       _selectedClienteId = null;
       _selectedFacturaId = null;
       _filteredFacturas = [];
@@ -771,21 +849,56 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     });
   }
 
+  /// Extrae el ID de la factura del mensaje de respuesta del backend
+  /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
+  int? _extractInvoiceIdFromMessage(String message) {
+    try {
+      // Buscar el patrón "ID: [número]"
+      final regex = RegExp(r'ID:\s*(\d+)');
+      final match = regex.firstMatch(message);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('Error al extraer ID de factura del mensaje: $e');
+    }
+    return null;
+  }
 
   /// Navega a la pantalla de detalle de factura
   void _navigateToInvoiceDetail(Map<String, dynamic> data) {
-    // Usar el ID que viene directamente en data (pasado desde el modal)
-    final facturaId = data['facturaId'];
     final facturaNumero = data['facturaNumero'] ?? 'N/A';
-    
-    print('Navegando a nueva factura - ID: $facturaId, Número: $facturaNumero');
-    
+    final facturaData = data['facturaData'];
+
+    print('Navegando a nueva factura - Número: $facturaNumero');
+    print('Datos de factura disponibles: $facturaData');
+
+    // Extraer ID usando la misma lógica que VentaScreen
+    int? facturaId;
+
+    // 1. PRIORIDAD: Extraer del message_Status usando regex
+    if (facturaData != null && facturaData['message_Status'] != null) {
+      facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
+      print('ID extraído del message_Status: $facturaId');
+    }
+
+    // 2. FALLBACK: Buscar en campos directos
+    if (facturaId == null && facturaData != null) {
+      facturaId =
+          facturaData['fact_Id'] ??
+          facturaData['id'] ??
+          facturaData['facturaId'];
+      print('ID extraído de campos directos: $facturaId');
+    }
+
+    print('ID de factura final: $facturaId');
+
     if (facturaId != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => InvoiceDetailScreen(
-            facturaId: facturaId,
+            facturaId: facturaId!,
             facturaNumero: facturaNumero,
           ),
         ),
@@ -801,7 +914,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   }
 
   /// Construye el diálogo de éxito para devoluciones
-  Widget _buildReturnSuccessDialog(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildReturnSuccessDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -878,7 +994,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 ],
               ),
             ),
-            
+
             // Contenido
             Flexible(
               child: SingleChildScrollView(
@@ -910,15 +1026,24 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _buildCompactDetailRow('Devolución', '#${data['devoId']}'),
-                          _buildCompactDetailRow('Nueva Factura', data['facturaNumero'] ?? 'N/A'),
-                          _buildCompactDetailRow('Productos', '${data['productosDevueltos']} devueltos'),
+                          _buildCompactDetailRow(
+                            'Devolución',
+                            '#${data['devoId']}',
+                          ),
+                          _buildCompactDetailRow(
+                            'Nueva Factura',
+                            data['facturaNumero'] ?? 'N/A',
+                          ),
+                          _buildCompactDetailRow(
+                            'Productos',
+                            '${data['productosDevueltos']} devueltos',
+                          ),
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Botones
                     Row(
                       children: [
@@ -932,7 +1057,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 _resetForm();
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                side: const BorderSide(
+                                  color: Color(0xFF141A2F),
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -949,9 +1076,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             ),
                           ),
                         ),
-                        
+
                         const SizedBox(width: 8),
-                        
+
                         // Botón Ver Factura
                         Expanded(
                           child: SizedBox(
@@ -1122,8 +1249,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                               '0',
                                         ) ??
                                         0);
-
-                        final cantidadDevolver = _counter;
 
                         final precio = (producto['fade_Precio'] ?? 0.0)
                             .toDouble();
@@ -1377,11 +1502,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                                           .toInt();
 
                                                 if (cantidad > maxCantidad) {
-                                                  final controller =
-                                                      TextEditingController(
-                                                        text: maxCantidad
-                                                            .toString(),
-                                                      );
                                                   setState(
                                                     () =>
                                                         _productosFactura[index]['cantidadDevolver'] =
@@ -1414,40 +1534,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 ),
 
                                 // Total to return
-                                if (cantidadDevolver > 0) ...[
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green[50],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          'Total a devolver:',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        Text(
-                                          'L ${NumberFormat('#,##0.00').format(precio * cantidadDevolver)}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                const SizedBox(height: 8),
                               ],
                             ),
                           ),
@@ -1532,10 +1619,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         ),
       ),
     );
-  }
-
-  void _updateCantidad(int index, int change) {
-    _updateCounter(change);
   }
 
   @override
