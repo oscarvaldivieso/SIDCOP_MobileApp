@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
-import 'package:sidcop_mobile/services/printer_service.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
 import 'dart:math';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
@@ -35,9 +36,17 @@ class _VentaScreenState extends State<VentaScreen> {
   final FormData formData = FormData();
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
-  final PrinterService _printerService = PrinterService();
-  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final ClientesService _clientesService = ClientesService();
+final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   late VentaInsertarViewModel _ventaModel;
+  
+  // Variables para control de crédito
+  bool _verificandoCredito = false;
+  bool _tieneCredito = true; // Asumimos que tiene crédito por defecto hasta que se verifique lo contrario
+  double _creditoDisponible = 0.0;
+  double _limiteCredito = 0.0;
+  double _saldoActual = 0.0;
   
   // Genera un número de factura aleatorio
   String _generateInvoiceNumber() {
@@ -47,10 +56,81 @@ class _VentaScreenState extends State<VentaScreen> {
     return 'FACT-${timestamp}_$randomDigits';
   }
   
-  // Variables para impresión
-  bool _isPrinting = false;
+  // Método para construir una fila de información de crédito
+  Widget _buildCreditInfoRow(String label, double amount, {bool isAvailable = false, bool isBalance = false}) {
+    final bool isNegative = amount < 0;
+    final bool isHighlight = isAvailable || isBalance;
+    
+    Color textColor = const Color(0xFF262B40);
+    if (isAvailable) {
+      textColor = const Color.fromARGB(255, 237, 211, 175); // Color dorado para crédito disponible
+    } else if (isBalance && amount > 0) {
+      textColor = const Color(0xFFE53E3E); // Rojo para saldo a favor
+    } else if (isBalance && isNegative) {
+      textColor = const Color(0xFF98BF4A); // Verde para saldo negativo (a favor del cliente)
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 14,
+              color: Color(0xFF4A5568),
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isHighlight ? const Color.fromARGB(255, 46, 60, 92) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'L. ${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 15,
+                color: textColor,
+                fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Variables para control de venta
   bool _isProcessingSale = false;
 
+  // Variables para direcciones del cliente
+  List<dynamic> _clientAddresses = [];
+  Map<String, dynamic>? _selectedAddress;
+  bool _isLoadingAddresses = false;
+  
   // Variables para productos
   List<ProductoConDescuento> _allProducts = [];
   List<ProductoConDescuento> _filteredProducts = [];
@@ -60,13 +140,15 @@ class _VentaScreenState extends State<VentaScreen> {
   bool _isCartSummaryExpanded = false;
   final TextEditingController _searchController = TextEditingController();
 
+
+
   int currentStep = 0;
   final int totalSteps = 4;
   
   final List<String> stepTitles = [
     'Método de Pago',
     'Productos disponibles',
-    'Selección de Productos',
+    'Carrito de compras',
     'Confirmación de venta'
   ];
   
@@ -77,26 +159,53 @@ class _VentaScreenState extends State<VentaScreen> {
     'Revisa y confirma la información'
   ];
 
+  // Cargar direcciones del cliente
+  Future<void> _loadClientAddresses() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _isLoadingAddresses = true);
+    try {
+      _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
+      
+      // Seleccionar la primera dirección por defecto si hay direcciones disponibles
+      if (_clientAddresses.isNotEmpty) {
+        _selectedAddress = _clientAddresses.first;
+        _ventaModel.diClId = _selectedAddress!['diCl_Id'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint('Error cargando direcciones: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAddresses = false);
+      }
+    }
+  }
+  
   @override
   void initState() {
     super.initState();
     _ventaModel = VentaInsertarViewModel.empty()
       ..factNumero = _generateInvoiceNumber()
-      ..clieId = widget.clienteId ?? 0
       ..vendId = widget.vendedorId ?? 0;
       
     _loadProducts();
+    _verificarCreditoCliente();
+    _loadClientAddresses();
     _searchController.addListener(_applyProductFilter);
     
     // Debug print to verify the values
     debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
+
+    // Verificar crédito al iniciar si ya hay un cliente seleccionado
+    if (widget.clienteId != null) {
+      _verificarCreditoCliente();
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _pageController.dispose();
-    _printerService.dispose();
     super.dispose();
   }
 
@@ -305,11 +414,8 @@ class _VentaScreenState extends State<VentaScreen> {
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
-      _ventaModel.regCId = 19;
+      _ventaModel.regCId = 20;
       _ventaModel.factFechaEmision = DateTime.now();
-      _ventaModel.factFechaLimiteEmision = DateTime.now().add(const Duration(days: 30));
-      _ventaModel.factRangoInicialAutorizado = "F001-00000001";
-      _ventaModel.factRangoFinalAutorizado = "F001-00099999";
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
       _ventaModel.factLongitud = -88.212665;
@@ -323,15 +429,14 @@ class _VentaScreenState extends State<VentaScreen> {
         throw Exception('No se pudo obtener el ID del vendedor de la sesión');
       }
       
-      // Asignar IDs de la sesión del usuario
-      _ventaModel.clieId = widget.clienteId ?? 111; // Usar clienteId pasado desde pantalla de cliente o valor por defecto
+      
       _ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
       //_ventaModel.vendId = 12;
       _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
       // Validar el modelo antes de enviar
       print('Validando modelo de venta...');
-      print('Cliente ID: ${_ventaModel.clieId}');
+      print('Direccion por cliente ID: ${_ventaModel.diClId}');
       print('Vendedor ID: ${_ventaModel.vendId}');
       print('Productos: ${_ventaModel.detallesFacturaInput.length}');
       print('Detalles de productos:');
@@ -803,7 +908,7 @@ class _VentaScreenState extends State<VentaScreen> {
           children: [
             // Header con título y chip de paso
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -813,7 +918,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       stepTitles[currentStep],
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF141A2F),
                       ),
@@ -821,7 +926,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   ),
                   // Chip de paso
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical:6),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color.fromARGB(255, 4, 4, 27), Color.fromARGB(255, 18, 18, 53)],
@@ -832,7 +937,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       '${currentStep + 1}/$totalSteps',
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -845,7 +950,7 @@ class _VentaScreenState extends State<VentaScreen> {
             // Barra de progreso moderna
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 color: const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(12),
@@ -898,7 +1003,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 stepDescriptions[currentStep],
                 style: const TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 14,
                   color: Color.fromARGB(255, 17, 19, 29)
                 ),
                 textAlign: TextAlign.left,
@@ -1017,8 +1122,9 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Paso 1: Método de Pago
-  Widget paso1() {
-    return Padding(
+Widget paso1() {
+  return SingleChildScrollView(
+    child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,19 +1142,176 @@ class _VentaScreenState extends State<VentaScreen> {
           const SizedBox(height: 24),
           _buildPaymentOption('Efectivo', Icons.money, 'EFECTIVO'),
           const SizedBox(height: 16),
-          _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO')
+          Opacity(
+            opacity: _tieneCredito ? 1.0 : 0.6,
+            child: AbsorbPointer(
+              absorbing: !_tieneCredito,
+              child: _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO'),
+            ),
+          ),
+          if (!_tieneCredito && widget.clienteId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+              child: Text(
+                'Crédito no disponible para este cliente',
+                style: TextStyle(
+                  color: Colors.orange[700],
+                  fontSize: 13,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+            ),
+          if (_verificandoCredito) 
+            const Padding(
+              padding: EdgeInsets.only(top: 16.0),
+              child: CircularProgressIndicator(),
+            )
+          else if (formData.metodoPago == 'CREDITO' && widget.clienteId != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFFFFF), Color(0xFFF8F9FF)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF262B40).withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: const Color(0xFF262B40).withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF262B40).withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.credit_card_rounded,
+                            color: Color(0xFF262B40),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Información de Crédito',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF262B40),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildCreditInfoRow('Límite de Crédito', _limiteCredito),
+                        const SizedBox(height: 4),
+                        _buildCreditInfoRow('Saldo Actual', _saldoActual, isBalance: true),
+                        const SizedBox(height: 12),
+                        _buildCreditInfoRow(
+                          'Crédito Disponible', 
+                          _creditoDisponible,
+                          isAvailable: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+  Future<void> _verificarCreditoCliente() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _verificandoCredito = true);
+    
+    try {
+      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+      
+      setState(() {
+        _limiteCredito = limiteCredito;
+        _saldoActual = saldoActual;
+        _creditoDisponible = creditoDisponible;
+        _tieneCredito = creditoDisponible > 0;
+      });
+      
+      // Si no hay crédito disponible, volver a efectivo
+      if (!_tieneCredito) {
+        setState(() {
+          formData.metodoPago = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'EFECTIVO';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al verificar crédito: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      // En caso de error, asumimos que no tiene crédito
+      setState(() {
+        _tieneCredito = false;
+        formData.metodoPago = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'EFECTIVO';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _verificandoCredito = false);
+      }
+    }
   }
+  
 
   Widget _buildPaymentOption(String title, IconData icon, String value) {
     bool isSelected = formData.metodoPago == value;
+    bool isCredit = value == 'CREDITO';
+    
     return GestureDetector(
-      onTap: () => setState(() {
-        formData.metodoPago = value;
-        _ventaModel.factTipoVenta = value;
-      }),
+      onTap: () async {
+        setState(() {
+          formData.metodoPago = value;
+          _ventaModel.factTipoVenta = value;
+        });
+        
+        if (isCredit && widget.clienteId != null) {
+          await _verificarCreditoCliente();
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
@@ -1105,12 +1368,13 @@ class _VentaScreenState extends State<VentaScreen> {
       children: [
         // Barra de búsqueda
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(13),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Buscar productos...',
               hintStyle: const TextStyle(
+                fontSize: 14,
                 fontFamily: 'Satoshi',
                 color: Color(0xFF9CA3AF),
               ),
@@ -1131,7 +1395,7 @@ class _VentaScreenState extends State<VentaScreen> {
         // Contador de productos seleccionados
         if (_selectedProducts.isNotEmpty)
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: const EdgeInsets.symmetric(horizontal: 14),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF98BF4A).withOpacity(0.1),
@@ -1145,6 +1409,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 Text(
                   '${_selectedProducts.length} productos seleccionados',
                   style: const TextStyle(
+                    fontSize: 14,
                     fontFamily: 'Satoshi',
                     color: Color(0xFF98BF4A),
                     fontWeight: FontWeight.w600,
@@ -1245,14 +1510,7 @@ class _VentaScreenState extends State<VentaScreen> {
                           border: Border.all(
                             color: const Color(0xFF262B40).withOpacity(0.1),
                             width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF262B40).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          )
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(11),
@@ -1318,7 +1576,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                     product.prodDescripcionCorta,
                                     style: TextStyle(
                                       fontFamily: 'Satoshi',
-                                      fontSize: 17,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w700,
                                       color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
                                       height: 1.3,
@@ -1350,29 +1608,37 @@ class _VentaScreenState extends State<VentaScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text(
-                                  'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF141A2F),
+                                if (mejorDescuento != null && mejorDescuento > 0) ...[
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFFEF4444),
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: Color(0xFFEF4444),
+                                      decorationThickness: 2.0,
+                                    ),
                                   ),
-                                ),
-                                if (mejorDescuento != null && mejorDescuento > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: Text(
-                                      'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF98BF4A),
-                                        decoration: TextDecoration.lineThrough,
-                                        decorationColor: const Color(0xFF6B7280),
-                                        decorationThickness: 2.0,
-                                      ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
+                                    ),
+                                  ),
+                                ] else
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
                                     ),
                                   ),
                               ],
@@ -1439,8 +1705,8 @@ class _VentaScreenState extends State<VentaScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: currentQuantity > 0 
                                     ? const Color(0xFF262B40) 
@@ -1504,7 +1770,7 @@ class _VentaScreenState extends State<VentaScreen> {
                               },
                               child: Container(
                                 width: 50,
-                                height: 40,
+                                height: 30,
                                 decoration: BoxDecoration(
                                   color: isSelected 
                                       ? const Color(0xFFD6B68A).withOpacity(0.2)
@@ -1525,15 +1791,10 @@ class _VentaScreenState extends State<VentaScreen> {
                               ),
                             ),
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF98774A),
-                                    const Color(0xFFD6B68A),
-                                  ],
-                                ),
+                                color: const Color(0xFF98774A),
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
@@ -1603,17 +1864,6 @@ class _VentaScreenState extends State<VentaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Título del carrito
-              const Text(
-                'Carrito de Compras',
-                style: TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF141A2F),
-                ),
-              ),
-              const SizedBox(height: 16),
               
               // Lista de productos seleccionados
               Expanded(
@@ -1796,22 +2046,6 @@ class _VentaScreenState extends State<VentaScreen> {
       ),
       child: Row(
         children: [
-          // Imagen del producto (placeholder)
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFF6B7280),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          
           // Información del producto
           Expanded(
             child: Column(
@@ -2264,7 +2498,9 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prodId == prodId);
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
       final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
@@ -2337,6 +2573,67 @@ class _VentaScreenState extends State<VentaScreen> {
                     Icons.person_outline,
                     [
                       _buildConfirmationRow('Cliente:', formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente),
+                      const SizedBox(height: 12),
+                      _isLoadingAddresses
+                          ? const Center(child: CircularProgressIndicator())
+                          : _clientAddresses.isEmpty
+                              ? const Text(
+                                  'No hay direcciones registradas para este cliente',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Colors.grey,
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Dirección de entrega:',
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                        color: Color(0xFF141A2F),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<Map<String, dynamic>>(
+                                          isExpanded: true,
+                                          value: _selectedAddress,
+                                          hint: const Text('Seleccione una dirección'),
+                                          items: _clientAddresses.map<DropdownMenuItem<Map<String, dynamic>>>((address) {
+                                            return DropdownMenuItem(
+                                              value: address,
+                                              child: Text(
+                                                '${address['diCl_DireccionExacta']} - ${address['muni_Descripcion']}',
+                                                style: const TextStyle(
+                                                  fontFamily: 'Satoshi',
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (newValue) {
+                                            if (newValue != null) {
+                                              setState(() {
+                                                _selectedAddress = newValue;
+                                                _ventaModel.diClId = newValue['diCl_Id'] ?? 0;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                     ],
                   ),
                   
@@ -2351,88 +2648,6 @@ class _VentaScreenState extends State<VentaScreen> {
                   _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
                   const SizedBox(height: 16),
-                  
-                  // Botón para probar impresora
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF141A2F).withOpacity(0.1),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.print,
-                              color: Color(0xFF141A2F),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Verificar Impresora',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF141A2F),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Prueba tu impresora Zebra ZQ310 antes de finalizar la venta',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontSize: 12,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _isPrinting ? null : _probarImpresora,
-                            icon: _isPrinting 
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
-                                    ),
-                                  )
-                                : const Icon(Icons.print_outlined),
-                            label: Text(_isPrinting ? 'Probando...' : 'Probar Impresora'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF141A2F),
-                              side: const BorderSide(color: Color(0xFF141A2F)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
                   
                   // Checkbox de confirmación
                   Container(
@@ -2847,8 +3062,6 @@ class _VentaScreenState extends State<VentaScreen> {
       // 2. Usar el método existente _procesarVenta para guardar la venta
       await _procesarVenta();
 
-      
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2867,9 +3080,9 @@ class _VentaScreenState extends State<VentaScreen> {
     }
   }
 
-  // Método para mostrar diálogo de éxito con opción de impresión
-  Future<void> _mostrarDialogoExitoConImpresion(Map<String, dynamic> facturaData) async {
-    return showDialog(
+  // Mostrar diálogo de éxito
+  void _showSuccessDialog() {
+    showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -2880,216 +3093,18 @@ class _VentaScreenState extends State<VentaScreen> {
             const Text('¡Venta Exitosa!'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Venta procesada correctamente'),
-            const SizedBox(height: 16),
-            const Text('¿Desea imprimir la factura ahora?'),
-            const SizedBox(height: 8),
-            const Text(
-              'Se buscará automáticamente su impresora Zebra ZQ310',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
+        content: const Text('Venta procesada correctamente'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               _resetearFormulario();
             },
-            child: const Text('No Imprimir'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _imprimirFactura(facturaData);
-              _resetearFormulario();
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('Imprimir'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-            ),
-          ),
+            child: const Text('Aceptar'),
+          )
         ],
       ),
     );
-  }
-
-  // Método para imprimir la factura
-  Future<void> _imprimirFactura(Map<String, dynamic> facturaData) async {
-    if (_isPrinting) return;
-
-    setState(() {
-      _isPrinting = true;
-    });
-
-    try {
-      // 1. Mostrar diálogo de selección de impresora
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      if (selectedDevice == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Impresión cancelada'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      // 2. Conectar a la impresora
-      final connected = await _printerService.connect(selectedDevice);
-      
-      if (!connected) {
-        throw Exception('No se pudo conectar a la impresora ${selectedDevice.name}');
-      }
-
-      // 3. Mostrar diálogo de progreso
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Imprimiendo...'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Enviando datos a la impresora'),
-            ],
-          ),
-        ),
-      );
-
-      // 4. Imprimir la factura
-      final printSuccess = await _printerService.printInvoice(facturaData);
-      
-      // Cerrar diálogo de progreso
-      Navigator.of(context).pop();
-
-      if (printSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Factura impresa correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        throw Exception('Error al imprimir la factura');
-      }
-
-      // 5. Desconectar de la impresora
-      await _printerService.disconnect();
-
-    } catch (e) {
-      // Cerrar diálogo de progreso si está abierto
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error de impresión: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Reintentar',
-              onPressed: () => _imprimirFactura(facturaData),
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPrinting = false;
-        });
-      }
-    }
-  }
-
-  // Método para probar la impresora
-  Future<void> _probarImpresora() async {
-    try {
-      print('=== INICIANDO PRUEBA DE IMPRESORA ===');
-      
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      if (selectedDevice == null) {
-        print('Usuario canceló la selección de impresora');
-        return;
-      }
-
-      print('Dispositivo seleccionado: ${selectedDevice.platformName} (${selectedDevice.remoteId})');
-      
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Probando Impresora'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Conectando y enviando prueba...'),
-            ],
-          ),
-        ),
-      );
-
-      print('Intentando conectar...');
-      final connected = await _printerService.connect(selectedDevice);
-      
-      if (!connected) {
-        Navigator.of(context).pop(); // Cerrar loading
-        throw Exception('No se pudo conectar a la impresora');
-      }
-
-      print('Conexión exitosa, enviando prueba de impresión...');
-      final testSuccess = await _printerService.printTest();
-      
-      print('Resultado de la prueba: $testSuccess');
-      
-      print('Desconectando...');
-      await _printerService.disconnect();
-      
-      // Cerrar indicador de carga
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(testSuccess 
-            ? '✅ Prueba de impresión exitosa' 
-            : '⚠️ Error en la prueba de impresión'),
-          backgroundColor: testSuccess ? Colors.green : Colors.orange,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      
-      print('=== FIN PRUEBA DE IMPRESORA ===');
-    } catch (e, stackTrace) {
-      print('ERROR EN PRUEBA DE IMPRESORA: $e');
-      print('Stack trace: $stackTrace');
-      
-      // Cerrar indicador de carga si está abierto
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 6),
-        ),
-      );
-    }
   }
 
 }
