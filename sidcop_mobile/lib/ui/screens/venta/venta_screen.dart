@@ -2026,74 +2026,233 @@ Widget paso1() {
   }
 
   // Widget para cada item del carrito
-  Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
-    final precio = product.prodPrecioUnitario;
-    final subtotal = precio * cantidad;
+  // Widget para cada item del carrito
+Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
+  final precio = product.prodPrecioUnitario;
+  final subtotal = precio * cantidad;
+  
+  // Calcular descuentos para este producto
+  double descuento = 0.0;
+  double porcentajeDescuento = 0.0;
+  if (product.descuentosEscala.isNotEmpty) {
+    for (var desc in product.descuentosEscala) {
+      if (cantidad >= desc.deEsInicioEscala && 
+          (desc.deEsFinEscala == -1 || cantidad <= desc.deEsFinEscala)) {
+        descuento = subtotal * (desc.deEsValor / 100);
+        porcentajeDescuento = desc.deEsValor;
+        break;
+      }
+    }
+  }
+  
+  final subtotalConDescuento = subtotal - descuento;
+  final impuesto = subtotalConDescuento * 0.15; // 15% ISV
+  final totalProducto = subtotalConDescuento + impuesto;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      border: Border.all(
+        color: const Color(0xFFF0F0F0),
+        width: 1,
       ),
-      child: Row(
-        children: [
-          // Información del producto
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header con información del producto
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Información del producto
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.prodDescripcionCorta ?? 'Producto sin nombre',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF141A2F),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Código: ${product.prodId ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 11,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Precio unitario y cantidad
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF3B82F6), width: 1),
+                        ),
+                        child: Text(
+                          'L. ${precio.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '× ${cantidad.toStringAsFixed(cantidad.truncateToDouble() == cantidad ? 0 : 1)}',
+                        style: const TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Controles de cantidad
+            Column(
               children: [
-                Text(
-                  product.prodDescripcionCorta ?? 'Producto sin nombre',
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF141A2F),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Botón disminuir cantidad
+                    GestureDetector(
+                      onTap: () {
+                        if (cantidad > 1) {
+                          _updateProductQuantity(product.prodId, cantidad - 1);
+                        } else {
+                          _updateProductQuantity(product.prodId, 0);
+                        }
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: const Icon(
+                          Icons.remove,
+                          size: 18,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 48,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFF141A2F), width: 1.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          cantidad.toInt().toString(),
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF141A2F),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Botón aumentar cantidad
+                    GestureDetector(
+                      onTap: () {
+                        _updateProductQuantity(product.prodId, cantidad + 1);
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141A2F),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Código: ${product.prodId ?? 'N/A'}',
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
+              ],
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Separador
+        Container(
+          height: 1,
+          color: const Color(0xFFF0F0F0),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Sección de cálculos
+        Column(
+          children: [
+            // Subtotal
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Row(
                   children: [
-                    Text(
-                      'L. ${precio.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF374151),
+                    Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6B7280),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     const Text(
-                      ' × ',
+                      'Subtotal',
                       style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    Text(
-                      cantidad.toString(),
-                      style: const TextStyle(
                         fontFamily: 'Satoshi',
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -2102,61 +2261,37 @@ Widget paso1() {
                     ),
                   ],
                 ),
+                Text(
+                  'L. ${subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF374151),
+                  ),
+                ),
               ],
             ),
-          ),
-          
-          // Controles de cantidad y subtotal
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'L. ${subtotal.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF141A2F),
-                ),
-              ),
+            
+            // Descuento (si aplica)
+            if (descuento > 0) ...[
               const SizedBox(height: 8),
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Botón disminuir cantidad
-                  GestureDetector(
-                    onTap: () {
-                      if (cantidad > 1) {
-                        _updateProductQuantity(product.prodId, cantidad - 1);
-                      } else {
-                        _updateProductQuantity(product.prodId, 0);
-                      }
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.remove,
-                        size: 16,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 40,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: Text(
-                        cantidad.toInt().toString(),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Descuento (${porcentajeDescuento.toStringAsFixed(0)}%)',
                         style: const TextStyle(
                           fontFamily: 'Satoshi',
                           fontSize: 14,
@@ -2164,36 +2299,121 @@ Widget paso1() {
                           color: Color(0xFF374151),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  // Botón aumentar cantidad
-                  GestureDetector(
-                    onTap: () {
-                      _updateProductQuantity(product.prodId, cantidad + 1);
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141A2F),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        size: 16,
-                        color: Colors.white,
-                      ),
+                  Text(
+                    '-L. ${descuento.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF374151),
                     ),
                   ),
                 ],
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
+            
+            const SizedBox(height: 8),
+            
+            // ISV
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: Color(0xFF374151),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ISV (15%)',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '+L. ${impuesto.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Separador para el total
+            Container(
+              height: 1,
+              color: const Color(0xFFE5E7EB),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Total del producto
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141A2F),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Total producto',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF141A2F),
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141A2F),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'L. ${totalProducto.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   // Método para calcular descuentos por escalas de cantidad
   Map<String, dynamic> _calculateDiscounts() {
@@ -2567,74 +2787,130 @@ Widget paso1() {
                   
                   const SizedBox(height: 16),
                   
-                  // Información del cliente
-                  _buildConfirmationSection(
-                    'Información del Cliente',
-                    Icons.person_outline,
-                    [
-                      _buildConfirmationRow('Cliente:', formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente),
-                      const SizedBox(height: 12),
-                      _isLoadingAddresses
-                          ? const Center(child: CircularProgressIndicator())
-                          : _clientAddresses.isEmpty
-                              ? const Text(
-                                  'No hay direcciones registradas para este cliente',
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    color: Colors.grey,
-                                  ),
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Dirección de entrega:',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 14,
-                                        color: Color(0xFF141A2F),
-                                      ),
+                  // Client Information Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF98BF4A).withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.person_outline_rounded,
+                                color: Color(0xFF98BF4A),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Cliente',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        
+                        // Client Name
+                        Text(
+                          formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente,
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF141A2F),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Delivery Address
+                        const Text(
+                          'Dirección de entrega',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        _isLoadingAddresses
+                            ? const Center(child: CircularProgressIndicator())
+                            : _clientAddresses.isEmpty
+                                ? const Text(
+                                    'No hay direcciones registradas',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      color: Colors.grey,
                                     ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.grey.shade300),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<Map<String, dynamic>>(
-                                          isExpanded: true,
-                                          value: _selectedAddress,
-                                          hint: const Text('Seleccione una dirección'),
-                                          items: _clientAddresses.map<DropdownMenuItem<Map<String, dynamic>>>((address) {
-                                            return DropdownMenuItem(
-                                              value: address,
-                                              child: Text(
-                                                '${address['diCl_DireccionExacta']} - ${address['muni_Descripcion']}',
-                                                style: const TextStyle(
-                                                  fontFamily: 'Satoshi',
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            );
-                                          }).toList(),
-                                          onChanged: (newValue) {
-                                            if (newValue != null) {
-                                              setState(() {
-                                                _selectedAddress = newValue;
-                                                _ventaModel.diClId = newValue['diCl_Id'] ?? 0;
-                                              });
-                                            }
-                                          },
+                                  )
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<Map<String, dynamic>>(
+                                        isExpanded: true,
+                                        value: _selectedAddress,
+                                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF98BF4A)),
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          color: Color(0xFF1E293B),
                                         ),
+                                        items: _clientAddresses.map<DropdownMenuItem<Map<String, dynamic>>>((address) {
+                                          return DropdownMenuItem(
+                                            value: address,
+                                            child: Text(
+                                              '${address['diCl_DireccionExacta']} - ${address['muni_Descripcion']}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Satoshi',
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (newValue) {
+                                          if (newValue != null) {
+                                            setState(() {
+                                              _selectedAddress = newValue;
+                                              _ventaModel.diClId = newValue['diCl_Id'] ?? 0;
+                                            });
+                                          }
+                                        },
                                       ),
                                     ),
-                                  ],
-                                ),
-                    ],
+                                  ),
+                      ],
+                    ),
                   ),
                   
                   const SizedBox(height: 16),
