@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
+import 'generateInvoicePdf.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int facturaId;
@@ -221,75 +224,78 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Future<void> _exportAndShare() async {
     if (_facturaData == null) return;
 
-    try {
-      final invoiceText = _generateShareableText();
-      // await Share.share(invoiceText, subject: 'Factura ${widget.facturaNumero} - SIDCOP');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al exportar: $e'),
-            backgroundColor: Colors.red,
-          ),
+    final pdfFile = await generateInvoicePdf(_facturaData!, widget.facturaNumero);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.download, color: Colors.green),
+              title: const Text("Enviar por WhatsApp"),
+              onTap: () async {
+                final url = "whatsapp://send?text=Factura adjunta&phone="; 
+                await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.download, color: Colors.blue),
+              title: const Text("Descargar PDF"),
+              onTap: () async {
+                Navigator.pop(context);
+                _showDownloadProgress(pdfFile);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.more_horiz, color: Colors.grey),
+              title: const Text("Más aplicaciones"),
+              onTap: () async {
+                await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                Navigator.pop(context);
+              },
+            ),
+          ],
         );
-      }
-    }
+      },
+    );
   }
 
-  String _generateShareableText() {
-    if (_facturaData == null) return '';
+  void _showDownloadProgress(File pdfFile) {
+    double progress = 0.0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (progress < 1.0) {
+                setState(() => progress += 0.25);
+              } else {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Factura descargada en: ${pdfFile.path}")),
+                );
+              }
+            });
 
-    final factura = _facturaData!;
-    final detalles = factura['detalleFactura'] as List<dynamic>? ?? [];
-    
-    String text = '''
-🧾 *FACTURA ${factura['fact_Numero']}*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🏢 *${factura['coFa_NombreEmpresa']}*
-📍 ${factura['coFa_DireccionEmpresa']}
-📞 ${factura['coFa_Telefono1']?.toString().trim().isNotEmpty == true ? factura['coFa_Telefono1'] : 'N/A'}
-🆔 RTN: ${factura['coFa_RTN']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 *Fecha:* ${_formatDate(factura['fact_FechaEmision'])}
-👤 *Cliente:* ${factura['cliente'] ?? 'Cliente General'}
-💳 *Método de Pago:* ${factura['fact_TipoVenta'] ?? 'Efectivo'}
-
-📦 *PRODUCTOS:*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-''';
-
-    for (var detalle in detalles) {
-      final cantidad = (detalle['faDe_Cantidad'] ?? 0).toDouble();
-      final precio = (detalle['faDe_PrecioUnitario'] ?? 0).toDouble();
-      final total = (detalle['faDe_Total'] ?? 0).toDouble();
-      
-      text += '''
-• ${detalle['prod_Descripcion'] ?? 'Producto'}
-  Cant: ${cantidad.toStringAsFixed(0)} x L. ${precio.toStringAsFixed(2)}
-  Total: L. ${total.toStringAsFixed(2)}
-
-''';
-    }
-
-    final subtotal = (factura['fact_Subtotal'] ?? 0).toDouble();
-    final impuestos = (factura['fact_TotalImpuesto15'] ?? 0).toDouble();
-    final totalFinal = (factura['fact_Total'] ?? 0).toDouble();
-
-    text += '''
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *RESUMEN:*
-Subtotal: L. ${subtotal.toStringAsFixed(2)}
-ISV (15%): L. ${impuestos.toStringAsFixed(2)}
-*TOTAL: L. ${totalFinal.toStringAsFixed(2)}*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Gracias por su compra 🙏
-${factura['coFa_NombreEmpresa']}
-''';
-
-    return text;
+            return AlertDialog(
+              title: const Text("Descargando..."),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 16),
+                  Text("${(progress * 100).toInt()}%"),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   String _formatDate(dynamic date) {
