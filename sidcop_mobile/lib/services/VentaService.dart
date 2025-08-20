@@ -111,9 +111,9 @@ class VentaService {
     print(' [VentaService] Validando datos de la venta...');
 
     // Validaciones básicas
-    if (venta.clieId <= 0) {
+    if (venta.diClId <= 0) {
       print(
-        ' [VentaService] Validación fallida: Cliente ID no válido (${venta.clieId})',
+        ' [VentaService] Validación fallida: Cliente ID no válido (${venta.diClId})',
       );
       return false;
     }
@@ -143,7 +143,7 @@ class VentaService {
     }
 
     print(' [VentaService] Validación de datos exitosa');
-    print('   - Cliente ID: ${venta.clieId}');
+    print('   - Cliente ID: ${venta.diClId}');
     print('   - Vendedor ID: ${venta.vendId}');
     print('   - Productos: ${venta.detallesFacturaInput.length}');
 
