@@ -454,13 +454,10 @@ class DevolucionesService {
         factNumero: nuevoNumero,
         factTipoDeDocumento: facturaData['fact_TipoDeDocumento'] ?? 'FAC',
         regCId: 19, // Usar mismo valor que VentaScreen
-        clieId: facturaData['clie_Id'],
+        diClId: facturaData['diCl_Id'],
         vendId: facturaData['vend_Id'],
         factTipoVenta: facturaData['fact_TipoVenta'] ?? 'Contado',
         factFechaEmision: DateTime.now(),
-        factFechaLimiteEmision: DateTime.now().add(const Duration(days: 30)),
-        factRangoInicialAutorizado: "F001-00000001",
-        factRangoFinalAutorizado: "F001-00099999",
         factLatitud: facturaData['fact_Latitud']?.toDouble() ?? 14.072245,
         factLongitud: facturaData['fact_Longitud']?.toDouble() ?? -88.212665,
         factReferencia:
