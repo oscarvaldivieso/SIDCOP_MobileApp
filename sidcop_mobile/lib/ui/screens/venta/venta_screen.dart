@@ -414,7 +414,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
-      _ventaModel.regCId = 20;
+      _ventaModel.regCId = 21;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
@@ -1271,7 +1271,7 @@ Widget paso1() {
       if (!_tieneCredito) {
         setState(() {
           formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
         });
       }
     } catch (e) {
@@ -1287,7 +1287,7 @@ Widget paso1() {
       setState(() {
         _tieneCredito = false;
         formData.metodoPago = 'EFECTIVO';
-        _ventaModel.factTipoVenta = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
       });
     } finally {
       if (mounted) {
@@ -1305,7 +1305,8 @@ Widget paso1() {
       onTap: () async {
         setState(() {
           formData.metodoPago = value;
-          _ventaModel.factTipoVenta = value;
+          // Convert to the correct format for the API
+          _ventaModel.factTipoVenta = value == 'CREDITO' ? 'CR' : 'CO';
         });
         
         if (isCredit && widget.clienteId != null) {
