@@ -4,7 +4,7 @@ import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
-import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
+//import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 
 
 class CxCScreen extends StatefulWidget {
@@ -399,9 +399,9 @@ Widget _buildCardContent(CuentasXCobrar cuenta, Color primaryColor) {
 }
 
 Widget _buildActionButtons(CuentasXCobrar cuenta, Color primaryColor) {
-  final bool tienePendiente = (cuenta.totalPendiente ?? 0) > 0;
-  final bool estaAnulado = cuenta.cpCo_Anulado == true;
-  final bool estaSaldado = cuenta.cpCo_Saldada == true;
+  //final bool tienePendiente = (cuenta.totalPendiente ?? 0) > 0;
+  //final bool estaAnulado = cuenta.cpCo_Anulado == true;
+  //final bool estaSaldado = cuenta.cpCo_Saldada == true;
   
   return Row(
     children: [
@@ -423,40 +423,26 @@ Widget _buildActionButtons(CuentasXCobrar cuenta, Color primaryColor) {
       
       const SizedBox(width: 8),
       
-      // Botón Registrar Pago (solo si tiene pendiente y no está anulado ni saldado)
-      if (tienePendiente && !estaAnulado && !estaSaldado)
-        Expanded(
-          flex: 2,
-          child: ElevatedButton.icon(
-            onPressed: () => _navigateToPaymentScreen(cuenta),
-            icon: const Icon(Icons.payment_rounded, size: 16, color: Colors.white),
-            label: const Text('Registrar Pago', style: TextStyle(fontSize: 12, fontFamily: 'Satoshi', color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-          ),
-        ),
+     
     ],
   );
 }
 
-void _navigateToPaymentScreen(CuentasXCobrar cuenta) async {
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => PagoCuentaPorCobrarScreen(
-        cuentaResumen: cuenta,
-      ),
-    ),
-  );
+// void _navigateToPaymentScreen(CuentasXCobrar cuenta) async {
+//   final result = await Navigator.push(
+//     context,
+//     MaterialPageRoute(
+//       builder: (context) => PagoCuentaPorCobrarScreen(
+//         cuentaResumen: cuenta,
+//       ),
+//     ),
+//   );
   
-  // Si el pago fue exitoso, recargar la lista
-  if (result == true) {
-    _loadCuentasPorCobrar();
-  }
-}
+//   // Si el pago fue exitoso, recargar la lista
+//   if (result == true) {
+//     _loadCuentasPorCobrar();
+//   }
+// }
 
   Widget _buildClientInfo(CuentasXCobrar cuenta, Color primaryColor) {
     return Row(

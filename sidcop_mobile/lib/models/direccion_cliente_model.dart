@@ -50,7 +50,7 @@ class DireccionCliente {
       dicl_id: json['diCl_Id'],
       clie_id: json['clie_Id'],
       colo_id: json['colo_Id'],
-      
+
       dicl_direccionexacta: json['diCl_DireccionExacta'],
       dicl_observaciones: json['diCl_Observaciones'],
       dicl_latitud: json['diCl_Latitud'] != null
@@ -78,22 +78,22 @@ class DireccionCliente {
 
   Map<String, dynamic> toJson() {
     return {
-      'dicl_id': dicl_id,
-      'clie_id': clie_id,
-      'colo_id': colo_id,
+      'diCl_Id': dicl_id,
+      'clie_Id': clie_id,
+      'colo_Id': colo_id,
       'Colo_Descripcion': Colo_Descripcion,
-      'dicl_direccionexacta': dicl_direccionexacta,
-      'dicl_observaciones': dicl_observaciones,
+      'diCl_DireccionExacta': dicl_direccionexacta,
+      'diCl_Observaciones': dicl_observaciones,
       'Depa_Descripcion': depaDescripcion,
       'Muni_Descripcion': muniDescripcion,
-      'dicl_latitud': dicl_latitud,
-      'dicl_longitud': dicl_longitud,
-      'muni_descripcion': muni_descripcion,
-      'depa_descripcion': depa_descripcion,
-      'usua_creacion': usua_creacion,
-      'dicl_fechacreacion': dicl_fechacreacion.toIso8601String(),
-      'usua_modificacion': usua_modificacion,
-      'dicl_fechamodificacion': dicl_fechamodificacion?.toIso8601String(),
+      'diCl_Latitud': dicl_latitud,
+      'diCl_Longitud': dicl_longitud,
+      'muni_Descripcion': muni_descripcion,
+      'depa_Descripcion': depa_descripcion,
+      'usua_Creacion': usua_creacion,
+      'diCl_FechaCreacion': dicl_fechacreacion.toIso8601String(),
+      'usua_Modificacion': usua_modificacion,
+      'diCl_FechaModificacion': dicl_fechamodificacion?.toIso8601String(),
     };
   }
 

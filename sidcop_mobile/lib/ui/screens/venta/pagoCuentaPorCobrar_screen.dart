@@ -177,15 +177,6 @@ Future<void> _registrarPago() async {
     // Actualizar la fecha seleccionada
     pago.pagoFecha = _fechaPago;
 
-    // DEBUG: Imprimir valores antes de validar
-    print('🔍 DEBUG - Valores del pago:');
-    print('- cpCoId: ${pago.cpCoId}');
-    print('- pagoMonto: ${pago.pagoMonto}');
-    print('- foPaId: ${pago.foPaId}');
-    print('- pagoNumeroReferencia: "${pago.pagoNumeroReferencia}"');
-    print('- pagoObservaciones: "${pago.pagoObservaciones}"');
-    print('- usuaCreacion: ${pago.usuaCreacion}');
-
     // Validar datos antes de enviar
     if (!_pagoService.validarDatosPago(pago)) {
       

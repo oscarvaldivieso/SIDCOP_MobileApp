@@ -1,11 +1,12 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/ui/screens/venta/venta_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
@@ -201,14 +202,13 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(14),
                               child: _cliente!['clie_ImagenDelNegocio'] != null
-                                  ? Image.network(
-                                      _cliente!['clie_ImagenDelNegocio'],
-                                      width: double.infinity,
-                                      height: double.infinity,
+                                  ? ClientImageCacheService().getCachedClientImage(
+                                      imageUrl: _cliente!['clie_ImagenDelNegocio'],
+                                      clientId: _cliente!['clie_Id'].toString(),
+                                      width: 10,
+                                      height: 10,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              _buildDefaultAvatar(),
+                                      errorWidget: _buildDefaultAvatar(),
                                     )
                                   : _buildDefaultAvatar(),
                             ),
