@@ -19,8 +19,10 @@ class PedidosCreateScreen extends StatefulWidget {
 class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   DateTime? _fechaEntrega;
   List<ProductosPedidosViewModel> _productos = [];
+  List<DescuentoEscalaModel> _descuentos = [];
   List<ProductosPedidosViewModel> _filteredProductos = [];
   final Map<int, int> _cantidades = {};
+  final Map<int, int?> _descuentosSeleccionados = {}; // prodId -> índice del descuento seleccionado (null = ninguno)
   bool _isLoading = true;
   String? _error;
   final TextEditingController _searchController = TextEditingController();
@@ -298,7 +300,20 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   }
 
   num _aplicarDescuento(ProductosPedidosViewModel producto, int cantidad, num precioBase) {
-    // 2. Verificar si hay descuentos y si aplica
+    // 1. Verificar si hay un descuento seleccionado manualmente
+    final indiceDescuentoSeleccionado = _descuentosSeleccionados[producto.prodId];
+    if (indiceDescuentoSeleccionado != null && 
+        producto.descuentosEscala != null && 
+        indiceDescuentoSeleccionado < producto.descuentosEscala!.length) {
+      
+      final descEsp = producto.descEspecificaciones;
+      if (descEsp != null && descEsp.descTipoFactura == 'AM') {
+        final descuentoSeleccionado = producto.descuentosEscala![indiceDescuentoSeleccionado];
+        return _calcularDescuento(precioBase, descEsp, descuentoSeleccionado.deEsValor);
+      }
+    }
+    
+    // 2. Si no hay descuento seleccionado manualmente, aplicar lógica automática por cantidad
     if (producto.descuentosEscala == null || producto.descuentosEscala!.isEmpty) {
       return precioBase;
     }
@@ -306,7 +321,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     if (descEsp == null || descEsp.descTipoFactura != 'AM') {
       return precioBase;
     }
-    // Buscar el descuento correspondiente
+    // Buscar el descuento correspondiente por cantidad
     DescuentoEscalaModel? ultimoDescuento;
     for (final desc in producto.descuentosEscala!) {
       if (cantidad >= desc.deEsInicioEscala && cantidad <= desc.deEsFinEscala) {
@@ -394,6 +409,86 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
           clienteId: widget.clienteId,
           fechaEntrega: _fechaEntrega!,
           direccionSeleccionada: _direccionSeleccionada!,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescuentosItem(ProductosPedidosViewModel producto, DescuentoEscalaModel descuento, int indiceDescuento) {
+    final isSelected = _descuentosSeleccionados[producto.prodId] == indiceDescuento;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected 
+            ? const Color(0xFFE0C7A0).withOpacity(0.2)
+            : const Color(0xFFE0C7A0).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSelected 
+              ? const Color(0xFF98774A)
+              : const Color(0xFFE0C7A0).withOpacity(0.3),
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (_descuentosSeleccionados[producto.prodId] == indiceDescuento) {
+              // Si ya está seleccionado, deseleccionar
+              _descuentosSeleccionados[producto.prodId] = null;
+            } else {
+              // Seleccionar este descuento
+              _descuentosSeleccionados[producto.prodId] = indiceDescuento;
+            }
+          });
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            children: [
+              // Radio button personalizado
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF98774A) : Colors.grey,
+                    width: 2,
+                  ),
+                  color: isSelected ? const Color(0xFF98774A) : Colors.transparent,
+                ),
+                child: isSelected
+                    ? const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 12,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.local_offer,
+                color: isSelected ? const Color(0xFF98774A) : Colors.grey[600],
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Desde ${descuento.deEsInicioEscala} hasta ${descuento.deEsFinEscala} unidades: ${descuento.deEsValor}% descuento',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? const Color(0xFF141A2F) : Colors.grey[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -541,14 +636,44 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                             if (isSelected)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  'Subtotal: L. ${(_getPrecioPorCantidad(producto, cantidad) * cantidad).toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF98774A),
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Subtotal: L. ${(_getPrecioPorCantidad(producto, cantidad) * cantidad).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF98774A),
+                                      ),
+                                    ),
+                                    // Indicador de descuento manual seleccionado
+                                    if (_descuentosSeleccionados[producto.prodId] != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.local_offer,
+                                              size: 12,
+                                              color: const Color(0xFF98774A),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Descuento manual aplicado',
+                                              style: const TextStyle(
+                                                fontFamily: 'Satoshi',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF98774A),
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                           ],
@@ -737,9 +862,57 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       ),
                     ],
                   ),
+                  // Mostrar descuentos si existen
+                  if (producto.descuentosEscala != null && producto.descuentosEscala!.isNotEmpty)
+                    Container(
+                      child: ExpansionTile(
+                        title: Text(
+                          'Descuentos de Precio (${producto.descuentosEscala!.length})',
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF141A2F),
+                          ),
+                        ),
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Column(
+                              children: producto.descuentosEscala!
+                                  .asMap()
+                                  .entries
+                                  .map((entry) => _buildDescuentosItem(producto, entry.value, entry.key))
+                                  .toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                 ],
               ),
             ),
+            // Indicador de producto impulsado (punto verde)
+            if (producto.prod_Impulsado)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // Indicador visual de selección en la esquina
             if (isSelected)
               Positioned(
