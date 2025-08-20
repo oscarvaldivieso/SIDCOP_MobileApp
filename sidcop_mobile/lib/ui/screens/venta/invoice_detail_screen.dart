@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/services/printer_service.dart';
 import 'generateInvoicePdf.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int facturaId;
@@ -221,7 +222,19 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-  void _showDownloadProgress(File pdfFile) {
+  void _showDownloadProgress(File pdfFile) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
+    );
+
+    if (selectedDirectory == null) {
+      return;
+    }
+
+    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
+    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
+    await pdfFile.copy(newPath);
+
     double progress = 0.0;
     showDialog(
       context: context,
@@ -235,7 +248,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               } else {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Factura descargada en: ${pdfFile.path}")),
+                  SnackBar(content: Text("Factura descargada en: $newPath")),
                 );
               }
             });
