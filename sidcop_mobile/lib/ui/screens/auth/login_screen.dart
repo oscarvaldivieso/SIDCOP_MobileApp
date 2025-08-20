@@ -30,6 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _generalError;
   bool _isLoading = false;
   String _syncStatus = '';
+  bool _rememberMe = false;
 
   Future<void> _handleLogin() async {
     // Limpiar errores previos
@@ -215,12 +216,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                 }
                               },
                             ),
+                            Row(
+  children: [
+    Checkbox(
+      value: _rememberMe,
+      activeColor: const Color(0xFF98774A), // color de tu diseño
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      onChanged: (value) {
+        setState(() {
+          _rememberMe = value ?? false;
+        });
+      },
+    ),
+    const Text(
+      'Mantener sesión',
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: Colors.black87,
+      ),
+    ),
+  ],
+),
+const SizedBox(height: 30),
                             const SizedBox(height: 50),
                             CustomButton(
-                              text: _isLoading 
-                                ? (_syncStatus.isNotEmpty ? _syncStatus : 'Ingresando...')
-                                : 'Ingresar',
-                              onPressed: _isLoading ? null : _handleLogin,
+                              text: 'Ingresar', // Texto fijo siempre
+                              onPressed: _isLoading ? null : _handleLogin, // Se deshabilita durante carga
                               icon: const Icon(
                                 Icons.login,
                                 color: Colors.white,
