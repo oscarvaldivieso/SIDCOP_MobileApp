@@ -194,16 +194,7 @@ class DevolucionesService {
       throw Exception(errorMsg);
     }
   }
-
-  /// Inserta una nueva devolución en el sistema
-  /// [clieId] - ID del cliente
-  /// [factId] - ID de la factura
-  /// [devoMotivo] - Motivo de la devolución
-  /// [usuaCreacion] - ID del usuario que crea la devolución
-  /// [detalles] - Lista de productos a devolver con sus cantidades
-  /// [devoFecha] - Fecha de la devolución (opcional, por defecto es la fecha actual)
-  /// [usuaModificacion] - ID del usuario que modifica (opcional)
-  /// [devoEstado] - Estado de la devolución (opcional, por defecto true)
+  
   Future<Map<String, dynamic>> insertarDevolucion({
     required int clieId,
     required int factId,
@@ -501,7 +492,7 @@ class DevolucionesService {
         ..factNumero = nuevoNumero
         ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
         ..regCId =
-            20 // Usar mismo valor que VentaScreen
+            21 
         ..diClId =
             diClId // Usar diClId obtenido de direcciones
         ..vendId = facturaData['vend_Id']
