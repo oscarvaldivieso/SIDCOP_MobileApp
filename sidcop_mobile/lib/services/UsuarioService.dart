@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -60,7 +61,7 @@ class UsuarioService {
             : int.tryParse(result['personaId'].toString());
         developer.log('Usuario ID: $globalVendId');
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
-        _iniciarPrecargaProductos();
+        iniciarPrecargaProductos();
 
         return result;
       } else {
@@ -78,13 +79,16 @@ class UsuarioService {
   }
 
   /// Inicia la precarga de productos en segundo plano
-  void _iniciarPrecargaProductos() {
+  void iniciarPrecargaProductos() {
     developer.log(
       'UsuarioService: Iniciando precarga de productos en segundo plano',
     );
     try {
       final preloadService = ProductPreloadService();
       preloadService.preloadInBackground();
+      
+      // También iniciar precarga de imágenes de clientes
+      SyncService.cacheClientImages();
     } catch (e) {
       developer.log(
         'UsuarioService: Error al iniciar precarga de productos: $e',
