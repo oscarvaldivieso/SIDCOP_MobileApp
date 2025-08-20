@@ -7,12 +7,14 @@ import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/models/devolucion_detalle_model.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
+import 'package:sidcop_mobile/services/ClientesService.Dart';
 
 class DevolucionesService {
   final String _endpoint = 'Devoluciones';
   final String _apiServer;
   final String _apiKey;
   final VentaService _ventaService = VentaService();
+  final ClientesService _clientesService = ClientesService();
 
   DevolucionesService() : _apiServer = apiServer, _apiKey = apikey;
 
@@ -443,85 +445,94 @@ class DevolucionesService {
         };
       }
 
-      // 5. Generar nuevo número de factura
+      // 5. Obtener dirección del cliente para obtener diClId
+      final clienteId = facturaData['clie_Id'] as int;
+      _log('Obteniendo direcciones para cliente ID: $clienteId');
+
+      final direcciones = await _clientesService.getDireccionesCliente(
+        clienteId,
+      );
+      if (direcciones.isEmpty) {
+        throw Exception(
+          'No se encontraron direcciones para el cliente $clienteId',
+        );
+      }
+
+      _log('Se encontraron ${direcciones.length} direcciones para el cliente');
+
+      // Buscar dirección principal o usar la primera disponible
+      Map<String, dynamic>? direccionSeleccionada;
+
+      // Intentar encontrar una dirección marcada como principal
+      for (var direccion in direcciones) {
+        if (direccion['diCl_Principal'] == true ||
+            direccion['diCl_Principal'] == 1) {
+          direccionSeleccionada = direccion;
+          _log('Usando dirección principal - diClId: ${direccion['diCl_Id']}');
+          break;
+        }
+      }
+
+      // Si no hay dirección principal, usar la primera
+      if (direccionSeleccionada == null && direcciones.isNotEmpty) {
+        direccionSeleccionada = direcciones.first;
+        _log(
+          'No se encontró dirección principal, usando la primera - diClId: ${direccionSeleccionada!['diCl_Id']}',
+        );
+      }
+
+      if (direccionSeleccionada == null) {
+        throw Exception(
+          'No se pudo seleccionar una dirección válida para el cliente $clienteId',
+        );
+      }
+
+      final diClId = direccionSeleccionada['diCl_Id'] as int;
+      _log('Dirección seleccionada - diClId: $diClId');
+
+      // 6. Generar nuevo número de factura
       final random = Random();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final randomDigits = 100000 + random.nextInt(900000);
       final nuevoNumero = 'FACT-${timestamp}_$randomDigits';
 
-      // 6. Crear nueva factura con datos originales pero productos ajustados
-      final nuevaVenta = VentaInsertarViewModel(
-        factNumero: nuevoNumero,
-        factTipoDeDocumento: facturaData['fact_TipoDeDocumento'] ?? 'FAC',
-        regCId: 19, // Usar mismo valor que VentaScreen
-        clieId: facturaData['clie_Id'],
-        vendId: facturaData['vend_Id'],
-        factTipoVenta: facturaData['fact_TipoVenta'] ?? 'Contado',
-        factFechaEmision: DateTime.now(),
-        factFechaLimiteEmision: DateTime.now().add(const Duration(days: 30)),
-        factRangoInicialAutorizado: "F001-00000001",
-        factRangoFinalAutorizado: "F001-00099999",
-        factLatitud: facturaData['fact_Latitud']?.toDouble() ?? 14.072245,
-        factLongitud: facturaData['fact_Longitud']?.toDouble() ?? -88.212665,
-        factReferencia:
-            "Ajuste por devolución - Factura original: ${facturaData['fact_Numero']}",
-        factAutorizadoPor: facturaData['fact_AutorizadoPor'] ?? "Sistema",
-        usuaCreacion: usuaCreacion,
-        detallesFacturaInput: nuevosDetalles,
-      );
+      // 7. Crear nueva factura con datos originales pero productos ajustados
+      final nuevaVenta = VentaInsertarViewModel.empty()
+        ..factNumero = nuevoNumero
+        ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
+        ..regCId =
+            20 // Usar mismo valor que VentaScreen
+        ..diClId =
+            diClId // Usar diClId obtenido de direcciones
+        ..vendId = facturaData['vend_Id']
+        ..factTipoVenta = facturaData['fact_TipoVenta'] ?? 'Contado'
+        ..factFechaEmision = DateTime.now()
+        ..factLatitud = facturaData['fact_Latitud']?.toDouble() ?? 14.072245
+        ..factLongitud = facturaData['fact_Longitud']?.toDouble() ?? -88.212665
+        ..factReferencia =
+            "Ajuste por devolución - Factura original: ${facturaData['fact_Numero']}"
+        ..factAutorizadoPor = facturaData['fact_AutorizadoPor'] ?? "Sistema"
+        ..usuaCreacion = usuaCreacion
+        ..detallesFacturaInput = nuevosDetalles;
 
-      // 7. Anular la factura original antes de crear la nueva
-      _log('Anulando factura original...');
-      await anularFactura(
-        factId: facturaId,
-        motivo:
-            'Anulación por devolución - Nueva factura ajustada: $nuevoNumero',
-        usuaModificacion: usuaCreacion,
-      );
-      _log('Factura original anulada exitosamente');
-
-      // 8. Insertar nueva factura
-      _log('Insertando nueva factura ajustada...');
+      // 8. Insertar nueva factura ajustada PRIMERO
+      _log('PASO 1: Insertando nueva factura ajustada...');
       final resultado = await _ventaService.insertarFacturaConValidacion(
         nuevaVenta,
       );
 
       if (resultado != null && resultado['success'] == true) {
         _log('Factura ajustada creada exitosamente');
-        _log('Estructura completa del resultado: ${resultado.toString()}');
-        
-        // Extraer el ID de la nueva factura del resultado
-        int? nuevaFacturaId;
-        
-        // Intentar extraer del message_Status (igual que en VentaService)
-        final messageStatus = resultado['data']?['message_Status'];
-        _log('message_Status: $messageStatus');
-        
-        if (messageStatus != null) {
-          final regex = RegExp(r'ID:\s*(\d+)');
-          final match = regex.firstMatch(messageStatus.toString());
-          if (match != null) {
-            nuevaFacturaId = int.parse(match.group(1)!);
-            _log('ID extraído del message_Status: $nuevaFacturaId');
-          }
-        }
-        
-        // Fallback: intentar otros campos
-        if (nuevaFacturaId == null) {
-          nuevaFacturaId = resultado['data']?['fact_Id'] ?? 
-                          resultado['data']?['id'] ??
-                          resultado['data']?['facturaId'];
-          _log('ID extraído de campos alternativos: $nuevaFacturaId');
-        }
+        _log('Respuesta del servicio: ${resultado.toString()}');
 
         return {
           'success': true,
           'facturaCreada': true,
           'facturaNumero': nuevoNumero,
-          'facturaId': nuevaFacturaId, // ID de la nueva factura
           'facturaOriginal': facturaData['fact_Numero'],
           'productosRestantes': nuevosDetalles.length,
-          'data': resultado['data'],
+          'ventaServiceResponse':
+              resultado, // Respuesta completa del VentaService
         };
       } else {
         throw Exception(
@@ -539,6 +550,8 @@ class DevolucionesService {
   }
 
   /// Inserta devolución y crea factura ajustada en un solo proceso
+  /// NUEVO ORDEN: 1) Crear factura ajustada, 2) Insertar devolución, 3) Anular factura original
+  /// CON VALIDACIÓN: Si falla la factura, no se ejecutan los pasos siguientes
   Future<Map<String, dynamic>> insertarDevolucionConFacturaAjustada({
     required int clieId,
     required int factId,
@@ -549,11 +562,35 @@ class DevolucionesService {
     bool crearNuevaFactura = true,
   }) async {
     _log('\n=== INICIO DE insertarDevolucionConFacturaAjustada ===');
+    _log('NUEVO ORDEN: Factura -> Devolución -> Anular Original');
     _log('crearNuevaFactura: $crearNuevaFactura');
 
     try {
-      // 1. Insertar la devolución
-      _log('Insertando devolución...');
+      Map<String, dynamic>? resultadoFactura;
+      
+      // PASO 1: Crear factura ajustada PRIMERO - CRÍTICO
+      if (crearNuevaFactura) {
+        _log('PASO 1: Creando factura ajustada...');
+        resultadoFactura = await crearFacturaAjustada(
+          facturaId: factId,
+          productosDevueltos: detalles,
+          usuaCreacion: usuaCreacion,
+        );
+        
+        // VALIDACIÓN CRÍTICA: Verificar que la factura se creó exitosamente
+        if (resultadoFactura == null || 
+            resultadoFactura['success'] != true || 
+            resultadoFactura['error'] == true) {
+          final errorMsg = resultadoFactura?['message'] ?? 'Error desconocido al crear factura ajustada';
+          _log('ERROR CRÍTICO: Factura ajustada NO se pudo crear: $errorMsg', isError: true);
+          throw Exception('PROCESO ABORTADO: No se pudo crear la factura ajustada. $errorMsg');
+        }
+        
+        _log('✅ Factura ajustada creada exitosamente');
+      }
+
+      // PASO 2: Insertar la devolución (solo si la factura fue exitosa)
+      _log('PASO 2: Insertando devolución...');
       final resultadoDevolucion = await insertarDevolucion(
         clieId: clieId,
         factId: factId,
@@ -562,30 +599,36 @@ class DevolucionesService {
         detalles: detalles,
         devoFecha: devoFecha,
       );
+      _log('✅ Devolución insertada exitosamente');
 
-      _log('Devolución insertada exitosamente');
+      // PASO 3: Anular la factura original (solo si todo lo anterior fue exitoso)
+      _log('PASO 3: Anulando factura original...');
+      final facturaNumero = resultadoFactura?['facturaNumero'] ?? 'N/A';
+      await anularFactura(
+        factId: factId,
+        motivo: 'Anulación por devolución - Nueva factura ajustada: $facturaNumero',
+        usuaModificacion: usuaCreacion,
+      );
+      _log('✅ Factura original anulada exitosamente');
 
-      // 2. Crear factura ajustada si se solicita
-      Map<String, dynamic>? resultadoFactura;
-      if (crearNuevaFactura) {
-        _log('Creando factura ajustada...');
-        resultadoFactura = await crearFacturaAjustada(
-          facturaId: factId,
-          productosDevueltos: detalles,
-          usuaCreacion: usuaCreacion,
-        );
-      }
-
-      // 3. Retornar resultados combinados
+      // 4. Retornar resultados combinados
       return {
         'success': true,
         'devolucion': resultadoDevolucion,
         'facturaAjustada': resultadoFactura,
-        'message': 'Proceso completado exitosamente',
+        'message': 'Proceso completado exitosamente - Nuevo orden aplicado',
       };
     } catch (e) {
-      _log('Error en insertarDevolucionConFacturaAjustada: $e', isError: true);
-      rethrow;
+      _log('❌ ERROR CRÍTICO en insertarDevolucionConFacturaAjustada: $e', isError: true);
+      _log('PROCESO ABORTADO - No se ejecutaron pasos posteriores', isError: true);
+      
+      // Retornar error estructurado
+      return {
+        'success': false,
+        'error': true,
+        'message': 'Error en proceso de devolución: $e',
+        'errorDetails': e.toString(),
+      };
     }
   }
 }
