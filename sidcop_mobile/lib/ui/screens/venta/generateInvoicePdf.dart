@@ -139,7 +139,7 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
   );
 
   final dir = await getApplicationDocumentsDirectory();
-  final file = File("${dir.path}/Factura_$facturaNumero.pdf");
+  final file = File("${dir.path}/Factura_${factura['fact_Numero']}.pdf");
   await file.writeAsBytes(await pdf.save());
   return file;
 }
