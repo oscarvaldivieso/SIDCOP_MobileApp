@@ -1,6 +1,5 @@
 class DevolucionesViewModel {
   final int devoId;
-  final int clieId;
   final int? factId;
   final DateTime devoFecha;
   final String devoMotivo;
@@ -16,7 +15,6 @@ class DevolucionesViewModel {
 
   DevolucionesViewModel({
     required this.devoId,
-    required this.clieId,
     this.factId,
     required this.devoFecha,
     required this.devoMotivo,
@@ -34,7 +32,6 @@ class DevolucionesViewModel {
   factory DevolucionesViewModel.fromJson(Map<String, dynamic> json) {
     return DevolucionesViewModel(
       devoId: json['devo_Id'],
-      clieId: json['clie_Id'],
       factId: json['fact_Id'],
       devoFecha: DateTime.parse(json['devo_Fecha']),
       devoMotivo: json['devo_Motivo'],
@@ -55,7 +52,6 @@ class DevolucionesViewModel {
   Map<String, dynamic> toJson() {
     return {
       'devo_Id': devoId,
-      'clie_Id': clieId,
       'fact_Id': factId,
       'devo_Fecha': devoFecha.toIso8601String(),
       'devo_Motivo': devoMotivo,

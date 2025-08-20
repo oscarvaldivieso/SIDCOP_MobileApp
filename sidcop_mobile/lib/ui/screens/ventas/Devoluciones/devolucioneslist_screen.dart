@@ -315,11 +315,6 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Fila de cliente
-                        _buildDetailRow(
-                          Icons.person_outline,
-                          'Cliente',
-                          devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
-                        ),
                         const SizedBox(height: 12),
                         // Fila de motivo
                         _buildDetailRow(

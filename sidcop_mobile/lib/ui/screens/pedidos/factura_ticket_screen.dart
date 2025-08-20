@@ -288,56 +288,147 @@ class FacturaTicketScreen extends StatelessWidget {
             if (rtn != null && rtn!.isNotEmpty) Text('RTN: $rtn'),
             Text('Vendedor: $vendedor'),
             const Divider(height: 24),
-            // Tabla de productos
-            Row(
-              children: const [
-                Expanded(
-                  child: Text(
-                    'Und',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Producto',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Precio',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Desc.',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Monto',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const Divider(),
-            ...productos.map(
-              (p) => Row(
-                children: [
-                  Expanded(child: Text('${p.cantidad}')),
-                  Expanded(flex: 3, child: Text(p.nombre)),
-                  Expanded(child: Text('L. ${p.precio.toStringAsFixed(2)}')),
-                  Expanded(child: Text(p.descuentoStr)),
-                  Expanded(
+            // Tabla de productos con mejor diseño
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: const [
+                  SizedBox(
+                    width: 35,
                     child: Text(
-                      'L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}',
+                      'Cant',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      'Producto',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 55,
+                    child: Text(
+                      'Precio',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 45,
+                    child: Text(
+                      'Desc.',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      'Total',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.right,
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...productos.map(
+              (p) => Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                margin: const EdgeInsets.only(bottom: 2),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 35,
+                      child: Text(
+                        '${p.cantidad}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        p.nombre,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 55,
+                      child: Text(
+                        'L.${p.precio.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 45,
+                      child: Text(
+                        p.descuentoStr,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.red,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 60,
+                      child: Text(
+                        'L.${(p.precioFinal * p.cantidad).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF141A2F),
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const Divider(height: 24),
