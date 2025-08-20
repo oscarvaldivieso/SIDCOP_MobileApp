@@ -5,6 +5,7 @@ import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
 import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
+import '../../../services/SyncService.dart';
 import '../../screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   String? _error;
   bool _isLoading = false;
+  String _syncStatus = '';
 
   Future<void> _handleLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -43,8 +45,24 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result != null && result['error'] != true) {
-        // Login exitoso - guardar datos del usuario y navegar al home screen
+        // Login exitoso - guardar datos del usuario
         await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        // Sincronización
+        setState(() {
+          _syncStatus = 'Ingresando';
+        });
+        
+        await SyncService.syncAfterLogin(
+          immediate: false,  //que no demore el login
+          onProgress: (status) {
+            if (mounted) {
+              setState(() {
+                _syncStatus = status;
+              });
+            }
+          },
+        );
         
         if (mounted) {
           Navigator.pushReplacement(
@@ -134,7 +152,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 50),
                         CustomButton(
-                          text: _isLoading ? 'Ingresando...' : 'Ingresar',
+                          text: _isLoading 
+                            ? (_syncStatus.isNotEmpty ? _syncStatus : 'Ingresando...')
+                            : 'Ingresar',
                           onPressed: _isLoading ? null : _handleLogin,
                           icon: const Icon(
                             Icons.login,

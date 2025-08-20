@@ -5,9 +5,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:custom_info_window/custom_info_window.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'dart:ui' as ui; // Para generar el bitmap custom
@@ -19,6 +22,7 @@ List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
 List<Cliente> _clientesFiltrados = [];
 final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+final Set<int> _direccionesVisitadas = {}; // IDs de direcciones visitadas
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
@@ -31,9 +35,29 @@ class RutaMapScreen extends StatefulWidget {
 }
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  String? _rutaImagenMapaStatic;
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error guardando imagen de mapa: $e');
+    }
+    return null;
+  }
+
   // Paleta local (solo para esta pantalla)
   static const Color _darkBg = Color(0xFF141A2F);
-  static const Color _panelBg = Color(0xFF1B243A);
   static const Color _gold = Color(0xFFD6B68A);
   static const Color _body = Color(0xFFE6E8EC);
   static const Color _bodyDim = Color(0xFFB5B8BF);
@@ -113,27 +137,31 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   BitmapDescriptor? _negocioIcon;
   bool _generatingNegocioIcon = false;
   // Clientes marcados como visitados (checkbox en la barra lateral)
-  final Set<int> _clientesVisitados = {};
+  // Eliminado: Set<int> _clientesVisitados
   bool _enviandoVisita = false;
   bool _historialCargado = false;
 
   Future<void> _cargarHistorialVisitas(Set<int?> clienteIdsRuta) async {
-    if (_historialCargado) return; // evitar recargas múltiples en esta sesión
     try {
       final servicio = ClientesVisitaHistorialService();
       final historial = await servicio.listarPorVendedor();
-      final previos = historial
-          .where((h) => h.clieId != null && clienteIdsRuta.contains(h.clieId))
-          .map((h) => h.clieId!)
-          .toSet();
-      if (previos.isNotEmpty) {
-        setState(() {
-          _clientesVisitados.addAll(previos);
-        });
+      print('Historial de visitas recibido:');
+      for (var h in historial) {
+        print('diCl_Id: [32m${h.diCl_Id}[0m');
       }
+      // Marcar direcciones visitadas (por diCl_Id)
+      final direccionesPrevias = historial
+          .where((h) => h.diCl_Id != null)
+          .map((h) => h.diCl_Id!)
+          .toSet();
+      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
+      setState(() {
+        _direccionesVisitadas.clear();
+        _direccionesVisitadas.addAll(direccionesPrevias);
+      });
       _historialCargado = true;
-    } catch (_) {
-      // Silencioso: si falla no bloquea la pantalla
+    } catch (e) {
+      print('Error al cargar historial: $e');
     }
   }
 
@@ -147,7 +175,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: _panelBg,
+          backgroundColor: _darkBg,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -195,33 +223,44 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final servicio = ClientesVisitaHistorialService();
       // TODO: Obtener usuario real autenticado. Usando 1 como placeholder.
       final int usuarioId = 1;
+      // Obtener veRuId correcto usando el endpoint ListarPorRutas
+      final vendedoresService = VendedoresService();
+      final vendedoresPorRuta = await vendedoresService.listarPorRutas();
+      final vendedorRuta = vendedoresPorRuta.firstWhere(
+        (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
+      );
+      final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
+
+      // Obtener la dirección seleccionada para este cliente/parada
+      int? diclId;
+      if (paradaLatLng != null) {
+        final idxDireccion = _direccionesFiltradas.indexWhere(
+          (d) =>
+              d.dicl_latitud == paradaLatLng.latitude &&
+              d.dicl_longitud == paradaLatLng.longitude,
+        );
+        if (idxDireccion != -1) {
+          diclId = _direccionesFiltradas[idxDireccion].dicl_id;
+        }
+      }
       final registro = ClientesVisitaHistorialModel(
-        hcviId: 0,
-        veruId: 2,
-        clieId: cliente.clie_Id,
-        hcviFoto: '',
-        hcviObservaciones: 'Visitado',
-        hcviFecha: DateTime.now(),
-        hcviLatitud: _userLocation?.latitude ?? paradaLatLng?.latitude,
-        hcviLongitud: _userLocation?.longitude ?? paradaLatLng?.longitude,
-        usuaCreacion: usuarioId,
-        hcviFechaCreacion: DateTime.now(),
-        veruDias: '1',
-        cliente: '${cliente.clie_Nombres ?? ''} ${cliente.clie_Apellidos ?? ''}'
-            .trim(),
-        clieNombreNegocio: cliente.clie_NombreNegocio,
-        secuencia: indiceLista,
+        veRu_Id: veruId,
+        diCl_Id:
+            diclId ??
+            0, // Usa el id de la dirección seleccionada, o 0 si no se encuentra
+        esVi_Id: 1, // O el estado que corresponda
+        clVi_Observaciones: 'Visitado',
+        clVi_Fecha: DateTime.now(),
+        usua_Creacion: usuarioId,
+        clVi_FechaCreacion: DateTime.now(),
       );
       await servicio.insertar(registro);
+      // Recargar historial para actualizar los checks
+      await _cargarHistorialVisitas({cliente.clie_Id});
       if (mounted) {
-        setState(() {
-          if (cliente.clie_Id != null) {
-            _clientesVisitados.add(cliente.clie_Id!);
-          }
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: _panelBg,
+            backgroundColor: _darkBg,
             content: const Text(
               'Cliente marcado como visitado',
               style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
@@ -266,6 +305,36 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     });
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
+
+    // Descargar y guardar imagen de mapa static al cargar pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final url = await _getStaticMapUrl();
+      if (url != null) {
+        final localPath = await guardarImagenDeMapaStatic(
+          url,
+          'map_static_${widget.rutaId}',
+        );
+        setState(() {
+          _rutaImagenMapaStatic = localPath;
+        });
+      }
+    });
+  }
+
+  // Genera la URL del mapa static para la ruta actual
+  Future<String?> _getStaticMapUrl() async {
+    if (_direccionesFiltradas.isEmpty) return null;
+    const iconUrl =
+        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+    final markers = _direccionesFiltradas
+        .map(
+          (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+        )
+        .join('&');
+    final center = _direccionesFiltradas.isNotEmpty
+        ? '${_direccionesFiltradas.first.dicl_latitud},${_direccionesFiltradas.first.dicl_longitud}'
+        : '15.525585,-88.013512';
+    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=400x150&$markers&key=$_googleApiKey';
   }
 
   void _updateUserMarker() {
@@ -398,7 +467,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       builder: (context) {
                         return Container(
                           decoration: BoxDecoration(
-                            color: _panelBg,
+                            color: _darkBg,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(24),
                             ),
@@ -543,7 +612,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                     ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _panelBg,
+                      color: _darkBg,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
@@ -794,7 +863,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     return Theme(
       data: Theme.of(context).copyWith(
         popupMenuTheme: const PopupMenuThemeData(
-          color: _panelBg,
+          color: _darkBg,
           textStyle: TextStyle(
             fontFamily: 'Satoshi',
             color: _body,
@@ -827,7 +896,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
               },
             ),
             PopupMenuButton<MapType>(
-              color: _panelBg,
+              color: _darkBg,
               icon: const Icon(Icons.map, color: _gold),
               onSelected: (type) {
                 setState(() {
@@ -883,7 +952,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                             if (parada['tipo'] == 'origen') {
                               return ListTile(
                                 leading: const CircleAvatar(
-                                  backgroundColor: _panelBg,
+                                  backgroundColor: _darkBg,
                                   child: Icon(
                                     Icons.person_pin_circle,
                                     color: _gold,
@@ -923,7 +992,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                 collapsedIconColor: _gold,
                                 iconColor: _gold,
                                 leading: CircleAvatar(
-                                  backgroundColor: _panelBg,
+                                  backgroundColor: _darkBg,
                                   child: Text(
                                     '$idx',
                                     style: const TextStyle(
@@ -948,33 +1017,65 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (cliente != null &&
-                                        cliente.clie_Id != null)
-                                      Checkbox(
-                                        value: _clientesVisitados.contains(
-                                          cliente.clie_Id,
-                                        ),
-                                        onChanged:
-                                            _clientesVisitados.contains(
-                                                  cliente.clie_Id,
-                                                ) ||
-                                                _enviandoVisita
-                                            ? null
-                                            : (val) async {
-                                                if (val == true) {
-                                                  await _confirmarVisitaCliente(
-                                                    cliente,
-                                                    idx,
-                                                    parada['latlng'],
-                                                  );
-                                                }
-                                              },
-                                        activeColor: Colors.green,
-                                        checkColor: _darkBg,
-                                        side: const BorderSide(
-                                          color: _gold,
-                                          width: 1.4,
-                                        ),
+                                    // Marcar dirección como visitada si su dicl_id está en _direccionesVisitadas
+                                    if (parada['latlng'] != null)
+                                      Builder(
+                                        builder: (context) {
+                                          int? diclId;
+                                          final paradaLatLng =
+                                              parada['latlng'] as LatLng?;
+                                          if (paradaLatLng != null) {
+                                            final idxDireccion =
+                                                _direccionesFiltradas
+                                                    .indexWhere(
+                                                      (d) =>
+                                                          d.dicl_latitud ==
+                                                              paradaLatLng
+                                                                  .latitude &&
+                                                          d.dicl_longitud ==
+                                                              paradaLatLng
+                                                                  .longitude,
+                                                    );
+                                            if (idxDireccion != -1) {
+                                              diclId =
+                                                  _direccionesFiltradas[idxDireccion]
+                                                      .dicl_id;
+                                            }
+                                          }
+                                          print(
+                                            'Render Checkbox: diclId=$diclId, visitados=$_direccionesVisitadas',
+                                          );
+                                          return Checkbox(
+                                            value:
+                                                diclId != null &&
+                                                _direccionesVisitadas.contains(
+                                                  diclId,
+                                                ),
+                                            onChanged:
+                                                (diclId != null &&
+                                                        _direccionesVisitadas
+                                                            .contains(
+                                                              diclId,
+                                                            )) ||
+                                                    _enviandoVisita
+                                                ? null
+                                                : (val) async {
+                                                    if (val == true &&
+                                                        cliente != null) {
+                                                      await _confirmarVisitaCliente(
+                                                        cliente,
+                                                        idx,
+                                                        parada['latlng'],
+                                                      );
+                                                    }
+                                                  },
+                                            checkColor: Colors.green,
+                                            side: const BorderSide(
+                                              color: _gold,
+                                              width: 1.4,
+                                            ),
+                                          );
+                                        },
                                       ),
                                   ],
                                 ),
@@ -1043,7 +1144,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       children: [
                                         ElevatedButton.icon(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: _panelBg,
+                                            backgroundColor: _darkBg,
                                             foregroundColor: _gold,
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
@@ -1079,7 +1180,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         const SizedBox(width: 8),
                                         ElevatedButton.icon(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: _panelBg,
+                                            backgroundColor: _darkBg,
                                             foregroundColor: _gold,
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
@@ -1181,7 +1282,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         FloatingActionButton(
-                          backgroundColor: _panelBg,
+                          backgroundColor: _darkBg,
                           foregroundColor: _gold,
                           onPressed: _userLocation == null || _markers.isEmpty
                               ? null
@@ -1214,7 +1315,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                         ),
                         const SizedBox(height: 16),
                         FloatingActionButton(
-                          backgroundColor: _panelBg,
+                          backgroundColor: _darkBg,
                           foregroundColor: _gold,
                           onPressed: _mapController == null
                               ? null
