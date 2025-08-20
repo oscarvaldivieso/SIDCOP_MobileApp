@@ -112,7 +112,9 @@ class VentaService {
 
     // Validaciones básicas
     if (venta.diClId <= 0) {
-      print(' [VentaService] Validación fallida: Cliente ID no válido (${venta.diClId})');
+      print(
+        ' [VentaService] Validación fallida: Cliente ID no válido (${venta.diClId})',
+      );
       return false;
     }
 
