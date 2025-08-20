@@ -9,6 +9,51 @@ class CuentasXCobrarService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
+  Future<Map<String, dynamic>> getClienteCreditInfo(int clienteId) async {
+    final url = Uri.parse('$_apiServer/Cliente/Buscar/$clienteId');
+    developer.log('Get Cliente Credit Info Request URL: $url');
+    
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log(
+        'Get Cliente Credit Info Response Status: ${response.statusCode}',
+      );
+      developer.log('Get Cliente Credit Info Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        
+        if (decoded is Map<String, dynamic>) {
+          // Calculate available credit
+          final limiteCredito = (decoded['clie_LimiteCredito'] as num?)?.toDouble() ?? 0.0;
+          final saldo = (decoded['clie_Saldo'] as num?)?.toDouble() ?? 0.0;
+          final creditoDisponible = (limiteCredito - saldo).clamp(0, limiteCredito);
+          
+          return {
+            'limiteCredito': limiteCredito,
+            'saldoActual': saldo,
+            'creditoDisponible': creditoDisponible,
+            'clienteNombre': '${decoded['clie_Nombres'] ?? ''} ${decoded['clie_Apellidos'] ?? ''}'.trim(),
+            'nombreNegocio': decoded['clie_NombreNegocio']?.toString() ?? ''
+          };
+        } else {
+          throw Exception('Respuesta del servidor en formato incorrecto');
+        }
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Cliente Credit Info Error: $e');
+      rethrow;
+    }
+  }
+
   Future<List<dynamic>> getCuentasPorCobrar() async {
     final url = Uri.parse('$_apiServer/CuentasPorCobrar/Listar');
     developer.log('Get CuentasPorCobrar Request URL: $url');
