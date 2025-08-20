@@ -6,7 +6,9 @@ import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'dart:convert';
 
 class VentasListScreen extends StatefulWidget {
-  const VentasListScreen({super.key});
+  const VentasListScreen({super.key, this.vendedorId});
+
+  final int? vendedorId;
 
   @override
   State<VentasListScreen> createState() => _VentasListScreenState();
@@ -50,14 +52,9 @@ class _VentasListScreenState extends State<VentasListScreen> {
     });
 
     try {
-      // Obtener el ID del vendedor desde el perfil de usuario
-      final userData = await _perfilService.obtenerDatosUsuario();
-      final vendedorId = userData?['vend_Id'] ?? 
-                        userData?['personaId'] ?? 
-                        userData?['usua_IdVendedor'] ?? 13;
 
       final response = await _ventaService.listarVentasPorVendedor(
-        vendedorId is int ? vendedorId : int.tryParse(vendedorId.toString()) ?? 13,
+        widget.vendedorId ?? 13
       );
 
       if (response != null && response['success'] == true) {
