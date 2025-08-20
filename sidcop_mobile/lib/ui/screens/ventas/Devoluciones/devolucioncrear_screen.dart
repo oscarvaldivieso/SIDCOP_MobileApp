@@ -37,9 +37,9 @@ class DevolucioncrearScreen extends StatefulWidget {
 }
 
 class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
-
   final _formKey = GlobalKey<FormState>();
-  final DireccionClienteService _direccionClienteService = DireccionClienteService();
+  final DireccionClienteService _direccionClienteService =
+      DireccionClienteService();
 
   // Services
   final FacturaService _facturaService = FacturaService();
@@ -117,7 +117,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
   Future<void> _loadData() async {
     try {
-      final direccionesData = await _direccionClienteService.getDireccionesPorCliente();
+      final direccionesData = await _direccionClienteService
+          .getDireccionesPorCliente();
       final facturasData = await _facturaService.getFacturas();
 
       if (!mounted) return;
@@ -146,12 +147,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _selectedFacturaId = null;
       _filteredFacturas = direccion != null
           ? _facturas
-              .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
-              .toList()
+                .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
+                .toList()
           : [];
       // Actualizar el texto del controlador para reflejar la selección
       if (direccion != null) {
-        _clienteController.text = '${direccion.clie_Nombres} ${direccion.clie_Apellidos}';
+        _clienteController.text =
+            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}';
       } else {
         _clienteController.clear();
       }
@@ -266,53 +268,102 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
       // Crear la devolución con factura ajustada
       try {
-        final response = await _devolucionesService.insertarDevolucionConFacturaAjustada(
-          clieId: _selectedClienteId!,
-          factId: _selectedFacturaId!,
-          devoMotivo: _motivoController.text,
-          usuaCreacion: 1, // TODO: Reemplazar con el ID del usuario autenticado
-          detalles: productosADevolver,
-          devoFecha: DateTime.tryParse(_fechaController.text),
-          crearNuevaFactura: true,
-        );
+        final response = await _devolucionesService
+            .insertarDevolucionConFacturaAjustada(
+              clieId: _selectedClienteId!,
+              factId: _selectedFacturaId!,
+              devoMotivo: _motivoController.text,
+              usuaCreacion:
+                  1, // TODO: Reemplazar con el ID del usuario autenticado
+              detalles: productosADevolver,
+              devoFecha: DateTime.tryParse(_fechaController.text),
+              crearNuevaFactura: true,
+            );
 
         // Cerrar el diálogo de carga
         if (!mounted) return;
         Navigator.pop(context);
 
-        // Extraer datos de la respuesta
+        // DEBUG: Imprimir toda la respuesta para entender la estructura
+        print('🔍 DEBUGGING - Respuesta completa del servicio:');
+        print(response);
+
+        // VALIDACIÓN CRÍTICA: Verificar si el proceso fue exitoso
+        final success = response['success'] == true;
+        final hasError = response['error'] == true;
+
+        print('🔍 DEBUG - success: $success, hasError: $hasError');
+
+        if (!success || hasError) {
+          // El proceso falló - mostrar error
+          final errorMessage =
+              response['message'] ??
+              'Error desconocido en el proceso de devolución';
+          print('❌ MOSTRANDO ERROR: $errorMessage');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $errorMessage'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          return; // Salir sin mostrar modal de éxito
+        }
+
+        // Extraer datos de la respuesta SOLO si fue exitoso
         final devoId = response['devolucion']?['data']?['devo_Id'] ?? 'N/A';
         final facturaAjustada = response['facturaAjustada'];
         final facturaCreada = facturaAjustada?['facturaCreada'] == true;
         final facturaNumero = facturaAjustada?['facturaNumero'];
-        final nuevaFacturaId = facturaAjustada?['facturaId']; // ID de la nueva factura
-        
-        print('Datos extraídos - devoId: $devoId, facturaCreada: $facturaCreada');
-        print('facturaNumero: $facturaNumero, nuevaFacturaId: $nuevaFacturaId');
-        
-        // Mostrar modal de éxito
+
+        // Extraer datos de la respuesta del VentaService
+        final ventaServiceResponse = facturaAjustada?['ventaServiceResponse'];
+        final ventaServiceData = ventaServiceResponse?['data'];
+
+        print(
+          '✅ Proceso exitoso - devoId: $devoId, facturaCreada: $facturaCreada',
+        );
+        print('facturaNumero: $facturaNumero');
+        print('ventaServiceData: $ventaServiceData');
+
+        // VALIDACIÓN ADICIONAL: Verificar que realmente tenemos una factura válida
+        if (facturaAjustada == null || facturaCreada != true) {
+          print('❌ ERROR: Factura ajustada no fue creada correctamente');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: No se pudo crear la factura ajustada'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          return;
+        }
+
+        // Mostrar modal de éxito SOLO si todo fue exitoso
         if (!mounted) return;
-        if (facturaCreada && nuevaFacturaId != null) {
+        if (ventaServiceData != null) {
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (_) => _buildReturnSuccessDialog(context, {
               'devoId': devoId,
               'facturaNumero': facturaNumero,
-              'facturaId': nuevaFacturaId, // Pasar el ID correcto
+              'facturaData':
+                  ventaServiceData, // Pasar los datos completos de la factura
               'productosDevueltos': productosADevolver.length,
             }),
           );
         } else {
-          // Fallback: mostrar mensaje simple y navegar
+          print(
+            '❌ ERROR: No hay datos de factura válidos para mostrar el modal',
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Devolución registrada exitosamente'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              content: Text('Error: Datos de factura incompletos'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
             ),
           );
-          _navigateToReturnsList();
         }
       } catch (e) {
         // Cerrar diálogo de carga
@@ -348,22 +399,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                       Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        size: 20,
-                        color: Color(0xFF141A2F),
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios,
+                            size: 20,
+                            color: Color(0xFF141A2F),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        Text(
+                          'Devoluciones',
+                          style: _titleStyle.copyWith(fontSize: 18),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Devoluciones',
-                      style: _titleStyle.copyWith(fontSize: 18),
-                    ),
-                  ],
-                ),
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
@@ -373,16 +424,35 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     RawAutocomplete<DireccionCliente>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
                         if (textEditingValue.text.isEmpty) {
-                          final sortedDirecciones = List<DireccionCliente>.from(_direcciones);
-                          sortedDirecciones.sort((a, b) => b.dicl_fechacreacion.compareTo(a.dicl_fechacreacion));
+                          final sortedDirecciones = List<DireccionCliente>.from(
+                            _direcciones,
+                          );
+                          sortedDirecciones.sort(
+                            (a, b) => b.dicl_fechacreacion.compareTo(
+                              a.dicl_fechacreacion,
+                            ),
+                          );
                           return sortedDirecciones;
                         }
                         return _direcciones.where((DireccionCliente direccion) {
-                          final searchValue = textEditingValue.text.toLowerCase();
-                          return (direccion.clie_Nombres?.toLowerCase().contains(searchValue) ?? false) ||
-                                 (direccion.clie_Apellidos?.toLowerCase().contains(searchValue) ?? false) ||
-                                 (direccion.clie_NombreNegocio?.toLowerCase().contains(searchValue) ?? false) ||
-                                 (direccion.clie_Codigo?.toLowerCase().contains(searchValue) ?? false);
+                          final searchValue = textEditingValue.text
+                              .toLowerCase();
+                          return (direccion.clie_Nombres
+                                      ?.toLowerCase()
+                                      .contains(searchValue) ??
+                                  false) ||
+                              (direccion.clie_Apellidos?.toLowerCase().contains(
+                                    searchValue,
+                                  ) ??
+                                  false) ||
+                              (direccion.clie_NombreNegocio
+                                      ?.toLowerCase()
+                                      .contains(searchValue) ??
+                                  false) ||
+                              (direccion.clie_Codigo?.toLowerCase().contains(
+                                    searchValue,
+                                  ) ??
+                                  false);
                         });
                       },
                       displayStringForOption: (DireccionCliente direccion) =>
@@ -403,44 +473,44 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             }
 
                             return Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade400),
-                                  borderRadius: BorderRadius.circular(8),
-                                  color: Colors.white,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                child: TextFormField(
-                                  controller: textEditingController,
-                                  focusNode: focusNode,
-                                  style: _labelStyle,
-                                  decoration: InputDecoration(
-                                    hintText: 'Buscar cliente...',
-                                    hintStyle: _hintStyle,
-                                    border: InputBorder.none,
-                                    suffixIcon: const Icon(
-                                      Icons.arrow_drop_down,
-                                      size: 24,
-                                    ),
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              child: TextFormField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                style: _labelStyle,
+                                decoration: InputDecoration(
+                                  hintText: 'Buscar cliente...',
+                                  hintStyle: _hintStyle,
+                                  border: InputBorder.none,
+                                  suffixIcon: const Icon(
+                                    Icons.arrow_drop_down,
+                                    size: 24,
                                   ),
-                                  onTap: () {
-                                    if (_selectedDireccion != null) {
-                                      setState(() {
-                                        _selectedDireccion = null;
-                                        _selectedClienteId = null;
-                                        _selectedFacturaId = null;
-                                        _filteredFacturas = [];
-                                        textEditingController.clear();
-                                      });
-                                    }
-                                  },
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                 ),
+                                onTap: () {
+                                  if (_selectedDireccion != null) {
+                                    setState(() {
+                                      _selectedDireccion = null;
+                                      _selectedClienteId = null;
+                                      _selectedFacturaId = null;
+                                      _filteredFacturas = [];
+                                      textEditingController.clear();
+                                    });
+                                  }
+                                },
+                              ),
                             );
                           },
                       optionsViewBuilder:
@@ -464,7 +534,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                     itemCount: options.length,
                                     itemBuilder:
                                         (BuildContext context, int index) {
-                                          final DireccionCliente option = options.elementAt(index);
+                                          final DireccionCliente option =
+                                              options.elementAt(index);
                                           return InkWell(
                                             onTap: () {
                                               onSelected(option);
@@ -760,9 +831,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     Navigator.popUntil(context, (route) => route.isFirst);
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const DevolucioneslistScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const DevolucioneslistScreen()),
     );
   }
 
@@ -780,20 +849,56 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     });
   }
 
+  /// Extrae el ID de la factura del mensaje de respuesta del backend
+  /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
+  int? _extractInvoiceIdFromMessage(String message) {
+    try {
+      // Buscar el patrón "ID: [número]"
+      final regex = RegExp(r'ID:\s*(\d+)');
+      final match = regex.firstMatch(message);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('Error al extraer ID de factura del mensaje: $e');
+    }
+    return null;
+  }
+
   /// Navega a la pantalla de detalle de factura
   void _navigateToInvoiceDetail(Map<String, dynamic> data) {
-    // Usar el ID que viene directamente en data (pasado desde el modal)
-    final facturaId = data['facturaId'];
     final facturaNumero = data['facturaNumero'] ?? 'N/A';
-    
-    print('Navegando a nueva factura - ID: $facturaId, Número: $facturaNumero');
-    
+    final facturaData = data['facturaData'];
+
+    print('Navegando a nueva factura - Número: $facturaNumero');
+    print('Datos de factura disponibles: $facturaData');
+
+    // Extraer ID usando la misma lógica que VentaScreen
+    int? facturaId;
+
+    // 1. PRIORIDAD: Extraer del message_Status usando regex
+    if (facturaData != null && facturaData['message_Status'] != null) {
+      facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
+      print('ID extraído del message_Status: $facturaId');
+    }
+
+    // 2. FALLBACK: Buscar en campos directos
+    if (facturaId == null && facturaData != null) {
+      facturaId =
+          facturaData['fact_Id'] ??
+          facturaData['id'] ??
+          facturaData['facturaId'];
+      print('ID extraído de campos directos: $facturaId');
+    }
+
+    print('ID de factura final: $facturaId');
+
     if (facturaId != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => InvoiceDetailScreen(
-            facturaId: facturaId,
+            facturaId: facturaId!,
             facturaNumero: facturaNumero,
           ),
         ),
@@ -809,7 +914,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   }
 
   /// Construye el diálogo de éxito para devoluciones
-  Widget _buildReturnSuccessDialog(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildReturnSuccessDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -886,7 +994,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 ],
               ),
             ),
-            
+
             // Contenido
             Flexible(
               child: SingleChildScrollView(
@@ -918,15 +1026,24 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _buildCompactDetailRow('Devolución', '#${data['devoId']}'),
-                          _buildCompactDetailRow('Nueva Factura', data['facturaNumero'] ?? 'N/A'),
-                          _buildCompactDetailRow('Productos', '${data['productosDevueltos']} devueltos'),
+                          _buildCompactDetailRow(
+                            'Devolución',
+                            '#${data['devoId']}',
+                          ),
+                          _buildCompactDetailRow(
+                            'Nueva Factura',
+                            data['facturaNumero'] ?? 'N/A',
+                          ),
+                          _buildCompactDetailRow(
+                            'Productos',
+                            '${data['productosDevueltos']} devueltos',
+                          ),
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Botones
                     Row(
                       children: [
@@ -940,7 +1057,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 _resetForm();
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                side: const BorderSide(
+                                  color: Color(0xFF141A2F),
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -957,9 +1076,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             ),
                           ),
                         ),
-                        
+
                         const SizedBox(width: 8),
-                        
+
                         // Botón Ver Factura
                         Expanded(
                           child: SizedBox(
@@ -1329,24 +1448,29 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                                 ),
                                                 enabledBorder:
                                                     OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  borderSide: BorderSide(
-                                                    color: Colors.grey[300]!,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide: BorderSide(
+                                                        color:
+                                                            Colors.grey[300]!,
+                                                        width: 1.5,
+                                                      ),
+                                                    ),
                                                 focusedBorder:
                                                     OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  borderSide: BorderSide(
-                                                    color: Theme.of(
-                                                      context,
-                                                    ).primaryColor,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide: BorderSide(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).primaryColor,
+                                                        width: 1.5,
+                                                      ),
+                                                    ),
                                                 hintText: '0',
                                                 isDense: true,
                                                 suffix: Text(
