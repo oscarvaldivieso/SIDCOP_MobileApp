@@ -2923,9 +2923,9 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   // Resumen financiero
                   _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
-                  const SizedBox(height: 16),
-                  
+              
                   const SizedBox(height: 24)
+                  
                 ],
               ),
             ),
