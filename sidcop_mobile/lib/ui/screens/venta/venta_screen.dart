@@ -606,7 +606,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _buildCompactDetailRow('Factura', _ventaModel.factNumero),
                           _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
                           _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
                         ],
@@ -1271,7 +1270,7 @@ Widget paso1() {
       if (!_tieneCredito) {
         setState(() {
           formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
         });
       }
     } catch (e) {
@@ -1287,7 +1286,7 @@ Widget paso1() {
       setState(() {
         _tieneCredito = false;
         formData.metodoPago = 'EFECTIVO';
-        _ventaModel.factTipoVenta = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
       });
     } finally {
       if (mounted) {
@@ -1305,7 +1304,8 @@ Widget paso1() {
       onTap: () async {
         setState(() {
           formData.metodoPago = value;
-          _ventaModel.factTipoVenta = value;
+          // Convert to the correct format for the API
+          _ventaModel.factTipoVenta = value == 'CREDITO' ? 'CR' : 'CO';
         });
         
         if (isCredit && widget.clienteId != null) {
@@ -2923,33 +2923,9 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   // Resumen financiero
                   _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
-                  const SizedBox(height: 16),
+              
+                  const SizedBox(height: 24)
                   
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _procesarVentaConImpresion,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF98BF4A),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: const Text(
-                        'CONFIRMAR VENTA',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

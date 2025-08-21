@@ -17,27 +17,29 @@ class ErrorHandler {
     // Debug: imprimir la respuesta para verificar estructura
     print('🔍 DEBUG - Respuesta completa: $response');
     
-    // PRIORIDAD 1: Buscar message_Status en data
+    // Verificar si hay un message_Status en la respuesta
+    if (response['data'] != null && 
+        response['data'] is Map<String, dynamic> && 
+        response['data']['message_Status'] != null) {
+      String message = response['data']['message_Status'].toString().trim();
+      if (message.isNotEmpty) {
+        print('🔍 DEBUG - ✅ Usando message_Status directo: $message');
+        return message;
+      }
+    }
+    
+    // Si no se encontró message_Status directo, intentar extraerlo con el método existente
     String? messageStatus = _extractMessageStatus(response);
     if (messageStatus != null && messageStatus.trim().isNotEmpty) {
-      print('🔍 DEBUG - ✅ Usando message_Status: $messageStatus');
+      print('🔍 DEBUG - ✅ Usando message_Status extraído: $messageStatus');
       return messageStatus.trim();
     }
 
-    // PRIORIDAD 2: Usar el message principal
-    if (response['message'] != null && response['message'].toString().trim().isNotEmpty) {
-      print('🔍 DEBUG - ⚠️ Usando message principal: ${response['message']}');
-      return response['message'].toString().trim();
-    }
-
-    // PRIORIDAD 3: Fallback con código si está disponible
-    String codeInfo = '';
-    if (response['code'] != null) {
-      codeInfo = ' (Código: ${response['code']})';
-    }
-
-    print('🔍 DEBUG - ❌ Usando fallback message');
-    return (fallbackMessage ?? 'Error al realizar la operación') + codeInfo;
+    // Si no hay message_Status, usar el mensaje de error estándar
+    String defaultMessage = 'Error al realizar la operación';
+    String codeInfo = response['code'] != null ? ' (Código: ${response['code']})' : '';
+    
+    return (fallbackMessage ?? defaultMessage) + codeInfo;
   }
 
   /// Extrae específicamente el message_Status de la respuesta
