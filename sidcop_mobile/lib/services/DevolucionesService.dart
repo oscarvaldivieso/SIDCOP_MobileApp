@@ -491,6 +491,7 @@ class DevolucionesService {
       final nuevaVenta = VentaInsertarViewModel.empty()
         ..factNumero = nuevoNumero
         ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
+
         ..regCId = 21
         ..diClId =
             diClId // Usar diClId obtenido de direcciones
