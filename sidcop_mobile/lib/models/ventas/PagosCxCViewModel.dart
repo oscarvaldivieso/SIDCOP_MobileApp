@@ -75,18 +75,19 @@ class PagosCuentasXCobrar {
   }
 
   // VERSIÓN MEJORADA: JSON para envío al API que coincida EXACTAMENTE con el backend
-  Map<String, dynamic> toJson() {
-    final json = {
-      'CPCo_Id': cpCoId,                        // ✅ Exacto como espera el backend
-      'Pago_Monto': pagoMonto,                  // ✅ Exacto como espera el backend
-      'FoPa_Id': foPaId,                        // 🔧 CORREGIDO: Era 'Pago_FormaPago', ahora es 'FoPa_Id'
-      'Pago_NumeroReferencia': pagoNumeroReferencia, // ✅ Exacto como espera el backend
-      'Pago_Observaciones': pagoObservaciones,       // ✅ Exacto como espera el backend
-      'Usua_Creacion': usuaCreacion,            // ✅ Exacto como espera el backend
-    };
-    
-    return json;
-  }
+ Map<String, dynamic> toJson() {
+  final json = {
+    'CPCo_Id': cpCoId,                        // ✅ Exacto como espera el backend
+    'Pago_Monto': pagoMonto,                  // ✅ Exacto como espera el backend
+    'FoPa_Id': foPaId,                        // ✅ Exacto como espera el backend
+    'FoPa_Descripcion': pagoFormaPago,        // 🔧 AGREGADO: Campo requerido por la API
+    'Pago_NumeroReferencia': pagoNumeroReferencia, // ✅ Exacto como espera el backend
+    'Pago_Observaciones': pagoObservaciones,       // ✅ Exacto como espera el backend
+    'Usua_Creacion': usuaCreacion,            // ✅ Exacto como espera el backend
+  };
+  
+  return json;
+}
 
   // JSON completo para recibir del API (cuando se consulta)
   Map<String, dynamic> toFullJson() {
