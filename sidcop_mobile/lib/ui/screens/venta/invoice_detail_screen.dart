@@ -271,74 +271,85 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   void _showFloatingShareMenu(BuildContext context) async {
     if (_facturaData == null) return;
-  
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Generando PDF...'),
-          ],
-        ),
-      ),
-    );
-  
+
     final pdfFile = await generateInvoicePdf(_facturaData!, widget.facturaNumero);
-  
-    if (mounted) Navigator.of(context).pop();
-  
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
-  
-    await showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy + button.size.height,
-        overlay.size.width - position.dx - button.size.width,
-        overlay.size.height - position.dy,
+
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final button = context.findRenderObject() as RenderBox;
+    final buttonPosition = button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  overlayEntry.remove();
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            Positioned(
+              left: buttonPosition.dx + button.size.width - 180,
+              top: buttonPosition.dy + 60,
+              child: Material(
+                color: Colors.transparent,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildIconButton(
+                      icon: FontAwesomeIcons.whatsapp,
+                      color: Colors.green,
+                      onPressed: () async {
+                        await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                        overlayEntry.remove();
+                      },
+                    ),
+                    _buildIconButton(
+                      icon: FontAwesomeIcons.filePdf,
+                      color: const Color.fromARGB(255, 117, 19, 12),
+                      onPressed: () {
+                        overlayEntry.remove();
+                        _showDownloadProgress(pdfFile);
+                      },
+                    ),
+                    _buildIconButton(
+                      icon: Icons.more_horiz,
+                      color: Colors.grey,
+                      onPressed: () async {
+                        await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                        overlayEntry.remove();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(overlayEntry);
+  }
+
+  Widget _buildIconButton({required IconData icon, required Color color, required VoidCallback onPressed}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(30),
+        child: CircleAvatar(
+          backgroundColor: const Color.fromARGB(255, 248, 248, 248),
+          radius: 24,
+          child: Icon(icon, color: color, size: 28),
+        ),
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      color: Colors.white,
-      items: [
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
-            title: const Text("WhatsApp"),
-            onTap: () async {
-              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-              Navigator.pop(context);
-            },
-          ),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(FontAwesomeIcons.filePdf, color: Color.fromARGB(255, 117, 19, 12)),
-            title: const Text("Descargar PDF"),
-            onTap: () async {
-              Navigator.pop(context);
-              _showDownloadProgress(pdfFile);
-            },
-          ),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.more_horiz, color: Colors.grey),
-            title: const Text("Más aplicaciones"),
-            onTap: () async {
-              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-              Navigator.pop(context);
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -961,5 +972,61 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         ],
       ),
     );
+  }
+}
+
+class _VerticalDotsLoading extends StatefulWidget {
+  const _VerticalDotsLoading({Key? key}) : super(key: key);
+
+  @override
+  State<_VerticalDotsLoading> createState() => _VerticalDotsLoadingState();
+}
+
+class _VerticalDotsLoadingState extends State<_VerticalDotsLoading> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation1;
+  late Animation<double> _animation2;
+  late Animation<double> _animation3;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _animation1 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.7, curve: Curves.easeIn)));
+    _animation2 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.1, 0.8, curve: Curves.easeIn)));
+    _animation3 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.9, curve: Curves.easeIn)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FadeTransition(opacity: _animation1, child: _dot()),
+        const SizedBox(height: 8),
+        FadeTransition(opacity: _animation2, child: _dot()),
+        const SizedBox(height: 8),
+        FadeTransition(opacity: _animation3, child: _dot()),
+      ],
+    );
+  }
+
+  Widget _dot() => Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: Color(0xFF141A2F),
+          shape: BoxShape.circle,
+        ),
+      );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
