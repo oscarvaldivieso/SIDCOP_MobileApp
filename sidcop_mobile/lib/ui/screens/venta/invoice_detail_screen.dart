@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
 import 'generateInvoicePdf.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -222,54 +223,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-  void _showDownloadProgress(File pdfFile) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
-    );
-
-    if (selectedDirectory == null) {
-      return;
-    }
-
-    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
-    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
-    await pdfFile.copy(newPath);
-
-    double progress = 0.0;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (progress < 1.0) {
-                setState(() => progress += 0.25);
-              } else {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Factura descargada en: $newPath")),
-                );
-              }
-            });
-
-            return AlertDialog(
-              title: const Text("Descargando..."),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: progress),
-                  const SizedBox(height: 16),
-                  Text("${(progress * 100).toInt()}%"),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   String _formatDate(dynamic date) {
     if (date == null) return 'N/A';
     try {
@@ -318,77 +271,135 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   void _showFloatingShareMenu(BuildContext context) async {
     if (_facturaData == null) return;
-  
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Generando PDF...'),
-          ],
-        ),
-      ),
-    );
-  
+
     final pdfFile = await generateInvoicePdf(_facturaData!, widget.facturaNumero);
-  
-    if (mounted) Navigator.of(context).pop();
-  
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
-  
-    await showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy + button.size.height,
-        overlay.size.width - position.dx - button.size.width,
-        overlay.size.height - position.dy,
+
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final button = context.findRenderObject() as RenderBox;
+    final buttonPosition = button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  overlayEntry.remove();
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            Positioned(
+              left: buttonPosition.dx + button.size.width - 180,
+              top: buttonPosition.dy + 60,
+              child: Material(
+                color: Colors.transparent,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildIconButton(
+                      icon: FontAwesomeIcons.whatsapp,
+                      color: Colors.green,
+                      onPressed: () async {
+                        await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                        overlayEntry.remove();
+                      },
+                    ),
+                    _buildIconButton(
+                      icon: FontAwesomeIcons.filePdf,
+                      color: const Color.fromARGB(255, 117, 19, 12),
+                      onPressed: () {
+                        overlayEntry.remove();
+                        _showDownloadProgress(pdfFile);
+                      },
+                    ),
+                    _buildIconButton(
+                      icon: Icons.more_horiz,
+                      color: Colors.grey,
+                      onPressed: () async {
+                        await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+                        overlayEntry.remove();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(overlayEntry);
+  }
+
+  Widget _buildIconButton({required IconData icon, required Color color, required VoidCallback onPressed}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(30),
+        child: CircleAvatar(
+          backgroundColor: const Color.fromARGB(255, 248, 248, 248),
+          radius: 24,
+          child: Icon(icon, color: color, size: 28),
+        ),
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      color: Colors.white,
-      items: [
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.download, color: Colors.green),
-            title: const Text("WhatsApp"),
-            onTap: () async {
-              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-              Navigator.pop(context);
-            },
-          ),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.download, color: Color.fromARGB(255, 117, 19, 12)),
-            title: const Text("Descargar PDF"),
-            onTap: () async {
-              Navigator.pop(context);
-              _showDownloadProgress(pdfFile);
-            },
-          ),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.more_horiz, color: Colors.grey),
-            title: const Text("Más aplicaciones"),
-            onTap: () async {
-              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-              Navigator.pop(context);
-            },
-          ),
-        ),
-      ],
     );
   }
 
+  void _showDownloadProgress(File pdfFile) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
+    );
+
+    if (selectedDirectory == null) {
+      return;
+    }
+
+    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
+    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
+    await pdfFile.copy(newPath);
+
+    double progress = 0.0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (progress < 1.0) {
+                setState(() => progress += 0.25);
+              } else {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Factura descargada en: $newPath")),
+                );
+              }
+            });
+
+            return AlertDialog(
+              title: const Text("Descargando..."),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 16),
+                  Text("${(progress * 100).toInt()}%"),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildErrorState() {
     return Center(
@@ -488,111 +499,135 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   Widget _buildCompanyHeader(Map<String, dynamic> factura) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Logo centrado
-          if (factura['coFa_Logo'] != null && factura['coFa_Logo'].toString().isNotEmpty)
-            Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: NetworkImage(factura['coFa_Logo']),
+  return Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border(
+        bottom: BorderSide(
+          color: Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+    ),
+    child: Column(
+      children: [
+        // Logo centrado
+        Container(
+          width: 70,
+          height: 70,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: factura['coFa_Logo'] != null && 
+                 factura['coFa_Logo'].toString().isNotEmpty
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  factura['coFa_Logo'],
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => 
+                    _buildDefaultLogo(),
                 ),
+              )
+            : _buildDefaultLogo(),
+        ),
+        
+        // Nombre de la empresa centrado
+        Text(
+          factura['coFa_NombreEmpresa'] ?? 'Empresa',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color.fromARGB(255, 0, 0, 0),
+            fontFamily: 'Satoshi',
+            height: 1.2,
+          ),
+        ),
+        
+        const SizedBox(height: 4),
+        
+        // Casa Matriz centrada
+        const Text(
+          'CASA MATRIZ',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color.fromARGB(255, 0, 0, 0),
+            fontFamily: 'Satoshi',
+            letterSpacing: 0.5,
+          ),
+        ),
+        
+        const SizedBox(height: 10),
+        
+        // Dirección centrada
+        if (factura['coFa_DireccionEmpresa']?.toString().trim().isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              factura['coFa_DireccionEmpresa'],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color.fromARGB(255, 0, 0, 0),
+                fontFamily: 'Satoshi',
+                height: 1.3,
               ),
-            )
-          else
-            Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF98BF4A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.business,
-                color: Colors.white,
-                size: 40,
-              ),
-            ),
-          
-          // Nombre de la empresa centrado
-          Text(
-            factura['coFa_NombreEmpresa'] ?? 'Empresa',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF141A2F),
-              fontFamily: 'Satoshi',
             ),
           ),
-          
-          const SizedBox(height: 8),
-          
-          // Dirección empresa centrada
-          Text(
-            factura['coFa_DireccionEmpresa'] ?? '',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-              fontFamily: 'Satoshi',
-            ),
-          ),
-          
-          const SizedBox(height: 4),
-          
-          // Label Casa Matriz
-          const Text(
-            'CASA MATRIZ',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF141A2F),
-              fontFamily: 'Satoshi',
-              letterSpacing: 1,
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Teléfono centrado
-          if (factura['coFa_Telefono1']?.toString().trim().isNotEmpty == true)
-            Text(
+        
+        // Teléfono centrado
+        if (factura['coFa_Telefono1']?.toString().trim().isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
               'Tel: ${factura['coFa_Telefono1']}',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+                fontSize: 13,
+                color: Color.fromARGB(255, 0, 0, 0),
                 fontFamily: 'Satoshi',
               ),
             ),
-          
-          const SizedBox(height: 4),
-          
-          // Correo centrado
-          if (factura['coFa_Correo']?.toString().trim().isNotEmpty == true)
-            Text(
-              factura['coFa_Correo'],
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-                fontFamily: 'Satoshi',
-              ),
+          ),
+        
+        // Correo centrado
+        if (factura['coFa_Correo']?.toString().trim().isNotEmpty == true)
+          Text(
+            factura['coFa_Correo'],
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color.fromARGB(255, 0, 0, 0),
+              fontFamily: 'Satoshi',
             ),
-        ],
+          ),
+      ],
+    ),
+  );
+}
+
+// Widget auxiliar para el logo por defecto
+Widget _buildDefaultLogo() {
+  return Container(
+    decoration: BoxDecoration(
+      color: const Color(0xFF98BF4A).withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Center(
+      child: Icon(
+        Icons.business_outlined,
+        color: Color(0xFF98BF4A),
+        size: 28,
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildInvoiceHeader(Map<String, dynamic> factura) {
     return Container(
@@ -600,17 +635,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Línea divisoria
-          Container(
-            height: 2,
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF98BF4A), Color(0xFF7BA83A)],
-              ),
-            ),
-          ),
           
           // CAI
           _buildHeaderRow('CAI:', factura['regC_Descripcion'] ?? 'N/A'),
@@ -626,9 +650,24 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           
           // Cliente
           _buildHeaderRow('Cliente:', factura['cliente'] ?? 'Cliente General'),
+
+          // RTN del  Cliente
+          _buildHeaderRow('RTN Cliente:', factura['clie_RTN'] ?? 'Cliente General'),
           
+          // Direccion del  Cliente
+          _buildHeaderRow('RTN Cliente:', factura['diCl_DireccionExacta'] ?? 'Cliente General'),
+
           // Vendedor
           _buildHeaderRow('Vendedor:', factura['vendedor'] ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Orden de compra exenta:', '' ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Constancia de reg de exonerados:', '' ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Registro de la SAG:', '' ?? 'N/A'),
           
           // Línea divisoria
           Container(
@@ -653,7 +692,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF141A2F),
                 fontFamily: 'Satoshi',
@@ -664,7 +703,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             child: Text(
               value,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w400,
                 color: Color(0xFF141A2F),
                 fontFamily: 'Satoshi',
@@ -961,5 +1000,61 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         ],
       ),
     );
+  }
+}
+
+class _VerticalDotsLoading extends StatefulWidget {
+  const _VerticalDotsLoading({Key? key}) : super(key: key);
+
+  @override
+  State<_VerticalDotsLoading> createState() => _VerticalDotsLoadingState();
+}
+
+class _VerticalDotsLoadingState extends State<_VerticalDotsLoading> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation1;
+  late Animation<double> _animation2;
+  late Animation<double> _animation3;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _animation1 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.7, curve: Curves.easeIn)));
+    _animation2 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.1, 0.8, curve: Curves.easeIn)));
+    _animation3 = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.9, curve: Curves.easeIn)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FadeTransition(opacity: _animation1, child: _dot()),
+        const SizedBox(height: 8),
+        FadeTransition(opacity: _animation2, child: _dot()),
+        const SizedBox(height: 8),
+        FadeTransition(opacity: _animation3, child: _dot()),
+      ],
+    );
+  }
+
+  Widget _dot() => Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: Color(0xFF141A2F),
+          shape: BoxShape.circle,
+        ),
+      );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }

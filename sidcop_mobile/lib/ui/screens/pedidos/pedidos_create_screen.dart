@@ -300,7 +300,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   }
 
   num _aplicarDescuento(ProductosPedidosViewModel producto, int cantidad, num precioBase) {
-    // 1. Verificar si hay un descuento seleccionado manualmente
+    // Solo aplicar descuento si hay uno seleccionado manualmente
     final indiceDescuentoSeleccionado = _descuentosSeleccionados[producto.prodId];
     if (indiceDescuentoSeleccionado != null && 
         producto.descuentosEscala != null && 
@@ -313,26 +313,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       }
     }
     
-    // 2. Si no hay descuento seleccionado manualmente, aplicar lógica automática por cantidad
-    if (producto.descuentosEscala == null || producto.descuentosEscala!.isEmpty) {
-      return precioBase;
-    }
-    final descEsp = producto.descEspecificaciones;
-    if (descEsp == null || descEsp.descTipoFactura != 'AM') {
-      return precioBase;
-    }
-    // Buscar el descuento correspondiente por cantidad
-    DescuentoEscalaModel? ultimoDescuento;
-    for (final desc in producto.descuentosEscala!) {
-      if (cantidad >= desc.deEsInicioEscala && cantidad <= desc.deEsFinEscala) {
-        return _calcularDescuento(precioBase, descEsp, desc.deEsValor);
-      }
-      ultimoDescuento = desc;
-    }
-    // Si la cantidad es mayor al último rango, usar el último descuento
-    if (ultimoDescuento != null && cantidad > ultimoDescuento.deEsFinEscala) {
-      return _calcularDescuento(precioBase, descEsp, ultimoDescuento.deEsValor);
-    }
+    // Si no hay descuento seleccionado manualmente, devolver precio base sin descuento
     return precioBase;
   }
 
