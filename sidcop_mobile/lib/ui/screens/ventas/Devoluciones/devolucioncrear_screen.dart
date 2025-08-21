@@ -326,12 +326,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         print('facturaNumero: $facturaNumero');
         print('ventaServiceData: $ventaServiceData');
 
-        // VALIDACIÓN ADICIONAL: Verificar que realmente tenemos una factura válida
-        if (facturaAjustada == null || facturaCreada != true) {
-          print('❌ ERROR: Factura ajustada no fue creada correctamente');
+        // VALIDACIÓN ADICIONAL: Verificar que el proceso de factura fue exitoso
+        // Nota: facturaCreada puede ser false en devoluciones completas (válido)
+        if (facturaAjustada == null) {
+          print('❌ ERROR: No se recibió respuesta de factura ajustada');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: No se pudo crear la factura ajustada'),
+              content: Text('Error: No se pudo procesar la factura ajustada'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
             ),
@@ -341,30 +342,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
         // Mostrar modal de éxito SOLO si todo fue exitoso
         if (!mounted) return;
-        if (ventaServiceData != null) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => _buildReturnSuccessDialog(context, {
-              'devoId': devoId,
-              'facturaNumero': facturaNumero,
-              'facturaData':
-                  ventaServiceData, // Pasar los datos completos de la factura
-              'productosDevueltos': productosADevolver.length,
-            }),
-          );
-        } else {
-          print(
-            '❌ ERROR: No hay datos de factura válidos para mostrar el modal',
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: Datos de factura incompletos'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
+
+        // Preparar datos para el modal (manejar devoluciones completas y parciales)
+        final modalData = {
+          'devoId': devoId,
+          'facturaNumero': facturaNumero,
+          'facturaData':
+              ventaServiceData, // Puede ser null en devoluciones completas
+          'productosDevueltos': productosADevolver.length,
+          'facturaCreada': facturaCreada, // Indicar si se creó nueva factura
+        };
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _buildReturnSuccessDialog(context, modalData),
+        );
       } catch (e) {
         // Cerrar diálogo de carga
         if (!mounted) return;
@@ -415,7 +408,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                         ),
                       ],
                     ),
-                      const SizedBox(height: 8),                  
+                    const SizedBox(height: 8),
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
@@ -982,9 +975,11 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Devolución procesada y factura ajustada creada',
-                    style: TextStyle(
+                  Text(
+                    data['facturaCreada'] == true
+                        ? 'Devolución procesada y factura ajustada creada'
+                        : 'Devolución procesada - Factura original anulada',
+                    style: const TextStyle(
                       fontSize: 14,
                       color: Colors.white,
                       fontFamily: 'Satoshi',
@@ -1031,10 +1026,11 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             'Devolución',
                             '#${data['devoId']}',
                           ),
-                          _buildCompactDetailRow(
-                            'Nueva Factura',
-                            data['facturaNumero'] ?? 'N/A',
-                          ),
+                          if (data['facturaCreada'] == true)
+                            _buildCompactDetailRow(
+                              'Nueva Factura',
+                              data['facturaNumero'] ?? 'N/A',
+                            ),
                           _buildCompactDetailRow(
                             'Productos',
                             '${data['productosDevueltos']} devueltos',
@@ -1054,8 +1050,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             height: 42,
                             child: OutlinedButton(
                               onPressed: () {
-                                Navigator.pop(context);
-                                _resetForm();
+                                Navigator.pop(context); // Cerrar modal
+                                Navigator.pop(context); // Regresar al inicio
                               },
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(
@@ -1066,7 +1062,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 ),
                               ),
                               child: const Text(
-                                'Nueva Devolución',
+                                'Regresar',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -1080,41 +1076,42 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
                         const SizedBox(width: 8),
 
-                        // Botón Ver Factura
-                        Expanded(
-                          child: SizedBox(
-                            height: 42,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _navigateToInvoiceDetail(data);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF98BF4A),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                elevation: 2,
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.visibility, size: 16),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Ver Factura',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Satoshi',
-                                    ),
+                        // Botón Ver Factura (solo si se creó nueva factura)
+                        if (data['facturaCreada'] == true)
+                          Expanded(
+                            child: SizedBox(
+                              height: 42,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _navigateToInvoiceDetail(data);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF98BF4A),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                ],
+                                  elevation: 2,
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.visibility, size: 16),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Ver Factura',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ],

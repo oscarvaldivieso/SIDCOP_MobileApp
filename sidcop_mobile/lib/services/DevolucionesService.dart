@@ -194,7 +194,7 @@ class DevolucionesService {
       throw Exception(errorMsg);
     }
   }
-  
+
   Future<Map<String, dynamic>> insertarDevolucion({
     required int clieId,
     required int factId,
@@ -428,7 +428,7 @@ class DevolucionesService {
 
       // 4. Si no quedan productos, no crear factura
       if (nuevosDetalles.isEmpty) {
-        _log('No hay productos restantes');
+        _log('No hay productos restantes - Devolución completa');
         return {
           'success': true,
           'facturaCreada': false,
@@ -491,8 +491,7 @@ class DevolucionesService {
       final nuevaVenta = VentaInsertarViewModel.empty()
         ..factNumero = nuevoNumero
         ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
-        ..regCId =
-            21 
+        ..regCId = 21
         ..diClId =
             diClId // Usar diClId obtenido de direcciones
         ..vendId = facturaData['vend_Id']
@@ -507,7 +506,7 @@ class DevolucionesService {
         ..detallesFacturaInput = nuevosDetalles;
 
       // 8. Insertar nueva factura ajustada PRIMERO
-      _log('PASO 1: Insertando nueva factura ajustada...');
+      _log('Creando nueva factura con ${nuevosDetalles.length} productos...');
       final resultado = await _ventaService.insertarFacturaConValidacion(
         nuevaVenta,
       );
@@ -558,7 +557,7 @@ class DevolucionesService {
 
     try {
       Map<String, dynamic>? resultadoFactura;
-      
+
       // PASO 1: Crear factura ajustada PRIMERO - CRÍTICO
       if (crearNuevaFactura) {
         _log('PASO 1: Creando factura ajustada...');
@@ -567,17 +566,27 @@ class DevolucionesService {
           productosDevueltos: detalles,
           usuaCreacion: usuaCreacion,
         );
-        
-        // VALIDACIÓN CRÍTICA: Verificar que la factura se creó exitosamente
-        if (resultadoFactura == null || 
-            resultadoFactura['success'] != true || 
-            resultadoFactura['error'] == true) {
-          final errorMsg = resultadoFactura?['message'] ?? 'Error desconocido al crear factura ajustada';
-          _log('ERROR CRÍTICO: Factura ajustada NO se pudo crear: $errorMsg', isError: true);
-          throw Exception('PROCESO ABORTADO: No se pudo crear la factura ajustada. $errorMsg');
+
+        // VALIDACIÓN CRÍTICA: Verificar que el proceso de factura fue exitoso
+        if (resultadoFactura == null || resultadoFactura['success'] != true) {
+          final errorMsg =
+              resultadoFactura?['message'] ??
+              'Error desconocido al crear factura ajustada';
+          _log(
+            'ERROR CRÍTICO: Proceso de factura falló: $errorMsg',
+            isError: true,
+          );
+          throw Exception(
+            'PROCESO ABORTADO: No se pudo procesar la devolucion. $errorMsg',
+          );
         }
-        
-        _log('✅ Factura ajustada creada exitosamente');
+
+        // Verificar si se creó una nueva factura o si es devolución completa
+        if (resultadoFactura['facturaCreada'] == true) {
+          _log('✅ Factura ajustada creada exitosamente');
+        } else {
+          _log('✅ Devolución completa - No se requiere nueva factura');
+        }
       }
 
       // PASO 2: Insertar la devolución (solo si la factura fue exitosa)
@@ -597,7 +606,8 @@ class DevolucionesService {
       final facturaNumero = resultadoFactura?['facturaNumero'] ?? 'N/A';
       await anularFactura(
         factId: factId,
-        motivo: 'Anulación por devolución - Nueva factura ajustada: $facturaNumero',
+        motivo:
+            'Anulación por devolución - Nueva factura ajustada: $facturaNumero',
         usuaModificacion: usuaCreacion,
       );
       _log('✅ Factura original anulada exitosamente');
@@ -610,9 +620,15 @@ class DevolucionesService {
         'message': 'Proceso completado exitosamente - Nuevo orden aplicado',
       };
     } catch (e) {
-      _log('❌ ERROR CRÍTICO en insertarDevolucionConFacturaAjustada: $e', isError: true);
-      _log('PROCESO ABORTADO - No se ejecutaron pasos posteriores', isError: true);
-      
+      _log(
+        '❌ ERROR CRÍTICO en insertarDevolucionConFacturaAjustada: $e',
+        isError: true,
+      );
+      _log(
+        'PROCESO ABORTADO - No se ejecutaron pasos posteriores',
+        isError: true,
+      );
+
       // Retornar error estructurado
       return {
         'success': false,
