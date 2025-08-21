@@ -414,7 +414,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
-      _ventaModel.regCId = 20;
+      _ventaModel.regCId = 21;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;

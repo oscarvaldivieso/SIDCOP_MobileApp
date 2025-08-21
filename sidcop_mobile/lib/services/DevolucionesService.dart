@@ -501,7 +501,7 @@ class DevolucionesService {
         ..factNumero = nuevoNumero
         ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
         ..regCId =
-            20 // Usar mismo valor que VentaScreen
+            21 // Usar mismo valor que VentaScreen
         ..diClId =
             diClId // Usar diClId obtenido de direcciones
         ..vendId = facturaData['vend_Id']
