@@ -499,111 +499,135 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   Widget _buildCompanyHeader(Map<String, dynamic> factura) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Logo centrado
-          if (factura['coFa_Logo'] != null && factura['coFa_Logo'].toString().isNotEmpty)
-            Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: NetworkImage(factura['coFa_Logo']),
+  return Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border(
+        bottom: BorderSide(
+          color: Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+    ),
+    child: Column(
+      children: [
+        // Logo centrado
+        Container(
+          width: 70,
+          height: 70,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: factura['coFa_Logo'] != null && 
+                 factura['coFa_Logo'].toString().isNotEmpty
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  factura['coFa_Logo'],
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => 
+                    _buildDefaultLogo(),
                 ),
+              )
+            : _buildDefaultLogo(),
+        ),
+        
+        // Nombre de la empresa centrado
+        Text(
+          factura['coFa_NombreEmpresa'] ?? 'Empresa',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color.fromARGB(255, 0, 0, 0),
+            fontFamily: 'Satoshi',
+            height: 1.2,
+          ),
+        ),
+        
+        const SizedBox(height: 4),
+        
+        // Casa Matriz centrada
+        const Text(
+          'CASA MATRIZ',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color.fromARGB(255, 0, 0, 0),
+            fontFamily: 'Satoshi',
+            letterSpacing: 0.5,
+          ),
+        ),
+        
+        const SizedBox(height: 10),
+        
+        // Dirección centrada
+        if (factura['coFa_DireccionEmpresa']?.toString().trim().isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              factura['coFa_DireccionEmpresa'],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color.fromARGB(255, 0, 0, 0),
+                fontFamily: 'Satoshi',
+                height: 1.3,
               ),
-            )
-          else
-            Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF98BF4A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.business,
-                color: Colors.white,
-                size: 40,
-              ),
-            ),
-          
-          // Nombre de la empresa centrado
-          Text(
-            factura['coFa_NombreEmpresa'] ?? 'Empresa',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF141A2F),
-              fontFamily: 'Satoshi',
             ),
           ),
-          
-          const SizedBox(height: 8),
-          
-          // Dirección empresa centrada
-          Text(
-            factura['coFa_DireccionEmpresa'] ?? '',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-              fontFamily: 'Satoshi',
-            ),
-          ),
-          
-          const SizedBox(height: 4),
-          
-          // Label Casa Matriz
-          const Text(
-            'CASA MATRIZ',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF141A2F),
-              fontFamily: 'Satoshi',
-              letterSpacing: 1,
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Teléfono centrado
-          if (factura['coFa_Telefono1']?.toString().trim().isNotEmpty == true)
-            Text(
+        
+        // Teléfono centrado
+        if (factura['coFa_Telefono1']?.toString().trim().isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
               'Tel: ${factura['coFa_Telefono1']}',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+                fontSize: 13,
+                color: Color.fromARGB(255, 0, 0, 0),
                 fontFamily: 'Satoshi',
               ),
             ),
-          
-          const SizedBox(height: 4),
-          
-          // Correo centrado
-          if (factura['coFa_Correo']?.toString().trim().isNotEmpty == true)
-            Text(
-              factura['coFa_Correo'],
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-                fontFamily: 'Satoshi',
-              ),
+          ),
+        
+        // Correo centrado
+        if (factura['coFa_Correo']?.toString().trim().isNotEmpty == true)
+          Text(
+            factura['coFa_Correo'],
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color.fromARGB(255, 0, 0, 0),
+              fontFamily: 'Satoshi',
             ),
-        ],
+          ),
+      ],
+    ),
+  );
+}
+
+// Widget auxiliar para el logo por defecto
+Widget _buildDefaultLogo() {
+  return Container(
+    decoration: BoxDecoration(
+      color: const Color(0xFF98BF4A).withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Center(
+      child: Icon(
+        Icons.business_outlined,
+        color: Color(0xFF98BF4A),
+        size: 28,
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildInvoiceHeader(Map<String, dynamic> factura) {
     return Container(
@@ -611,17 +635,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Línea divisoria
-          Container(
-            height: 2,
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF98BF4A), Color(0xFF7BA83A)],
-              ),
-            ),
-          ),
           
           // CAI
           _buildHeaderRow('CAI:', factura['regC_Descripcion'] ?? 'N/A'),
@@ -637,9 +650,24 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           
           // Cliente
           _buildHeaderRow('Cliente:', factura['cliente'] ?? 'Cliente General'),
+
+          // RTN del  Cliente
+          _buildHeaderRow('RTN Cliente:', factura['clie_RTN'] ?? 'Cliente General'),
           
+          // Direccion del  Cliente
+          _buildHeaderRow('RTN Cliente:', factura['diCl_DireccionExacta'] ?? 'Cliente General'),
+
           // Vendedor
           _buildHeaderRow('Vendedor:', factura['vendedor'] ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Orden de compra exenta:', '' ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Constancia de reg de exonerados:', '' ?? 'N/A'),
+
+          // Vendedor
+          _buildHeaderRow('No Registro de la SAG:', '' ?? 'N/A'),
           
           // Línea divisoria
           Container(
@@ -664,7 +692,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF141A2F),
                 fontFamily: 'Satoshi',
@@ -675,7 +703,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             child: Text(
               value,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w400,
                 color: Color(0xFF141A2F),
                 fontFamily: 'Satoshi',
