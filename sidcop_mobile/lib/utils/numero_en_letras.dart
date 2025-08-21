@@ -4,7 +4,7 @@ class NumeroEnLetras {
     'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'
   ];
   static final List<String> _decenas = [
-    '', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'
+    '', '', 'veinti', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'
   ];
   static final List<String> _centenas = [
     '', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'
@@ -13,19 +13,30 @@ class NumeroEnLetras {
   static String convertir(num numero) {
     if (numero == 0) return 'cero';
     if (numero < 0) return 'menos ${convertir(-numero)}';
-    if (numero > 999999999) return numero.toString(); // fuera de rango
+    if (numero > 999999999) return numero.toString();
+
     int parteEntera = numero.floor();
     int parteDecimal = ((numero - parteEntera) * 100).round();
-    String letras = _convertirEntero(parteEntera);
+    
+    String letrasEnteras = _convertirEntero(parteEntera);
+    String letrasDecimales = '';
+    
+    // Convertir decimales a letras
     if (parteDecimal > 0) {
-      letras += ' con ${parteDecimal.toString().padLeft(2, '0')}/100';
+      String decimalesStr = _convertirEntero(parteDecimal);
+      letrasDecimales = ' con $decimalesStr centavos';
     }
-    return letras;
+
+    // Unir la parte entera y la decimal
+    return '$letrasEnteras$letrasDecimales';
   }
 
   static String _convertirEntero(int numero) {
     if (numero < 21) {
       return _unidades[numero];
+    } else if (numero < 30) {
+      int unidad = numero % 10;
+      return 'veinti${_unidades[unidad]}';
     } else if (numero < 100) {
       int decena = numero ~/ 10;
       int unidad = numero % 10;

@@ -596,11 +596,11 @@ totalY += 10;
 
 // Total final alineado a la derecha y destacado
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal: L$total^FS\n';
-totalY += 25;
+totalY += 40;
 
 // Total en letras (convertir el total a número, quitar el signo de L si existe)
 final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
-final totalEnLetras = 'Son: ${NumeroEnLetras.convertir(totalNum)} lempiras';
+final totalEnLetras = '${NumeroEnLetras.convertir(totalNum)}';
 totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
 totalY += 50; // Espacio adicional para el total en letras
 
@@ -638,7 +638,7 @@ totalY += 50; // Espacio adicional para el total en letras
     currentFooterY += 10;
 
     // 8. Texto obligatorio en mayúsculas (centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS, ¡"EXIJALA"!^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS,¡"EXIJALA"!^FS\n';
     currentFooterY += 50; // Espacio para 2 líneas
 
     // 9. Espacio adicional antes del identificador de copia
