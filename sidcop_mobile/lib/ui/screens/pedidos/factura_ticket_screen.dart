@@ -282,7 +282,7 @@ class FacturaTicketScreen extends StatelessWidget {
             const SizedBox(height: 16),
             // Datos de factura y cliente
             Text('Cliente: $nombreCliente'),
-            Text('Código: $codigoCliente'),
+            Text('No. Pedido: $numeroFactura'),
             if (direccion != null && direccion!.isNotEmpty)
               Text('Dirección: $direccion'),
             if (rtn != null && rtn!.isNotEmpty) Text('RTN: $rtn'),
