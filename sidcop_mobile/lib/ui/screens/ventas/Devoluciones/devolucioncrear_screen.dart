@@ -415,6 +415,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                         ),
                       ],
                     ),
+                      const SizedBox(height: 8),                  
                     // Cliente Dropdown
                     Text(
                       'Cliente *',
