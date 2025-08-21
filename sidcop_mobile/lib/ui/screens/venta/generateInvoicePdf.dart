@@ -203,43 +203,44 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
 
         pw.SizedBox(height: 20),
 
-        // SECCIÓN DE TOTALES - Alineada a la derecha
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
+        // SECCIÓN DE TOTALES - Alineada debajo de la columna TOTAL
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
             pw.Container(
-              width: 250,
+              width: 200, // Ancho similar a las últimas dos columnas de la tabla
               child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
                   // Subtotal
-                  _buildTotalRow("Subtotal:", "L ${(factura['fact_Subtotal'] ?? 0).toStringAsFixed(2)}"),
+                  _buildTotalRowRight("Subtotal:", "L ${(factura['fact_Subtotal'] ?? 0).toStringAsFixed(2)}"),
                   
                   // Importes condicionalmente
                   if ((factura['fact_ImporteExento'] ?? 0) > 0)
-                    _buildTotalRow("Importe Exento:", "L ${(factura['fact_ImporteExento']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("Importe Exento:", "L ${(factura['fact_ImporteExento']).toStringAsFixed(2)}"),
                   
                   if ((factura['fact_ImporteGravado15'] ?? 0) > 0)
-                    _buildTotalRow("Importe Gravado 15%:", "L ${(factura['fact_ImporteGravado15']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("Importe Gravado 15%:", "L ${(factura['fact_ImporteGravado15']).toStringAsFixed(2)}"),
                   
                   if ((factura['fact_ImporteGravado18'] ?? 0) > 0)
-                    _buildTotalRow("Importe Gravado 18%:", "L ${(factura['fact_ImporteGravado18']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("Importe Gravado 18%:", "L ${(factura['fact_ImporteGravado18']).toStringAsFixed(2)}"),
                   
                   if ((factura['fact_ImporteExonerado'] ?? 0) > 0)
-                    _buildTotalRow("Importe Exonerado:", "L ${(factura['fact_ImporteExonerado']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("Importe Exonerado:", "L ${(factura['fact_ImporteExonerado']).toStringAsFixed(2)}"),
                   
                   if ((factura['fact_TotalDescuento'] ?? 0) > 0)
-                    _buildTotalRow("Total Descuento:", "- L ${(factura['fact_TotalDescuento']).toStringAsFixed(2)}", isNegative: true),
+                    _buildTotalRowRight("Total Descuento:", "- L ${(factura['fact_TotalDescuento']).toStringAsFixed(2)}", isNegative: true),
                   
                   // ISV
                   if ((factura['fact_TotalImpuesto15'] ?? 0) > 0)
-                    _buildTotalRow("ISV 15%:", "L ${(factura['fact_TotalImpuesto15']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("ISV 15%:", "L ${(factura['fact_TotalImpuesto15']).toStringAsFixed(2)}"),
                   
                   if ((factura['fact_TotalImpuesto18'] ?? 0) > 0)
-                    _buildTotalRow("ISV 18%:", "L ${(factura['fact_TotalImpuesto18']).toStringAsFixed(2)}"),
+                    _buildTotalRowRight("ISV 18%:", "L ${(factura['fact_TotalImpuesto18']).toStringAsFixed(2)}"),
                   
                   pw.SizedBox(height: 8),
                   
-                  // Total final justificado y destacado
+                  // Total final destacado
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
@@ -309,17 +310,17 @@ pw.Widget _buildInfoRow(String label, String value) {
   );
 }
 
-// Función helper para crear filas de totales
-pw.Widget _buildTotalRow(String label, String value, {bool isNegative = false}) {
+// Función helper para crear filas de totales alineadas a la derecha
+pw.Widget _buildTotalRowRight(String label, String value, {bool isNegative = false}) {
   return pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 6),
+    padding: const pw.EdgeInsets.only(bottom: 4),
     child: pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(
           label,
           style: pw.TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: pw.FontWeight.normal,
             color: PdfColor.fromHex("#141A2F"),
           ),
@@ -327,7 +328,7 @@ pw.Widget _buildTotalRow(String label, String value, {bool isNegative = false}) 
         pw.Text(
           value,
           style: pw.TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: pw.FontWeight.bold,
             color: isNegative ? PdfColors.red : PdfColor.fromHex("#141A2F"),
           ),
