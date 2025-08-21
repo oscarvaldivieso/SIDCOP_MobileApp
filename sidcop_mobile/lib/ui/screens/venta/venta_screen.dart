@@ -606,7 +606,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _buildCompactDetailRow('Factura', _ventaModel.factNumero),
                           _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
                           _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
                         ],
