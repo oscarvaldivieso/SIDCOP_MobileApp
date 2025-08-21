@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/services/printer_service.dart';
 import 'generateInvoicePdf.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int facturaId;
@@ -221,48 +222,19 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-  Future<void> _exportAndShare() async {
-    if (_facturaData == null) return;
-
-    final pdfFile = await generateInvoicePdf(_facturaData!, widget.facturaNumero);
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.download, color: Colors.green),
-              title: const Text("Enviar por WhatsApp"),
-              onTap: () async {
-                final url = "whatsapp://send?text=Factura adjunta&phone="; 
-                await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.download, color: Colors.blue),
-              title: const Text("Descargar PDF"),
-              onTap: () async {
-                Navigator.pop(context);
-                _showDownloadProgress(pdfFile);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.more_horiz, color: Colors.grey),
-              title: const Text("Más aplicaciones"),
-              onTap: () async {
-                await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        );
-      },
+  void _showDownloadProgress(File pdfFile) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Selecciona la carpeta para guardar el PDF',
     );
-  }
 
-  void _showDownloadProgress(File pdfFile) {
+    if (selectedDirectory == null) {
+      return;
+    }
+
+    final fileName = pdfFile.path.split(Platform.pathSeparator).last;
+    final newPath = '$selectedDirectory${Platform.pathSeparator}$fileName';
+    await pdfFile.copy(newPath);
+
     double progress = 0.0;
     showDialog(
       context: context,
@@ -276,7 +248,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               } else {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Factura descargada en: ${pdfFile.path}")),
+                  SnackBar(content: Text("Factura descargada en: $newPath")),
                 );
               }
             });
@@ -323,10 +295,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             icon: const Icon(Icons.print),
             tooltip: 'Imprimir',
           ),
-          IconButton(
-            onPressed: _exportAndShare,
-            icon: const Icon(Icons.share),
-            tooltip: 'Compartir',
+          Builder(
+            builder: (context) => IconButton(
+              onPressed: () => _showFloatingShareMenu(context),
+              icon: const Icon(Icons.share),
+              tooltip: 'Compartir',
+            ),
           ),
         ],
       ),
@@ -341,6 +315,80 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               : _buildInvoiceContent(),
     );
   }
+
+  void _showFloatingShareMenu(BuildContext context) async {
+    if (_facturaData == null) return;
+  
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Generando PDF...'),
+          ],
+        ),
+      ),
+    );
+  
+    final pdfFile = await generateInvoicePdf(_facturaData!, widget.facturaNumero);
+  
+    if (mounted) Navigator.of(context).pop();
+  
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final Offset position = button.localToGlobal(Offset.zero, ancestor: overlay);
+  
+    await showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy + button.size.height,
+        overlay.size.width - position.dx - button.size.width,
+        overlay.size.height - position.dy,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      color: Colors.white,
+      items: [
+        PopupMenuItem(
+          child: ListTile(
+            leading: const Icon(Icons.download, color: Colors.green),
+            title: const Text("WhatsApp"),
+            onTap: () async {
+              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+              Navigator.pop(context);
+            },
+          ),
+        ),
+        PopupMenuItem(
+          child: ListTile(
+            leading: const Icon(Icons.download, color: Color.fromARGB(255, 117, 19, 12)),
+            title: const Text("Descargar PDF"),
+            onTap: () async {
+              Navigator.pop(context);
+              _showDownloadProgress(pdfFile);
+            },
+          ),
+        ),
+        PopupMenuItem(
+          child: ListTile(
+            leading: const Icon(Icons.more_horiz, color: Colors.grey),
+            title: const Text("Más aplicaciones"),
+            onTap: () async {
+              await Share.shareXFiles([XFile(pdfFile.path)], text: "Factura SIDCOP");
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
 
   Widget _buildErrorState() {
     return Center(
