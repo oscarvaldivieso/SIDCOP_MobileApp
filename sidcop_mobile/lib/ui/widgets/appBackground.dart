@@ -91,8 +91,9 @@ class AppBackground extends StatelessWidget {
                                       context,
                                     ).textTheme.headlineSmall?.copyWith(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w700,
                                       fontFamily: 'Satoshi',
+                                      fontSize: 20,
                                     ),
                               ),
                             ),

@@ -382,13 +382,17 @@ class _clientScreenState extends State<clientScreen> {
         children: [
           Expanded(
             child: Container(
-              height: 45, // Altura del TextField
+              height: 45,
               child: TextField(
                 controller: _searchController,
                 onChanged: _filterClientes,
+                style: const TextStyle(fontFamily: 'Satoshi'),
                 decoration: InputDecoration(
                   hintText: 'Filtrar por nombre...',
-                  hintStyle: const TextStyle(color: Colors.grey),
+                  hintStyle: const TextStyle(
+                    color: Colors.grey,
+                    fontFamily: 'Satoshi',
+                  ),
                   prefixIcon: const Icon(
                     Icons.search,
                     color: Color(0xFF141A2F),
@@ -397,7 +401,7 @@ class _clientScreenState extends State<clientScreen> {
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 12, // Padding vertical reducido
+                    vertical: 12,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24.0), // Más redondeado
@@ -459,13 +463,13 @@ class _clientScreenState extends State<clientScreen> {
     final int resultCount = filteredClientes.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 13.0),
       child: Row(
         children: [
           // Contador de resultados
           Text(
             '$resultCount resultados',
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w500, fontFamily: 'Satoshi'),
           ),
           const Spacer(),
           // Mostrar botón "Limpiar filtros" si hay filtros activos
@@ -480,7 +484,13 @@ class _clientScreenState extends State<clientScreen> {
                 });
                 _applyAllFilters('');
               },
-              child: const Text('Limpiar filtros'),
+              child: const Text(
+                'Limpiar filtros',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
         ],
       ),
@@ -492,11 +502,32 @@ class _clientScreenState extends State<clientScreen> {
       future: clientesList,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
+            ),
+          );
         } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+                color: Colors.red,
+              ),
+            ),
+          );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No hay clientes'));
+          return const Center(
+            child: Text(
+              'No hay clientes',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+          );
         } else {
           // Verificar si hay algún filtro activo (texto o ubicación)
           final bool hasTextFilter = _searchController.text.isNotEmpty;
@@ -511,7 +542,15 @@ class _clientScreenState extends State<clientScreen> {
 
           if (clientes.isEmpty) {
             return const Center(
-              child: Text('No se encontraron clientes con ese criterio'),
+              child: Text(
+                'No se encontraron clientes con ese criterio',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
             );
           }
           return ListView.builder(
@@ -523,7 +562,7 @@ class _clientScreenState extends State<clientScreen> {
               return Card(
                 margin: const EdgeInsets.all(8),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 4,
                 child: SizedBox(
@@ -573,8 +612,10 @@ class _clientScreenState extends State<clientScreen> {
                                       Text(
                                         '${cliente['clie_NombreNegocio'] ?? ''}',
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
+                                          fontWeight: FontWeight.w700,
                                           fontSize: 16,
+                                          fontFamily: 'Satoshi',
+                                          letterSpacing: -0.2,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -586,8 +627,11 @@ class _clientScreenState extends State<clientScreen> {
                                                 cliente['clie_Apellidos'] ??
                                             'Sin dirección',
                                         style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
+                                          fontSize: 13,
+                                          color: Color(0xFF666666),
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w400,
+                                          letterSpacing: -0.1,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -597,6 +641,7 @@ class _clientScreenState extends State<clientScreen> {
                                         style: const TextStyle(
                                           fontSize: 11,
                                           color: Colors.grey,
+                                          fontFamily: 'Satoshi',
                                         ),
                                       ),
                                     ],
@@ -689,6 +734,7 @@ class _clientScreenState extends State<clientScreen> {
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 10,
+                                        fontFamily: 'Satoshi',
                                       ),
                                     ),
                                   );
@@ -950,8 +996,11 @@ class _clientScreenState extends State<clientScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
@@ -969,10 +1018,13 @@ class _clientScreenState extends State<clientScreen> {
                 label: Text(
                   name,
                   style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: isSelected
-                        ? const Color.fromARGB(255, 0, 0, 0)
-                        : const Color.fromARGB(255, 255, 255, 255),
-                    fontSize: 13,
+                        ? const Color(0xFF141A2F)
+                        : const Color(0xFFFFFFFF),
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 selected: isSelected,

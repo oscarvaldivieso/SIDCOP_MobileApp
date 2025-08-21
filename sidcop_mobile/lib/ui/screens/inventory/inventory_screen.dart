@@ -614,7 +614,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               borderRadius: BorderRadius.circular(4),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: percentage,
+                widthFactor: percentage.clamp(0.0, 1.0),
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
