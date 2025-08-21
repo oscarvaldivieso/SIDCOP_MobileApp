@@ -25,6 +25,7 @@ Future<Uint8List> generarFacturaPdf({
   required num total,
   required String totalEnLetras,
 }) async {
+  print('DEBUG PDF: numeroFactura recibido en generarFacturaPdf: $numeroFactura');
   final pdf = pw.Document();
 
   // Cargar el logo
@@ -57,7 +58,6 @@ Future<Uint8List> generarFacturaPdf({
             pw.Text('Tipo Documento: Pedido', style: pw.TextStyle(fontSize: 9)),
             pw.Divider(),
             pw.Text('Cliente: $nombreCliente', style: pw.TextStyle(fontSize: 9)),
-            pw.Text('Código: $codigoCliente', style: pw.TextStyle(fontSize: 9)),
             if (direccion != null && direccion.isNotEmpty) pw.Text('Dirección: $direccion', style: pw.TextStyle(fontSize: 9)),
             if (rtn != null && rtn.isNotEmpty) pw.Text('RTN: $rtn', style: pw.TextStyle(fontSize: 9)),
             pw.Text('Vendedor: $vendedor', style: pw.TextStyle(fontSize: 9)),
