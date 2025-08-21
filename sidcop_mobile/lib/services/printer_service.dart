@@ -402,19 +402,19 @@ class PrinterService {
       // ZPL más simple y confiable para ZQ310
       String professionalZPL =
           '''^XA
-^A0N,30
+^CF0,30
 ^FO50,50^FDSIDCOP MOBILE^FS
-^A0N,20
+^CF0,20
 ^FO50,80^FDSistema de Ventas^FS
 ^FO50,110^FDHonduras, CA^FS
 ^FO50,140^GB300,2,2^FS
-^A0N,18
+^CF0,18
 ^FO50,160^FDPRUEBA DE IMPRESORA^FS
 ^FO50,180^FDDispositivo: ${_connectedDevice?.platformName ?? 'ZQ310'}^FS
 ^FO50,200^FDFecha: ${DateTime.now().toString().split(' ')[0]}^FS
 ^FO50,220^FDHora: ${DateTime.now().toString().split(' ')[1].split('.')[0]}^FS
 ^FO50,250^GB300,2,2^FS
-^A0N,25
+^CF0,25
 ^FO50,270^FDESTADO: OK^FS
 ^XZ''';
 
@@ -513,13 +513,13 @@ for (var detalle in detalles) {
   final totalItem = (detalle['faDe_Subtotal'] ?? 0).toStringAsFixed(2);
 
   // Producto con múltiples líneas (máximo 5 líneas, ancho 160 dots para dejar espacio a las otras columnas)
-  // Usando A0N,22,24 como el resto de la información de factura
-  productosZPL += '^FO0,$yPosition^A0N,22,24^FB160,5,0,L,0^FD$producto^FS\n';
+  // Usando CF0,22,24 como el resto de la información de factura
+  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$producto^FS\n';
   
   // Cantidad, Precio y Monto alineados a la primera línea del producto
-  productosZPL += '^FO165,$yPosition^A0N,22,24^FD$cantidad^FS\n';
-  productosZPL += '^FO210,$yPosition^A0N,22,24^FDL$precioUnitario^FS\n';
-  productosZPL += '^FO295,$yPosition^A0N,22,24^FDL$totalItem^FS\n';
+  productosZPL += '^FO165,$yPosition^CF0,22,24^FD$cantidad^FS\n';
+  productosZPL += '^FO210,$yPosition^CF0,22,24^FDL$precioUnitario^FS\n';
+  productosZPL += '^FO295,$yPosition^CF0,22,24^FDL$totalItem^FS\n';
 
   // Extraer campos adicionales para el footer
     
@@ -534,7 +534,7 @@ for (var detalle in detalles) {
   // Código de producto (mismo tamaño de fuente, debajo del producto)
   if (codigoProducto.isNotEmpty) {
     yPosition += 6; // Pequeño espacio antes del código
-    productosZPL += '^FO0,$yPosition^A0N,22,24^FDCod: $codigoProducto^FS\n';
+    productosZPL += '^FO0,$yPosition^CF0,22,24^FDCod: $codigoProducto^FS\n';
     yPosition += 24; // Espacio del código
   }
 
@@ -557,35 +557,35 @@ final int anchoTexto = anchoEtiqueta - margenDerecho;
 
 // MOSTRAR TODOS LOS CAMPOS alineados a la derecha
 // Subtotal
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDSubtotal: L$subtotal^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDSubtotal: L$subtotal^FS\n';
 totalY += 25;
 
 // Descuento (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDTotalDescuento: -L$descuento^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotalDescuento: -L$descuento^FS\n';
 totalY += 25;
 
 // Importe Exento (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDImporte Exento: L$importeExento^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
 totalY += 25;
 
 // Importe Exonerado (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
 totalY += 25;
 
 // Gravado 15% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
 totalY += 25;
 
 // Gravado 18% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
 totalY += 25;
 
 // ISV 15% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
 totalY += 25;
 
 // ISV 18% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
 totalY += 25;
 
 // Línea divisoria antes del total (centrada o de extremo a extremo)
@@ -595,13 +595,13 @@ totalesZPL += '^FO$margenDerecho,$lineaY^GB$anchoTexto,2,2^FS\n';
 totalY += 10;
 
 // Total final alineado a la derecha y destacado
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^A0N,22,24^FDTotal: L$total^FS\n';
-totalY += 40;
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal: L$total^FS\n';
+totalY += 25;
 
 // Total en letras (convertir el total a número, quitar el signo de L si existe)
 final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
-final totalEnLetras = '${NumeroEnLetras.convertir(totalNum)}';
-totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,2,0,C,0^A0N,22,24^FD$totalEnLetras^FS\n';
+final totalEnLetras = 'Son: ${NumeroEnLetras.convertir(totalNum)} lempiras';
+totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
 totalY += 50; // Espacio adicional para el total en letras
 
     // Footer con posiciones dinámicas
@@ -612,33 +612,33 @@ totalY += 50; // Espacio adicional para el total en letras
     int currentFooterY = footerY + 15; // Posición inicial dentro del footer
 
     // 1. FechaLimite Emision (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^A0N,22,24^FDFechaLimite Emision: $fechaLimiteEmision^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFechaLimite Emision: $fechaLimiteEmision^FS\n';
     currentFooterY += 45;
 
     // 2. Rango Autorizado (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^A0N,22,24^FDRango Autorizado:^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDRango Autorizado:^FS\n';
     currentFooterY += 25;
 
     // 3. Desde (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^A0N,22,24^FDDesde: $desde^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDDesde: $desde^FS\n';
     currentFooterY += 25;
 
     // 4. Hasta (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^A0N,22,24^FDHasta: $hasta^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDHasta: $hasta^FS\n';
     currentFooterY += 25;
 
     // 5. Espacio adicional antes del texto de copias
     currentFooterY += 10;
 
     // 6. Texto de copias (3 líneas máximo, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,3,0,C,0^A0N,22,24^FDOriginal: Cliente, Copia 1: Obligado Tributario Emisor Copia 2: Archivo^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,3,0,C,0^CF0,22,24^FDOriginal: Cliente, Copia 1: Obligado Tributario Emisor Copia 2: Archivo^FS\n';
     currentFooterY += 75; // Espacio para 3 líneas
 
     // 7. Espacio adicional antes del texto obligatorio
     currentFooterY += 10;
 
     // 8. Texto obligatorio en mayúsculas (centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^A0N,22,24^FDLA FACTURA ES BENEFICIO DE TODOS,¡"EXIJALA"!^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS, ¡"EXIJALA"!^FS\n';
     currentFooterY += 50; // Espacio para 2 líneas
 
     // 9. Espacio adicional antes del identificador de copia
@@ -655,21 +655,20 @@ totalY += 50; // Espacio adicional para el total en letras
 ^FS''';
 
     return '''^XA
-    ^CI28
     ^LL$alturaTotal
 ^LH0,0
 
 $logoZPL
 
 ^FX ===== HEADER EMPRESA CENTRADO =====
-^A0N,24,24
+^CF0,24,24
 ^FO0,190^FB360,2,0,C,0^FH^FD$empresaNombre^FS
 
-^A0N,22,24
+^CF0,22,24
 ^FO0,225^FB360,1,0,C,0^FH^FDCasa Matriz^FS
 ^FO0,250^FB360,2,0,C,0^FH^FD$empresaDireccion^FS
 
-^A0N,22,24
+^CF0,22,24
 ^FO0,290^FB360,1,0,C,0^FH^FDTel: $empresaTelefono^FS
 ^FO0,315^FB360,1,0,C,0^FH^FD$empresaCorreo^FS
 ^FO0,340^FB360,1,0,C,0^FH^FD $empresaRTN^FS
@@ -678,7 +677,7 @@ $logoZPL
 
 
 ^FX ===== INFORMACION DE FACTURA IZQUIERDA =====
-^A0N,22,24
+^CF0,22,24
 ^FO0,390^FB360,2,0,L,0^FDCAI: $cai^FS
 ^FO0,440^FB360,2,0,L,0^FDNo. Factura: $factNumero^FS
 ^FO0,490^FB360,1,0,L,0^FDFecha Emision: $factFecha^FS
@@ -695,10 +694,10 @@ $logoZPL
 
 ^FX ===== TABLA PRODUCTOS (4 COLUMNAS) =====
 ^FO0,810^GB360,2,2^FS
-^FO0,825^A0N,22,24^FDProd^FS
-^FO165,825^A0N,22,24^FDCant^FS
-^FO210,825^A0N,22,24^FDPrecio^FS
-^FO295,825^A0N,22,24^FDMonto^FS
+^FO0,825^CF0,22,24^FDProd^FS
+^FO165,825^CF0,22,24^FDCant^FS
+^FO210,825^CF0,22,24^FDPrecio^FS
+^FO295,825^CF0,22,24^FDMonto^FS
 ^FO0,845^GB360,1,1^FS
 
 ^FX ===== PRODUCTOS =====
