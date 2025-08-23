@@ -3228,10 +3228,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Resumen de Facturación',
+                'Resumen',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -3247,7 +3247,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   '$totalItems items',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF141A2F),
                   ),

@@ -270,26 +270,133 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        title: Text('Factura ', style: TextStyle(fontFamily: 'Satoshi', fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF141A2F),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _printInvoice,
-            icon: const Icon(Icons.print),
-            tooltip: 'Imprimir',
+      appBar: PreferredSize(
+      preferredSize: const Size.fromHeight(70),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF141A2F),
+              const Color(0xFF1A2238),
+            ],
           ),
-          Builder(
-            builder: (context) => IconButton(
-              onPressed: () => _showFloatingShareMenu(context),
-              icon: const Icon(Icons.share),
-              tooltip: 'Compartir',
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              offset: const Offset(0, 2),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          toolbarHeight: 70,
+          leading: Container(
+            margin: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color.fromARGB(255, 160, 148, 83).withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.white,
+                size: 20,
+              ),
+              tooltip: 'Regresar',
             ),
           ),
-        ],
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Factura',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            // Botón de imprimir
+            Container(
+              margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: IconButton(
+                onPressed: _printInvoice,
+                icon: const Icon(
+                  Icons.print_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                tooltip: 'Imprimir',
+              ),
+            ),
+            
+            // Botón de compartir
+            Container(
+              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Builder(
+                builder: (context) => IconButton(
+                  onPressed: () => _showFloatingShareMenu(context),
+                  icon: const Icon(
+                    Icons.share_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: 'Compartir',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
@@ -983,7 +1090,7 @@ Widget _buildDefaultLogo() {
         ),
 
         // Total final
-        _buildTotalRow('TOTAL A PAGAR:', total.toStringAsFixed(2), isFinal: true),
+        _buildTotalRow('Total:', total.toStringAsFixed(2), isFinal: true),
       ],
     ),
   );
@@ -1014,9 +1121,9 @@ Widget _buildDefaultLogo() {
               fontSize: isFinal ? 18 : 14,
               fontWeight: isFinal ? FontWeight.bold : FontWeight.w600,
               color: isFinal 
-                ? const Color(0xFF98BF4A)
+                ? const Color.fromARGB(255, 0, 0, 0)
                 : isNegative
-                  ? Colors.red
+                  ? const Color.fromARGB(255, 0, 0, 0)
                   : const Color(0xFF141A2F),
               fontFamily: 'Satoshi',
             ),

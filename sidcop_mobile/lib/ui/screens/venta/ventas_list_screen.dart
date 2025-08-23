@@ -226,7 +226,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     final factNumero = venta['fact_Numero']?.toString() ?? 'N/A';
     final fechaEmision = venta['fact_FechaEmision'] ?? '';
     final tipoDocumento = venta['fact_TipoDeDocumento']?.toString() ?? 'Factura';
-    final clienteNombre = venta['clie_Nombre'] ?? 'Cliente General';
+    final clienteNombre = venta['cliente'] ?? 'Cliente General';
     final total = venta['fact_Total'] ?? 0.0;
     final estado = venta['fact_Estado'] ?? 'Completada';
 
@@ -280,7 +280,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(0),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: primaryColor.withOpacity(0.15),
@@ -297,7 +297,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
