@@ -297,39 +297,29 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-            if (tienePermiso(71))
             ListTile(
-              leading: const Icon(
-                Icons.location_history,
-                color: Color(0xFFD6B68A),
-              ),
-              title: const Text(
-                'Visitas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                if (_usuaIdPersona != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => VendedorVisitasScreen(usuaIdPersona: _usuaIdPersona!),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No se pudo obtener el ID del vendedor.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
+            leading: const Icon(
+              Icons.location_history,
+              color: Color(0xFFD6B68A),
             ),
+            title: const Text(
+              'Visitas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VendedorVisitasScreen(usuaIdPersona: _usuaIdPersona ?? 0),
+                ),
+              );
+            },
+          ),
           if (tienePermiso(35)) // Devoluciones
               ListTile(
                 leading: const Icon(
