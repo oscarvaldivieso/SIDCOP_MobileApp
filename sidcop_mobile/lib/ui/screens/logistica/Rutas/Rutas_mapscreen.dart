@@ -12,11 +12,12 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'dart:ui' as ui;
+import 'dart:developer' as developer;
 import 'dart:typed_data';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
-import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.Dart';
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
+import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
@@ -53,7 +54,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         return filePath;
       }
     } catch (e) {
-      print('Error guardando imagen de mapa: $e');
+      developer.log(
+        'Error guardando imagen de mapa: $e',
+        name: 'RutasMapScreen',
+      );
     }
     return null;
   }
@@ -143,27 +147,37 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   bool _enviandoVisita = false;
   bool _historialCargado = false;
 
-  Future<void> _cargarHistorialVisitas(Set<int?> clienteIdsRuta) async {
+  Future<void> _cargarHistorialVisitas(Set<int?> diclIdsRuta) async {
     try {
       final servicio = ClientesVisitaHistorialService();
-      final historial = await servicio.listarPorVendedor();
-      print('Historial de visitas recibido:');
-      for (var h in historial) {
-        print('diCl_Id: [32m${h.diCl_Id}[0m');
-      }
-      // Marcar direcciones visitadas (por diCl_Id)
-      final direccionesPrevias = historial
-          .where((h) => h.diCl_Id != null)
+      // Usar el endpoint general y filtrar localmente por vendedor global
+      final historial = await servicio.listar();
+      // Filtrar historial por los clientes que pertenecen a la ruta
+      // y por el vendedor actual (globalVendId)
+      final visitasFiltradasModel = historial
+          .where(
+            (h) =>
+                h.diCl_Id != null &&
+                (diclIdsRuta.isEmpty || diclIdsRuta.contains(h.diCl_Id)),
+          )
+          .toList();
+
+      // Mostrar las visitas ya filtradas (modelos) para diagnóstico
+      print(
+        'Visitas filtradas (models): ${visitasFiltradasModel.map((h) => {'clVi_Id': h.clVi_Id, 'diCl_Id': h.diCl_Id, 'vend_Id': h.vend_Id}).toList()}',
+      );
+
+      final direccionesPrevias = visitasFiltradasModel
           .map((h) => h.diCl_Id!)
           .toSet();
-      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
       setState(() {
         _direccionesVisitadas.clear();
         _direccionesVisitadas.addAll(direccionesPrevias);
       });
+      // (Se omite impresión adicional) direccionesPrevias actualizado
       _historialCargado = true;
     } catch (e) {
-      print('Error al cargar historial: $e');
+      developer.log('Error al cargar historial: $e', name: 'RutasMapScreen');
     }
   }
 
@@ -231,7 +245,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final vendedorRuta = vendedoresPorRuta.firstWhere(
         (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
       );
-      final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
+      final veruId = vendedorRuta.veRu_Id;
 
       // Obtener la dirección seleccionada para este cliente/parada
       int? dicl_Id;
@@ -257,8 +271,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         clVi_FechaCreacion: DateTime.now(),
       );
       await servicio.insertar(registro);
-      // Recargar historial para actualizar los checks
-      await _cargarHistorialVisitas({cliente.clie_Id});
+      // Recargar historial para actualizar los checks: pasar el dicl_Id de la dirección
+      // si está disponible; de lo contrario pasar un set vacío para cargar todo
+      await _cargarHistorialVisitas(dicl_Id != null ? {dicl_Id} : <int?>{});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -400,9 +415,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       _clientesFiltrados = clientes
           .where((c) => c.ruta_Id == widget.rutaId)
           .toList();
-      // Cargar historial de visitas para marcar ya visitados
-      final idsRuta = _clientesFiltrados.map((c) => c.clie_Id).toSet();
-      await _cargarHistorialVisitas(idsRuta);
       final direccionesService = DireccionClienteService();
       final todasDirecciones = await direccionesService
           .getDireccionesPorCliente();
@@ -410,6 +422,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       _direccionesFiltradas = todasDirecciones
           .where((d) => clienteIds.contains(d.clie_id))
           .toList();
+      // Cargar historial de visitas para marcar ya visitados: usar dicl_id y vendedor
+      final diclIdsRuta = _direccionesFiltradas.map((d) => d.dicl_id).toSet();
+      await _cargarHistorialVisitas(diclIdsRuta);
       final Set<Marker> markers = {};
       for (var d in _direccionesFiltradas) {
         final cliente = _clientesFiltrados.firstWhere(
@@ -1014,8 +1029,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                       .dicl_id;
                                             }
                                           }
-                                          print(
+                                          developer.log(
                                             'Render Checkbox: dicl_Id=$dicl_Id, visitados=$_direccionesVisitadas',
+                                            name: 'RutasMapScreen',
                                           );
                                           return Checkbox(
                                             value:
