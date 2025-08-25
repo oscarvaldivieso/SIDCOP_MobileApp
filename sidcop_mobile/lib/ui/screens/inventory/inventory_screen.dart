@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/appBackground.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/PerfilUsuarioService.dart';
+import '../../../services/printer_service.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -13,6 +14,10 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
+  final PrinterService _printerService = PrinterService();
+  final InventoryService _inventoryService = InventoryService();
+  Map<String, dynamic>? _facturaData;
+  String? _error;
   List<Map<String, dynamic>> _inventoryItems = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -24,6 +29,712 @@ class _InventoryScreenState extends State<InventoryScreen> {
     super.initState();
     _loadInventoryData();
     _loadSellerName();
+  }
+
+  Future<void> _handleCloseJornada() async {
+  try {
+    // Show modern loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Cerrando jornada',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Por favor espera...',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Call the closeJornada method
+    final result = await _inventoryService.closeJornada(widget.usuaIdPersona);
+    
+    // Close the loading dialog
+    if (mounted) Navigator.of(context).pop();
+
+    if (result != null) {
+      // Show modern success dialog with workday summary
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 30,
+                    offset: const Offset(0, 15),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with success icon
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          child: const Icon(
+                            Icons.check_circle_outline,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Jornada Cerrada',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const Text(
+                          'Exitosamente',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Content with summary
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Column(
+                      children: [
+                        // Time section
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time, 
+                                       color: Colors.blue.shade600, size: 20),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Horario',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Inicio',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${result['jorV_HoraInicio']}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'Fin',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${result['jorV_HoraFin']}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Products section
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.inventory_2, 
+                                       color: Colors.blue.shade600, size: 20),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Resumen de Productos',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildSummaryItem(
+                                      'Total Productos',
+                                      '${result['totalProductos']}',
+                                      Colors.blue.shade600,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildSummaryItem(
+                                      'Inicial',
+                                      '${result['totalInicial']}',
+                                      Colors.orange.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildSummaryItem(
+                                      'Final',
+                                      '${result['totalFinal']}',
+                                      Colors.purple.shade600,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildSummaryItem(
+                                      'Vendido',
+                                      '${result['totalVendido']}',
+                                      Colors.green.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Total amount
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.green.shade400, Colors.green.shade600],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'Monto Total',
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'L.${result['montoTotal']}',
+                                style: const TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 24),
+                        
+                        // Action button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey.shade100,
+                              foregroundColor: Colors.black87,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Aceptar',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    // Close loading dialog if still mounted
+    if (mounted) Navigator.of(context).pop();
+    
+    // Show modern error message
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.red.shade600,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Error',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Error al cerrar jornada: $e',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cerrar',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+// Helper widget for summary items
+Widget _buildSummaryItem(String label, String value, Color color) {
+  return Column(
+    children: [
+      Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey.shade600,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: 4),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+  Future<void> _loadJornadaDetallada() async {
+  try {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final jornadaData = await _inventoryService.getJornadaDetallada(widget.usuaIdPersona);
+    
+    setState(() {
+      _facturaData = jornadaData;
+      _isLoading = false;
+    });
+
+  } catch (e) {
+    setState(() {
+      _errorMessage = 'Error al cargar la jornada detallada: $e';
+      _isLoading = false;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+
+  Future<void> _printInvoice() async {
+
+    _loadJornadaDetallada();
+
+    if (_facturaData == null) return;
+
+    try {
+      // Mostrar diálogo de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Preparando impresión...'),
+            ],
+          ),
+        ),
+      );
+
+      // Seleccionar impresora y conectar
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      
+      // Cerrar diálogo de carga
+      if (mounted) Navigator.of(context).pop();
+      
+      if (selectedDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Impresión cancelada'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Mostrar diálogo de conexión
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Conectando a impresora...'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Conectar a la impresora
+      final connected = await _printerService.connect(selectedDevice);
+      
+      // Cerrar diálogo de conexión
+      if (mounted) Navigator.of(context).pop();
+      
+      if (!connected) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al conectar con la impresora'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Mostrar diálogo de impresión
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Imprimiendo factura...'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Imprimir usando el PrinterService
+      final printSuccess = await _printerService.printInventory(_facturaData!);
+      
+      // Cerrar diálogo de impresión
+      if (mounted) Navigator.of(context).pop();
+      
+      // Desconectar automáticamente
+      await _printerService.disconnect();
+      
+      if (mounted) {
+        if (printSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Factura impresa exitosamente'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error al imprimir la factura'),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+      
+    } catch (e) {
+      // Cerrar cualquier diálogo abierto
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      // Desconectar en caso de error
+      await _printerService.disconnect();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Error al imprimir: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadInventoryData() async {
@@ -191,10 +902,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
         _loadSellerName();
       },
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildPrintInventoryButton(),
+
+            const SizedBox(height: 24),
+
+            _buildCloseJornadaButton(),
+
+            const SizedBox(height: 24), 
+
             // Encabezado de Jornada
             _buildDayHeader(),
             const SizedBox(height: 24),
@@ -203,13 +922,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
             _buildAssignedInventory(),
             const SizedBox(height: 24),
 
-            // Gestión de Movimientos
-            _buildMovementsManagement(),
-            const SizedBox(height: 24),
-
-            // Resumen del Día
-            _buildDailySummary(),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -320,26 +1032,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                         width: 1,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.today_rounded,
-                                          color: const Color(0xFFC2AF86),
-                                          size: 14,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        const Text(
-                                          'Jornada Activa',
-                                          style: TextStyle(
-                                            color: Color(0xFFC2AF86),
-                                            fontFamily: 'Satoshi',
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
                                   ),
                                 ],
                               ),
@@ -385,41 +1077,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 ],
                               ),
                             ],
-                          ),
-                        ),
-                        
-                        // Ícono de notificaciones
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withOpacity(0.1),
-                                Colors.white.withOpacity(0.05),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.1),
-                              width: 1,
-                            ),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () {
-                                // Acción de notificaciones
-                              },
-                              child: const Icon(
-                                Icons.notifications_outlined,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                            ),
                           ),
                         ),
                       ],
@@ -507,28 +1164,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF4CAF50).withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: const Color(0xFF4CAF50).withOpacity(0.3),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Activo',
-                                        style: TextStyle(
-                                          color: Color(0xFF4CAF50),
-                                          fontFamily: 'Satoshi',
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 6),
@@ -558,28 +1193,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 2),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.location_on_outlined,
-                                          color: Colors.white.withOpacity(0.6),
-                                          size: 14,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
-                                            'Zona Centro',
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.7),
-                                              fontFamily: 'Satoshi',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
                                   ],
                                 ),
                               ],
@@ -700,7 +1313,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Inventario Asignado',
+              'Asignado',
               style: TextStyle(
                 color: Color.fromARGB(255, 0, 0, 0),
                 fontFamily: 'Satoshi',
@@ -1320,5 +1933,39 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
     );
   }
+
+  Widget _buildCloseJornadaButton() {
+    return ElevatedButton.icon(
+      onPressed: _handleCloseJornada,
+      icon: const Icon(Icons.lock_clock, color: Colors.white),
+      label: const Text('Cerrar Jornada', style: TextStyle(fontFamily: 'Satoshi', fontSize: 13, fontWeight: FontWeight.w500)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color.fromARGB(255, 148, 18, 8),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+    );
+  }
+
+
+  Widget _buildPrintInventoryButton() {
+  return ElevatedButton.icon(
+    onPressed:  _printInvoice ,
+    icon: const Icon(Icons.print),
+    label: const Text('Imprimir Inventario', style: TextStyle(fontFamily: 'Satoshi', fontSize: 13, fontWeight: FontWeight.w500)),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color.fromARGB(255, 17, 22, 48),
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
+  );
+}
+
+
   
 }
+
+
+
+
+

@@ -61,4 +61,32 @@ class InventoryService {
       rethrow;
     }
   }
+
+
+    Future<Map<String, dynamic>?> closeJornada(int vendorId) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/CierreJornada?Vend_Id=$vendorId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(response.body);
+        if (jsonData.isNotEmpty) {
+          return jsonData.first as Map<String, dynamic>;
+        }
+        return null;
+      } else {
+        throw Exception('Failed to close jornada: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error closing jornada: $e');
+      rethrow;
+    }
+  }
 }
