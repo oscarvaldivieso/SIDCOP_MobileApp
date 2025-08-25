@@ -234,8 +234,7 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Cuenta por Cobrar', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'Satoshi')),
-                    const SizedBox(height: 4),
-                    Text('ID: ${cuenta.cpCo_Id}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Satoshi')),
+                    const SizedBox(height: 4)
                   ],
                 ),
               ),
@@ -551,15 +550,6 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          'Pago #${pago.pagoId}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: statusColor,
-                            fontFamily: 'Satoshi',
-                          ),
-                        ),
                         if (isAnulado) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -584,8 +574,9 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
                     Text(
                       _formatDateTime(pago.pagoFecha),
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
                         fontFamily: 'Satoshi',
                       ),
                     ),
