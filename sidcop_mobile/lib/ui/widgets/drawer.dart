@@ -20,6 +20,8 @@ import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visit_screen.dart';
+
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -295,8 +297,40 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-
-            if (tienePermiso(35)) // Devoluciones
+            if (tienePermiso(71))
+            ListTile(
+              leading: const Icon(
+                Icons.location_history,
+                color: Color(0xFFD6B68A),
+              ),
+              title: const Text(
+                'Visitas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                if (_usuaIdPersona != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => VendedorVisitasScreen(usuaIdPersona: _usuaIdPersona!),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No se pudo obtener el ID del vendedor.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          if (tienePermiso(35)) // Devoluciones
               ListTile(
                 leading: const Icon(
                   Icons.restart_alt_outlined,
