@@ -366,7 +366,7 @@ class SyncService {
 
       if (immediate) {
         // Sincronización bloqueante para datos críticos
-        onProgress?.call('Actualizando datos críticos...');
+        onProgress?.call('Cargando...');
         await _syncCriticalData();
         
         onProgress?.call('Actualizando datos secundarios...');
@@ -375,7 +375,7 @@ class SyncService {
         print('Sincronizacion inmediata completada');
       } else {
         // Sincronización híbrida (recomendada)
-        onProgress?.call('Actualizando datos críticos...');
+        onProgress?.call('Cargando...');
         await _syncCriticalData();
         
         // Datos secundarios en background
