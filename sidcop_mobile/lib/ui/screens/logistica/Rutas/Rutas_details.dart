@@ -397,6 +397,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                                   builder: (_) => RutaMapScreen(
                                     rutaId: widget.ruta.ruta_Id,
                                     descripcion: widget.ruta.ruta_Descripcion,
+                                    vendId: globalVendId,
                                   ),
                                 ),
                               );
@@ -497,6 +498,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                                           rutaId: widget.ruta.ruta_Id,
                                           descripcion:
                                               widget.ruta.ruta_Descripcion,
+                                          vendId: globalVendId,
                                         ),
                                       ),
                                     );

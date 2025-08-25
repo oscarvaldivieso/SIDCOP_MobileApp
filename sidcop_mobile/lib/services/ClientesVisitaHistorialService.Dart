@@ -85,10 +85,10 @@ class ClientesVisitaHistorialService {
         },
         body: jsonEncode(bodyMap),
       );
-      developer.log(
-        'Insertar ClientesVisitaHistorial Status: ${response.statusCode}',
-      );
-      developer.log('Insertar ClientesVisitaHistorial Body: ${response.body}');
+      // Imprimir cuerpo enviado y respuesta para depuración en consola
+      print('Insertar request body: ${jsonEncode(bodyMap)}');
+      print('Insertar response status: ${response.statusCode}');
+      print('Insertar response body: ${response.body}');
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       } else {

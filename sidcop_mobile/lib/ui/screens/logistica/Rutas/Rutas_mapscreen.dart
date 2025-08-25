@@ -28,8 +28,13 @@ final Set<int> _direccionesVisitadas = {};
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
   final String? descripcion;
-  const RutaMapScreen({Key? key, required this.rutaId, this.descripcion})
-    : super(key: key);
+  final int? vendId; // vend_Id opcional pasado desde la pantalla anterior
+  const RutaMapScreen({
+    Key? key,
+    required this.rutaId,
+    this.descripcion,
+    this.vendId,
+  }) : super(key: key);
 
   @override
   State<RutaMapScreen> createState() => _RutaMapScreenState();
@@ -242,9 +247,55 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       // Obtener veRuId correcto usando el endpoint ListarPorRutas
       final vendedoresService = VendedoresService();
       final vendedoresPorRuta = await vendedoresService.listarPorRutas();
-      final vendedorRuta = vendedoresPorRuta.firstWhere(
-        (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
+      // Agrupar por ruta para decidir qué veRu_Id usar
+      final porRuta = vendedoresPorRuta
+          .where((v) => v.ruta_Id == widget.rutaId)
+          .toList();
+      print(
+        'vendedoresPorRuta count=${vendedoresPorRuta.length}, porRuta count=${porRuta.length}, rutaId=${widget.rutaId}, vendId=${widget.vendId}',
       );
+
+      var vendedorRuta;
+      // Si nos pasaron vendId desde la pantalla superior, intentar usarlo
+      if (widget.vendId != null) {
+        final matches = porRuta
+            .where((v) => v.vend_Id == widget.vendId)
+            .toList();
+        if (matches.isNotEmpty) {
+          vendedorRuta = matches.first;
+        } else {
+          print(
+            'No se encontró vendedorRuta con vend_Id=${widget.vendId} en la ruta ${widget.rutaId}',
+          );
+        }
+      }
+
+      // Si no logramos obtener vendedorRuta por vendId, y solo hay una opción en la ruta,
+      // la usamos como fallback automático.
+      if (vendedorRuta == null) {
+        if (porRuta.length == 1) {
+          vendedorRuta = porRuta.first;
+          print(
+            'Usando vendedorRuta inferido (único) veRu_Id=${vendedorRuta.veRu_Id}',
+          );
+        } else {
+          // No podemos decidir automáticamente
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.red.shade700,
+                content: const Text(
+                  'No se pudo determinar el vendedor para esta ruta. Inicia sesión o selecciona vendedor.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            );
+          }
+          setState(() => _enviandoVisita = false);
+          return;
+        }
+      }
+
       final veruId = vendedorRuta.veRu_Id;
 
       // Obtener la dirección seleccionada para este cliente/parada
@@ -270,6 +321,12 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         usua_Creacion: usuarioId,
         clVi_FechaCreacion: DateTime.now(),
       );
+      // Imprimir el registro que se enviará para depuración
+      try {
+        print('Registro a enviar (Insertar): ${jsonEncode(registro.toJson())}');
+      } catch (e) {
+        print('Registro a enviar (toString): $registro');
+      }
       await servicio.insertar(registro);
       // Recargar historial para actualizar los checks: pasar el dicl_Id de la dirección
       // si está disponible; de lo contrario pasar un set vacío para cargar todo

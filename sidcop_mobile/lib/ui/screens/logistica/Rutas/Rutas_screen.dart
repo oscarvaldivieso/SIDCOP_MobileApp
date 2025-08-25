@@ -39,6 +39,7 @@ class _RutasScreenState extends State<RutasScreen> {
       isOnline = false;
     }
   }
+
   Map<int, String?> _mapasStaticLocales = {};
   // Descarga y guarda la imagen de Google Maps Static
   Future<String?> guardarImagenDeMapaStatic(
@@ -405,9 +406,12 @@ class _RutasScreenState extends State<RutasScreen> {
                       (ruta) => FutureBuilder<String>(
                         future: _getStaticMapMarkers(ruta),
                         builder: (context, snapshot) {
-                          final mapUrl = snapshot.data ??
+                          final mapUrl =
+                              snapshot.data ??
                               'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=10&size=400x150&markers=color:0xFFD6B68A%7C15.525585,-88.013512&key=$mapApiKey';
-                          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                          if (snapshot.connectionState ==
+                                  ConnectionState.done &&
+                              snapshot.hasData) {
                             guardarImagenDeMapaStatic(
                               mapUrl,
                               'map_static_${ruta.ruta_Id}',
@@ -440,7 +444,9 @@ class _RutasScreenState extends State<RutasScreen> {
                                             MaterialPageRoute(
                                               builder: (_) => RutaMapScreen(
                                                 rutaId: ruta.ruta_Id,
-                                                descripcion: ruta.ruta_Descripcion,
+                                                descripcion:
+                                                    ruta.ruta_Descripcion,
+                                                vendId: globalVendId,
                                               ),
                                             ),
                                           );
@@ -448,10 +454,12 @@ class _RutasScreenState extends State<RutasScreen> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (_) => RutasOfflineMapScreen(
-                                                rutaId: ruta.ruta_Id,
-                                                descripcion: ruta.ruta_Descripcion,
-                                              ),
+                                              builder: (_) =>
+                                                  RutasOfflineMapScreen(
+                                                    rutaId: ruta.ruta_Id,
+                                                    descripcion:
+                                                        ruta.ruta_Descripcion,
+                                                  ),
                                             ),
                                           );
                                         }
@@ -482,35 +490,49 @@ class _RutasScreenState extends State<RutasScreen> {
                                                 height: 120,
                                                 width: 140,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (
-                                                  context,
-                                                  error,
-                                                  stackTrace,
-                                                ) {
+                                                errorBuilder: (context, error, stackTrace) {
                                                   // Si falla la imagen online, intentar mostrar la local offline
                                                   return FutureBuilder<String?>(
-                                                    future: obtenerImagenLocalStatic(ruta.ruta_Id),
-                                                    builder: (context, snapshotLocal) {
-                                                      if (snapshotLocal.connectionState == ConnectionState.done && snapshotLocal.data != null) {
-                                                        return Image.file(
-                                                          File(snapshotLocal.data!),
-                                                          height: 120,
-                                                          width: 140,
-                                                          fit: BoxFit.cover,
-                                                        );
-                                                      } else {
-                                                        return Container(
-                                                          height: 120,
-                                                          width: 140,
-                                                          color: Colors.grey[300],
-                                                          child: const Icon(
-                                                            Icons.map,
-                                                            size: 40,
-                                                            color: Colors.grey,
-                                                          ),
-                                                        );
-                                                      }
-                                                    },
+                                                    future:
+                                                        obtenerImagenLocalStatic(
+                                                          ruta.ruta_Id,
+                                                        ),
+                                                    builder:
+                                                        (
+                                                          context,
+                                                          snapshotLocal,
+                                                        ) {
+                                                          if (snapshotLocal
+                                                                      .connectionState ==
+                                                                  ConnectionState
+                                                                      .done &&
+                                                              snapshotLocal
+                                                                      .data !=
+                                                                  null) {
+                                                            return Image.file(
+                                                              File(
+                                                                snapshotLocal
+                                                                    .data!,
+                                                              ),
+                                                              height: 120,
+                                                              width: 140,
+                                                              fit: BoxFit.cover,
+                                                            );
+                                                          } else {
+                                                            return Container(
+                                                              height: 120,
+                                                              width: 140,
+                                                              color: Colors
+                                                                  .grey[300],
+                                                              child: const Icon(
+                                                                Icons.map,
+                                                                size: 40,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                            );
+                                                          }
+                                                        },
                                                   );
                                                 },
                                               ),
@@ -518,15 +540,23 @@ class _RutasScreenState extends State<RutasScreen> {
                                                 right: 6,
                                                 bottom: 6,
                                                 child: Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 3,
-                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 3,
+                                                      ),
                                                   decoration: BoxDecoration(
-                                                    color: const Color(0xCC141A2F),
-                                                    borderRadius: BorderRadius.circular(20),
+                                                    color: const Color(
+                                                      0xCC141A2F,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
                                                     border: Border.all(
-                                                      color: const Color(0xFFD6B68A),
+                                                      color: const Color(
+                                                        0xFFD6B68A,
+                                                      ),
                                                       width: 1,
                                                     ),
                                                   ),
@@ -534,7 +564,8 @@ class _RutasScreenState extends State<RutasScreen> {
                                                     'Mapa',
                                                     style: TextStyle(
                                                       fontSize: 10,
-                                                      fontWeight: FontWeight.w600,
+                                                      fontWeight:
+                                                          FontWeight.w600,
                                                       color: Colors.white,
                                                     ),
                                                   ),
@@ -549,10 +580,12 @@ class _RutasScreenState extends State<RutasScreen> {
                                       child: Padding(
                                         padding: const EdgeInsets.all(12.0),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              ruta.ruta_Descripcion ?? 'Sin descripción',
+                                              ruta.ruta_Descripcion ??
+                                                  'Sin descripción',
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 16,
@@ -588,7 +621,8 @@ class _RutasScreenState extends State<RutasScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => RutasDetailsScreen(ruta: ruta),
+                                            builder: (_) =>
+                                                RutasDetailsScreen(ruta: ruta),
                                           ),
                                         );
                                       },
