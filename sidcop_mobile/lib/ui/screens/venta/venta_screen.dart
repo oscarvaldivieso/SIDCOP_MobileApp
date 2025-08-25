@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
@@ -387,7 +388,25 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     );
   }
 
+  // Formatear moneda
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(symbol: 'L ', decimalDigits: 2).format(amount);
+  }
+
   Future<void> _procesarVenta() async {
+    // Validar crédito si el método de pago es CRÉDITO
+    if (formData.metodoPago == 'CREDITO' && widget.clienteId != null) {
+      final totalVenta = _calculateTotal();
+      if (totalVenta > _creditoDisponible) {
+        if (mounted) {
+          ErrorHandler.showErrorToast(
+            'El monto total de la venta (${_formatCurrency(totalVenta)}) excede el crédito disponible (${_formatCurrency(_creditoDisponible)})'
+          );
+        }
+        return;
+      }
+    }
+
     // Mostrar indicador de carga
     final loadingContext = Navigator.of(context, rootNavigator: true).overlay!.context;
     showDialog(
@@ -413,7 +432,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
-      _ventaModel.factTipoDeDocumento = "FAC";
+      _ventaModel.factTipoDeDocumento = "01";
       _ventaModel.regCId = 21;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
@@ -3067,7 +3086,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Productos Seleccionados',
+                'Seleccionados',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
                   fontSize: 16,
@@ -3079,7 +3098,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF98BF4A).withOpacity(0.1),
+                  color: const Color.fromARGB(255, 29, 34, 63).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -3088,7 +3107,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                     fontFamily: 'Satoshi',
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF98BF4A),
+                    color: Color.fromARGB(255, 26, 35, 72),
                   ),
                 ),
               ),
@@ -3209,10 +3228,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Resumen de Facturación',
+                'Resumen',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -3228,7 +3247,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   '$totalItems items',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF141A2F),
                   ),

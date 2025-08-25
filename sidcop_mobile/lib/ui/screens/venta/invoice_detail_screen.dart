@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 
+
+
 class InvoiceDetailScreen extends StatefulWidget {
   final int facturaId;
   final String facturaNumero;
@@ -19,6 +21,37 @@ class InvoiceDetailScreen extends StatefulWidget {
 
   @override
   State<InvoiceDetailScreen> createState() => _InvoiceDetailScreenState();
+}
+
+// Clase para crear el efecto de factura rota
+class TornPaperClipper extends CustomClipper<Path> {
+  final double jaggedness = 20.0;
+
+  @override
+  Path getClip(Size size) {
+    var path = Path();
+    // Inicia en la esquina superior izquierda
+    path.lineTo(0, 0);
+
+    // Dibuja la parte superior con picos irregulares
+    var i = 0.0;
+    while (i < size.width) {
+      path.lineTo(i + jaggedness / 2, jaggedness);
+      path.lineTo(i + jaggedness, 0);
+      i += jaggedness;
+    }
+
+    // Dibuja el resto de los bordes rectos
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(TornPaperClipper oldClipper) => true;
 }
 
 class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
@@ -237,26 +270,133 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        title: Text('Factura ${widget.facturaNumero}'),
-        backgroundColor: const Color(0xFF141A2F),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _printInvoice,
-            icon: const Icon(Icons.print),
-            tooltip: 'Imprimir',
+      appBar: PreferredSize(
+      preferredSize: const Size.fromHeight(70),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF141A2F),
+              const Color(0xFF1A2238),
+            ],
           ),
-          Builder(
-            builder: (context) => IconButton(
-              onPressed: () => _showFloatingShareMenu(context),
-              icon: const Icon(Icons.share),
-              tooltip: 'Compartir',
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              offset: const Offset(0, 2),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          toolbarHeight: 70,
+          leading: Container(
+            margin: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color.fromARGB(255, 160, 148, 83).withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.white,
+                size: 20,
+              ),
+              tooltip: 'Regresar',
             ),
           ),
-        ],
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Factura',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            // Botón de imprimir
+            Container(
+              margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: IconButton(
+                onPressed: _printInvoice,
+                icon: const Icon(
+                  Icons.print_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                tooltip: 'Imprimir',
+              ),
+            ),
+            
+            // Botón de compartir
+            Container(
+              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Builder(
+                builder: (context) => IconButton(
+                  onPressed: () => _showFloatingShareMenu(context),
+                  icon: const Icon(
+                    Icons.share_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: 'Compartir',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
@@ -458,45 +598,47 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
-  Widget _buildInvoiceContent() {
-    if (_facturaData == null) return const SizedBox();
+  // Tu widget principal con la corrección
+Widget _buildInvoiceContent() {
+  if (_facturaData == null) return const SizedBox();
 
-    final factura = _facturaData!;
-    
-    return SingleChildScrollView(
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+  final factura = _facturaData!;
+
+  return SingleChildScrollView(
+    child: Container(
+      margin: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 255, 255, 255),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipPath(
+        clipper: TornPaperClipper(),
         child: Column(
           children: [
-            // Header de la empresa (CENTRADO)
-            _buildCompanyHeader(factura),
-            
-            // Encabezado de la factura (FILAS)
+            // Agrega un padding superior aquí
+            Padding(
+              padding: const EdgeInsets.only(top: 0), // Ajusta este valor
+              child: _buildCompanyHeader(factura),
+            ),
             _buildInvoiceHeader(factura),
-            
-            // Tabla de productos (ADAPTADA PARA MÓVIL)
             _buildProductsTable(factura),
-            
-            // Totales (FILAS)
             _buildTotalsSection(factura),
-            
             const SizedBox(height: 20),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 
   Widget _buildCompanyHeader(Map<String, dynamic> factura) {
   return Container(
@@ -891,79 +1033,68 @@ Widget _buildDefaultLogo() {
     );
   }
 
-  Widget _buildTotalsSection(Map<String, dynamic> factura) {
-    final subtotal = (factura['fact_Subtotal'] ?? 0).toDouble();
-    final impuesto15 = (factura['fact_TotalImpuesto15'] ?? 0).toDouble();
-    final impuesto18 = (factura['fact_TotalImpuesto18'] ?? 0).toDouble();
-    final importeExento = (factura['fact_ImporteExento'] ?? 0).toDouble();
-    final importeGravado15 = (factura['fact_ImporteGravado15'] ?? 0).toDouble();
-    final importeGravado18 = (factura['fact_ImporteGravado18'] ?? 0).toDouble();
-    final importeExonerado = (factura['fact_ImporteExonerado'] ?? 0).toDouble();
-    final descuento = (factura['fact_TotalDescuento'] ?? 0).toDouble();
-    final total = (factura['fact_Total'] ?? 0).toDouble();
-    
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Línea divisoria
-          Container(
-            height: 2,
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF98BF4A), Color(0xFF7BA83A)],
-              ),
-            ),
-          ),
-          
-          // Subtotal
-          _buildTotalRow('Subtotal:', 'L ${subtotal.toStringAsFixed(2)}'),
-          
-          // Importe Exento (si aplica)
-          if (importeExento > 0)
-            _buildTotalRow('Importe Exento:', 'L ${importeExento.toStringAsFixed(2)}'),
-          
-          // Importe Gravado 15% (si aplica)
-          if (importeGravado15 > 0)
-            _buildTotalRow('Importe Gravado 15%:', 'L ${importeGravado15.toStringAsFixed(2)}'),
-          
-          // Importe Gravado 18% (si aplica)
-          if (importeGravado18 > 0)
-            _buildTotalRow('Importe Gravado 18%:', 'L ${importeGravado18.toStringAsFixed(2)}'),
-          
-          // Importe Exonerado (si aplica)
-          if (importeExonerado > 0)
-            _buildTotalRow('Importe Exonerado:', 'L ${importeExonerado.toStringAsFixed(2)}'),
-          
-          // Descuento (si aplica)
-          if (descuento > 0)
-            _buildTotalRow('Total Descuento:', '- L ${descuento.toStringAsFixed(2)}', isNegative: true),
-          
-          // ISV 15% (si aplica)
-          if (impuesto15 > 0)
-            _buildTotalRow('ISV 15%:', 'L ${impuesto15.toStringAsFixed(2)}'),
-          
-          // ISV 18% (si aplica)
-          if (impuesto18 > 0)
-            _buildTotalRow('ISV 18%:', 'L ${impuesto18.toStringAsFixed(2)}'),
-          
-          // Línea divisoria antes del total
-          Container(
-            height: 1,
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            color: const Color(0xFFE9ECEF),
-          ),
-          
-          // Total final
-          _buildTotalRow('TOTAL A PAGAR:', 'L ${total.toStringAsFixed(2)}', isFinal: true),
-        ],
-      ),
-    );
-  }
+  Widget _buildTotalsSection(Map factura) {
+  final subtotal = (factura['fact_Subtotal'] ?? 0.0).toDouble();
+  final totalDescuento = (factura['fact_TotalDescuento'] ?? 0.0).toDouble();
+  final importeExento = (factura['fact_ImporteExento'] ?? 0.0).toDouble();
+  final importeExonerado = (factura['fact_ImporteExonerado'] ?? 0.0).toDouble();
+  final importeGravado15 = (factura['fact_ImporteGravado15'] ?? 0.0).toDouble();
+  final importeGravado18 = (factura['fact_ImporteGravado18'] ?? 0.0).toDouble();
+  final impuesto15 = (factura['fact_TotalImpuesto15'] ?? 0.0).toDouble();
+  final impuesto18 = (factura['fact_TotalImpuesto18'] ?? 0.0).toDouble();
+  final total = (factura['fact_Total'] ?? 0.0).toDouble();
+
+  return Container(
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Línea divisoria
+        Container(
+          height: 1,
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 16),
+          color: Colors.grey[400],
+        ),
+
+        // Subtotal
+        _buildTotalRow('Subtotal:', subtotal.toStringAsFixed(2)),
+
+        // Descuento
+        _buildTotalRow('Total Descuento:', totalDescuento.toStringAsFixed(2), isNegative: true),
+
+        // Importe Exento
+        _buildTotalRow('Importe Exento:', importeExento.toStringAsFixed(2)),
+
+        // Importe Exonerado
+        _buildTotalRow('Importe Exonerado:', importeExonerado.toStringAsFixed(2)),
+
+        // Importe Gravado 15%
+        _buildTotalRow('Importe Gravado 15%:', importeGravado15.toStringAsFixed(2)),
+
+        // Importe Gravado 18%
+        _buildTotalRow('Importe Gravado 18%:', importeGravado18.toStringAsFixed(2)),
+
+        // ISV 15%
+        _buildTotalRow('Total Impuesto 15%:', impuesto15.toStringAsFixed(2)),
+
+        // ISV 18%
+        _buildTotalRow('Total Impuesto 18%:', impuesto18.toStringAsFixed(2)),
+
+        // Línea divisoria antes del total
+        Container(
+          height: 1,
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          color: Colors.grey[400],
+        ),
+
+        // Total final
+        _buildTotalRow('Total:', total.toStringAsFixed(2), isFinal: true),
+      ],
+    ),
+  );
+}
 
   Widget _buildTotalRow(String label, String value, {bool isFinal = false, bool isNegative = false}) {
     return Padding(
@@ -990,9 +1121,9 @@ Widget _buildDefaultLogo() {
               fontSize: isFinal ? 18 : 14,
               fontWeight: isFinal ? FontWeight.bold : FontWeight.w600,
               color: isFinal 
-                ? const Color(0xFF98BF4A)
+                ? const Color.fromARGB(255, 0, 0, 0)
                 : isNegative
-                  ? Colors.red
+                  ? const Color.fromARGB(255, 0, 0, 0)
                   : const Color(0xFF141A2F),
               fontFamily: 'Satoshi',
             ),
