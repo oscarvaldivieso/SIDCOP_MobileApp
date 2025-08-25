@@ -33,7 +33,8 @@ class RutaMapScreen extends StatefulWidget {
   @override
   State<RutaMapScreen> createState() => _RutaMapScreenState();
 }
-  bool isOnline = true;
+
+bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   String? _rutaImagenMapaStatic;
@@ -233,7 +234,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
 
       // Obtener la dirección seleccionada para este cliente/parada
-      int? diclId;
+      int? dicl_Id;
       if (paradaLatLng != null) {
         final idxDireccion = _direccionesFiltradas.indexWhere(
           (d) =>
@@ -241,13 +242,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
               d.dicl_longitud == paradaLatLng.longitude,
         );
         if (idxDireccion != -1) {
-          diclId = _direccionesFiltradas[idxDireccion].dicl_id;
+          dicl_Id = _direccionesFiltradas[idxDireccion].dicl_id;
         }
       }
       final registro = ClientesVisitaHistorialModel(
         veRu_Id: veruId,
         diCl_Id:
-            diclId ??
+            dicl_Id ??
             0, // Usa el id de la dirección seleccionada, o 0 si no se encuentra
         esVi_Id: 1, // O el estado que corresponda
         clVi_Observaciones: 'Visitado',
@@ -307,6 +308,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
   }
+
   void _updateUserMarker() {
     _markers = _markers
         .where((m) => m.markerId.value != 'user_location')
@@ -991,7 +993,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     if (parada['latlng'] != null)
                                       Builder(
                                         builder: (context) {
-                                          int? diclId;
+                                          int? dicl_Id;
                                           final paradaLatLng =
                                               parada['latlng'] as LatLng?;
                                           if (paradaLatLng != null) {
@@ -1007,25 +1009,25 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                                   .longitude,
                                                     );
                                             if (idxDireccion != -1) {
-                                              diclId =
+                                              dicl_Id =
                                                   _direccionesFiltradas[idxDireccion]
                                                       .dicl_id;
                                             }
                                           }
                                           print(
-                                            'Render Checkbox: diclId=$diclId, visitados=$_direccionesVisitadas',
+                                            'Render Checkbox: dicl_Id=$dicl_Id, visitados=$_direccionesVisitadas',
                                           );
                                           return Checkbox(
                                             value:
-                                                diclId != null &&
+                                                dicl_Id != null &&
                                                 _direccionesVisitadas.contains(
-                                                  diclId,
+                                                  dicl_Id,
                                                 ),
                                             onChanged:
-                                                (diclId != null &&
+                                                (dicl_Id != null &&
                                                         _direccionesVisitadas
                                                             .contains(
-                                                              diclId,
+                                                              dicl_Id,
                                                             )) ||
                                                     _enviandoVisita
                                                 ? null
