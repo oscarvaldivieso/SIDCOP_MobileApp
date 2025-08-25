@@ -630,7 +630,8 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
-    final factTipo = invoiceData['fact_TipoVenta'] ?? 'EFECTIVO';
+    final factTipoRaw = invoiceData['fact_TipoVenta'] ?? 'EFECTIVO';
+    final factTipo = factTipoRaw == 'CO' ? 'CONTADO' : (factTipoRaw == 'CR' ? 'CREDITO' : factTipoRaw);
     final factFecha = _formatDate(invoiceData['fact_FechaEmision']);
     final factHora = _formatTime(invoiceData['fact_FechaEmision']);
     final cai = invoiceData['regC_Descripcion'] ?? 'ABC123-XYZ456-789DEF';
@@ -643,7 +644,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final clienteTelefono = invoiceData['clie_Telefono'] ?? '';
     final clienteDireccion = invoiceData['diCl_DireccionExacta'] ?? '';
 
-    final fechaLimiteEmision = invoiceData['regC_FechaFinalEmision'] ?? '31/12/2024';
+    final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
     final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
     final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
 
@@ -733,7 +734,7 @@ totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDSubtota
 totalY += 25;
 
 // Descuento (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotalDescuento: -L$descuento^FS\n';
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
 totalY += 25;
 
 // Importe Exento (siempre mostrar)
@@ -772,8 +773,8 @@ totalY += 25;
 
 // Total en letras (convertir el total a número, quitar el signo de L si existe)
 final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
-final totalEnLetras = 'Son: ${NumeroEnLetras.convertir(totalNum)} lempiras';
-totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
+final totalEnLetras = ' ${NumeroEnLetras.convertir(totalNum)}';
+totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,3,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
 totalY += 50; // Espacio adicional para el total en letras
 
     // Footer con posiciones dinámicas
@@ -792,11 +793,11 @@ totalY += 50; // Espacio adicional para el total en letras
     currentFooterY += 25;
 
     // 3. Desde (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDDesde: $desde^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDDesde: 111-004-01-0000$desde^FS\n';
     currentFooterY += 25;
 
     // 4. Hasta (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDHasta: $hasta^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDHasta: 111-004-01-0000$hasta^FS\n';
     currentFooterY += 25;
 
     // 5. Espacio adicional antes del texto de copias
