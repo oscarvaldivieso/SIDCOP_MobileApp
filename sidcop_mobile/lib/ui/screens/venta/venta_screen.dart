@@ -1613,7 +1613,7 @@ Widget paso1() {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      '${mejorDescuento.toStringAsFixed(0)}% OFF',
+                                      '% OFF',
                                       style: const TextStyle(
                                         fontFamily: 'Satoshi',
                                         fontSize: 12,
