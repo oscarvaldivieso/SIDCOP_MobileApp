@@ -459,9 +459,9 @@ Widget _buildActionButtons(CuentasXCobrar cuenta, Color primaryColor) {
             children: [
               Text('Cliente', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500, fontSize: 10, fontFamily: 'Satoshi')),
               const SizedBox(height: 2),
-              Text(cuenta.nombreCompleto, style: const TextStyle(color: Color(0xFF181E34), fontWeight: FontWeight.w600, fontSize: 14, fontFamily: 'Satoshi')),
-              if (cuenta.clie_NombreNegocio?.isNotEmpty == true)
-                Text(cuenta.clie_NombreNegocio!, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500, fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi')),
+              Text(cuenta.clie_NombreNegocio?? '', style: const TextStyle(color: Color(0xFF181E34), fontWeight: FontWeight.w600, fontSize: 14, fontFamily: 'Satoshi')),
+              if (cuenta.nombreCompleto.isNotEmpty == true)
+                Text(cuenta.nombreCompleto, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500, fontSize: 12, fontStyle: FontStyle.italic, fontFamily: 'Satoshi')),
               if (cuenta.clie_Telefono?.isNotEmpty == true)
                 Row(
                   children: [
