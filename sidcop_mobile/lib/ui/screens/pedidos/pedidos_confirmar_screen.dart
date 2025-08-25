@@ -242,11 +242,30 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
       }
 
-      // Llamar a la API para insertar el pedido
+      // Obtener datos necesarios para generar el código del pedido
+      final clienteService = ClientesService();
+      final direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
+      final clientes = await clienteService.getClientes();
+      
+      // Generar el código del pedido
       final pedidosService = PedidosService();
+      final pediCodigo = await pedidosService.generarSiguienteCodigo(
+        diClId: diClId,
+        direcciones: direcciones,
+        clientes: clientes,
+      );
+      
+      print('Código de pedido generado: $pediCodigo');
+      
+      if (pediCodigo.isEmpty) {
+        throw Exception('No se pudo generar el código del pedido');
+      }
+
+      // Llamar a la API para insertar el pedido
       final resultado = await pedidosService.insertarPedido(
         diClId: diClId,
         vendId: vendId,
+        pediCodigo: pediCodigo,
         fechaPedido: DateTime.now(),
         fechaEntrega: widget.fechaEntrega,
         usuaCreacion: usuaId,
@@ -258,14 +277,10 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         throw Exception(resultado['message'] ?? 'Error al crear el pedido');
       }
 
-      // Obtener número de pedido real de la respuesta de la API
-      final pedidoData = resultado['data'];
-      final numeroPedidoReal = pedidoData != null && pedidoData['pedi_Id'] != null 
-          ? 'PED-${pedidoData['pedi_Id']}'
-          : 'PED-${DateTime.now().millisecondsSinceEpoch}';
+      // Usar el código generado como número de pedido real
+      final numeroPedidoReal = pediCodigo;
 
       // Si el pedido se creó exitosamente, obtener datos para la factura
-      final clienteService = ClientesService();
       final cliente = await clienteService.getClienteById(widget.clienteId);
       final empresaService = EmpresaService();
       final empresa = await empresaService.getConfiguracionFactura();

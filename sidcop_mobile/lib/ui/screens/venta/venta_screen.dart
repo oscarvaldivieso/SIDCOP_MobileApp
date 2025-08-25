@@ -414,7 +414,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "FAC";
-      _ventaModel.regCId = 20;
+      _ventaModel.regCId = 21;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
@@ -606,7 +606,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _buildCompactDetailRow('Factura', _ventaModel.factNumero),
                           _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
                           _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
                         ],
@@ -1271,7 +1270,7 @@ Widget paso1() {
       if (!_tieneCredito) {
         setState(() {
           formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
         });
       }
     } catch (e) {
@@ -1287,7 +1286,7 @@ Widget paso1() {
       setState(() {
         _tieneCredito = false;
         formData.metodoPago = 'EFECTIVO';
-        _ventaModel.factTipoVenta = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
       });
     } finally {
       if (mounted) {
@@ -1305,7 +1304,8 @@ Widget paso1() {
       onTap: () async {
         setState(() {
           formData.metodoPago = value;
-          _ventaModel.factTipoVenta = value;
+          // Convert to the correct format for the API
+          _ventaModel.factTipoVenta = value == 'CREDITO' ? 'CR' : 'CO';
         });
         
         if (isCredit && widget.clienteId != null) {
@@ -2923,50 +2923,74 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   // Resumen financiero
                   _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
-                  const SizedBox(height: 16),
+              
+                  const SizedBox(height: 24)
                   
-                  // Checkbox de confirmación
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF98BF4A).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF98BF4A).withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: formData.confirmacion,
-                          onChanged: (value) => setState(() => formData.confirmacion = value ?? false),
-                          activeColor: const Color(0xFF98BF4A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'He revisado toda la información y confirmo que es correcta. Proceder con la venta.',
-                            style: TextStyle(
-                              fontFamily: 'Satoshi',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // Mostrar diálogo de confirmación
+  Future<void> _showConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap a button to close
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            '¿Confirmar venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF141A2F),
+            ),
+          ),
+          content: const Text(
+            '¿Estás seguro de que deseas confirmar esta venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: Color(0xFF64748B),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'CANCELAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'CONFIRMAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF98BF4A),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                _procesarVentaConImpresion(); // Proceder con la venta
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
