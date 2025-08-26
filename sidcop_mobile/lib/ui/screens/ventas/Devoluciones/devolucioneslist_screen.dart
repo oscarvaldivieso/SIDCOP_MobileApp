@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
+import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
 class DevolucioneslistScreen extends StatefulWidget {
@@ -62,36 +63,49 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Devoluciones',
-      icon: Icons.restart_alt,
-      permisos: permisos,
-      onRefresh: () async {
-        setState(() {
-          _devolucionesFuture = _loadDevoluciones();
-        });
-      },
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Listado de Devoluciones',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                      fontFamily: 'Satoshi',
-                      fontWeight: FontWeight.bold,
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DevolucioncrearScreen()),
+          );
+        },
+        backgroundColor: const Color(0xFF141A2F),
+        child: const Icon(Icons.add, color: Colors.white),
+        shape: const CircleBorder(),
+        elevation: 4.0,
+      ),
+      body: AppBackground(
+        title: 'Devoluciones',
+        icon: Icons.restart_alt,
+        permisos: permisos,
+        onRefresh: () async {
+          setState(() {
+            _devolucionesFuture = _loadDevoluciones();
+          });
+        },
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Listado de Devoluciones',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                        fontFamily: 'Satoshi',
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
               const SizedBox(height: 15),
               FutureBuilder<List<DevolucionesViewModel>>(
                 future: _devolucionesFuture,
@@ -178,8 +192,9 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -300,11 +315,6 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Fila de cliente
-                        _buildDetailRow(
-                          Icons.person_outline,
-                          'Cliente',
-                          devolucion.clieNombreNegocio ?? 'Cliente #${devolucion.clieId}',
-                        ),
                         const SizedBox(height: 12),
                         // Fila de motivo
                         _buildDetailRow(

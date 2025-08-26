@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:async';
+
 import '../../../services/ConfiguracionSerivice.Dart';
+import '../../../services/printer_service.dart';
 import '../../widgets/OfflineConfigWidget.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
@@ -10,6 +14,11 @@ class ConfiguracionScreen extends StatefulWidget {
 
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool isOnline = true;
+  final PrinterService _printerService = PrinterService();
+  bool _isScanning = false;
+  bool _isConnected = false;
+  List<BluetoothDevice> _devices = [];
+  BluetoothDevice? _connectedDevice;
 
   /// Método para limpiar la caché con confirmación del usuario
   Future<void> _limpiarCache() async {
@@ -85,6 +94,302 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         );
       }
     }
+  }
+
+  // Inicialización y limpieza
+  @override
+  void initState() {
+    super.initState();
+    _checkPrinterStatus();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  // Verificar estado de la impresora
+  Future<void> _checkPrinterStatus() async {
+    setState(() {
+      _isConnected = _printerService.isConnected;
+      _connectedDevice = _printerService.connectedDevice;
+    });
+  }
+
+  // Escanear dispositivos Bluetooth
+  Future<void> _scanForPrinters() async {
+    try {
+      setState(() => _isScanning = true);
+      _devices = await _printerService.startScan();
+      setState(() => _isScanning = false);
+    } catch (e) {
+      setState(() => _isScanning = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al escanear: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Conectar a una impresora
+  Future<void> _connectToPrinter(BluetoothDevice device) async {
+    try {
+      final success = await _printerService.connect(device);
+      setState(() {
+        _isConnected = success;
+        _connectedDevice = success ? device : null;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success 
+                ? 'Conectado a ${device.platformName}'
+                : 'No se pudo conectar a la impresora',
+            ),
+            backgroundColor: success ? Colors.green : Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de conexión: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Desconectar la impresora
+  Future<void> _disconnectPrinter() async {
+    try {
+      await _printerService.disconnect();
+      setState(() {
+        _isConnected = false;
+        _connectedDevice = null;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impresora desconectada'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al desconectar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Construir la sección de configuración de impresora
+  Widget _buildPrinterSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Impresora',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF666666),
+            fontFamily: 'Satoshi',
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Estado de conexión
+        ListTile(
+          leading: Icon(
+            _isConnected ? Icons.check_circle : Icons.print_disabled_outlined,
+            color: _isConnected ? Colors.green : Color(0xFF666666),
+          ),
+          title: Text(
+            _isConnected 
+                ? 'Conectado'
+                : 'Sin conexión',
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 16,
+              color: Color(0xFF333333),
+            ),
+          ),
+          subtitle: Text(
+            _isConnected 
+                ? '${_connectedDevice?.platformName ?? 'Dispositivo desconocido'}'
+                : 'Conectar impresora Bluetooth',
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 14,
+              color: Color(0xFF666666),
+            ),
+          ),
+          trailing: _isConnected 
+              ? IconButton(
+                  icon: const Icon(Icons.link_off, color: Colors.red),
+                  onPressed: _disconnectPrinter,
+                )
+              : const Icon(Icons.chevron_right, color: Color(0xFF666666)),
+          onTap: _isConnected ? null : () => _showPrinterBottomSheet(),
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  // Mostrar bottom sheet con opciones de impresora
+  void _showPrinterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              maxChildSize: 0.9,
+              minChildSize: 0.5,
+              expand: false,
+              builder: (BuildContext context, ScrollController scrollController) {
+                return Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header del bottom sheet
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Configurar Impresora',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Satoshi',
+                              color: Color(0xFF141A2F),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Botón de escaneo
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: _isScanning 
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.search, size: 20),
+                          label: Text(_isScanning ? 'Buscando...' : 'Buscar impresoras'),
+                          onPressed: _isScanning ? null : () async {
+                            await _scanForPrinters();
+                            setModalState(() {});
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF141A2F),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Lista de dispositivos encontrados
+                      Expanded(
+                        child: _devices.isEmpty && !_isScanning
+                            ? const Center(
+                                child: Text(
+                                  'No se encontraron dispositivos.\nPresiona "Buscar impresoras" para escanear.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: scrollController,
+                                itemCount: _devices.length,
+                                itemBuilder: (context, index) {
+                                  final device = _devices[index];
+                                  final isConnected = _isConnected && 
+                                      _connectedDevice?.remoteId == device.remoteId;
+                                  
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    elevation: 2,
+                                    child: ListTile(
+                                      leading: const Icon(Icons.print, color: Color(0xFF4B5563)),
+                                      title: Text(
+                                        device.platformName.isNotEmpty 
+                                            ? device.platformName 
+                                            : 'Dispositivo desconocido',
+                                        style: const TextStyle(fontFamily: 'Satoshi'),
+                                      ),
+                                      subtitle: Text(
+                                        device.remoteId.toString(),
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      trailing: isConnected
+                                          ? const Icon(Icons.check_circle, color: Colors.green)
+                                          : const Icon(Icons.bluetooth, color: Colors.blue),
+                                      onTap: () async {
+                                        await _connectToPrinter(device);
+                                        setModalState(() {});
+                                        if (_isConnected) {
+                                          Navigator.pop(context);
+                                        }
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -209,6 +514,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       
                       const SizedBox(height: 24),
                       
+                      // Sección de configuración de impresora AQUÍ
+                      _buildPrinterSection(),
+                      
+                      const SizedBox(height: 24),
+                      
                       // Sección Acerca de
                       const Text(
                         'Acerca de',
@@ -295,5 +605,3 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 }
-
-

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
+import 'package:sidcop_mobile/models/ProductosViewModel.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
+import 'package:sidcop_mobile/utils/error_handler.dart';
+import 'dart:math';
+import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -15,7 +23,10 @@ class FormData {
 }
 
 class VentaScreen extends StatefulWidget {
-  const VentaScreen({super.key});
+  final int? clienteId;
+  final int? vendedorId;
+  
+  const VentaScreen({super.key, this.clienteId, this.vendedorId});
 
   @override
   State<VentaScreen> createState() => _VentaScreenState();
@@ -26,14 +37,111 @@ class _VentaScreenState extends State<VentaScreen> {
   final FormData formData = FormData();
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
-  VentaInsertarViewModel _ventaModel = VentaInsertarViewModel.empty();
+  final ClientesService _clientesService = ClientesService();
+final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
+  late VentaInsertarViewModel _ventaModel;
+  
+  // Variables para control de crédito
+  bool _verificandoCredito = false;
+  bool _tieneCredito = true; // Asumimos que tiene crédito por defecto hasta que se verifique lo contrario
+  double _creditoDisponible = 0.0;
+  double _limiteCredito = 0.0;
+  double _saldoActual = 0.0;
+  
+  // Genera un número de factura aleatorio
+  String _generateInvoiceNumber() {
+    final random = Random();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
+    return 'FACT-${timestamp}_$randomDigits';
+  }
+  
+  // Método para construir una fila de información de crédito
+  Widget _buildCreditInfoRow(String label, double amount, {bool isAvailable = false, bool isBalance = false}) {
+    final bool isNegative = amount < 0;
+    final bool isHighlight = isAvailable || isBalance;
+    
+    Color textColor = const Color(0xFF262B40);
+    if (isAvailable) {
+      textColor = const Color.fromARGB(255, 237, 211, 175); // Color dorado para crédito disponible
+    } else if (isBalance && amount > 0) {
+      textColor = const Color(0xFFE53E3E); // Rojo para saldo a favor
+    } else if (isBalance && isNegative) {
+      textColor = const Color(0xFF98BF4A); // Verde para saldo negativo (a favor del cliente)
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 14,
+              color: Color(0xFF4A5568),
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isHighlight ? const Color.fromARGB(255, 46, 60, 92) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'L. ${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 15,
+                color: textColor,
+                fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  // Variables para control de venta
+  bool _isProcessingSale = false;
+
+  // Variables para direcciones del cliente
+  List<dynamic> _clientAddresses = [];
+  Map<String, dynamic>? _selectedAddress;
+  bool _isLoadingAddresses = false;
+  
   // Variables para productos
-  List<Productos> _allProducts = [];
-  List<Productos> _filteredProducts = [];
+  List<ProductoConDescuento> _allProducts = [];
+  List<ProductoConDescuento> _filteredProducts = [];
+  Map<int, ProductoConDescuento> _productosConDescuento = {};
   final Map<int, double> _selectedProducts = {}; // prod_Id -> cantidad
   bool _isLoadingProducts = false;
+  bool _isCartSummaryExpanded = false;
   final TextEditingController _searchController = TextEditingController();
+
+
 
   int currentStep = 0;
   final int totalSteps = 4;
@@ -41,7 +149,7 @@ class _VentaScreenState extends State<VentaScreen> {
   final List<String> stepTitles = [
     'Método de Pago',
     'Productos disponibles',
-    'Selección de Productos',
+    'Carrito de compras',
     'Confirmación de venta'
   ];
   
@@ -52,26 +160,83 @@ class _VentaScreenState extends State<VentaScreen> {
     'Revisa y confirma la información'
   ];
 
+  // Cargar direcciones del cliente
+  Future<void> _loadClientAddresses() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _isLoadingAddresses = true);
+    try {
+      _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
+      
+      // Seleccionar la primera dirección por defecto si hay direcciones disponibles
+      if (_clientAddresses.isNotEmpty) {
+        _selectedAddress = _clientAddresses.first;
+        _ventaModel.diClId = _selectedAddress!['diCl_Id'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint('Error cargando direcciones: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAddresses = false);
+      }
+    }
+  }
+  
   @override
   void initState() {
     super.initState();
+    _ventaModel = VentaInsertarViewModel.empty()
+      ..factNumero = _generateInvoiceNumber()
+      ..vendId = widget.vendedorId ?? 0;
+      
     _loadProducts();
+    _verificarCreditoCliente();
+    _loadClientAddresses();
     _searchController.addListener(_applyProductFilter);
+    
+    // Debug print to verify the values
+    debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
+
+    // Verificar crédito al iniciar si ya hay un cliente seleccionado
+    if (widget.clienteId != null) {
+      _verificarCreditoCliente();
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   Future<void> _loadProducts() async {
+    if (widget.clienteId == null || widget.vendedorId == null) {
+      ErrorHandler.showErrorToast('No se pudo cargar los productos: Faltan datos del cliente o vendedor');
+      setState(() => _isLoadingProducts = false);
+      return;
+    }
+
     setState(() => _isLoadingProducts = true);
     try {
-      _allProducts = await _productosService.getProductos();
+      // Load products with client/vendor specific discounts
+      _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
+        widget.clienteId!,
+        widget.vendedorId!,
+      );
+      
       _filteredProducts = List.from(_allProducts);
+      
+      // Store products in the map for easy access
+      _productosConDescuento.clear();
+      for (var producto in _allProducts) {
+        _productosConDescuento[producto.prodId] = producto;
+      }
+      
+      debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
     } catch (e) {
-      debugPrint('Error cargando productos: $e');
+      debugPrint('Error cargando productos con descuento: $e');
+      ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -82,14 +247,32 @@ class _VentaScreenState extends State<VentaScreen> {
     setState(() {
       _filteredProducts = _allProducts.where((product) {
         final matchesSearch = searchTerm.isEmpty ||
-            (product.prod_Descripcion?.toLowerCase().contains(searchTerm) ?? false) ||
-            (product.prod_Codigo?.toLowerCase().contains(searchTerm) ?? false);
+            (product.prodDescripcionCorta?.toLowerCase().contains(searchTerm) ?? false) ||
+            (product.prodId.toString().toLowerCase().contains(searchTerm) ?? false);
         return matchesSearch;
       }).toList();
     });
   }
 
   void _updateProductQuantity(int prodId, double quantity) {
+    final product = _allProducts.firstWhere(
+      (p) => p.prodId == prodId,
+      orElse: () => throw Exception('Producto no encontrado'),
+    );
+
+    // Verificar si la cantidad solicitada excede el stock disponible
+    if (quantity > 0 && product.cantidadDisponible != null && quantity > product.cantidadDisponible!) {
+      // Mostrar mensaje de error al usuario
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No hay suficiente stock. Disponible: ${product.cantidadDisponible}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       if (quantity > 0) {
         _selectedProducts[prodId] = quantity;
@@ -109,8 +292,8 @@ class _VentaScreenState extends State<VentaScreen> {
     
     // Actualizar el formData para mostrar en el resumen
     final productNames = _selectedProducts.entries.map((entry) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == entry.key);
-      return '${product.prod_DescripcionCorta ?? 'Producto'} (${entry.value})';
+      final product = _allProducts.firstWhere((p) => p.prodId == entry.key);
+      return '${product.prodDescripcionCorta ?? 'Producto'} (${entry.value})';
     }).join(', ');
     formData.productos = productNames;
   }
@@ -169,9 +352,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   void mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
+    ErrorHandler.showErrorToast(mensaje);
   }
 
   void mostrarResumen() {
@@ -207,109 +388,117 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  Future<void> _procesarVenta() async {
-    try {
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
-            ],
-          ),
-        ),
-      );
+  // Formatear moneda
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(symbol: 'L ', decimalDigits: 2).format(amount);
+  }
 
-      // Preparar datos de la venta
-      _ventaModel.factNumero = DateTime.now().millisecondsSinceEpoch.toString();
-      _ventaModel.factTipoDeDocumento = "FAC";
+  Future<void> _procesarVenta() async {
+    // Validar crédito si el método de pago es CRÉDITO
+    if (formData.metodoPago == 'CREDITO' && widget.clienteId != null) {
+      final totalVenta = _calculateTotal();
+      if (totalVenta > _creditoDisponible) {
+        if (mounted) {
+          ErrorHandler.showErrorToast(
+            'El monto total de la venta (${_formatCurrency(totalVenta)}) excede el crédito disponible (${_formatCurrency(_creditoDisponible)})'
+          );
+        }
+        return;
+      }
+    }
+
+    // Mostrar indicador de carga
+    final loadingContext = Navigator.of(context, rootNavigator: true).overlay!.context;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text("Procesando venta...", style: TextStyle(fontFamily: 'Satoshi')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      print('Iniciando procesamiento de venta...');
+      
+      // Generar un nuevo número de factura único
+      final newInvoiceNumber = _generateInvoiceNumber();
+      print('Nuevo número de factura generado: $newInvoiceNumber');
+      
+      // Asignar el número de factura al modelo
+      _ventaModel.factNumero = newInvoiceNumber;
+      _ventaModel.factTipoDeDocumento = "01";
+      _ventaModel.regCId = 21;
       _ventaModel.factFechaEmision = DateTime.now();
-      _ventaModel.factFechaLimiteEmision = DateTime.now().add(const Duration(days: 30));
       _ventaModel.factReferencia = "Venta desde app móvil";
+      _ventaModel.factLatitud = 14.072245;
+      _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // TODO: Estos valores deberían venir de la sesión del usuario y selección de cliente
-      _ventaModel.clieId = 111; // Temporal - debe venir de la selección de cliente
-      _ventaModel.vendId = 1; // Temporal - debe venir de la sesión del usuario
-      _ventaModel.usuaCreacion = 1; // Temporal - debe venir de la sesión del usuario
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
+      
+      if (personaId == null) {
+        throw Exception('No se pudo obtener el ID del vendedor de la sesión');
+      }
+      
+      
+      _ventaModel.vendId = personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 12;
+      //_ventaModel.vendId = 12;
+      _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
+      
+      // Validar el modelo antes de enviar
+      print('Validando modelo de venta...');
+      print('Direccion por cliente ID: ${_ventaModel.diClId}');
+      print('Vendedor ID: ${_ventaModel.vendId}');
+      print('Productos: ${_ventaModel.detallesFacturaInput.length}');
+      print('Detalles de productos:');
+      for (var detalle in _ventaModel.detallesFacturaInput) {
+        print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
+      }
       
       // Enviar venta al backend
+      print('Enviando datos al servidor...');
       final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
       
       // Cerrar indicador de carga
-      Navigator.pop(context);
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      print('Respuesta del servidor: $resultado');
       
       if (resultado?['success'] == true) {
-        // Venta exitosa
+        // Venta exitosa - mostrar toast y dialog
+        ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
+        
         showDialog(
           context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("¡Venta Exitosa!", style: TextStyle(fontFamily: 'Satoshi', color: Color(0xFF98BF4A))),
-            content: Text(
-              "La venta ha sido procesada correctamente.\n\n"
-              "Método de Pago: ${formData.metodoPago}\n"
-              "Número de Factura: ${_ventaModel.factNumero}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF98BF4A),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Aceptar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _resetearFormulario();
-                },
-              ),
-            ],
-          ),
+          barrierDismissible: false,
+          builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
         );
       } else {
-        // Error en la venta
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Error en la Venta", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-            content: Text(
-              "No se pudo procesar la venta:\n\n${resultado?['message'] ?? 'Error desconocido'}",
-              style: const TextStyle(fontFamily: 'Satoshi'),
-            ),
-            actions: [
-              TextButton(
-                child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        // Error en la venta - usar toast en lugar de dialog
+        ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
+        print('Error al procesar venta: $resultado');
       }
-    } catch (e) {
-      // Cerrar indicador de carga si está abierto
-      Navigator.pop(context);
+    } catch (e, stackTrace) {
+      print('Excepción al procesar venta: $e');
+      print('Stack trace: $stackTrace');
       
-      // Mostrar error
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Error", style: TextStyle(fontFamily: 'Satoshi', color: Colors.red)),
-          content: Text(
-            "Ocurrió un error inesperado:\n\n$e",
-            style: const TextStyle(fontFamily: 'Satoshi'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Cerrar", style: TextStyle(fontFamily: 'Satoshi')),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
+      // Cerrar indicador de carga si está abierto
+      if (Navigator.canPop(loadingContext)) {
+        Navigator.of(loadingContext, rootNavigator: true).pop();
+      }
+      
+      // Mostrar error al usuario con toast
+      ErrorHandler.showErrorToast('Error inesperado al procesar la venta. Intenta nuevamente.');
     }
   }
 
@@ -320,12 +509,401 @@ class _VentaScreenState extends State<VentaScreen> {
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
+      _pageController.jumpToPage(0);
     });
-    _pageController.animateToPage(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+  }
+
+  Widget _buildModernSuccessDialog(BuildContext context, Map<String, dynamic> facturaData) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 500), // Limitar altura máxima
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header compacto
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF98BF4A),
+                    const Color(0xFF98BF4A).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Icono más pequeño
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF98BF4A),
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Venta Exitosa!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Venta procesada correctamente',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            
+            // Contenido compacto
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Información básica
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Detalles',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF141A2F),
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCompactDetailRow('Pago', formData.metodoPago.isNotEmpty ? formData.metodoPago : 'Efectivo'),
+                          _buildCompactDetailRow('Productos', '${_selectedProducts.length} artículos'),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Botones compactos
+                    Row(
+                      children: [
+                        // Botón Aceptar
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _resetearFormulario();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF141A2F)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text(
+                                'Aceptar',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Satoshi',
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 8),
+                        
+                        // Botón Ver Factura
+                        Expanded(
+                          child: SizedBox(
+                            height: 42,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _navigateToInvoiceDetail(facturaData);
+                                _resetearFormulario();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF98BF4A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.visibility, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ver Factura',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6C757D),
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF141A2F),
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  /// Extrae el ID de la factura del mensaje de respuesta del backend
+  /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
+  int? _extractInvoiceIdFromMessage(String message) {
+    try {
+      // Buscar el patrón "ID: [número]"
+      final regex = RegExp(r'ID:\s*(\d+)');
+      final match = regex.firstMatch(message);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      print('Error al extraer ID de factura del mensaje: $e');
+    }
+    return null;
+  }
+
+  void _navigateToInvoiceDetail(Map<String, dynamic> facturaData) {
+    // Extract invoice ID from the backend response
+    int? facturaId;
+    
+    // Intentar extraer el ID del message_Status
+    if (facturaData['message_Status'] != null) {
+      facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
+      print('ID extraído del message_Status: $facturaId');
+    }
+    
+    // Fallback: intentar obtener de otros campos
+    // Fallback: intentar obtener de otros campos
+    if (facturaId == null) {
+      facturaId = facturaData['fact_Id'] ?? facturaData['id'];
+    }
+    
+    final facturaNumero = _ventaModel.factNumero ?? 'N/A';
+    
+    print('Navegando a InvoiceDetailScreen con ID: $facturaId, Número: $facturaNumero');
+    
+    // Navigate to InvoiceDetailScreen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InvoiceDetailScreen(
+          facturaId: facturaId ?? 0,
+          facturaNumero: facturaNumero,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFacturaInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Satoshi',
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Calculate subtotal from selected products
+  double _calculateSubtotal() {
+    return _ventaModel.detallesFacturaInput.fold(
+      0.0, 
+      (sum, detalle) {
+        final producto = _productosConDescuento[detalle.prodId];
+        if (producto != null) {
+          return sum + (detalle.faDeCantidad * producto.prodPrecioUnitario);
+        }
+        return sum;
+      },
+    );
+  }
+  
+  // Calculate taxes (15%)
+  double _calculateTaxes(double subtotal) {
+    return subtotal * 0.15;
+  }
+
+  // Método para construir un ítem de producto en la factura
+  Widget _buildProductoItem(String nombre, double cantidad, double precioUnitario) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              nombre,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              cantidad.toStringAsFixed(2),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              'L. ${precioUnitario.toStringAsFixed(2)}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalRow(String label, String value, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+            ),
+          ),
+          Text(
+            'L. $value',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 18 : 16,
+              color: isTotal ? const Color(0xFF98BF4A) : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -348,7 +926,7 @@ class _VentaScreenState extends State<VentaScreen> {
           children: [
             // Header con título y chip de paso
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -358,7 +936,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       stepTitles[currentStep],
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF141A2F),
                       ),
@@ -366,7 +944,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   ),
                   // Chip de paso
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical:6),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color.fromARGB(255, 4, 4, 27), Color.fromARGB(255, 18, 18, 53)],
@@ -377,7 +955,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       '${currentStep + 1}/$totalSteps',
                       style: const TextStyle(
                         fontFamily: 'Satoshi',
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -390,7 +968,7 @@ class _VentaScreenState extends State<VentaScreen> {
             // Barra de progreso moderna
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 color: const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(12),
@@ -443,7 +1021,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 stepDescriptions[currentStep],
                 style: const TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 14,
                   color: Color.fromARGB(255, 17, 19, 29)
                 ),
                 textAlign: TextAlign.left,
@@ -511,7 +1089,7 @@ class _VentaScreenState extends State<VentaScreen> {
               child: Container(
                 margin: EdgeInsets.only(left: currentStep > 0 ? 12 : 0),
                 child: ElevatedButton(
-                  onPressed: nextStep,
+                  onPressed: _isProcessingSale ? null : (currentStep == totalSteps - 1 ? _procesarVentaConImpresion : nextStep),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF141A2F),
                     foregroundColor: Colors.white,
@@ -521,14 +1099,37 @@ class _VentaScreenState extends State<VentaScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
-                    style: const TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isProcessingSale && currentStep == totalSteps - 1
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Procesando...",
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          currentStep == totalSteps - 1 ? "Finalizar Venta" : "Siguiente",
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -539,8 +1140,9 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Paso 1: Método de Pago
-  Widget paso1() {
-    return Padding(
+Widget paso1() {
+  return SingleChildScrollView(
+    child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,19 +1160,177 @@ class _VentaScreenState extends State<VentaScreen> {
           const SizedBox(height: 24),
           _buildPaymentOption('Efectivo', Icons.money, 'EFECTIVO'),
           const SizedBox(height: 16),
-          _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO')
+          Opacity(
+            opacity: _tieneCredito ? 1.0 : 0.6,
+            child: AbsorbPointer(
+              absorbing: !_tieneCredito,
+              child: _buildPaymentOption('Crédito', Icons.credit_card, 'CREDITO'),
+            ),
+          ),
+          if (!_tieneCredito && widget.clienteId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+              child: Text(
+                'Crédito no disponible para este cliente',
+                style: TextStyle(
+                  color: Colors.orange[700],
+                  fontSize: 13,
+                  fontFamily: 'Satoshi',
+                ),
+              ),
+            ),
+          if (_verificandoCredito) 
+            const Padding(
+              padding: EdgeInsets.only(top: 16.0),
+              child: CircularProgressIndicator(),
+            )
+          else if (formData.metodoPago == 'CREDITO' && widget.clienteId != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFFFFF), Color(0xFFF8F9FF)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF262B40).withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: const Color(0xFF262B40).withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF262B40).withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.credit_card_rounded,
+                            color: Color(0xFF262B40),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Información de Crédito',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF262B40),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildCreditInfoRow('Límite de Crédito', _limiteCredito),
+                        const SizedBox(height: 4),
+                        _buildCreditInfoRow('Saldo Actual', _saldoActual, isBalance: true),
+                        const SizedBox(height: 12),
+                        _buildCreditInfoRow(
+                          'Crédito Disponible', 
+                          _creditoDisponible,
+                          isAvailable: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+  Future<void> _verificarCreditoCliente() async {
+    if (widget.clienteId == null) return;
+    
+    setState(() => _verificandoCredito = true);
+    
+    try {
+      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+      
+      setState(() {
+        _limiteCredito = limiteCredito;
+        _saldoActual = saldoActual;
+        _creditoDisponible = creditoDisponible;
+        _tieneCredito = creditoDisponible > 0;
+      });
+      
+      // Si no hay crédito disponible, volver a efectivo
+      if (!_tieneCredito) {
+        setState(() {
+          formData.metodoPago = 'EFECTIVO';
+          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al verificar crédito: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      // En caso de error, asumimos que no tiene crédito
+      setState(() {
+        _tieneCredito = false;
+        formData.metodoPago = 'EFECTIVO';
+        _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _verificandoCredito = false);
+      }
+    }
   }
+  
 
   Widget _buildPaymentOption(String title, IconData icon, String value) {
     bool isSelected = formData.metodoPago == value;
+    bool isCredit = value == 'CREDITO';
+    
     return GestureDetector(
-      onTap: () => setState(() {
-        formData.metodoPago = value;
-        _ventaModel.factTipoVenta = value;
-      }),
+      onTap: () async {
+        setState(() {
+          formData.metodoPago = value;
+          // Convert to the correct format for the API
+          _ventaModel.factTipoVenta = value == 'CREDITO' ? 'CR' : 'CO';
+        });
+        
+        if (isCredit && widget.clienteId != null) {
+          await _verificarCreditoCliente();
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
@@ -627,12 +1387,13 @@ class _VentaScreenState extends State<VentaScreen> {
       children: [
         // Barra de búsqueda
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(13),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Buscar productos...',
               hintStyle: const TextStyle(
+                fontSize: 14,
                 fontFamily: 'Satoshi',
                 color: Color(0xFF9CA3AF),
               ),
@@ -653,7 +1414,7 @@ class _VentaScreenState extends State<VentaScreen> {
         // Contador de productos seleccionados
         if (_selectedProducts.isNotEmpty)
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: const EdgeInsets.symmetric(horizontal: 14),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF98BF4A).withOpacity(0.1),
@@ -667,6 +1428,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 Text(
                   '${_selectedProducts.length} productos seleccionados',
                   style: const TextStyle(
+                    fontSize: 14,
                     fontFamily: 'Satoshi',
                     color: Color(0xFF98BF4A),
                     fontWeight: FontWeight.w600,
@@ -706,9 +1468,18 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  Widget _buildProductCard(Productos product) {
-    final currentQuantity = _selectedProducts[product.prod_Id] ?? 0;
+  Widget _buildProductCard(ProductoConDescuento product) {
+    final currentQuantity = _selectedProducts[product.prodId] ?? 0;
     final isSelected = currentQuantity > 0;
+    final productoConDescuento = _productosConDescuento[product.prodId];
+    
+    // Obtener el mejor descuento disponible
+    double? mejorDescuento;
+    if (productoConDescuento?.descuentosEscala.isNotEmpty ?? false) {
+      mejorDescuento = productoConDescuento!.descuentosEscala
+          .map((d) => d.deEsValor)
+          .reduce((a, b) => a > b ? a : b);
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -723,7 +1494,7 @@ class _VentaScreenState extends State<VentaScreen> {
                 ],
               )
             : null,
-        color: isSelected ? null : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
@@ -733,9 +1504,9 @@ class _VentaScreenState extends State<VentaScreen> {
           BoxShadow(
             color: isSelected 
                 ? const Color(0xFF98774A).withOpacity(0.2)
-                : const Color(0xFF262B40).withOpacity(0.08),
-            blurRadius: isSelected ? 12 : 8,
-            offset: Offset(0, isSelected ? 4 : 2),
+                : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 12 : 10,
+            offset: Offset(0, isSelected ? 4 : 4),
           ),
         ],
       ),
@@ -758,20 +1529,13 @@ class _VentaScreenState extends State<VentaScreen> {
                           border: Border.all(
                             color: const Color(0xFF262B40).withOpacity(0.1),
                             width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF262B40).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          )
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(11),
-                          child: product.prod_Imagen != null && product.prod_Imagen!.isNotEmpty
+                          child: product.prodImagen != null && product.prodImagen!.isNotEmpty
                               ? Image.network(
-                                  product.prod_Imagen!,
+                                  product.prodImagen!,
                                   width: 70,
                                   height: 70,
                                   fit: BoxFit.cover,
@@ -823,60 +1587,79 @@ class _VentaScreenState extends State<VentaScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              product.prod_DescripcionCorta ?? 'Sin descripción',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40),
-                                height: 1.3,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            if (product.prod_Codigo != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF262B40).withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'COD: ${product.prod_Codigo}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF262B40),
-                                    letterSpacing: 0.5,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    product.prodDescripcionCorta,
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                            const SizedBox(height: 10),
-                            // Precio limpio y simple
+                                if (mejorDescuento != null && mejorDescuento > 0)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF98BF4A).withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '% OFF',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1F4B3F),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text(
-                                  'L ',
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF262B40).withOpacity(0.7),
+                                if (mejorDescuento != null && mejorDescuento > 0) ...[
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFFEF4444),
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: Color(0xFFEF4444),
+                                      decorationThickness: 2.0,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  product.prod_PrecioUnitario.toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF98774A),
-                                    letterSpacing: -0.5,
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
+                                    ),
                                   ),
-                                ),
+                                ] else
+                                  Text(
+                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF141A2F),
+                                    ),
+                                  ),
                               ],
                             ),
                           ],
@@ -889,38 +1672,40 @@ class _VentaScreenState extends State<VentaScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Badge de seleccionado
+                      // Botón de deseleccionar cuando está seleccionado
                       if (isSelected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF98774A).withOpacity(0.8),
-                                const Color(0xFFD6B68A).withOpacity(0.8),
+                        GestureDetector(
+                          onTap: () => _updateProductQuantity(product.prodId, 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE74C3C).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFE74C3C).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Color(0xFFE74C3C),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Quitar',
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    fontSize: 12,
+                                    color: const Color(0xFFE74C3C),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check_circle,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Seleccionado',
-                                style: const TextStyle(
-                                  fontFamily: 'Satoshi',
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
                           ),
                         )
                       else
@@ -931,15 +1716,16 @@ class _VentaScreenState extends State<VentaScreen> {
                           color: const Color(0xFF262B40).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(25),
                           border: Border.all(
-                            color: const Color(0xFF262B40).withOpacity(0.1),
+                            color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+                            width: isSelected ? 2 : 1,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: currentQuantity > 0 
                                     ? const Color(0xFF262B40) 
@@ -948,44 +1734,86 @@ class _VentaScreenState extends State<VentaScreen> {
                               ),
                               child: IconButton(
                                 onPressed: currentQuantity > 0
-                                    ? () => _updateProductQuantity(product.prod_Id, currentQuantity - 1)
+                                    ? () => _updateProductQuantity(product.prodId, currentQuantity - 1)
                                     : null,
                                 icon: const Icon(Icons.remove, size: 18),
                                 color: Colors.white,
                                 padding: EdgeInsets.zero,
                               ),
                             ),
-                            Container(
-                              width: 50,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isSelected 
-                                    ? const Color(0xFFD6B68A).withOpacity(0.2)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  currentQuantity.toInt().toString(),
-                                  style: TextStyle(
-                                    fontFamily: 'Satoshi',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                            InkWell(
+                              onTap: () async {
+                                final TextEditingController controller = TextEditingController(
+                                  text: currentQuantity.toInt().toString(),
+                                );
+                                
+                                final result = await showDialog<double>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    content: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Ingrese la cantidad',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (_) {
+                                        final value = double.tryParse(controller.text) ?? 0;
+                                        Navigator.of(context).pop(value);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final value = double.tryParse(controller.text) ?? 0;
+                                          Navigator.of(context).pop(value);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF98774A),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (result != null && result >= 0) {
+                                  _updateProductQuantity(product.prodId, result);
+                                }
+                              },
+                              child: Container(
+                                width: 50,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? const Color(0xFFD6B68A).withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    currentQuantity.toInt().toString(),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF98774A),
-                                    const Color(0xFFD6B68A),
-                                  ],
-                                ),
+                                color: const Color(0xFF98774A),
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
@@ -996,7 +1824,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                 ],
                               ),
                               child: IconButton(
-                                onPressed: () => _updateProductQuantity(product.prod_Id, currentQuantity + 1),
+                                onPressed: () => _updateProductQuantity(product.prodId, currentQuantity + 1),
                                 icon: const Icon(Icons.add, size: 18),
                                 color: Colors.white,
                                 padding: EdgeInsets.zero,
@@ -1045,50 +1873,138 @@ class _VentaScreenState extends State<VentaScreen> {
 
   // Paso 3: Carrito de Compras
   Widget paso3() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20),
-          // Título del carrito
-          const Text(
-            'Carrito de Compras',
-            style: TextStyle(
-              fontFamily: 'Satoshi',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF141A2F),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Lista de productos seleccionados
-          Expanded(
-            child: _selectedProducts.isEmpty
-                ? _buildEmptyCart()
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: _selectedProducts.length,
-                          itemBuilder: (context, index) {
-                            final prodId = _selectedProducts.keys.elementAt(index);
-                            final cantidad = _selectedProducts[prodId]!;
-                            final product = _allProducts.firstWhere(
-                              (p) => p.prod_Id == prodId,
-                            );
-                            return _buildCartItem(product, cantidad);
-                          },
-                        ),
+    final double total = _calculateTotal();
+    
+    return Stack(
+      children: [
+        // Contenido principal con padding inferior para el resumen colapsado
+        Padding(
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 80),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              
+              // Lista de productos seleccionados
+              Expanded(
+                child: _selectedProducts.isEmpty
+                    ? _buildEmptyCart()
+                    : ListView.builder(
+                        itemCount: _selectedProducts.length,
+                        itemBuilder: (context, index) {
+                          final prodId = _selectedProducts.keys.elementAt(index);
+                          final cantidad = _selectedProducts[prodId]!;
+                          final product = _allProducts.firstWhere(
+                            (p) => p.prodId == prodId,
+                          );
+                          return _buildCartItem(product, cantidad);
+                        },
                       ),
-                      const SizedBox(height: 16),
-                      _buildCartSummary(),
+              ),
+            ],
+          ),
+        ),
+        
+        // Resumen del carrito (fijo en la parte inferior)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            children: [
+              // Línea decorativa superior
+              Container(
+                width: 60,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Contenedor del resumen
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isCartSummaryExpanded = !_isCartSummaryExpanded;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
                     ],
                   ),
+                  child: Column(
+                    children: [
+                      // Encabezado del resumen (siempre visible)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Resumen del pedido',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF141A2F),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                'L. ${total.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF141A2F),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                _isCartSummaryExpanded 
+                                    ? Icons.keyboard_arrow_down 
+                                    : Icons.keyboard_arrow_up,
+                                color: const Color(0xFF98BF4A),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      // Contenido expandible
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox(height: 16),
+                        secondChild: Column(
+                          children: [
+                            const SizedBox(height: 16),
+                            _buildCartSummary(),
+                          ],
+                        ),
+                        crossFadeState: _isCartSummaryExpanded 
+                            ? CrossFadeState.showSecond 
+                            : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 200),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1129,90 +2045,233 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Widget para cada item del carrito
-  Widget _buildCartItem(Productos product, double cantidad) {
-    final precio = product.prod_PrecioUnitario;
-    final subtotal = precio * cantidad;
+  // Widget para cada item del carrito
+Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
+  final precio = product.prodPrecioUnitario;
+  final subtotal = precio * cantidad;
+  
+  // Calcular descuentos para este producto
+  double descuento = 0.0;
+  double porcentajeDescuento = 0.0;
+  if (product.descuentosEscala.isNotEmpty) {
+    for (var desc in product.descuentosEscala) {
+      if (cantidad >= desc.deEsInicioEscala && 
+          (desc.deEsFinEscala == -1 || cantidad <= desc.deEsFinEscala)) {
+        descuento = subtotal * (desc.deEsValor / 100);
+        porcentajeDescuento = desc.deEsValor;
+        break;
+      }
+    }
+  }
+  
+  final subtotalConDescuento = subtotal - descuento;
+  final impuesto = subtotalConDescuento * 0.15; // 15% ISV
+  final totalProducto = subtotalConDescuento + impuesto;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      border: Border.all(
+        color: const Color(0xFFF0F0F0),
+        width: 1,
       ),
-      child: Row(
-        children: [
-          // Imagen del producto (placeholder)
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header con información del producto
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Información del producto
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.prodDescripcionCorta ?? 'Producto sin nombre',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF141A2F),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Código: ${product.prodId ?? 'N/A'}',
+                      style: const TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 11,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Precio unitario y cantidad
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF3B82F6), width: 1),
+                        ),
+                        child: Text(
+                          'L. ${precio.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '× ${cantidad.toStringAsFixed(cantidad.truncateToDouble() == cantidad ? 0 : 1)}',
+                        style: const TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFF6B7280),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          
-          // Información del producto
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            
+            // Controles de cantidad
+            Column(
               children: [
-                Text(
-                  product.prod_DescripcionCorta ?? 'Producto sin nombre',
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF141A2F),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Botón disminuir cantidad
+                    GestureDetector(
+                      onTap: () {
+                        if (cantidad > 1) {
+                          _updateProductQuantity(product.prodId, cantidad - 1);
+                        } else {
+                          _updateProductQuantity(product.prodId, 0);
+                        }
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: const Icon(
+                          Icons.remove,
+                          size: 18,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 48,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFF141A2F), width: 1.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          cantidad.toInt().toString(),
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF141A2F),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Botón aumentar cantidad
+                    GestureDetector(
+                      onTap: () {
+                        _updateProductQuantity(product.prodId, cantidad + 1);
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141A2F),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Código: ${product.prod_Codigo ?? 'N/A'}',
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
+              ],
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Separador
+        Container(
+          height: 1,
+          color: const Color(0xFFF0F0F0),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Sección de cálculos
+        Column(
+          children: [
+            // Subtotal
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Row(
                   children: [
-                    Text(
-                      'L. ${precio.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF374151),
+                    Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6B7280),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     const Text(
-                      ' × ',
+                      'Subtotal',
                       style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    Text(
-                      cantidad.toString(),
-                      style: const TextStyle(
                         fontFamily: 'Satoshi',
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1221,61 +2280,37 @@ class _VentaScreenState extends State<VentaScreen> {
                     ),
                   ],
                 ),
+                Text(
+                  'L. ${subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF374151),
+                  ),
+                ),
               ],
             ),
-          ),
-          
-          // Controles de cantidad y subtotal
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'L. ${subtotal.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF141A2F),
-                ),
-              ),
+            
+            // Descuento (si aplica)
+            if (descuento > 0) ...[
               const SizedBox(height: 8),
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Botón disminuir cantidad
-                  GestureDetector(
-                    onTap: () {
-                      if (cantidad > 1) {
-                        _updateProductQuantity(product.prod_Id, cantidad - 1);
-                      } else {
-                        _updateProductQuantity(product.prod_Id, 0);
-                      }
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.remove,
-                        size: 16,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 40,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: Text(
-                        cantidad.toInt().toString(),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Descuento (${porcentajeDescuento.toStringAsFixed(0)}%)',
                         style: const TextStyle(
                           fontFamily: 'Satoshi',
                           fontSize: 14,
@@ -1283,35 +2318,179 @@ class _VentaScreenState extends State<VentaScreen> {
                           color: Color(0xFF374151),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  // Botón aumentar cantidad
-                  GestureDetector(
-                    onTap: () {
-                      _updateProductQuantity(product.prod_Id, cantidad + 1);
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141A2F),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        size: 16,
-                        color: Colors.white,
-                      ),
+                  Text(
+                    '-L. ${descuento.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF374151),
                     ),
                   ),
                 ],
               ),
             ],
-          ),
-        ],
-      ),
-    );
+            
+            const SizedBox(height: 8),
+            
+            // ISV
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: Color(0xFF374151),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ISV (15%)',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '+L. ${impuesto.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Separador para el total
+            Container(
+              height: 1,
+              color: const Color(0xFFE5E7EB),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Total del producto
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141A2F),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Total producto',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF141A2F),
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141A2F),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'L. ${totalProducto.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+  // Método para calcular descuentos por escalas de cantidad
+  Map<String, dynamic> _calculateDiscounts() {
+    double totalDescuentos = 0.0;
+    List<Map<String, dynamic>> detalleDescuentos = [];
+    
+    _selectedProducts.forEach((prodId, cantidad) {
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      
+      // Buscar descuento aplicable según la cantidad
+      DescuentoEscala? descuentoAplicable;
+      for (var descuento in product.descuentosEscala) {
+        if (cantidad >= descuento.deEsInicioEscala && 
+            (descuento.deEsFinEscala == -1 || cantidad <= descuento.deEsFinEscala)) {
+          descuentoAplicable = descuento;
+          break;
+        }
+      }
+      
+      if (descuentoAplicable != null) {
+        final precioOriginal = product.prodPrecioUnitario * cantidad;
+        final descuentoValor = precioOriginal * (descuentoAplicable.deEsValor / 100);
+        totalDescuentos += descuentoValor;
+        
+        detalleDescuentos.add({
+          'producto': product.prodDescripcionCorta,
+          'cantidad': cantidad,
+          'porcentaje': descuentoAplicable.deEsValor,
+          'valor': descuentoValor,
+        });
+      }
+    });
+    
+    return {
+      'total': totalDescuentos,
+      'detalles': detalleDescuentos,
+    };
+  }
+
+  // Calcular el total del carrito
+  double _calculateTotal() {
+    double subtotal = 0.0;
+    _selectedProducts.forEach((prodId, cantidad) {
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      final precio = product.prodPrecioUnitario;
+      subtotal += precio * cantidad;
+    });
+    
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15;
+    
+    return subtotalConDescuento + impuestos;
   }
 
   // Widget para el resumen del carrito
@@ -1320,16 +2499,22 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
-      final precio = product.prod_PrecioUnitario;
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
     });
 
-    // TODO: Aquí se agregarán descuentos y promociones en el futuro
-    final double descuentos = 0.0; // Placeholder para descuentos futuros
-    final double impuestos = subtotal * 0.15; // ISV 15% (ejemplo)
-    final double total = subtotal - descuentos + impuestos;
+    // Calcular descuentos reales
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    final List<Map<String, dynamic>> detalleDescuentos = descuentosInfo['detalles'];
+    
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    final double total = subtotalConDescuento + impuestos;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1381,9 +2566,16 @@ class _VentaScreenState extends State<VentaScreen> {
           // Subtotal
           _buildSummaryRowCart('Subtotal:', 'L. ${subtotal.toStringAsFixed(2)}'),
           
-          // Descuentos (placeholder para futuro)
+          // Descuentos aplicados
+          if (descuentos > 0) ...[
+            const SizedBox(height: 8),
+            _buildDiscountSection(detalleDescuentos, descuentos),
+            const SizedBox(height: 8),
+          ],
+          
+          // Subtotal después de descuentos
           if (descuentos > 0)
-            _buildSummaryRowCart('Descuentos:', '- L. ${descuentos.toStringAsFixed(2)}', isDiscount: true),
+            _buildSummaryRowCart('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
           
           // Impuestos
           _buildSummaryRowCart('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
@@ -1419,8 +2611,97 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Widget para mostrar la sección de descuentos
+  Widget _buildDiscountSection(List<Map<String, dynamic>> detalleDescuentos, double totalDescuentos) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10B981).withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.local_offer,
+                size: 16,
+                color: Color(0xFF10B981),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Descuentos Aplicados',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...detalleDescuentos.map((descuento) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${descuento['producto']} (${descuento['cantidad'].toInt()}x) - ${descuento['porcentaje']}%',
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  '- L. ${descuento['valor'].toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+          const Divider(height: 16, thickness: 1, color: Color(0xFFE5E7EB)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Descuentos:',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+              Text(
+                '- L. ${totalDescuentos.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper para las filas del resumen
-  Widget _buildSummaryRowCart(String label, String value, {bool isDiscount = false}) {
+  Widget _buildSummaryRowCart(String label, String value, {bool isDiscount = false, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1428,10 +2709,11 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              color: Color(0xFF6B7280),
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+              color: const Color(0xFF6B7280),
             ),
           ),
           Text(
@@ -1439,7 +2721,7 @@ class _VentaScreenState extends State<VentaScreen> {
             style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
               color: isDiscount ? const Color(0xFF10B981) : const Color(0xFF374151),
             ),
           ),
@@ -1455,14 +2737,21 @@ class _VentaScreenState extends State<VentaScreen> {
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
-      final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
-      final precio = product.prod_PrecioUnitario;
+      final product = _allProducts.firstWhere(
+        (p) => p.prodId == prodId,
+      );
+      final precio = product.prodPrecioUnitario;
       subtotal += precio * cantidad;
       totalItems += cantidad.toInt();
     });
 
-    final double impuestos = subtotal * 0.15; // ISV 15%
-    final double total = subtotal + impuestos;
+    // Calcular descuentos para la confirmación
+    final descuentosInfo = _calculateDiscounts();
+    final double descuentos = descuentosInfo['total'];
+    
+    final double subtotalConDescuento = subtotal - descuentos;
+    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    final double total = subtotalConDescuento + impuestos;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -1517,13 +2806,130 @@ class _VentaScreenState extends State<VentaScreen> {
                   
                   const SizedBox(height: 16),
                   
-                  // Información del cliente
-                  _buildConfirmationSection(
-                    'Información del Cliente',
-                    Icons.person_outline,
-                    [
-                      _buildConfirmationRow('Cliente:', formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente),
-                    ],
+                  // Client Information Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF98BF4A).withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.person_outline_rounded,
+                                color: Color(0xFF98BF4A),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Cliente',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        
+                        // Client Name
+                        Text(
+                          formData.datosCliente.isEmpty ? 'Cliente general' : formData.datosCliente,
+                          style: const TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF141A2F),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Delivery Address
+                        const Text(
+                          'Dirección de entrega',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        _isLoadingAddresses
+                            ? const Center(child: CircularProgressIndicator())
+                            : _clientAddresses.isEmpty
+                                ? const Text(
+                                    'No hay direcciones registradas',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<Map<String, dynamic>>(
+                                        isExpanded: true,
+                                        value: _selectedAddress,
+                                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF98BF4A)),
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          color: Color(0xFF1E293B),
+                                        ),
+                                        items: _clientAddresses.map<DropdownMenuItem<Map<String, dynamic>>>((address) {
+                                          return DropdownMenuItem(
+                                            value: address,
+                                            child: Text(
+                                              '${address['diCl_DireccionExacta']} - ${address['muni_Descripcion']}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Satoshi',
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (newValue) {
+                                          if (newValue != null) {
+                                            setState(() {
+                                              _selectedAddress = newValue;
+                                              _ventaModel.diClId = newValue['diCl_Id'] ?? 0;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                      ],
+                    ),
                   ),
                   
                   const SizedBox(height: 16),
@@ -1534,52 +2940,76 @@ class _VentaScreenState extends State<VentaScreen> {
                   const SizedBox(height: 16),
                   
                   // Resumen financiero
-                  _buildFinancialSummary(subtotal, impuestos, total, totalItems),
+                  _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
                   
-                  const SizedBox(height: 24),
+              
+                  const SizedBox(height: 24)
                   
-                  // Checkbox de confirmación
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF98BF4A).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF98BF4A).withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: formData.confirmacion,
-                          onChanged: (value) => setState(() => formData.confirmacion = value ?? false),
-                          activeColor: const Color(0xFF98BF4A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'He revisado toda la información y confirmo que es correcta. Proceder con la venta.',
-                            style: TextStyle(
-                              fontFamily: 'Satoshi',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // Mostrar diálogo de confirmación
+  Future<void> _showConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap a button to close
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            '¿Confirmar venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF141A2F),
+            ),
+          ),
+          content: const Text(
+            '¿Estás seguro de que deseas confirmar esta venta?',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: Color(0xFF64748B),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'CANCELAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'CONFIRMAR',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF98BF4A),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                _procesarVentaConImpresion(); // Proceder con la venta
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1656,7 +3086,7 @@ class _VentaScreenState extends State<VentaScreen> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Productos Seleccionados',
+                'Seleccionados',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
                   fontSize: 16,
@@ -1668,7 +3098,7 @@ class _VentaScreenState extends State<VentaScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF98BF4A).withOpacity(0.1),
+                  color: const Color.fromARGB(255, 29, 34, 63).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -1677,7 +3107,7 @@ class _VentaScreenState extends State<VentaScreen> {
                     fontFamily: 'Satoshi',
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF98BF4A),
+                    color: Color.fromARGB(255, 26, 35, 72),
                   ),
                 ),
               ),
@@ -1689,8 +3119,8 @@ class _VentaScreenState extends State<VentaScreen> {
           ..._selectedProducts.entries.map((entry) {
             final prodId = entry.key;
             final cantidad = entry.value;
-            final product = _allProducts.firstWhere((p) => p.prod_Id == prodId);
-            final precio = product.prod_PrecioUnitario;
+            final product = _allProducts.firstWhere((p) => p.prodId == prodId);
+            final precio = product.prodPrecioUnitario;
             final subtotal = precio * cantidad;
             
             return Container(
@@ -1711,7 +3141,7 @@ class _VentaScreenState extends State<VentaScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          product.prod_DescripcionCorta ?? 'Producto sin nombre',
+                          product.prodDescripcionCorta ?? 'Producto sin nombre',
                           style: const TextStyle(
                             fontFamily: 'Satoshi',
                             fontSize: 14,
@@ -1721,7 +3151,7 @@ class _VentaScreenState extends State<VentaScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Código: ${product.prod_Codigo ?? 'N/A'}',
+                          'Código: ${product.prodId ?? 'N/A'}',
                           style: const TextStyle(
                             fontFamily: 'Satoshi',
                             fontSize: 12,
@@ -1764,7 +3194,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   // Widget para resumen financiero
-  Widget _buildFinancialSummary(double subtotal, double impuestos, double total, int totalItems) {
+  Widget _buildFinancialSummary(double subtotal, double descuentos, double subtotalConDescuento, double impuestos, double total, int totalItems) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -1798,10 +3228,10 @@ class _VentaScreenState extends State<VentaScreen> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Resumen de Facturación',
+                'Resumen',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -1817,7 +3247,7 @@ class _VentaScreenState extends State<VentaScreen> {
                   '$totalItems items',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF141A2F),
                   ),
@@ -1828,6 +3258,13 @@ class _VentaScreenState extends State<VentaScreen> {
           const SizedBox(height: 16),
           
           _buildFinancialRow('Subtotal:', 'L. ${subtotal.toStringAsFixed(2)}'),
+          
+          // Mostrar descuentos si existen
+          if (descuentos > 0) ...[
+            _buildFinancialRow('Descuentos:', '- L. ${descuentos.toStringAsFixed(2)}', isDiscount: true),
+            _buildFinancialRow('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
+          ],
+          
           _buildFinancialRow('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
           
           const Padding(
@@ -1863,8 +3300,8 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
-  // Helper para filas financieras
-  Widget _buildFinancialRow(String label, String value) {
+  // Helper para las filas financieras
+  Widget _buildFinancialRow(String label, String value, {bool isDiscount = false, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1872,19 +3309,20 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
               color: Colors.white70,
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Satoshi',
               fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: isDiscount ? const Color(0xFF10B981) : Colors.white,
             ),
           ),
         ],
@@ -1926,5 +3364,66 @@ class _VentaScreenState extends State<VentaScreen> {
     );
   }
 
+  // Método para procesar la venta con impresión
+  Future<void> _procesarVentaConImpresion() async {
+    if (_isProcessingSale) return;
+
+    setState(() {
+      _isProcessingSale = true;
+    });
+
+    try {
+      // 1. Validar que hay productos seleccionados
+      if (_selectedProducts.isEmpty) {
+        throw Exception('Debe seleccionar al menos un producto');
+      }
+
+      // 2. Usar el método existente _procesarVenta para guardar la venta
+      await _procesarVenta();
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingSale = false;
+        });
+      }
+    }
+  }
+
+  // Mostrar diálogo de éxito
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 30),
+            const SizedBox(width: 10),
+            const Text('¡Venta Exitosa!'),
+          ],
+        ),
+        content: const Text('Venta procesada correctamente'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _resetearFormulario();
+            },
+            child: const Text('Aceptar'),
+          )
+        ],
+      ),
+    );
+  }
 
 }

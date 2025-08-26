@@ -2,8 +2,11 @@ class DireccionCliente {
   final int dicl_id;
   final int clie_id;
   final int colo_id;
+  final String? Colo_Descripcion;
   final String dicl_direccionexacta;
   final String dicl_observaciones;
+  final String? depaDescripcion;
+  final String? muniDescripcion;
   final double? dicl_latitud;
   final double? dicl_longitud;
   final String muni_descripcion;
@@ -13,20 +16,33 @@ class DireccionCliente {
   final int? usua_modificacion;
   final DateTime? dicl_fechamodificacion;
 
+  // Campos del cliente
+  final String? clie_Nombres;
+  final String? clie_Apellidos;
+  final String? clie_NombreNegocio;
+  final String? clie_Codigo;
+
   DireccionCliente({
     required this.dicl_id,
     required this.clie_id,
     required this.colo_id,
     required this.dicl_direccionexacta,
     required this.dicl_observaciones,
+    this.Colo_Descripcion,
     this.dicl_latitud,
     this.dicl_longitud,
+    this.depaDescripcion,
+    this.muniDescripcion,
     required this.muni_descripcion,
     required this.depa_descripcion,
     required this.usua_creacion,
     required this.dicl_fechacreacion,
     this.usua_modificacion,
     this.dicl_fechamodificacion,
+    this.clie_Nombres,
+    this.clie_Apellidos,
+    this.clie_NombreNegocio,
+    this.clie_Codigo,
   });
 
   static DireccionCliente fromJson(Map<String, dynamic> json) {
@@ -34,6 +50,7 @@ class DireccionCliente {
       dicl_id: json['diCl_Id'],
       clie_id: json['clie_Id'],
       colo_id: json['colo_Id'],
+
       dicl_direccionexacta: json['diCl_DireccionExacta'],
       dicl_observaciones: json['diCl_Observaciones'],
       dicl_latitud: json['diCl_Latitud'] != null
@@ -52,24 +69,31 @@ class DireccionCliente {
       dicl_fechamodificacion: json['diCl_FechaModificacion'] != null
           ? DateTime.tryParse(json['diCl_FechaModificacion'])
           : null,
+      clie_Nombres: json['clie_Nombres'],
+      clie_Apellidos: json['clie_Apellidos'],
+      clie_NombreNegocio: json['clie_NombreNegocio'],
+      clie_Codigo: json['clie_Codigo'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'dicl_id': dicl_id,
-      'clie_id': clie_id,
-      'colo_id': colo_id,
-      'dicl_direccionexacta': dicl_direccionexacta,
-      'dicl_observaciones': dicl_observaciones,
-      'dicl_latitud': dicl_latitud,
-      'dicl_longitud': dicl_longitud,
-      'muni_descripcion': muni_descripcion,
-      'depa_descripcion': depa_descripcion,
-      'usua_creacion': usua_creacion,
-      'dicl_fechacreacion': dicl_fechacreacion.toIso8601String(),
-      'usua_modificacion': usua_modificacion,
-      'dicl_fechamodificacion': dicl_fechamodificacion?.toIso8601String(),
+      'diCl_Id': dicl_id,
+      'clie_Id': clie_id,
+      'colo_Id': colo_id,
+      'Colo_Descripcion': Colo_Descripcion,
+      'diCl_DireccionExacta': dicl_direccionexacta,
+      'diCl_Observaciones': dicl_observaciones,
+      'Depa_Descripcion': depaDescripcion,
+      'Muni_Descripcion': muniDescripcion,
+      'diCl_Latitud': dicl_latitud,
+      'diCl_Longitud': dicl_longitud,
+      'muni_Descripcion': muni_descripcion,
+      'depa_Descripcion': depa_descripcion,
+      'usua_Creacion': usua_creacion,
+      'diCl_FechaCreacion': dicl_fechacreacion.toIso8601String(),
+      'usua_Modificacion': usua_modificacion,
+      'diCl_FechaModificacion': dicl_fechamodificacion?.toIso8601String(),
     };
   }
 
@@ -83,6 +107,7 @@ class DireccionCliente {
     double? dicl_longitud,
     String? muni_descripcion,
     String? depa_descripcion,
+    String? Colo_Descripcion,
     int? usua_creacion,
     DateTime? dicl_fechacreacion,
     int? usua_modificacion,
@@ -98,6 +123,7 @@ class DireccionCliente {
       dicl_longitud: dicl_longitud ?? this.dicl_longitud,
       muni_descripcion: muni_descripcion ?? this.muni_descripcion,
       depa_descripcion: depa_descripcion ?? this.depa_descripcion,
+      Colo_Descripcion: Colo_Descripcion ?? this.Colo_Descripcion,
       usua_creacion: usua_creacion ?? this.usua_creacion,
       dicl_fechacreacion: dicl_fechacreacion ?? this.dicl_fechacreacion,
       usua_modificacion: usua_modificacion ?? this.usua_modificacion,

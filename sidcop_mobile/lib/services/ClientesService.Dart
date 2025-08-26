@@ -47,6 +47,7 @@ class ClientesService {
       developer.log(
         'Get Cliente by ID Response Status: ${response.statusCode}',
       );
+      print('Get Cliente by ID Response Body: ${response.body}');
       developer.log('Get Cliente by ID Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
@@ -228,6 +229,35 @@ class ClientesService {
       }
     } catch (e) {
       developer.log('Get Colonias Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
+  Future<List<dynamic>> getClientesPorRuta(int usuaIdPersona) async {
+    final url = Uri.parse('$_apiServer/Cliente/BuscarPorRuta/$usuaIdPersona');
+
+    developer.log('DEBUG: Recibido usuaIdPersona parameter: $usuaIdPersona');
+    developer.log('DEBUG: URL construida: $url');
+    developer.log('Get Clientes Por Ruta Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log('Get Clientes Por Ruta Response Status: ${response.statusCode}');
+      developer.log('Get Clientes Por Ruta Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> clientesList = jsonDecode(response.body);
+        return clientesList;
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Clientes Por Ruta Error: $e');
       throw Exception('Error en la solicitud: $e');
     }
   }

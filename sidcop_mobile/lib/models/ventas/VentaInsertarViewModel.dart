@@ -2,13 +2,10 @@ class VentaInsertarViewModel {
   String factNumero;
   String factTipoDeDocumento;
   int regCId;
-  int clieId;
+  int diClId;
   int vendId;
   String factTipoVenta;
   DateTime factFechaEmision;
-  DateTime factFechaLimiteEmision;
-  String factRangoInicialAutorizado;
-  String factRangoFinalAutorizado;
   double factLatitud;
   double factLongitud;
   String factReferencia;
@@ -20,13 +17,10 @@ class VentaInsertarViewModel {
     required this.factNumero,
     required this.factTipoDeDocumento,
     required this.regCId,
-    required this.clieId,
+    required this.diClId,
     required this.vendId,
     required this.factTipoVenta,
     required this.factFechaEmision,
-    required this.factFechaLimiteEmision,
-    required this.factRangoInicialAutorizado,
-    required this.factRangoFinalAutorizado,
     required this.factLatitud,
     required this.factLongitud,
     required this.factReferencia,
@@ -40,13 +34,10 @@ class VentaInsertarViewModel {
       : factNumero = '',
         factTipoDeDocumento = '',
         regCId = 0,
-        clieId = 0,
+        diClId = 0,
         vendId = 0,
         factTipoVenta = '',
         factFechaEmision = DateTime.now(),
-        factFechaLimiteEmision = DateTime.now(),
-        factRangoInicialAutorizado = '',
-        factRangoFinalAutorizado = '',
         factLatitud = 0.0,
         factLongitud = 0.0,
         factReferencia = '',
@@ -56,17 +47,14 @@ class VentaInsertarViewModel {
 
   // Convertir a JSON para enviar al backend
   Map<String, dynamic> toJson() {
-    return {
+    final ventaData = {
       'fact_Numero': factNumero,
       'fact_TipoDeDocumento': factTipoDeDocumento,
       'regC_Id': regCId,
-      'clie_Id': clieId,
+      'diCl_Id': diClId,
       'vend_Id': vendId,
       'fact_TipoVenta': factTipoVenta,
       'fact_FechaEmision': factFechaEmision.toIso8601String(),
-      'fact_FechaLimiteEmision': factFechaLimiteEmision.toIso8601String(),
-      'fact_RangoInicialAutorizado': factRangoInicialAutorizado,
-      'fact_RangoFinalAutorizado': factRangoFinalAutorizado,
       'fact_Latitud': factLatitud,
       'fact_Longitud': factLongitud,
       'fact_Referencia': factReferencia,
@@ -74,6 +62,46 @@ class VentaInsertarViewModel {
       'usua_Creacion': usuaCreacion,
       'detallesFacturaInput': detallesFacturaInput.map((detalle) => detalle.toJson()).toList(),
     };
+    
+    // Imprimir el JSON completo para depuración
+    print('VentaInsertarViewModel.toJson():');
+    final jsonString = '''
+    {
+      "fact_Numero": "${ventaData['fact_Numero']}",
+      "fact_TipoDeDocumento": "${ventaData['fact_TipoDeDocumento']}",
+      "regC_Id": ${ventaData['regC_Id']},
+      "diCl_Id": ${ventaData['diCl_Id']},
+      "vend_Id": ${ventaData['vend_Id']},
+      "fact_TipoVenta": "${ventaData['fact_TipoVenta']}",
+      "fact_FechaEmision": "${ventaData['fact_FechaEmision']}",
+      "fact_Latitud": ${ventaData['fact_Latitud']},
+      "fact_Longitud": ${ventaData['fact_Longitud']},
+      "fact_Referencia": "${ventaData['fact_Referencia']}",
+      "fact_AutorizadoPor": "${ventaData['fact_AutorizadoPor']}",
+      "usua_Creacion": ${ventaData['usua_Creacion']},
+      "detallesFacturaInput": ${_formatDetalles(ventaData['detallesFacturaInput'] as List)}
+    }
+    ''';
+    print(jsonString);
+    
+    return ventaData;
+  }
+  
+  // Método auxiliar para formatear los detalles de la factura
+  String _formatDetalles(List<dynamic> detalles) {
+    final buffer = StringBuffer('[');
+    for (var i = 0; i < detalles.length; i++) {
+      if (i > 0) buffer.write(',');
+      final detalle = detalles[i] as Map<String, dynamic>;
+      buffer.write('''
+        {
+          "prod_Id": ${detalle['prod_Id']},
+          "faDe_Cantidad": ${detalle['faDe_Cantidad']}
+        }'''
+      );
+    }
+    buffer.write(']');
+    return buffer.toString();
   }
 
   // Crear desde JSON (si necesitas deserializar)
@@ -82,13 +110,11 @@ class VentaInsertarViewModel {
       factNumero: json['fact_Numero'] ?? '',
       factTipoDeDocumento: json['fact_TipoDeDocumento'] ?? '',
       regCId: json['regC_Id'] ?? 0,
-      clieId: json['clie_Id'] ?? 0,
+      diClId: json['diCl_Id'] ?? 0,
       vendId: json['vend_Id'] ?? 0,
       factTipoVenta: json['fact_TipoVenta'] ?? '',
       factFechaEmision: DateTime.parse(json['fact_FechaEmision'] ?? DateTime.now().toIso8601String()),
-      factFechaLimiteEmision: DateTime.parse(json['fact_FechaLimiteEmision'] ?? DateTime.now().toIso8601String()),
-      factRangoInicialAutorizado: json['fact_RangoInicialAutorizado'] ?? '',
-      factRangoFinalAutorizado: json['fact_RangoFinalAutorizado'] ?? '',
+      
       factLatitud: (json['fact_Latitud'] ?? 0).toDouble(),
       factLongitud: (json['fact_Longitud'] ?? 0).toDouble(),
       factReferencia: json['fact_Referencia'] ?? '',
@@ -142,21 +168,26 @@ class DetalleFacturaInput {
   // Constructor vacío
   DetalleFacturaInput.empty()
       : prodId = 0,
-        faDeCantidad = 0.0;
+        faDeCantidad = 0;
 
   // Convertir a JSON
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'prod_Id': prodId,
-      'faDe_Cantidad': faDeCantidad,
+      'faDe_Cantidad': faDeCantidad.toInt(), // Convertir a entero
     };
+    print('DetalleFacturaInput.toJson(): $json');
+    return json;
   }
 
   // Crear desde JSON
   factory DetalleFacturaInput.fromJson(Map<String, dynamic> json) {
+    // Try both possible field names for backward compatibility
+    final cantidad = (json['faDeCantidad'] ?? json['faDe_Cantidad'] ?? 0).toDouble();
+    print('DetalleFacturaInput.fromJson(): $json, cantidad: $cantidad');
     return DetalleFacturaInput(
       prodId: json['prod_Id'] ?? 0,
-      faDeCantidad: (json['faDe_Cantidad'] ?? 0).toDouble(),
+      faDeCantidad: cantidad,
     );
   }
 
