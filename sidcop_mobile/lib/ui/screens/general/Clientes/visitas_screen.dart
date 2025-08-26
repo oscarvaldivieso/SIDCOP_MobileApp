@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart'; // Cambié .Dart a .dart
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 
 class VendedorVisitasScreen extends StatefulWidget {
@@ -28,6 +29,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Future<void> _loadVisitas() async {
+    
     setState(() {
       _isLoading = true;
       _errorMessage = '';

@@ -1,33 +1,36 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/UsuarioService.dart';
-import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
+import 'package'
+import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 
 class ClientesVisitaHistorialService {
   // GET /ClientesVisitaHistorial/ListarVisitasPorVendedor
-  Future<List<ClientesVisitaHistorialModel>> listarPorVendedor() async {
+  Future<List<VisitasViewModel>> listarPorVendedor() async {
     final int? vendId = globalVendId;
     print('globalVendId en listarPorVendedor: $globalVendId');
     if (vendId == null) {
-      throw Exception('No se encontró el id del vendedor');
+      throw Exception('No se encontró el id del vendedor'); 
     }
     final url = Uri.parse(
-      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$globalVendId',
+      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId',
     );
     developer.log('ListarVisitasPorVendedor Request URL: $url');
+    print('ListarVisitasPorVendedor Request URL: $url');
+  
     try {
       final response = await http.get(
         url,
         headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
       // Mostrar el body crudo en la consola (flutter run)
-      print(response.body);
+      print('ListarVisitasPorVendedor raw body: ${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data
-            .map((e) => ClientesVisitaHistorialModel.fromJson(e))
+            .map((e) => VisitasViewModel.fromJson(e))
             .toList();
       } else {
         throw Exception(

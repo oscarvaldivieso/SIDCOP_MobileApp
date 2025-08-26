@@ -20,7 +20,7 @@ import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
-import 'package:sidcop_mobile/ui/screens/general/Clientes/visit_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visitas_screen.dart';
 
 
 class CustomDrawer extends StatefulWidget {
