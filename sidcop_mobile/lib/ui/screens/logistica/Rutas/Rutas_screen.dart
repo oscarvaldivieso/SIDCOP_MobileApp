@@ -152,10 +152,11 @@ class _RutasScreenState extends State<RutasScreen> {
 
   // Lee la lista de rutas encriptada
   Future<List<Ruta>> _leerRutasOffline() async {
-    final rutasString = await secureStorage.read(key: 'rutas_offline');
-    if (rutasString == null) return [];
-    final rutasList = jsonDecode(rutasString) as List;
-    return rutasList.map((json) => Ruta.fromJson(json)).toList();
+  final rutasString = await secureStorage.read(key: 'rutas_offline');
+  print('DEBUG rutas_offline (offline): $rutasString');
+  if (rutasString == null) return [];
+  final rutasList = jsonDecode(rutasString) as List;
+  return rutasList.map((json) => Ruta.fromJson(json)).toList();
   }
 
   Future<void> _cargarRutasAsignadasVendedor() async {
