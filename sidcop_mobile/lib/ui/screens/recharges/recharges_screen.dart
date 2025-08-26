@@ -761,10 +761,22 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   }
                   if (detalles.isEmpty) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Selecciona al menos un producto."),
-                        ),
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Alerta!'),
+                            content: const Text('Selecciona al menos un producto.'),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop(); // Dismiss the dialog
+                                },
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          );
+                        }
                       );
                     }
                     return;
@@ -912,7 +924,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: cantidad > 0
                       ? () {
-                          final newValue = cantidad - 1; //WARD Resta
+                          final newValue = cantidad - 1;
                           _controllers[producto.prod_Id]?.text = newValue > 0
                               ? newValue.toString()
                               : '';
@@ -945,7 +957,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: cantidad < 99
                   ? () {
-                    final newValue = cantidad + 1;  //WARD suma
+                    final newValue = cantidad + 1;  
                     _controllers[producto.prod_Id]?.text = newValue.toString();
                     setState(() {
                       _cantidades[producto.prod_Id] = newValue;
