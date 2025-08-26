@@ -226,7 +226,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
         'clie_Telefono': _telefonoController.text.trim(), 
-        'clie_Correo':'${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@example.com',
+        'clie_Correo':'${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@gmail.com',
         'clie_Sexo': 'M', // Default value
         'clie_FechaNacimiento': DateTime(
           1990,

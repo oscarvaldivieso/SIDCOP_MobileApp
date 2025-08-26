@@ -9,6 +9,9 @@ import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
@@ -20,6 +23,37 @@ class RutasDetailsScreen extends StatefulWidget {
 }
 
 class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
+  // Obtiene la ruta local de la imagen static si existe
+  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final filePath = '${directory.path}/map_static_$rutaId.png';
+    final file = File(filePath);
+    if (await file.exists()) {
+      return filePath;
+    }
+    return null;
+  }
+
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error guardando imagen de mapa: $e');
+    }
+    return null;
+  }
+
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   bool _loading = true;
   String? _error;
@@ -58,22 +92,24 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       for (final d in direccionesFiltradas) {
         mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
       }
-    // Usar el mismo icono marker que en Rutas_screen.dart
-    const iconUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
-    final markers = direccionesFiltradas
-      .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
-      .map(
-      (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
-      )
-      .join('&');
-    final center =
-      (direccionesFiltradas.isNotEmpty &&
-        direccionesFiltradas.first.dicl_latitud != null &&
-        direccionesFiltradas.first.dicl_longitud != null)
-      ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
-      : '15.525585,-88.013512';
-    final staticUrl =
-      'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=600x250&$markers&key=$mapApikey';
+      // Usar el mismo icono marker que en Rutas_screen.dart
+      const iconUrl =
+          'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+      final markers = direccionesFiltradas
+          .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+          .map(
+            (d) =>
+                'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
+          )
+          .join('&');
+      final center =
+          (direccionesFiltradas.isNotEmpty &&
+              direccionesFiltradas.first.dicl_latitud != null &&
+              direccionesFiltradas.first.dicl_longitud != null)
+          ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
+          : '15.525585,-88.013512';
+      final staticUrl =
+          'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
@@ -82,6 +118,11 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
+      // Guardar imagen estática offline igual que en Rutas_screen.dart
+      await guardarImagenDeMapaStatic(
+        staticUrl,
+        'map_static_${widget.ruta.ruta_Id}',
+      );
       // Guardar detalles encriptados offline
       await _guardarDetallesOffline(
         clientesFiltrados,
@@ -91,7 +132,9 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     } catch (e) {
       // Si falla, intentar leer detalles offline
       final detallesOffline = await _leerDetallesOffline();
-      if (detallesOffline != null) {
+      if (detallesOffline != null &&
+          detallesOffline['clientes'] != null &&
+          (detallesOffline['clientes'] as List).isNotEmpty) {
         if (mounted) {
           setState(() {
             _clientes = detallesOffline['clientes'] ?? [];
@@ -99,12 +142,14 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                 detallesOffline['direccionesPorCliente'] ?? {};
             _staticMapUrl = detallesOffline['staticMapUrl'];
             _loading = false;
+            _error = null; // No mostrar error si hay datos offline
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _error = 'Error al cargar datos: $e';
+            _error =
+                'No hay datos disponibles. Compruebe su conexión a Internet.';
             _loading = false;
           });
         }
@@ -272,13 +317,16 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        _miniMeta('Municipio', d.muni_descripcion),
-                        _miniMeta('Depto', d.depa_descripcion),
+                        _miniMeta(
+                          'Dirección',
+                          '${d.dicl_direccionexacta}, ${d.muni_descripcion}',
+                        ),
+                        _miniMeta('Departamento', d.depa_descripcion),
                         if ((d.dicl_observaciones).isNotEmpty)
-                          _miniMeta('Obs', d.dicl_observaciones),
+                          _miniMeta('Observación', d.dicl_observaciones),
                         if (d.dicl_latitud != null && d.dicl_longitud != null)
                           _miniMeta(
-                            'Coords',
+                            'Coordenadas',
                             '${d.dicl_latitud!.toStringAsFixed(5)}, ${d.dicl_longitud!.toStringAsFixed(5)}',
                           ),
                       ],
@@ -341,79 +389,186 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    if (_staticMapUrl != null)
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => RutaMapScreen(
-                                rutaId: widget.ruta.ruta_Id,
-                                descripcion: widget.ruta.ruta_Descripcion,
-                              ),
+                    _staticMapUrl != null
+                        ? GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RutaMapScreen(
+                                    rutaId: widget.ruta.ruta_Id,
+                                    descripcion: widget.ruta.ruta_Descripcion,
+                                    vendId: globalVendId,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Image.network(
+                                    _staticMapUrl!,
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return FutureBuilder<String?>(
+                                        future: obtenerImagenLocalStatic(
+                                          widget.ruta.ruta_Id,
+                                        ),
+                                        builder: (context, snapshotLocal) {
+                                          if (snapshotLocal.connectionState ==
+                                                  ConnectionState.done &&
+                                              snapshotLocal.data != null) {
+                                            return Image.file(
+                                              File(snapshotLocal.data!),
+                                              height: 180,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                            );
+                                          } else {
+                                            return Container(
+                                              height: 180,
+                                              color: Colors.grey[300],
+                                              child: const Icon(
+                                                Icons.map,
+                                                size: 40,
+                                                color: Colors.grey,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 12,
+                                  bottom: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xCC141A2F),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                        color: const Color(0xFFD6B68A),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.open_in_full,
+                                          size: 16,
+                                          color: Color(0xFFD6B68A),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Ver mapa',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: Image.network(
-                                _staticMapUrl!,
-                                height: 180,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                          )
+                        : FutureBuilder<String?>(
+                            future: obtenerImagenLocalStatic(
+                              widget.ruta.ruta_Id,
+                            ),
+                            builder: (context, snapshotLocal) {
+                              if (snapshotLocal.connectionState ==
+                                      ConnectionState.done &&
+                                  snapshotLocal.data != null) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => RutaMapScreen(
+                                          rutaId: widget.ruta.ruta_Id,
+                                          descripcion:
+                                              widget.ruta.ruta_Descripcion,
+                                          vendId: globalVendId,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(18),
+                                        child: Image.file(
+                                          File(snapshotLocal.data!),
+                                          height: 180,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        right: 12,
+                                        bottom: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xCC141A2F),
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFD6B68A),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.open_in_full,
+                                                size: 16,
+                                                color: Color(0xFFD6B68A),
+                                              ),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Ver mapa',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                return Container(
                                   height: 180,
                                   color: Colors.grey[300],
                                   child: const Icon(
                                     Icons.map,
-                                    size: 48,
+                                    size: 40,
                                     color: Colors.grey,
                                   ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 12,
-                              bottom: 12,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xCC141A2F),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: const Color(0xFFD6B68A),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(
-                                      Icons.open_in_full,
-                                      size: 16,
-                                      color: Color(0xFFD6B68A),
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Ver mapa',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 18),
+                                );
+                              }
+                            },
+                          ),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
@@ -462,6 +617,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                         ],
                       ),
                     ),
+
+                    // Bloque de clientes
                     const SizedBox(height: 24),
                     Container(
                       decoration: BoxDecoration(

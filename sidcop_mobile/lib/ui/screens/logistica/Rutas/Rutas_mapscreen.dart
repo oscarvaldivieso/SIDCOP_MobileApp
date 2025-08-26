@@ -12,27 +12,35 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-import 'package:sidcop_mobile/services/GlobalService.Dart';
-import 'dart:ui' as ui; // Para generar el bitmap custom
+import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'dart:ui' as ui;
+import 'dart:developer' as developer;
 import 'dart:typed_data';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
-import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.Dart';
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
+import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
 List<Cliente> _clientesFiltrados = [];
 final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-final Set<int> _direccionesVisitadas = {}; // IDs de direcciones visitadas
+final Set<int> _direccionesVisitadas = {};
 
 class RutaMapScreen extends StatefulWidget {
   final int rutaId;
   final String? descripcion;
-  const RutaMapScreen({Key? key, required this.rutaId, this.descripcion})
-    : super(key: key);
+  final int? vendId; // vend_Id opcional pasado desde la pantalla anterior
+  const RutaMapScreen({
+    Key? key,
+    required this.rutaId,
+    this.descripcion,
+    this.vendId,
+  }) : super(key: key);
 
   @override
   State<RutaMapScreen> createState() => _RutaMapScreenState();
 }
+
+bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
   String? _rutaImagenMapaStatic;
@@ -51,7 +59,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         return filePath;
       }
     } catch (e) {
-      print('Error guardando imagen de mapa: $e');
+      developer.log(
+        'Error guardando imagen de mapa: $e',
+        name: 'RutasMapScreen',
+      );
     }
     return null;
   }
@@ -141,27 +152,37 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   bool _enviandoVisita = false;
   bool _historialCargado = false;
 
-  Future<void> _cargarHistorialVisitas(Set<int?> clienteIdsRuta) async {
+  Future<void> _cargarHistorialVisitas(Set<int?> diclIdsRuta) async {
     try {
       final servicio = ClientesVisitaHistorialService();
-      final historial = await servicio.listarPorVendedor();
-      print('Historial de visitas recibido:');
-      for (var h in historial) {
-        print('diCl_Id: [32m${h.diCl_Id}[0m');
-      }
-      // Marcar direcciones visitadas (por diCl_Id)
-      final direccionesPrevias = historial
-          .where((h) => h.diCl_Id != null)
+      // Usar el endpoint general y filtrar localmente por vendedor global
+      final historial = await servicio.listar();
+      // Filtrar historial por los clientes que pertenecen a la ruta
+      // y por el vendedor actual (globalVendId)
+      final visitasFiltradasModel = historial
+          .where(
+            (h) =>
+                h.diCl_Id != null &&
+                (diclIdsRuta.isEmpty || diclIdsRuta.contains(h.diCl_Id)),
+          )
+          .toList();
+
+      // Mostrar las visitas ya filtradas (modelos) para diagnóstico
+      print(
+        'Visitas filtradas (models): ${visitasFiltradasModel.map((h) => {'clVi_Id': h.clVi_Id, 'diCl_Id': h.diCl_Id, 'vend_Id': h.vend_Id}).toList()}',
+      );
+
+      final direccionesPrevias = visitasFiltradasModel
           .map((h) => h.diCl_Id!)
           .toSet();
-      print('Direcciones visitadas Set: [36m$direccionesPrevias[0m');
       setState(() {
         _direccionesVisitadas.clear();
         _direccionesVisitadas.addAll(direccionesPrevias);
       });
+      // (Se omite impresión adicional) direccionesPrevias actualizado
       _historialCargado = true;
     } catch (e) {
-      print('Error al cargar historial: $e');
+      developer.log('Error al cargar historial: $e', name: 'RutasMapScreen');
     }
   }
 
@@ -226,13 +247,59 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       // Obtener veRuId correcto usando el endpoint ListarPorRutas
       final vendedoresService = VendedoresService();
       final vendedoresPorRuta = await vendedoresService.listarPorRutas();
-      final vendedorRuta = vendedoresPorRuta.firstWhere(
-        (v) => v.ruta_Id == widget.rutaId && v.vend_Id == globalVendId,
+      // Agrupar por ruta para decidir qué veRu_Id usar
+      final porRuta = vendedoresPorRuta
+          .where((v) => v.ruta_Id == widget.rutaId)
+          .toList();
+      print(
+        'vendedoresPorRuta count=${vendedoresPorRuta.length}, porRuta count=${porRuta.length}, rutaId=${widget.rutaId}, vendId=${widget.vendId}',
       );
-      final veruId = vendedorRuta?.veRu_Id ?? widget.rutaId;
+
+      var vendedorRuta;
+      // Si nos pasaron vendId desde la pantalla superior, intentar usarlo
+      if (widget.vendId != null) {
+        final matches = porRuta
+            .where((v) => v.vend_Id == widget.vendId)
+            .toList();
+        if (matches.isNotEmpty) {
+          vendedorRuta = matches.first;
+        } else {
+          print(
+            'No se encontró vendedorRuta con vend_Id=${widget.vendId} en la ruta ${widget.rutaId}',
+          );
+        }
+      }
+
+      // Si no logramos obtener vendedorRuta por vendId, y solo hay una opción en la ruta,
+      // la usamos como fallback automático.
+      if (vendedorRuta == null) {
+        if (porRuta.length == 1) {
+          vendedorRuta = porRuta.first;
+          print(
+            'Usando vendedorRuta inferido (único) veRu_Id=${vendedorRuta.veRu_Id}',
+          );
+        } else {
+          // No podemos decidir automáticamente
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.red.shade700,
+                content: const Text(
+                  'No se pudo determinar el vendedor para esta ruta. Inicia sesión o selecciona vendedor.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            );
+          }
+          setState(() => _enviandoVisita = false);
+          return;
+        }
+      }
+
+      final veruId = vendedorRuta.veRu_Id;
 
       // Obtener la dirección seleccionada para este cliente/parada
-      int? diclId;
+      int? dicl_Id;
       if (paradaLatLng != null) {
         final idxDireccion = _direccionesFiltradas.indexWhere(
           (d) =>
@@ -240,13 +307,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
               d.dicl_longitud == paradaLatLng.longitude,
         );
         if (idxDireccion != -1) {
-          diclId = _direccionesFiltradas[idxDireccion].dicl_id;
+          dicl_Id = _direccionesFiltradas[idxDireccion].dicl_id;
         }
       }
       final registro = ClientesVisitaHistorialModel(
         veRu_Id: veruId,
         diCl_Id:
-            diclId ??
+            dicl_Id ??
             0, // Usa el id de la dirección seleccionada, o 0 si no se encuentra
         esVi_Id: 1, // O el estado que corresponda
         clVi_Observaciones: 'Visitado',
@@ -254,9 +321,16 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         usua_Creacion: usuarioId,
         clVi_FechaCreacion: DateTime.now(),
       );
+      // Imprimir el registro que se enviará para depuración
+      try {
+        print('Registro a enviar (Insertar): ${jsonEncode(registro.toJson())}');
+      } catch (e) {
+        print('Registro a enviar (toString): $registro');
+      }
       await servicio.insertar(registro);
-      // Recargar historial para actualizar los checks
-      await _cargarHistorialVisitas({cliente.clie_Id});
+      // Recargar historial para actualizar los checks: pasar el dicl_Id de la dirección
+      // si está disponible; de lo contrario pasar un set vacío para cargar todo
+      await _cargarHistorialVisitas(dicl_Id != null ? {dicl_Id} : <int?>{});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -305,36 +379,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     });
     // Pre-generar el icono de negocio en segundo plano
     _generateNegocioMarker();
-
-    // Descargar y guardar imagen de mapa static al cargar pantalla
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final url = await _getStaticMapUrl();
-      if (url != null) {
-        final localPath = await guardarImagenDeMapaStatic(
-          url,
-          'map_static_${widget.rutaId}',
-        );
-        setState(() {
-          _rutaImagenMapaStatic = localPath;
-        });
-      }
-    });
-  }
-
-  // Genera la URL del mapa static para la ruta actual
-  Future<String?> _getStaticMapUrl() async {
-    if (_direccionesFiltradas.isEmpty) return null;
-    const iconUrl =
-        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
-    final markers = _direccionesFiltradas
-        .map(
-          (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
-        )
-        .join('&');
-    final center = _direccionesFiltradas.isNotEmpty
-        ? '${_direccionesFiltradas.first.dicl_latitud},${_direccionesFiltradas.first.dicl_longitud}'
-        : '15.525585,-88.013512';
-    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=12&size=400x150&$markers&key=$_googleApiKey';
   }
 
   void _updateUserMarker() {
@@ -428,9 +472,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       _clientesFiltrados = clientes
           .where((c) => c.ruta_Id == widget.rutaId)
           .toList();
-      // Cargar historial de visitas para marcar ya visitados
-      final idsRuta = _clientesFiltrados.map((c) => c.clie_Id).toSet();
-      await _cargarHistorialVisitas(idsRuta);
       final direccionesService = DireccionClienteService();
       final todasDirecciones = await direccionesService
           .getDireccionesPorCliente();
@@ -438,6 +479,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       _direccionesFiltradas = todasDirecciones
           .where((d) => clienteIds.contains(d.clie_id))
           .toList();
+      // Cargar historial de visitas para marcar ya visitados: usar dicl_id y vendedor
+      final diclIdsRuta = _direccionesFiltradas.map((d) => d.dicl_id).toSet();
+      await _cargarHistorialVisitas(diclIdsRuta);
       final Set<Marker> markers = {};
       for (var d in _direccionesFiltradas) {
         final cliente = _clientesFiltrados.firstWhere(
@@ -1021,7 +1065,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     if (parada['latlng'] != null)
                                       Builder(
                                         builder: (context) {
-                                          int? diclId;
+                                          int? dicl_Id;
                                           final paradaLatLng =
                                               parada['latlng'] as LatLng?;
                                           if (paradaLatLng != null) {
@@ -1037,25 +1081,26 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                                   .longitude,
                                                     );
                                             if (idxDireccion != -1) {
-                                              diclId =
+                                              dicl_Id =
                                                   _direccionesFiltradas[idxDireccion]
                                                       .dicl_id;
                                             }
                                           }
-                                          print(
-                                            'Render Checkbox: diclId=$diclId, visitados=$_direccionesVisitadas',
+                                          developer.log(
+                                            'Render Checkbox: dicl_Id=$dicl_Id, visitados=$_direccionesVisitadas',
+                                            name: 'RutasMapScreen',
                                           );
                                           return Checkbox(
                                             value:
-                                                diclId != null &&
+                                                dicl_Id != null &&
                                                 _direccionesVisitadas.contains(
-                                                  diclId,
+                                                  dicl_Id,
                                                 ),
                                             onChanged:
-                                                (diclId != null &&
+                                                (dicl_Id != null &&
                                                         _direccionesVisitadas
                                                             .contains(
-                                                              diclId,
+                                                              dicl_Id,
                                                             )) ||
                                                     _enviandoVisita
                                                 ? null

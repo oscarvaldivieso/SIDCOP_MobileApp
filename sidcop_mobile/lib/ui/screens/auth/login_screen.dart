@@ -231,27 +231,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             Row(
   children: [
-    Checkbox(
-      value: _rememberMe,
-      activeColor: const Color(0xFF98774A), // color de tu diseño
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-      ),
-      onChanged: (value) {
-        setState(() {
-          _rememberMe = value ?? false;
-        });
-      },
-    ),
-    const Text(
-      'Mantener sesión',
-      style: TextStyle(
-        fontFamily: 'Satoshi',
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
-      ),
-    ),
+
+
   ],
 ),
 const SizedBox(height: 30),
