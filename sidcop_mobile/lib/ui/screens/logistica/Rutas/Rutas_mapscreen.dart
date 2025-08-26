@@ -327,10 +327,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       } catch (e) {
         print('Registro a enviar (toString): $registro');
       }
-      await servicio.insertar(registro);
-      // Recargar historial para actualizar los checks: pasar el dicl_Id de la dirección
-      // si está disponible; de lo contrario pasar un set vacío para cargar todo
-      await _cargarHistorialVisitas(dicl_Id != null ? {dicl_Id} : <int?>{});
+  await servicio.insertar(registro);
+  // Recargar historial para actualizar los checks: cargar TODO el historial
+  // para no perder los checks previamente marcados.
+  await _cargarHistorialVisitas(<int?>{});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -916,7 +916,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         ),
         dividerColor: const Color(0xFF2A344A),
       ),
-      child: Scaffold(
+      child: Stack(
+        children: [
+          Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
           backgroundColor: _darkBg,
@@ -1373,6 +1375,19 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                   ),
                 ],
               ),
+          ),
+          if (_enviandoVisita)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black45,
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFD6B68A),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
