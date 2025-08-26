@@ -2,17 +2,19 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 
 class ClientesVisitaHistorialService {
   // GET /ClientesVisitaHistorial/ListarVisitasPorVendedor
   Future<List<ClientesVisitaHistorialModel>> listarPorVendedor() async {
     final int? vendId = globalVendId;
+    print('globalVendId en listarPorVendedor: $globalVendId');
     if (vendId == null) {
       throw Exception('No se encontró el id del vendedor');
     }
     final url = Uri.parse(
-      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId',
+      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$globalVendId',
     );
     developer.log('ListarVisitasPorVendedor Request URL: $url');
     try {
