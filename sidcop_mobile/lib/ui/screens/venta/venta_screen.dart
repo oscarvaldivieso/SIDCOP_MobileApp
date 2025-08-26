@@ -2045,7 +2045,6 @@ Widget paso1() {
   }
 
   // Widget para cada item del carrito
-  // Widget para cada item del carrito
 Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   final precio = product.prodPrecioUnitario;
   final subtotal = precio * cantidad;
@@ -2065,7 +2064,8 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   }
   
   final subtotalConDescuento = subtotal - descuento;
-  final impuesto = subtotalConDescuento * 0.15; // 15% ISV
+  // Calcular impuesto solo si el producto paga impuesto (prodPagaImpuesto == 'S')
+  final impuesto = product.prodPagaImpuesto == 'S' ? subtotalConDescuento * 0.15 : 0.0; // 15% ISV solo si paga impuesto
   final totalProducto = subtotalConDescuento + impuesto;
 
   return Container(
@@ -2477,18 +2477,28 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   // Calcular el total del carrito
   double _calculateTotal() {
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
+    
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
+      
+      // Calcular impuesto solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
     
     final descuentosInfo = _calculateDiscounts();
     final double descuentos = descuentosInfo['total'];
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15;
+    
+    // Aplicar impuesto solo a los productos que pagan impuesto
+    final double impuestos = subtotalConImpuesto * 0.15;
     
     return subtotalConDescuento + impuestos;
   }
@@ -2496,6 +2506,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   // Widget para el resumen del carrito
   Widget _buildCartSummary() {
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
@@ -2503,8 +2514,14 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
+      
+      // Calcular subtotal solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
 
     // Calcular descuentos reales
@@ -2513,7 +2530,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final List<Map<String, dynamic>> detalleDescuentos = descuentosInfo['detalles'];
     
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    
+    // Calcular impuesto solo sobre los productos que pagan impuesto
+    final double porcentajeImpuesto = 0.15; // 15% ISV
+    final double baseImponible = subtotalConImpuesto > 0 ? 
+        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
+    final double impuestos = baseImponible * porcentajeImpuesto;
+    
     final double total = subtotalConDescuento + impuestos;
 
     return Container(
@@ -2734,6 +2757,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   Widget paso4() {
     // Calcular totales para mostrar en la confirmación
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
@@ -2741,8 +2765,14 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
+      
+      // Calcular subtotal solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
 
     // Calcular descuentos para la confirmación
@@ -2750,7 +2780,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double descuentos = descuentosInfo['total'];
     
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    
+    // Calcular impuesto solo sobre los productos que pagan impuesto
+    final double porcentajeImpuesto = 0.15; // 15% ISV
+    final double baseImponible = subtotalConImpuesto > 0 ? 
+        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
+    final double impuestos = baseImponible * porcentajeImpuesto;
+    
     final double total = subtotalConDescuento + impuestos;
 
     return Padding(
