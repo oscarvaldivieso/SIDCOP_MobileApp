@@ -514,7 +514,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                       SnackBar(content: Text('"${p.nombre}" eliminado')),
                     );
                   },
-                  child: ListTile(
+                  child: ListTile( //Cambiar por diseño de ventas WARD
                     title: Text(p.nombre),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
