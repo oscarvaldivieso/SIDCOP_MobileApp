@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart'; // Cambié .Dart a .dart
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 
 class VendedorVisitasScreen extends StatefulWidget {
@@ -15,7 +16,7 @@ class VendedorVisitasScreen extends StatefulWidget {
 class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   final ClientesVisitaHistorialService _service =
       ClientesVisitaHistorialService();
-  List<Map<String, dynamic>> _visitas = [];
+  List<VisitasViewModel> _visitas = [];
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -36,8 +37,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     });
     try {
       final visitas = await _service.listarPorVendedor();
+      developer.log('VendedorVisitasScreen: recibidas visitas (${visitas.runtimeType}) length=${visitas.length}');
+      if (visitas.isNotEmpty) developer.log('VendedorVisitasScreen: first=${visitas[0]}');
+
       setState(() {
-        _visitas = visitas.cast<Map<String, dynamic>>();
+        _visitas = List<VisitasViewModel>.from(visitas);
         _isLoading = false;
       });
       developer.log(
@@ -79,19 +83,17 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                 padding: const EdgeInsets.all(24),
                 itemCount: _visitas.length,
                 itemBuilder: (context, index) {
-                  final visita = _visitas[index];
-                  final clienteNombre =
-                      '${visita['clie_Nombres'] ?? ''} ${visita['clie_Apellidos'] ?? ''}'
-                          .trim();
-                  final negocio = visita['clie_NombreNegocio'] ?? '';
-                  final vendedor =
-                      '${visita['vend_Nombres'] ?? ''} ${visita['vend_Apellidos'] ?? ''}'
-                          .trim();
-                  final fecha = visita['clVi_Fecha'] != null
-                      ? DateTime.tryParse(
-                          visita['clVi_Fecha'],
-                        )?.toLocal().toString().split(' ')[0]
-                      : 'Fecha no disponible';
+          final visita = _visitas[index];
+          final clienteNombre =
+            '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'
+              .trim();
+          final negocio = visita.clie_NombreNegocio ?? '';
+          final vendedor =
+            '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'
+              .trim();
+          final fecha = visita.clVi_Fecha != null
+            ? visita.clVi_Fecha!.toLocal().toString().split(' ')[0]
+            : 'Fecha no disponible';
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -168,7 +170,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      'Ruta: ${visita['ruta_Descripcion'] ?? 'N/A'}',
+                                      'Ruta: ${visita.ruta_Descripcion ?? 'N/A'}',
                                       style: const TextStyle(
                                         fontFamily: 'Satoshi',
                                         fontSize: 14,
@@ -196,7 +198,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               ),
                             ),
                             child: Text(
-                              visita['esVi_Descripcion'] ??
+                              visita.esVi_Descripcion ??
                                   'Estado no disponible',
                               style: const TextStyle(
                                 fontFamily: 'Satoshi',
@@ -220,7 +222,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            visita['clVi_Observaciones'] ?? 'Sin observaciones',
+                            visita.clVi_Observaciones ?? 'Sin observaciones',
                             style: const TextStyle(
                               fontFamily: 'Satoshi',
                               fontSize: 14,
@@ -238,7 +240,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                 color: Color(0xFF6B7280),
                               ),
                               const SizedBox(width: 8),
-                              Text(
+                                Text(
                                 'Fecha: $fecha',
                                 style: const TextStyle(
                                   fontFamily: 'Satoshi',

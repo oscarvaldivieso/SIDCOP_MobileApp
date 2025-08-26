@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/UsuarioService.dart';
-import 'package'
+import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 
 class ClientesVisitaHistorialService {
