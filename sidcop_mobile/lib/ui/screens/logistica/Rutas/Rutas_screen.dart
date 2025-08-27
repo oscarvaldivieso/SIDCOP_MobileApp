@@ -17,6 +17,8 @@ import 'package:http/http.dart' as http;
 import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
+import 'Rutas_descargas_screen.dart';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -70,6 +72,32 @@ class _RutasScreenState extends State<RutasScreen> {
       return filePath;
     }
     return null;
+  }
+
+  // Comprueba si existen tiles locales para un departamento (slug de descripcion)
+  Future<bool> _departmentTilesExist(String descripcion) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final mapsDir = Directory('${directory.path}/maps');
+      if (!await mapsDir.exists()) return false;
+
+      String slug(String s) =>
+          s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').trim();
+
+      final candidate = Directory('${mapsDir.path}/${slug(descripcion)}');
+      if (!await candidate.exists()) return false;
+
+      try {
+        final hasPng = await candidate
+            .list(recursive: true)
+            .any((f) => f is File && f.path.toLowerCase().endsWith('.png'));
+        return hasPng;
+      } catch (_) {
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
@@ -152,11 +180,11 @@ class _RutasScreenState extends State<RutasScreen> {
 
   // Lee la lista de rutas encriptada
   Future<List<Ruta>> _leerRutasOffline() async {
-  final rutasString = await secureStorage.read(key: 'rutas_offline');
-  print('DEBUG rutas_offline (offline): $rutasString');
-  if (rutasString == null) return [];
-  final rutasList = jsonDecode(rutasString) as List;
-  return rutasList.map((json) => Ruta.fromJson(json)).toList();
+    final rutasString = await secureStorage.read(key: 'rutas_offline');
+    print('DEBUG rutas_offline (offline): $rutasString');
+    if (rutasString == null) return [];
+    final rutasList = jsonDecode(rutasString) as List;
+    return rutasList.map((json) => Ruta.fromJson(json)).toList();
   }
 
   Future<void> _cargarRutasAsignadasVendedor() async {
@@ -311,7 +339,9 @@ class _RutasScreenState extends State<RutasScreen> {
         return 'file://$local';
       }
       final remote = await _getStaticMapMarkers(ruta);
-      print('DEBUG: No hay imagen local para ruta ${ruta.ruta_Id}, usando remote: $remote');
+      print(
+        'DEBUG: No hay imagen local para ruta ${ruta.ruta_Id}, usando remote: $remote',
+      );
       return remote;
     } catch (e) {
       print('DEBUG: Error obteniendo mapa para ruta ${ruta.ruta_Id}: $e');
@@ -321,7 +351,7 @@ class _RutasScreenState extends State<RutasScreen> {
 
   @override
   Widget build(BuildContext context) {
-  // fallback use for map API key is available as mapApikey
+    // fallback use for map API key is available as mapApikey
     return Scaffold(
       backgroundColor: Colors.transparent,
       drawer: CustomDrawer(permisos: permisos),
@@ -411,6 +441,24 @@ class _RutasScreenState extends State<RutasScreen> {
                     const SizedBox(height: 18),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: CustomButton(
+                          text: 'Mapas Offline',
+                          width: 180,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RutasDescargasScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
                         'Lista de rutas:',
                         style: const TextStyle(
@@ -425,12 +473,21 @@ class _RutasScreenState extends State<RutasScreen> {
                         future: _getMapUrlPreferLocal(ruta),
                         builder: (context, snapshot) {
                           final mapUrl = snapshot.data ?? '';
-                          print('DEBUG FutureBuilder ruta ${ruta.ruta_Id} mapUrl=$mapUrl state=${snapshot.connectionState} hasData=${snapshot.hasData}');
-                          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                          print(
+                            'DEBUG FutureBuilder ruta ${ruta.ruta_Id} mapUrl=$mapUrl state=${snapshot.connectionState} hasData=${snapshot.hasData}',
+                          );
+                          if (snapshot.connectionState ==
+                                  ConnectionState.done &&
+                              snapshot.hasData) {
                             // Si es local, mapUrl empieza con file://
                             if (mapUrl.startsWith('file://')) {
-                              final localPath = mapUrl.replaceFirst('file://', '');
-                              print('DEBUG mostrando imagen local para ruta ${ruta.ruta_Id} -> $localPath');
+                              final localPath = mapUrl.replaceFirst(
+                                'file://',
+                                '',
+                              );
+                              print(
+                                'DEBUG mostrando imagen local para ruta ${ruta.ruta_Id} -> $localPath',
+                              );
                               // mostrar tarjeta con imagen local
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -459,21 +516,31 @@ class _RutasScreenState extends State<RutasScreen> {
                                               MaterialPageRoute(
                                                 builder: (_) => RutaMapScreen(
                                                   rutaId: ruta.ruta_Id,
-                                                  descripcion: ruta.ruta_Descripcion,
+                                                  descripcion:
+                                                      ruta.ruta_Descripcion,
                                                   vendId: globalVendId,
                                                 ),
                                               ),
                                             );
                                           } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => RutasOfflineMapScreen(
-                                                  rutaId: ruta.ruta_Id,
-                                                  descripcion: ruta.ruta_Descripcion,
+                                            final hasTiles = await _departmentTilesExist('Atlántida');
+                                            if (hasTiles) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      RutasOfflineMapScreen(
+                                                        rutaId: ruta.ruta_Id,
+                                                        descripcion: 'Atlántida',
+                                                      ),
                                                 ),
-                                              ),
-                                            );
+                                              );
+                                            } else {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(const SnackBar(
+                                                content: Text('No hay mapas offline descargados para Atlántida.'),
+                                              ));
+                                            }
                                           }
                                         },
                                         child: Card(
@@ -491,27 +558,31 @@ class _RutasScreenState extends State<RutasScreen> {
                                             ),
                                           ),
                                           child: ClipRRect(
-                                            borderRadius: const BorderRadius.only(
-                                              topLeft: Radius.circular(16),
-                                              bottomLeft: Radius.circular(16),
-                                            ),
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topLeft: Radius.circular(16),
+                                                  bottomLeft: Radius.circular(
+                                                    16,
+                                                  ),
+                                                ),
                                             child: Image.file(
                                               File(localPath),
                                               height: 120,
                                               width: 140,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Container(
-                                                  height: 120,
-                                                  width: 140,
-                                                  color: Colors.grey[300],
-                                                  child: const Icon(
-                                                    Icons.map,
-                                                    size: 40,
-                                                    color: Colors.grey,
-                                                  ),
-                                                );
-                                              },
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      height: 120,
+                                                      width: 140,
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.map,
+                                                        size: 40,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    );
+                                                  },
                                             ),
                                           ),
                                         ),
@@ -520,10 +591,12 @@ class _RutasScreenState extends State<RutasScreen> {
                                         child: Padding(
                                           padding: const EdgeInsets.all(12.0),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                ruta.ruta_Descripcion ?? 'Sin descripción',
+                                                ruta.ruta_Descripcion ??
+                                                    'Sin descripción',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 16,
@@ -559,7 +632,10 @@ class _RutasScreenState extends State<RutasScreen> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (_) => RutasDetailsScreen(ruta: ruta),
+                                              builder: (_) =>
+                                                  RutasDetailsScreen(
+                                                    ruta: ruta,
+                                                  ),
                                             ),
                                           );
                                         },
@@ -580,9 +656,14 @@ class _RutasScreenState extends State<RutasScreen> {
 
                             // Si no es local, puede ser un URL remoto. Mostrar online y cachear
                             if (mapUrl.startsWith('http')) {
-                              print('DEBUG mostrando imagen remota para ruta ${ruta.ruta_Id}');
+                              print(
+                                'DEBUG mostrando imagen remota para ruta ${ruta.ruta_Id}',
+                              );
                               // cachear en background
-                              guardarImagenDeMapaStatic(mapUrl, 'map_static_${ruta.ruta_Id}');
+                              guardarImagenDeMapaStatic(
+                                mapUrl,
+                                'map_static_${ruta.ruta_Id}',
+                              );
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8.0,
@@ -610,21 +691,31 @@ class _RutasScreenState extends State<RutasScreen> {
                                               MaterialPageRoute(
                                                 builder: (_) => RutaMapScreen(
                                                   rutaId: ruta.ruta_Id,
-                                                  descripcion: ruta.ruta_Descripcion,
+                                                  descripcion:
+                                                      ruta.ruta_Descripcion,
                                                   vendId: globalVendId,
                                                 ),
                                               ),
                                             );
                                           } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => RutasOfflineMapScreen(
-                                                  rutaId: ruta.ruta_Id,
-                                                  descripcion: ruta.ruta_Descripcion,
-                                                ),
-                                              ),
-                                            );
+                                              final hasTiles = await _departmentTilesExist('Atlántida');
+                                              if (hasTiles) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        RutasOfflineMapScreen(
+                                                          rutaId: ruta.ruta_Id,
+                                                          descripcion: 'Atlántida',
+                                                        ),
+                                                  ),
+                                                );
+                                              } else {
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(const SnackBar(
+                                                  content: Text('No hay mapas offline descargados para Atlántida.'),
+                                                ));
+                                              }
                                           }
                                         },
                                         child: Card(
@@ -642,27 +733,31 @@ class _RutasScreenState extends State<RutasScreen> {
                                             ),
                                           ),
                                           child: ClipRRect(
-                                            borderRadius: const BorderRadius.only(
-                                              topLeft: Radius.circular(16),
-                                              bottomLeft: Radius.circular(16),
-                                            ),
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topLeft: Radius.circular(16),
+                                                  bottomLeft: Radius.circular(
+                                                    16,
+                                                  ),
+                                                ),
                                             child: Image.network(
                                               mapUrl,
                                               height: 120,
                                               width: 140,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Container(
-                                                  height: 120,
-                                                  width: 140,
-                                                  color: Colors.grey[300],
-                                                  child: const Icon(
-                                                    Icons.map,
-                                                    size: 40,
-                                                    color: Colors.grey,
-                                                  ),
-                                                );
-                                              },
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      height: 120,
+                                                      width: 140,
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.map,
+                                                        size: 40,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    );
+                                                  },
                                             ),
                                           ),
                                         ),
@@ -671,10 +766,12 @@ class _RutasScreenState extends State<RutasScreen> {
                                         child: Padding(
                                           padding: const EdgeInsets.all(12.0),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                ruta.ruta_Descripcion ?? 'Sin descripción',
+                                                ruta.ruta_Descripcion ??
+                                                    'Sin descripción',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 16,
@@ -710,7 +807,10 @@ class _RutasScreenState extends State<RutasScreen> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (_) => RutasDetailsScreen(ruta: ruta),
+                                              builder: (_) =>
+                                                  RutasDetailsScreen(
+                                                    ruta: ruta,
+                                                  ),
                                             ),
                                           );
                                         },
@@ -732,7 +832,10 @@ class _RutasScreenState extends State<RutasScreen> {
                             return Container(
                               height: 120,
                               width: double.infinity,
-                              margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                                vertical: 6.0,
+                              ),
                               color: Colors.grey[300],
                               child: const Icon(
                                 Icons.map,
@@ -745,7 +848,10 @@ class _RutasScreenState extends State<RutasScreen> {
                           return Container(
                             height: 120,
                             width: double.infinity,
-                            margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 6.0,
+                            ),
                             color: Colors.grey[300],
                             child: const Icon(
                               Icons.map,
