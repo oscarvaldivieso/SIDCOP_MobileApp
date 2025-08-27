@@ -104,8 +104,18 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     final total = archive.length;
     int processed = 0;
 
+    final baseName = p.basenameWithoutExtension(zipPath);
     for (final file in archive) {
-      final outPath = p.join(destDir.path, file.name);
+      // Normalize zip internal path separators and optionally strip a leading folder
+      var entryName = file.name.replaceAll('\\', '/');
+      final parts = entryName.split('/').where((s) => s.isNotEmpty).toList();
+      if (parts.isNotEmpty && parts.first == baseName) {
+        // strip leading folder
+        final stripped = parts.sublist(1).join('/');
+        entryName = stripped;
+      }
+
+      final outPath = p.join(destDir.path, entryName);
       if (file.isFile) {
         final outFile = File(outPath);
         await outFile.create(recursive: true);

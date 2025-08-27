@@ -82,7 +82,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   Future<String?> _findTilesBasePath(Directory documentsDir) async {
     final mapsDir = Directory('${documentsDir.path}/maps');
     if (!await mapsDir.exists()) return null;
-
     String slug(String s) =>
         s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').trim();
 
@@ -93,14 +92,33 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       if (await candidate.exists()) return candidate.path;
     }
 
-    // fallback: find first subdirectory that contains some .png file in nested z/x/y structure
+    // fallback: search more deeply — soportar zippers que extraen en una carpeta adicional
     await for (var entry in mapsDir.list()) {
       if (entry is Directory) {
         try {
-          final found = await entry
-              .list(recursive: true)
-              .any((f) => f is File && f.path.toLowerCase().endsWith('.png'));
-          if (found) return entry.path;
+          // 1) check if this directory itself contains tiles
+          final foundHere = await entry
+              .list(recursive: false)
+              .any((f) => f is Directory);
+          if (foundHere) {
+            // check deeper for png files inside
+            final found = await entry
+                .list(recursive: true)
+                .any((f) => f is File && f.path.toLowerCase().endsWith('.png'));
+            if (found) return entry.path;
+          }
+
+          // 2) look one level deeper (some zips create maps/atlantida/atlantida/16/...)
+          await for (var sub in entry.list()) {
+            if (sub is Directory) {
+              final foundSub = await sub
+                  .list(recursive: true)
+                  .any(
+                    (f) => f is File && f.path.toLowerCase().endsWith('.png'),
+                  );
+              if (foundSub) return sub.path;
+            }
+          }
         } catch (e) {
           // ignore permission/listing errors on specific entries
         }
