@@ -190,7 +190,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
                       Text(
                         totalItems > 0
                             ? '${(extractProgress * 100).toStringAsFixed(0)}% - $processed/$totalItems archivos'
-                            : 'Descomprimiendo...',
+                            : 'Construyendo mapa...',
                       ),
                     ],
                   ],
