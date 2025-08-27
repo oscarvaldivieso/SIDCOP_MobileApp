@@ -229,10 +229,18 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 );
                 return;
               }
-              final tiles = await _sampleTiles(localTilesPath!, 20);
+              // Mostrar indicador mientras se calcula el diagnóstico
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) =>
+                    const Center(child: CircularProgressIndicator()),
+              );
+              final diag = await _diagnoseTiles(localTilesPath!);
+              if (mounted) Navigator.of(context).pop();
               await showDialog(
                 context: context,
-                builder: (ctx) => _buildTilesDebugDialog(ctx, tiles),
+                builder: (ctx) => _buildDiagnosisDialog(ctx, diag),
               );
             },
           ),
@@ -288,89 +296,129 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     );
   }
 
-  // Devuelve hasta [limit] paths de tiles encontrados en la estructura base/z/x/y.png
-  Future<List<String>> _sampleTiles(String basePath, [int limit = 20]) async {
-    final results = <String>[];
+  // funciones de muestreo/depuración anteriores fueron removidas en favor del diagnóstico
+
+  // Diagnóstico: cuenta tiles por z, calcula tamaño total (bytes) y devuelve muestras por z
+  Future<Map<String, Object>> _diagnoseTiles(String basePath) async {
+    final Map<int, int> countByZ = {};
+    final Map<int, List<String>> samplesByZ = {};
+    int totalTiles = 0;
+    int totalBytes = 0;
     try {
       final baseDir = Directory(basePath);
-      if (!await baseDir.exists()) return results;
+      if (!await baseDir.exists())
+        return {
+          'countByZ': countByZ,
+          'samplesByZ': samplesByZ,
+          'totalTiles': totalTiles,
+          'totalBytes': totalBytes,
+        };
 
-      await for (var zEntry in baseDir.list()) {
-        if (results.length >= limit) break;
-        if (zEntry is Directory) {
-          await for (var xEntry in zEntry.list()) {
-            if (results.length >= limit) break;
-            if (xEntry is Directory) {
-              await for (var yEntry in xEntry.list()) {
-                if (results.length >= limit) break;
-                if (yEntry is File) {
-                  final low = yEntry.path.toLowerCase();
-                  if (low.endsWith('.png') ||
-                      low.endsWith('.jpg') ||
-                      low.endsWith('.jpeg')) {
-                    results.add(yEntry.path);
-                  }
-                }
-              }
-            }
+      await for (final zEntry in baseDir.list()) {
+        if (zEntry is! Directory) continue;
+        final zName = zEntry.path.split(Platform.pathSeparator).last;
+        final z = int.tryParse(zName);
+        if (z == null) continue;
+        int zcount = 0;
+        final zsamples = <String>[];
+        await for (final xEntry in zEntry.list()) {
+          if (xEntry is! Directory) continue;
+          await for (final yEntry in xEntry.list()) {
+            if (yEntry is! File) continue;
+            final low = yEntry.path.toLowerCase();
+            if (!(low.endsWith('.png') ||
+                low.endsWith('.jpg') ||
+                low.endsWith('.jpeg')))
+              continue;
+            zcount++;
+            totalTiles++;
+            try {
+              totalBytes += await yEntry.length();
+            } catch (_) {}
+            if (zsamples.length < 5) zsamples.add(yEntry.path);
           }
+        }
+        if (zcount > 0) {
+          countByZ[z] = zcount;
+          samplesByZ[z] = zsamples;
         }
       }
     } catch (e) {
-      // ignorar errores y devolver lo que se haya encontrado
+      // ignore
     }
-    return results;
+    return {
+      'countByZ': countByZ,
+      'samplesByZ': samplesByZ,
+      'totalTiles': totalTiles,
+      'totalBytes': totalBytes,
+    };
   }
 
-  Widget _buildTilesDebugDialog(BuildContext context, List<String> tiles) {
-    String? selected;
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return AlertDialog(
-          title: Text('Tiles detectados (${tiles.length})'),
-          content: SizedBox(
-            width: 360,
-            height: 360,
-            child: Column(
-              children: [
-                Expanded(
-                  child: tiles.isEmpty
-                      ? const Center(child: Text('No se encontraron tiles'))
-                      : ListView.builder(
-                          itemCount: tiles.length,
-                          itemBuilder: (ctx, i) {
-                            final path = tiles[i];
-                            return ListTile(
-                              dense: true,
-                              title: Text(p.basename(path)),
-                              subtitle: Text(
-                                path,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () => setState(() => selected = path),
-                            );
-                          },
-                        ),
-                ),
-                const SizedBox(height: 8),
-                if (selected != null) ...[
-                  const Text('Previsualización'),
-                  const SizedBox(height: 6),
-                  SizedBox(height: 120, child: Image.file(File(selected!))),
-                ],
-              ],
+  Widget _buildDiagnosisDialog(BuildContext context, Map<String, Object> diag) {
+    final countByZ = diag['countByZ'] as Map<int, int>;
+    final samplesByZ = diag['samplesByZ'] as Map<int, List<String>>;
+    final totalTiles = diag['totalTiles'] as int;
+    final totalBytes = diag['totalBytes'] as int;
+    return AlertDialog(
+      title: const Text('Diagnóstico de tiles'),
+      content: SizedBox(
+        width: 360,
+        height: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Total tiles: $totalTiles'),
+            Text('Tamaño total: ${_formatBytesSimple(totalBytes)}'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tiles por zoom (muestra):',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cerrar'),
+            const SizedBox(height: 6),
+            Expanded(
+              child: countByZ.isEmpty
+                  ? const Center(child: Text('No se detectaron tiles'))
+                  : ListView.builder(
+                      itemCount: countByZ.keys.length,
+                      itemBuilder: (ctx, idx) {
+                        final keys = countByZ.keys.toList()..sort();
+                        final z = keys[idx];
+                        final cnt = countByZ[z] ?? 0;
+                        final samples = samplesByZ[z] ?? <String>[];
+                        return ListTile(
+                          title: Text('z=$z — $cnt tiles'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: samples
+                                .map((s) => Text(p.basename(s)))
+                                .toList(),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
-        );
-      },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cerrar'),
+        ),
+      ],
     );
+  }
+
+  String _formatBytesSimple(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB'];
+    var i = 0;
+    double value = bytes.toDouble();
+    while (value >= 1024 && i < suffixes.length - 1) {
+      value /= 1024;
+      i++;
+    }
+    return '${value.toStringAsFixed(1)} ${suffixes[i]}';
   }
 }
 
