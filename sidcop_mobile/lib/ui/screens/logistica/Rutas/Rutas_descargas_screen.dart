@@ -118,6 +118,13 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         onProgress(processed, total);
       } catch (_) {}
     }
+    // Crear un archivo sentinel que indique que la descarga y extracción se completaron
+    try {
+      final sentinel = File(p.join(destDir.path, '.download_complete'));
+      await sentinel.writeAsString(DateTime.now().toIso8601String());
+    } catch (_) {
+      // ignorar errores al escribir sentinel
+    }
   }
 
   Future<void> _handleDownload(String departamento) async {
