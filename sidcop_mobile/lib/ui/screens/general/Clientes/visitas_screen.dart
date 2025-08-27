@@ -1,7 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart'; // Cambié .Dart a .dart
-import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 
@@ -30,15 +29,17 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Future<void> _loadVisitas() async {
-    
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
     try {
       final visitas = await _service.listarPorVendedor();
-      developer.log('VendedorVisitasScreen: recibidas visitas (${visitas.runtimeType}) length=${visitas.length}');
-      if (visitas.isNotEmpty) developer.log('VendedorVisitasScreen: first=${visitas[0]}');
+      developer.log(
+        'VendedorVisitasScreen: recibidas visitas (${visitas.runtimeType}) length=${visitas.length}',
+      );
+      if (visitas.isNotEmpty)
+        developer.log('VendedorVisitasScreen: first=${visitas[0]}');
 
       setState(() {
         _visitas = List<VisitasViewModel>.from(visitas);
@@ -55,6 +56,8 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       });
     }
   }
+
+  // (Se usa la fecha cruda tal como llega)
 
   @override
   Widget build(BuildContext context) {
@@ -81,20 +84,20 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
               )
             : ListView.builder(
                 padding: const EdgeInsets.all(24),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: _visitas.length,
                 itemBuilder: (context, index) {
-          final visita = _visitas[index];
-          final clienteNombre =
-            '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'
-              .trim();
-          final negocio = visita.clie_NombreNegocio ?? '';
-          final vendedor =
-            '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'
-              .trim();
-          final fecha = visita.clVi_Fecha != null
-            ? visita.clVi_Fecha!.toLocal().toString().split(' ')[0]
-            : 'Fecha no disponible';
+                  final visita = _visitas[index];
+                  final clienteNombre =
+                      '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'
+                          .trim();
+                  final negocio = visita.clie_NombreNegocio ?? '';
+                  // vendedor no se usa en la versión de listado simple
+                  final fecha =
+                      visita.clVi_Fecha?.toString() ?? 'Fecha no disponible';
 
+                  // Tarjeta con información de la visita
                   return Card(
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(
@@ -151,7 +154,8 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      'Vendedor: $vendedor',
+                                      'Vendedor: ${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'
+                                          .trim(),
                                       style: const TextStyle(
                                         fontFamily: 'Satoshi',
                                         fontSize: 14,
@@ -198,8 +202,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               ),
                             ),
                             child: Text(
-                              visita.esVi_Descripcion ??
-                                  'Estado no disponible',
+                              visita.esVi_Descripcion ?? 'Estado no disponible',
                               style: const TextStyle(
                                 fontFamily: 'Satoshi',
                                 fontSize: 12,
@@ -240,7 +243,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                 color: Color(0xFF6B7280),
                               ),
                               const SizedBox(width: 8),
-                                Text(
+                              Text(
                                 'Fecha: $fecha',
                                 style: const TextStyle(
                                   fontFamily: 'Satoshi',
