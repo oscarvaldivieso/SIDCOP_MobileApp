@@ -93,9 +93,31 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                       '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'
                           .trim();
                   final negocio = visita.clie_NombreNegocio ?? '';
-                  // vendedor no se usa en la versión de listado simple
                   final fecha =
                       visita.clVi_Fecha?.toString() ?? 'Fecha no disponible';
+                    
+                  // SWITCH PARA COLOR DE LAS CARDS
+                  Color primaryColor;
+                  Color secondaryColor;
+                  Color backgroundColor;
+                  IconData statusIcon;
+                  String statusLabel;
+
+                  switch (visita.esVi_Descripcion.toString().toLowerCase()) {
+                    case 'true':
+                      statusLabel = 'Negocio cerrado';
+                      primaryColor = const Color(0xFFFF3B30);
+                      secondaryColor = const Color(0xFFFF6B60);
+                      backgroundColor = const Color(0xFFFFE8E6);
+                      statusIcon = Icons.cancel_rounded;
+                      break;
+                    default:
+                      statusLabel = 'Venta Realizada';
+                      primaryColor = const Color(0xFF141A2F);
+                      secondaryColor = const Color(0xFF2C3655);
+                      backgroundColor = const Color(0xFFE8EAF6);
+                      statusIcon = Icons.check_circle_rounded;
+                  }
 
                   // Tarjeta con información de la visita
                   return Card(
@@ -104,11 +126,20 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [secondaryColor, primaryColor],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                           // Cliente y Negocio
                           Text(
                             clienteNombre.isNotEmpty
@@ -118,7 +149,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               fontFamily: 'Satoshi',
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF141A2F),
+                              color: Color.fromARGB(255, 255, 255, 255),
                             ),
                           ),
                           if (negocio.isNotEmpty) ...[
@@ -194,20 +225,49 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               horizontal: 12,
                               vertical: 6,
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFEF4444).withOpacity(0.3),
-                              ),
-                            ),
+                            decoration: visita.esVi_Descripcion == 'Negocio cerrado'
+                                ? BoxDecoration(
+                                    color: const Color(0xFFEF4444).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFEF4444).withOpacity(0.3),
+                                    ),
+                                  )
+                                : visita.esVi_Descripcion == 'Visitado(a)' || visita.esVi_Descripcion == 'Nuevo(a)'
+                                    ? BoxDecoration(
+                                        color: const Color(0xFF2196F3).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFF2196F3).withOpacity(0.3),
+                                        ),
+                                      )
+                                : visita.esVi_Descripcion == 'Venta Realizada'
+                                    ? BoxDecoration(
+                                        color: const Color(0xFF4CAF50).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFF4CAF50).withOpacity(0.3),
+                                        ),
+                                      )
+                                : BoxDecoration(
+                                    color: const Color(0xFFE3935A).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFE3935A).withOpacity(0.3),
+                                    ),
+                                  ),
                             child: Text(
-                              visita.esVi_Descripcion ?? 'Estado no disponible',
-                              style: const TextStyle(
+                              visita.esVi_Descripcion ?? 'Estado desconocido',
+                              style: TextStyle(
                                 fontFamily: 'Satoshi',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFEF4444),
+                                fontSize: 14,
+                                color: visita.esVi_Descripcion == 'Negocio cerrado'
+                                  ? const Color(0xFFEF4444)
+                                  : visita.esVi_Descripcion == 'Visitado(a)' || visita.esVi_Descripcion == 'Nuevo(a)'
+                                      ? const Color(0xFF2196F3)
+                                  : visita.esVi_Descripcion == 'Venta Realizada'
+                                      ? const Color(0xFF4CAF50)
+                                      : const Color(0xFFE3935A),
                               ),
                             ),
                           ),
@@ -220,7 +280,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               fontFamily: 'Satoshi',
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF374151),
+                              color: Color.fromARGB(255, 255, 255, 255),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -229,7 +289,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                             style: const TextStyle(
                               fontFamily: 'Satoshi',
                               fontSize: 14,
-                              color: Color(0xFF6B7280),
+                              color: Color.fromARGB(255, 255, 255, 255),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -240,7 +300,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                               const Icon(
                                 Icons.calendar_today,
                                 size: 16,
-                                color: Color(0xFF6B7280),
+                                color: Color.fromARGB(255, 255, 255, 255),
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -248,7 +308,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                 style: const TextStyle(
                                   fontFamily: 'Satoshi',
                                   fontSize: 14,
-                                  color: Color(0xFF6B7280),
+                                  color: Color.fromARGB(255, 255, 255, 255),
                                 ),
                               ),
                             ],
@@ -256,7 +316,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                         ],
                       ),
                     ),
-                  );
+                  ));
                 },
               ),
       ),
