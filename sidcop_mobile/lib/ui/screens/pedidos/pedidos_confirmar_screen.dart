@@ -482,8 +482,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
               // print(p.precioFinal);
               // print(p.precioBase);
               print(p.productoOriginal?.toJson());
-              print(p.productoOriginal?.toJson()[2]);
-
+              print(p.productoOriginal?.prodId);
+              // print(p.productoOriginal?.descuentosEscala?.toJson());
 
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 6),
@@ -523,66 +523,75 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                       SnackBar(content: Text('"${p.nombre}" eliminado')),
                     );
                   },
-                  child: ListTile( //Cambiar por diseño de ventas WARD
-                    // margin: const EdgeInsets.only(bottom: 16),
-                    // padding: const EdgeInsets.all(16),
-                    // decoration: BoxDecoration(
-                    //   color: Colors.white,
-                    //   borderRadius: BorderRadius.circular(16),
-                    //   boxShadow: [
-                    //     BoxShadow(
-                    //       color: Colors.black.withOpacity(0.08),
-                    //       blurRadius: 12,
-                    //       offset: const Offset(0, 4),
-                    //     ),
-                    //   ],
-                    //   border: Border.all(
-                    //     color: const Color(0xFFF0F0F0),
-                    //     width: 1,
-                    //   ),
-                    // ),
-                    title: Text(p.nombre),
-                    
-                    subtitle: Column(
+                  // child: ListTile( //Cambiar por diseño de ventas WARD
+                  //   title: Text(p.nombre),
+                  //   subtitle: Column(
+                  //     crossAxisAlignment: CrossAxisAlignment.start,
+                  //     children: [
+                  //       Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
+                  //       Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
+                  //     ],
+                  //   ),
+                  //   trailing: SizedBox(
+                  //     width: 110,
+                  //     child: Row(
+                  //       mainAxisSize: MainAxisSize.min,
+                  //       children: [
+                  //         SizedBox(
+                  //           width: 32,
+                  //           child: IconButton(
+                  //             padding: EdgeInsets.zero,
+                  //             constraints: const BoxConstraints(),
+                  //             icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+                  //             onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
+                  //           ),
+                  //         ),
+                  //         Container(
+                  //           width: 30,
+                  //           child: Text(
+                  //             '${p.cantidad}',
+                  //             textAlign: TextAlign.center,
+                  //             style: const TextStyle(fontWeight: FontWeight.bold),
+                  //           ),
+                  //         ),
+                  //         SizedBox(
+                  //           width: 32,
+                  //           child: IconButton(
+                  //             padding: EdgeInsets.zero,
+                  //             constraints: const BoxConstraints(),
+                  //             icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
+                  //             onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
+                  //           ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: const Color(0xFFF0F0F0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(p.nombre),
                         Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
                         Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
                       ],
-                    ),
-                    trailing: SizedBox(
-                      width: 110,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 32,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
-                              onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
-                            ),
-                          ),
-                          Container(
-                            width: 30,
-                            child: Text(
-                              '${p.cantidad}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 32,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
-                              onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),

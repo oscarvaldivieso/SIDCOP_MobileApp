@@ -249,6 +249,14 @@ class DescuentoEscalaModel {
     required this.deEsValor,
   });
 
+  Map<String, dynamic> toJson() {
+    return {
+      'DeEs_InicioEscala': deEsInicioEscala,
+      'DeEs_FinEscala': deEsFinEscala,
+      'DeEs_Valor': deEsValor,
+    };
+  }
+
   factory DescuentoEscalaModel.fromJson(Map<String, dynamic> json) {
     return DescuentoEscalaModel(
       deEsInicioEscala: json['DeEs_InicioEscala'],
