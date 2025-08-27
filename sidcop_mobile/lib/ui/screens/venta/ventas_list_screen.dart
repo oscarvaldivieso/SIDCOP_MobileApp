@@ -228,7 +228,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     final tipoDocumento = venta['fact_TipoDeDocumento']?.toString() ?? 'Factura';
     final clienteNombre = venta['cliente'] ?? 'Cliente General';
     final total = venta['fact_Total'] ?? 0.0;
-    final estado = venta['fact_Estado'] ?? 'Completada';
+    final estado = venta['fact_Anulado'] ?? 'Completada';
 
     // Configuración de colores según el estado
     Color primaryColor;
@@ -238,26 +238,8 @@ class _VentasListScreenState extends State<VentasListScreen> {
     String statusLabel;
 
     switch (estado.toString().toLowerCase()) {
-      case 'pendiente':
-      case 'proceso':
-        statusLabel = 'En proceso';
-        primaryColor = const Color.fromARGB(255, 206, 160, 8);
-        secondaryColor = const Color.fromARGB(255, 228, 197, 69);
-        backgroundColor = const Color(0xFFFFF4E6);
-        statusIcon = Icons.schedule_rounded;
-        break;
-      case 'completada':
-      case 'pagada':
-      case 'finalizada':
-        statusLabel = 'Completada';
-        primaryColor = const Color(0xFF34C759);
-        secondaryColor = const Color(0xFF4CD964);
-        backgroundColor = const Color(0xFFE8F5E8);
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      case 'cancelada':
-      case 'anulada':
-        statusLabel = 'Cancelada';
+      case 'true':
+        statusLabel = 'Anulada';
         primaryColor = const Color(0xFFFF3B30);
         secondaryColor = const Color(0xFFFF6B60);
         backgroundColor = const Color(0xFFFFE8E6);
@@ -265,9 +247,9 @@ class _VentasListScreenState extends State<VentasListScreen> {
         break;
       default:
         statusLabel = 'Completada';
-        primaryColor = const Color(0xFF141A2F); // Azul oscuro principal del sistema
-        secondaryColor = const Color(0xFF2C3655); // Tono ligeramente más claro para el degradado
-        backgroundColor = const Color(0xFFE8EAF6); // Fondo azul muy claro
+        primaryColor = const Color(0xFF141A2F);
+        secondaryColor = const Color(0xFF2C3655);
+        backgroundColor = const Color(0xFFE8EAF6);
         statusIcon = Icons.check_circle_rounded;
     }
 

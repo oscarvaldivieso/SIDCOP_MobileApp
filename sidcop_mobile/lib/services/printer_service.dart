@@ -681,38 +681,44 @@ int yPosition = 870; // Posición inicial de productos
 for (var detalle in detalles) {
   final producto = detalle['prod_Descripcion'] ?? 'Producto';
   final codigoProducto = detalle['prod_CodigoBarra'] ?? '';
+  final pagaImpuesto = detalle['prod_PagaImpuesto'] ?? 'NO';
   final cantidad = detalle['faDe_Cantidad']?.toString() ?? '1';
+  final descuentoProducto = double.tryParse(detalle['faDe_Descuento']?.toString() ?? '0') ?? 0.0;
   final precioUnitario = (detalle['faDe_PrecioUnitario'] ?? 0).toStringAsFixed(2);
   final totalItem = (detalle['faDe_Subtotal'] ?? 0).toStringAsFixed(2);
 
+  // Agregar asterisco si el producto no paga impuesto (pagaImpuesto == 'N')
+  final asterisco = pagaImpuesto == 'N' ? ' *' : '';
+  final productoConAsterisco = '$producto$asterisco';
+
   // Producto con múltiples líneas (máximo 5 líneas, ancho 160 dots para dejar espacio a las otras columnas)
   // Usando CF0,22,24 como el resto de la información de factura
-  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$producto^FS\n';
+  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$productoConAsterisco^FS\n';
   
   // Cantidad, Precio y Monto alineados a la primera línea del producto
   productosZPL += '^FO165,$yPosition^CF0,22,24^FD$cantidad^FS\n';
   productosZPL += '^FO210,$yPosition^CF0,22,24^FDL$precioUnitario^FS\n';
   productosZPL += '^FO295,$yPosition^CF0,22,24^FDL$totalItem^FS\n';
 
-  // Extraer campos adicionales para el footer
-    
-
   // Calcular espacio necesario para el producto (más preciso para ancho menor)
-  int lineasProducto = (producto.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
+  int lineasProducto = (productoConAsterisco.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
   if (lineasProducto > 5) lineasProducto = 5; // Máximo 5 líneas
   if (lineasProducto < 1) lineasProducto = 1; // Mínimo 1 línea
   
   yPosition += (lineasProducto * 24); // 24 dots por línea para fuente 22,24
 
-  // Código de producto (mismo tamaño de fuente, debajo del producto)
-  if (codigoProducto.isNotEmpty) {
-    yPosition += 6; // Pequeño espacio antes del código
-    productosZPL += '^FO0,$yPosition^CF0,22,24^FDCod: $codigoProducto^FS\n';
-    yPosition += 24; // Espacio del código
+  
+
+  // Mostrar descuento del producto si es mayor a cero
+  if (descuentoProducto > 0) {
+    yPosition += 6; // Pequeño espacio antes del descuento
+    final descuentoFormateado = descuentoProducto.toStringAsFixed(2);
+    productosZPL += '^FO200,$yPosition^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
+    yPosition += 24; // Espacio del descuento
   }
 
   // Más espacio entre productos para mejor legibilidad
-  yPosition += 25;
+  yPosition += 50;
 }
 
     // Calcular posición para totales dinámicamente
