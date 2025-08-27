@@ -476,6 +476,15 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
             ..._productosEditables.asMap().entries.map((entry) {
               final index = entry.key;
               final p = entry.value;
+              // print(p.prodId);
+              // print(p.nombre);
+              // print(p.cantidad);
+              // print(p.precioFinal);
+              // print(p.precioBase);
+              print(p.productoOriginal?.toJson());
+              print(p.productoOriginal?.toJson()[2]);
+
+
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 child: Dismissible(
@@ -515,7 +524,25 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                     );
                   },
                   child: ListTile( //Cambiar por diseño de ventas WARD
+                    // margin: const EdgeInsets.only(bottom: 16),
+                    // padding: const EdgeInsets.all(16),
+                    // decoration: BoxDecoration(
+                    //   color: Colors.white,
+                    //   borderRadius: BorderRadius.circular(16),
+                    //   boxShadow: [
+                    //     BoxShadow(
+                    //       color: Colors.black.withOpacity(0.08),
+                    //       blurRadius: 12,
+                    //       offset: const Offset(0, 4),
+                    //     ),
+                    //   ],
+                    //   border: Border.all(
+                    //     color: const Color(0xFFF0F0F0),
+                    //     width: 1,
+                    //   ),
+                    // ),
                     title: Text(p.nombre),
+                    
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
