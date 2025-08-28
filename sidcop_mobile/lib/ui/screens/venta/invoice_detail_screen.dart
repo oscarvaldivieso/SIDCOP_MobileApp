@@ -96,7 +96,72 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-  Future<void> _printInvoice() async {
+  void _showPrintOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Seleccione el tipo de impresión',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.receipt_long, size: 24),
+                      label: const Text('ORIGINAL'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _printInvoice(isOriginal: true);
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.copy, size: 24),
+                      label: const Text('COPIA'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.grey.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _printInvoice(isOriginal: false);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCELAR'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _printInvoice({required bool isOriginal}) async {
     if (_facturaData == null) return;
 
     try {
@@ -188,8 +253,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         );
       }
 
-      // Imprimir usando el PrinterService
-      final printSuccess = await _printerService.printInvoice(_facturaData!);
+      // Imprimir usando el PrinterService con el tipo de copia
+      final printSuccess = await _printerService.printInvoice(
+        _facturaData!,
+        isOriginal: isOriginal,
+      );
       
       // Cerrar diálogo de impresión
       if (mounted) Navigator.of(context).pop();
@@ -360,7 +428,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 ),
               ),
               child: IconButton(
-                onPressed: _printInvoice,
+                onPressed: _showPrintOptions,
                 icon: const Icon(
                   Icons.print_outlined,
                   color: Colors.white,

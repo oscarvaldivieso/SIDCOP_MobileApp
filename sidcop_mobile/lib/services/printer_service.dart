@@ -524,6 +524,7 @@ $logoZPL
 
 ^FO0,230^GB360,2,2^FS
 
+
 ^FX ===== INFORMACION =====
 ^CF0,20,22
 ^FO0,250^FB360,1,0,L,0^FD$rutaLimpia^FS
@@ -605,13 +606,13 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 }
 
   // Print invoice optimizado
-  Future<bool> printInvoice(Map<String, dynamic> invoiceData) async {
+  Future<bool> printInvoice(Map<String, dynamic> invoiceData, {bool isOriginal = true}) async {
     try {
       if (!_isConnected) {
         throw Exception('Impresora no conectada');
       }
 
-      final zplContent = _generateInvoiceZPL(invoiceData);
+      final zplContent = _generateInvoiceZPL(invoiceData, isOriginal: isOriginal);
       return await printZPL(zplContent);
     } catch (e) {
       debugPrint('Error printing invoice: $e');
@@ -619,7 +620,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     }
   }
 
-  String _generateInvoiceZPL(Map<String, dynamic> invoiceData) {
+  String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true}) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
     final empresaDireccion =
@@ -630,6 +631,9 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
+  
+    // Texto ORIGINAL o COPIA
+    final tipoCopia = isOriginal ? 'ORIGINAL' : 'COPIA';
     final factTipoRaw = invoiceData['fact_TipoVenta'] ?? 'EFECTIVO';
     final factTipo = factTipoRaw == 'CO' ? 'CONTADO' : (factTipoRaw == 'CR' ? 'CREDITO' : factTipoRaw);
     final factFecha = _formatDate(invoiceData['fact_FechaEmision']);
@@ -713,7 +717,7 @@ for (var detalle in detalles) {
   if (descuentoProducto > 0) {
     yPosition += 6; // Pequeño espacio antes del descuento
     final descuentoFormateado = descuentoProducto.toStringAsFixed(2);
-    productosZPL += '^FO200,$yPosition^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
+    productosZPL += '^FO10,$yPosition^FB350,1,0,R^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
     yPosition += 24; // Espacio del descuento
   }
 
@@ -788,7 +792,13 @@ totalY += 50; // Espacio adicional para el total en letras
 
     // Generar footer ZPL
     String footerZPL = '';
-    int currentFooterY = footerY + 15; // Posición inicial dentro del footer
+    int currentFooterY = footerY + 15;
+    
+     // Posición inicial dentro del footer
+
+     // 1. FechaLimite Emision (1 línea, centrado)
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$tipoCopia^FS\n';
+    currentFooterY += 45;
 
     // 1. FechaLimite Emision (1 línea, centrado)
     footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFechaLimite Emision: $fechaLimiteEmision^FS\n';
@@ -887,8 +897,12 @@ $productosZPL
 ^FO0,$totalesY^GB360,2,2^FS
 $totalesZPL
 
+
+
 ^FX ===== FOOTER =====
 ^FO0,$footerY^GB360,2,2^FS
+
+
 $footerZPL
 
 
