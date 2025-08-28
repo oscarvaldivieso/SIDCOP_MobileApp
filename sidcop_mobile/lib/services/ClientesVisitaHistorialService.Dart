@@ -15,22 +15,60 @@ class ClientesVisitaHistorialService {
     if (vendId == null) {
       throw Exception('No se encontró el id del vendedor'); 
     }
-    final url = Uri.parse(
-      '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId',
-    );
-    developer.log('ListarVisitasPorVendedor Request URL: $url');
-    print('ListarVisitasPorVendedor Request URL: $url');
-  
+    
     try {
+      // Obtener la fecha actual para filtrar
+      final now = DateTime.now();
+      final hoy = DateTime(now.year, now.month, now.day);
+      
+      final url = Uri.parse(
+        '$_apiServer/ClientesVisitaHistorial/ListarVisitasPorVendedor?vend_Id=$vendId',
+      );
+      developer.log('ListarVisitasPorVendedor Request URL: $url');
+      print('ListarVisitasPorVendedor Request URL: $url');
+    
       final response = await http.get(
         url,
         headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
-      // Mostrar el body crudo en la consola (flutter run)
+      
       print('ListarVisitasPorVendedor raw body: ${response.body}');
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data
+        
+        // Filtrar solo las visitas de hoy
+        final visitasHoy = data.where((visita) {
+          try {
+            final fechaVisitaStr = visita['clVi_Fecha'] as String?;
+            if (fechaVisitaStr == null) return false;
+            
+            final fechaVisita = DateTime.parse(fechaVisitaStr);
+            final fechaVisitaSinHora = DateTime(
+              fechaVisita.year, 
+              fechaVisita.month, 
+              fechaVisita.day
+            );
+            
+            return fechaVisitaSinHora.isAtSameMomentAs(hoy);
+          } catch (e) {
+            developer.log('Error al procesar fecha de visita: $e');
+            return false;
+          }
+        }).toList();
+        
+        // Ordenar por fecha de creación (más reciente primero)
+        visitasHoy.sort((a, b) {
+          try {
+            final fechaA = DateTime.parse(a['clVi_FechaCreacion'] ?? '');
+            final fechaB = DateTime.parse(b['clVi_FechaCreacion'] ?? '');
+            return fechaB.compareTo(fechaA); // Orden descendente (más reciente primero)
+          } catch (e) {
+            return 0; // Si hay error, mantener el orden original
+          }
+        });
+        
+        return visitasHoy
             .map((e) => VisitasViewModel.fromJson(e))
             .toList();
       } else {
@@ -39,7 +77,7 @@ class ClientesVisitaHistorialService {
         );
       }
     } catch (e) {
-      developer.log('ListarVisitasPorVendedor Error: $e');
+      developer.log('Error en listarPorVendedor: $e');
       rethrow;
     }
   }
