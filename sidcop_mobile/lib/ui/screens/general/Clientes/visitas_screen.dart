@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart'; // Cambié .Dart a .dart
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
-import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -67,7 +67,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const DevolucioncrearScreen()),
+            MaterialPageRoute(builder: (context) => const VisitaCreateScreen()),
           );
         },
         backgroundColor: const Color(0xFF141A2F),
