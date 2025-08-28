@@ -1,10 +1,15 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
-import 'dart:math' as math;
+// dart:math removed (not used)
+import 'dart:convert';
+import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 
 class RutasDescargasScreen extends StatefulWidget {
   const RutasDescargasScreen({Key? key}) : super(key: key);
@@ -14,29 +19,10 @@ class RutasDescargasScreen extends StatefulWidget {
 }
 
 class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
-  final List<String> departamentos = const [
-    'Atlántida',
-    'Choluteca',
-    'Colón',
-    'Comayagua',
-    'Copán',
-    'Cortés',
-    'El Paraíso',
-    'Francisco Morazán',
-    'Gracias a Dios',
-    'Intibucá',
-    'La Paz',
-    'Lempira',
-    'Ocotepeque',
-    'Olancho',
-    'Santa Bárbara',
-    'Valle',
-    'Yoro',
-  ];
+  final List<String> departamentos = const ['Honduras'];
 
-  // Mapa de URLs por departamento (solo Atlántida configurada por ahora)
   final Map<String, String> urls = {
-    'Atlántida': 'http://200.59.27.115/Honduras_map/atlantida.zip',
+    'Honduras': 'http://200.59.27.115/Honduras_map/Mapa.zip',
   };
 
   String _slug(String departamento) {
@@ -51,206 +37,308 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         .replaceAll('ñ', 'n');
   }
 
-  // Descarga con reporte de progreso (bytes recibidos, total bytes).
-  Future<String> _downloadAndSaveZip(
-    String url,
-    String departamento,
-    void Function(int received, int total) onProgress,
-  ) async {
+  Future<Directory> _ensureMapsDir() async {
     final dir = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(dir.path, 'maps'));
     if (!await mapsDir.exists()) await mapsDir.create(recursive: true);
+    return mapsDir;
+  }
 
+  bool _isZipHeader(List<int> bytes) =>
+      bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B;
+
+  Future<String> _zipPathFor(String departamento) async {
+    final mapsDir = await _ensureMapsDir();
+    final slug = _slug(departamento);
+    return p.join(mapsDir.path, '$slug.zip');
+  }
+
+  Future<bool> _isZipDownloaded(String departamento) async {
+    final path = await _zipPathFor(departamento);
+    final f = File(path);
+    if (!await f.exists()) return false;
+    try {
+      final header = await f.openRead(0, 4).first;
+      return _isZipHeader(header);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> _downloadAndSaveZip(
+    String url,
+    String departamento,
+    void Function(int, int) onProgress,
+  ) async {
+    final mapsDir = await _ensureMapsDir();
     final slug = _slug(departamento);
     final zipPath = p.join(mapsDir.path, '$slug.zip');
 
     final client = http.Client();
-    final request = http.Request('GET', Uri.parse(url));
-    final streamedResponse = await client.send(request);
-    if (streamedResponse.statusCode != 200) {
+    final req = http.Request('GET', Uri.parse(url));
+    final resp = await client.send(req);
+    if (resp.statusCode != 200) {
       client.close();
-      throw Exception('Error descargando zip: ${streamedResponse.statusCode}');
+      throw Exception('Error descargando: ${resp.statusCode}');
     }
 
-    final contentLength = streamedResponse.contentLength ?? 0;
-    final file = File(zipPath).openWrite();
+    final contentLength = resp.contentLength ?? 0;
+    final sink = File(zipPath).openWrite();
     int received = 0;
-
-    await for (final chunk in streamedResponse.stream) {
-      file.add(chunk);
+    await for (final chunk in resp.stream) {
+      sink.add(chunk);
       received += chunk.length;
       try {
         onProgress(received, contentLength);
       } catch (_) {}
     }
-
-    await file.close();
+    await sink.close();
     client.close();
+
+    final header = await File(zipPath).openRead(0, 4).first;
+    if (!_isZipHeader(header)) {
+      final r2 = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'Mozilla/5.0'},
+      );
+      if (r2.statusCode == 200 && _isZipHeader(r2.bodyBytes)) {
+        await File(zipPath).writeAsBytes(r2.bodyBytes, flush: true);
+        return zipPath;
+      }
+      throw Exception('El recurso descargado no es un ZIP válido');
+    }
     return zipPath;
   }
 
-  // Extrae el zip y reporta progreso (items procesados, total items).
-  Future<void> _extractZipToFolder(
-    String zipPath,
-    void Function(int processed, int total) onProgress,
-  ) async {
-    final bytes = await File(zipPath).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    final destDir = Directory(
-      p.join(p.dirname(zipPath), p.basenameWithoutExtension(zipPath)),
-    );
-    if (!await destDir.exists()) await destDir.create(recursive: true);
+  Future<List<String>> _extractZipToFolder(String zipPath) async {
+    return compute(_extractZipInBackground, zipPath);
+  }
 
-    final total = archive.length;
-    int processed = 0;
-
-    final baseName = p.basenameWithoutExtension(zipPath);
-    for (final file in archive) {
-      // Normalize zip internal path separators and optionally strip a leading folder
-      var entryName = file.name.replaceAll('\\', '/');
-      final parts = entryName.split('/').where((s) => s.isNotEmpty).toList();
-      if (parts.isNotEmpty && parts.first == baseName) {
-        // strip leading folder
-        final stripped = parts.sublist(1).join('/');
-        entryName = stripped;
-      }
-
-      final outPath = p.join(destDir.path, entryName);
-      if (file.isFile) {
-        final outFile = File(outPath);
-        await outFile.create(recursive: true);
-        await outFile.writeAsBytes(file.content as List<int>);
-      } else {
-        await Directory(outPath).create(recursive: true);
-      }
-      processed++;
-      try {
-        onProgress(processed, total);
-      } catch (_) {}
-    }
-    // Crear un archivo sentinel que indique que la descarga y extracción se completaron
+  // Register extracted map paths in maps/maps_index.json so other screens can find them
+  Future<void> _registerExtractedMap(String slug, String extractedPath) async {
     try {
-      final sentinel = File(p.join(destDir.path, '.download_complete'));
-      await sentinel.writeAsString(DateTime.now().toIso8601String());
-    } catch (_) {
-      // ignorar errores al escribir sentinel
+      final mapsDir = await _ensureMapsDir();
+      final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
+      Map<String, dynamic> index = {};
+      if (await indexFile.exists()) {
+        try {
+          final content = await indexFile.readAsString();
+          if (content.trim().isNotEmpty)
+            index = json.decode(content) as Map<String, dynamic>;
+        } catch (_) {
+          index = {};
+        }
+      }
+      index[slug] = extractedPath;
+      await indexFile.writeAsString(json.encode(index), flush: true);
+    } catch (e) {
+      // non-fatal
+      print('Error registrando ruta extraída: $e');
     }
   }
 
   Future<void> _handleDownload(String departamento) async {
     final url = urls[departamento];
-    if (url == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No hay URL configurada para $departamento')),
-      );
-      return;
-    }
-    // Variables para el diálogo de progreso
-    int received = 0;
-    int totalBytes = 0;
-    int processed = 0;
-    int totalItems = 0;
-    String status = 'Iniciando...';
+    if (url == null) return;
 
-    late void Function(int, int, String) updateDialog;
-
-    // Mostrar diálogo con StatefulBuilder para actualizar progreso
+    // show streaming progress dialog (updates with bytes downloaded)
+    final progressCtrl = StreamController<Map<String, int>>();
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            updateDialog = (r, t, s) {
-              try {
-                setState(() {
-                  received = r;
-                  totalBytes = t;
-                  status = s;
-                });
-              } catch (_) {}
-            };
-
-            double progress = 0.0;
-            if (totalBytes > 0) progress = received / totalBytes;
-
-            double extractProgress = 0.0;
-            if (totalItems > 0) extractProgress = processed / totalItems;
-
-            return AlertDialog(
-              title: Text(status),
-              content: SizedBox(
-                width: 320,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (status.toLowerCase().contains('descarg')) ...[
-                      LinearProgressIndicator(value: progress),
-                      const SizedBox(height: 8),
-                      Text(
-                        totalBytes > 0
-                            ? '${(progress * 100).toStringAsFixed(0)}% - ${_formatBytes(received)}/${_formatBytes(totalBytes)}'
-                            : '${_formatBytes(received)} - descargando...',
-                      ),
-                    ],
-                    if (status.toLowerCase().contains('descompr') ||
-                        status.toLowerCase().contains('extra')) ...[
-                      LinearProgressIndicator(value: extractProgress),
-                      const SizedBox(height: 8),
-                      Text(
-                        totalItems > 0
-                            ? '${(extractProgress * 100).toStringAsFixed(0)}% - $processed/$totalItems archivos'
-                            : 'Construyendo mapa...',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (ctx) => AlertDialog(
+        title: const Text('Descargando...'),
+        content: SizedBox(
+          height: 80,
+          child: StreamBuilder<Map<String, int>>(
+            stream: progressCtrl.stream,
+            builder: (ctx, snap) {
+              final received = snap.data?['r'] ?? 0;
+              final total = snap.data?['t'] ?? 0;
+              final percent = (total > 0) ? (received / total) : null;
+              final receivedMb = (received / 1024 / 1024);
+              final totalMb = (total / 1024 / 1024);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${receivedMb.toStringAsFixed(2)} MB de ${total > 0 ? totalMb.toStringAsFixed(2) : '--'} MB',
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(value: percent),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
 
     try {
-      // Empezar descarga con callback que actualiza el diálogo
-      final zipPath = await _downloadAndSaveZip(url, departamento, (r, t) {
-        // r: bytes recibidos, t: total bytes
-        if (mounted) updateDialog(r, t, 'Descargando...');
-      });
+      final zipPathCandidate = await _zipPathFor(departamento);
+      final f = File(zipPathCandidate);
+      bool proceed = true;
+      if (await f.exists()) {
+        try {
+          final header = await f.openRead(0, 4).first;
+          if (_isZipHeader(header)) {
+            final answer = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Re-descargar'),
+                content: const Text(
+                  'Ya existe un ZIP descargado. ¿Deseas reemplazarlo?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('No'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('Sí'),
+                  ),
+                ],
+              ),
+            );
+            proceed = answer == true;
+          }
+        } catch (_) {}
+      }
 
-      // Extraer con callback que actualiza el diálogo
-      await _extractZipToFolder(zipPath, (proc, tot) {
-        // proc: items procesados, tot: total items
-        processed = proc;
-        totalItems = tot;
-        if (mounted) updateDialog(received, totalBytes, 'Descomprimiendo...');
-      });
+      if (!proceed) {
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
 
-      // Cerrar diálogo
-      if (mounted) Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Descargado y extraído: ${p.basenameWithoutExtension(zipPath)}',
+      try {
+        if (await f.exists()) await f.delete();
+        final extracted = Directory(
+          p.join(
+            p.dirname(zipPathCandidate),
+            p.basenameWithoutExtension(zipPathCandidate),
           ),
-        ),
-      );
+        );
+        if (await extracted.exists()) await extracted.delete(recursive: true);
+      } catch (_) {}
+
+      try {
+        await _downloadAndSaveZip(url, departamento, (r, t) {
+          try {
+            progressCtrl.add({'r': r, 't': t});
+          } catch (_) {}
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Descargado: ${p.basename(zipPathCandidate)}'),
+          ),
+        );
+        setState(() {});
+      } finally {
+        try {
+          if (!progressCtrl.isClosed) await progressCtrl.close();
+        } catch (_) {}
+        if (mounted) Navigator.of(context).pop();
+      }
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error descargando $departamento: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
-  String _formatBytes(int bytes, [int decimals = 1]) {
-    if (bytes <= 0) return '0 B';
-    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var i = (math.log(bytes) / math.log(1024)).floor();
-    final value = bytes / math.pow(1024, i);
-    return '${value.toStringAsFixed(decimals)} ${suffixes[i]}';
+  Future<void> _handleExtract(String departamento) async {
+    try {
+      final zipPath = await _zipPathFor(departamento);
+      final mapsDir = await _ensureMapsDir();
+      final slug = _slug(departamento);
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const AlertDialog(
+          title: Text('Extrayendo...'),
+          content: SizedBox(
+            height: 60,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      );
+
+      if (await File(zipPath).exists()) {
+        // Extract ZIP (isolate) and register the extracted folder for offline use.
+        await _extractZipToFolder(zipPath);
+        final destBase = p.join(
+          p.dirname(zipPath),
+          p.basenameWithoutExtension(zipPath),
+        );
+        // register by slug so viewer can lookup by department
+        await _registerExtractedMap(slug, destBase);
+        if (mounted) Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ZIP extraído y registrado')),
+        );
+        setState(() {});
+        return;
+      }
+
+      final mbPath = p.join(mapsDir.path, '$slug.mbtiles');
+      if (await File(mbPath).exists()) {
+        // Do not open/process MBTiles; just register its path for offline use.
+        await _registerExtractedMap(slug, mbPath);
+        if (mounted) Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('MBTiles registrado (sin procesar)')),
+        );
+        setState(() {});
+        return;
+      }
+
+      if (mounted) Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se encontró ZIP ni MBTiles')),
+      );
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error extrayendo: $e')));
+    }
+  }
+
+  Future<void> _handleImport(String departamento) async {
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip', 'mbtiles'],
+      );
+      if (res == null || res.files.isEmpty) return;
+      final picked = res.files.first;
+      if (picked.path == null) return;
+      final src = File(picked.path!);
+      final mapsDir = await _ensureMapsDir();
+      final slug = _slug(departamento);
+      if ((picked.extension ?? '').toLowerCase() == 'mbtiles') {
+        final dest = File(p.join(mapsDir.path, '$slug.mbtiles'));
+        await src.copy(dest.path);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MBTiles importado')));
+      } else {
+        final dest = File(p.join(mapsDir.path, '$slug.zip'));
+        await src.copy(dest.path);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ZIP importado')));
+      }
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error importando: $e')));
+    }
   }
 
   @override
@@ -266,19 +354,106 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         itemBuilder: (context, index) {
           final d = departamentos[index];
           final hasUrl = urls.containsKey(d);
-          return ListTile(
-            title: Text(d),
-            trailing: IconButton(
-              icon: Icon(hasUrl ? Icons.download : Icons.download_for_offline),
-              color: hasUrl ? const Color(0xFFD6B68A) : Colors.grey,
-              onPressed: hasUrl ? () => _handleDownload(d) : null,
-            ),
-            onTap: () => ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Seleccionado: $d'))),
+          return FutureBuilder<bool>(
+            future: _isZipDownloaded(d),
+            builder: (context, snapZip) {
+              final downloaded = snapZip.data ?? false;
+              return ListTile(
+                title: Text(d),
+                subtitle: Text(
+                  downloaded ? 'Estado: descargado' : 'Estado: no descargado',
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Importar ZIP/MBTiles',
+                      icon: const Icon(Icons.folder_open),
+                      color: const Color(0xFF90A4AE),
+                      onPressed: () => _handleImport(d),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: downloaded ? 'Volver a descargar' : 'Descargar',
+                      icon: const Icon(Icons.download),
+                      color: const Color(0xFFD6B68A),
+                      onPressed: hasUrl ? () => _handleDownload(d) : null,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Extraer',
+                      icon: const Icon(Icons.unarchive),
+                      color: const Color(0xFFD6B68A),
+                      onPressed: () => _handleExtract(d),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),
     );
+  }
+}
+
+Future<List<String>> _extractZipInBackground(String zipPath) async {
+  // Use InputFileStream to avoid loading whole ZIP into memory.
+  final input = InputFileStream(zipPath);
+  try {
+    // basic header check
+    if (input.length < 4) throw FormatException('Archivo no es un ZIP válido');
+    final header = input.readByte();
+    final header2 = input.readByte();
+    if (header != 0x50 || header2 != 0x4B)
+      throw FormatException('Archivo no es un ZIP válido');
+    // rewind
+    input.reset();
+
+    final archive = ZipDecoder().decodeBuffer(input);
+    final destDirPath = p.join(
+      p.dirname(zipPath),
+      p.basenameWithoutExtension(zipPath),
+    );
+    final destDir = Directory(destDirPath);
+    if (await destDir.exists()) await destDir.delete(recursive: true);
+    await destDir.create(recursive: true);
+    final List<String> foundMbtiles = [];
+    final baseName = p.basenameWithoutExtension(zipPath);
+
+    for (final entry in archive) {
+      var entryName = entry.name.replaceAll('\\', '/');
+      final parts = entryName.split('/').where((s) => s.isNotEmpty).toList();
+      if (parts.isNotEmpty && parts.first == baseName)
+        entryName = parts.sublist(1).join('/');
+
+      // sanitize path: prevent ../ escapes
+      final candidate = p.normalize(p.join(destDir.path, entryName));
+      if (!p.isWithin(destDir.path, candidate)) {
+        // skip suspicious entry
+        continue;
+      }
+
+      final outPath = candidate;
+      if (entry.isFile) {
+        final outFile = File(outPath);
+        await outFile.create(recursive: true);
+        final data = entry.content as List<int>;
+        await outFile.writeAsBytes(data);
+        if (outPath.toLowerCase().endsWith('.mbtiles'))
+          foundMbtiles.add(outFile.path);
+      } else {
+        await Directory(outPath).create(recursive: true);
+      }
+    }
+    try {
+      final sentinel = File(p.join(destDir.path, '.download_complete'));
+      await sentinel.writeAsString(DateTime.now().toIso8601String());
+    } catch (_) {}
+    return foundMbtiles;
+  } finally {
+    try {
+      input.close();
+    } catch (_) {}
   }
 }

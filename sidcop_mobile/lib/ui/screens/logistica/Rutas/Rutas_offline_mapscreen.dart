@@ -4,7 +4,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:sqflite/sqflite.dart';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 
@@ -25,6 +29,7 @@ class RutasOfflineMapScreen extends StatefulWidget {
 class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   String? localMapPath;
   String? localTilesPath;
+  String? localMbtilesPath;
   LatLng? tilesCenter;
   double? tilesZoom;
   bool loading = true;
@@ -69,6 +74,16 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       return;
     }
 
+    // Try to find an MBTiles file or registered map index
+    final mb = await _findMbtilesPath(directory);
+    if (mb != null) {
+      setState(() {
+        localMbtilesPath = mb;
+        loading = false;
+      });
+      return;
+    }
+
     // nothing found
     setState(() {
       localMapPath = null;
@@ -82,8 +97,17 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   Future<String?> _findTilesBasePath(Directory documentsDir) async {
     final mapsDir = Directory('${documentsDir.path}/maps');
     if (!await mapsDir.exists()) return null;
-    String slug(String s) =>
-        s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').trim();
+    String slug(String s) {
+      return s
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll('á', 'a')
+          .replaceAll('í', 'i')
+          .replaceAll('ó', 'o')
+          .replaceAll('é', 'e')
+          .replaceAll('ú', 'u')
+          .replaceAll('ñ', 'n');
+    }
 
     if (widget.descripcion != null && widget.descripcion!.isNotEmpty) {
       final candidate = Directory(
@@ -123,6 +147,73 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           // ignore permission/listing errors on specific entries
         }
       }
+    }
+    return null;
+  }
+
+  // Look for a registered MBTiles path via maps_index.json or direct .mbtiles files
+  Future<String?> _findMbtilesPath(Directory documentsDir) async {
+    final mapsDir = Directory('${documentsDir.path}/maps');
+    if (!await mapsDir.exists()) return null;
+
+    // 1) check maps_index.json
+    final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
+    if (await indexFile.exists()) {
+      try {
+        final content = await indexFile.readAsString();
+        if (content.trim().isNotEmpty) {
+          final Map<String, dynamic> idx =
+              json.decode(content) as Map<String, dynamic>;
+          if (widget.descripcion != null) {
+            final slug = widget.descripcion!
+                .toLowerCase()
+                .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                .trim();
+            final mapped = idx[slug];
+            if (mapped is String) {
+              final lower = mapped.toLowerCase();
+              if (lower.endsWith('.mbtiles')) {
+                final f = File(mapped);
+                if (await f.exists()) return mapped;
+              } else {
+                // mapped might be a folder where the zip was extracted; search inside
+                final d = Directory(mapped);
+                if (await d.exists()) {
+                  await for (final found in d.list(recursive: true)) {
+                    if (found is File &&
+                        found.path.toLowerCase().endsWith('.mbtiles'))
+                      return found.path;
+                  }
+                }
+              }
+            }
+          }
+          // fallback: find any mbtiles value
+          for (final v in idx.values) {
+            if (v is String) {
+              final lv = v.toLowerCase();
+              if (lv.endsWith('.mbtiles')) {
+                final f = File(v);
+                if (await f.exists()) return v;
+              } else {
+                final d = Directory(v);
+                if (await d.exists()) {
+                  await for (final found in d.list(recursive: true)) {
+                    if (found is File &&
+                        found.path.toLowerCase().endsWith('.mbtiles'))
+                      return found.path;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2) search maps directory for .mbtiles files
+    await for (final e in mapsDir.list(recursive: true)) {
+      if (e is File && e.path.toLowerCase().endsWith('.mbtiles')) return e.path;
     }
     return null;
   }
@@ -248,36 +339,66 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : localTilesPath != null
-          ? FlutterMap(
-              options: MapOptions(
-                center: LatLng(centerLat, centerLng),
-                zoom: 13.0,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: '{z}/{x}/{y}.png',
-                  tileProvider: LocalFileTileProvider(localTilesPath!),
-                  tileSize: 256,
-                ),
-                MarkerLayer(
-                  markers: markers
-                      .map(
-                        (latlng) => Marker(
-                          point: latlng,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.red,
-                            size: 32,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-            )
+          : (localTilesPath != null || localMbtilesPath != null)
+          ? (localMbtilesPath != null
+                ? FlutterMap(
+                    options: MapOptions(
+                      center: LatLng(centerLat, centerLng),
+                      zoom: 13.0,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: '{z}/{x}/{y}.png',
+                        tileProvider: MbtilesTileProvider(localMbtilesPath!),
+                        tileSize: 256,
+                      ),
+                      MarkerLayer(
+                        markers: markers
+                            .map(
+                              (latlng) => Marker(
+                                point: latlng,
+                                width: 40,
+                                height: 40,
+                                child: const Icon(
+                                  Icons.location_on,
+                                  color: Colors.red,
+                                  size: 32,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  )
+                : FlutterMap(
+                    options: MapOptions(
+                      center: LatLng(centerLat, centerLng),
+                      zoom: 13.0,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: '{z}/{x}/{y}.png',
+                        tileProvider: LocalFileTileProvider(localTilesPath!),
+                        tileSize: 256,
+                      ),
+                      MarkerLayer(
+                        markers: markers
+                            .map(
+                              (latlng) => Marker(
+                                point: latlng,
+                                width: 40,
+                                height: 40,
+                                child: const Icon(
+                                  Icons.location_on,
+                                  color: Colors.red,
+                                  size: 32,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ))
           : Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -521,4 +642,89 @@ class LocalFileTileProvider extends TileProvider {
     ];
     return MemoryImage(Uint8List.fromList(kTransparentImage));
   }
+}
+
+// MBTiles ImageProvider: reads tile_data from tiles table (z, x, y) and returns MemoryImage
+class MbtilesImageProvider extends ImageProvider<MbtilesImageProvider> {
+  final String dbPath;
+  final int z;
+  final int x;
+  final int y;
+
+  MbtilesImageProvider(this.dbPath, this.z, this.x, this.y);
+
+  @override
+  Future<MbtilesImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<MbtilesImageProvider>(this);
+  }
+
+  static final Map<String, Database> _dbCache = {};
+
+  Future<Uint8List?> _loadTileBytes() async {
+    try {
+      var db = _dbCache[dbPath];
+      if (db == null || !db.isOpen) {
+        db = await openReadOnlyDatabase(dbPath);
+        _dbCache[dbPath] = db;
+      }
+      // Try direct (z,x,y)
+      var res = await db.rawQuery(
+        'SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?',
+        [z, x, y],
+      );
+      if (res.isEmpty) {
+        // try TMS flipped row (some MBTiles are TMS)
+        final int pow2z = 1 << z;
+        final int yTms = ((pow2z - 1) - y).toInt();
+        res = await db.rawQuery(
+          'SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?',
+          [z, x, yTms],
+        );
+      }
+      if (res.isNotEmpty && res.first['tile_data'] != null) {
+        final data = res.first['tile_data'];
+        if (data is Uint8List) return data;
+        if (data is List<int>) return Uint8List.fromList(List<int>.from(data));
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  ImageStreamCompleter load(
+    MbtilesImageProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    final future = _loadTileBytes().then<ui.Image>((bytes) async {
+      if (bytes == null) throw StateError('Tile not found');
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    });
+    return OneFrameImageStreamCompleter(
+      future.then((img) => ImageInfo(image: img)),
+    );
+  }
+}
+
+// TileProvider that uses MBTiles database
+class MbtilesTileProvider extends TileProvider {
+  final String dbPath;
+  MbtilesTileProvider(this.dbPath);
+
+  ImageProvider getImage(dynamic coords, dynamic options) {
+    final z = (coords.z ?? coords.z!).toInt();
+    final x = (coords.x ?? coords.x!).toInt();
+    final y = (coords.y ?? coords.y!).toInt();
+    // MBTiles typically use TMS y; tile_row may need conversion depending on MBTiles.
+    // We'll try direct y first; fallback to TMS conversion will be attempted by provider logic (not here).
+    return MbtilesImageProvider(dbPath, z, x, y);
+  }
+}
+
+// Helper to open DB in read-only mode compatible with sqflite
+Future<Database> openReadOnlyDatabase(String path) async {
+  // sqflite doesn't expose a direct readonly flag; openDatabase works for reading.
+  return await openDatabase(path, readOnly: true);
 }
