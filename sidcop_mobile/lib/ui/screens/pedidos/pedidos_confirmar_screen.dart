@@ -928,6 +928,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                     child: Text(
                                       'L. ${(p.precioFinal*p.cantidad + (((p.productoOriginal?.impuValor??0)*p.precioFinal)*p.cantidad) ).toStringAsFixed(2)}',
                                       style: const TextStyle(
+                                        //ward
                                         fontFamily: 'Satoshi',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
