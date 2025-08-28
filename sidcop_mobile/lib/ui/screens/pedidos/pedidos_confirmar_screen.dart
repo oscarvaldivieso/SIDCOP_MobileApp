@@ -483,6 +483,11 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
               // print(p.precioBase);
               print(p.productoOriginal?.toJson());
               print(p.productoOriginal?.prodId);
+              if(p.productoOriginal?.descuentosEscala != null){
+                for(int i = 0; i < p.productoOriginal!.descuentosEscala!.length; i++){
+                  print(p.productoOriginal?.descuentosEscala![i].toJson());
+                }
+              }
               // print(p.productoOriginal?.descuentosEscala?.toJson());
 
               return Card(
@@ -585,12 +590,218 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                         width: 1,
                       ),
                     ),
+                    
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(p.nombre),
-                        Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
-                        Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
+                        // Header con información del producto
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Información del producto
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.nombre ?? 'Producto sin nombre',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF141A2F),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3F4F6),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Código: ${p.prodId ?? 'N/A'}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 11,
+                                        color: Color(0xFF6B7280),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Precio unitario y cantidad
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFF3B82F6), width: 1),
+                                        ),
+                                        child: Text(
+                                          'L. ${p.productoOriginal?.prodPrecioUnitario?.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1D4ED8),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '× ${p.cantidad.toStringAsFixed(p.cantidad.truncateToDouble() == p.cantidad ? 0 : 1)}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Controles de cantidad
+                            Column(
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Botón disminuir cantidad
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (p.cantidad > 1) {
+                                          _actualizarCantidad(index, p.cantidad - 1);
+                                        } 
+                                        else {
+                                          _actualizarCantidad(index, 0);
+                                        }
+                                      },
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF3F4F6),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                                        ),
+                                        child: const Icon(
+                                          Icons.remove,
+                                          size: 18,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      width: 48,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(color: const Color(0xFF141A2F), width: 1.5),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          p.cantidad.toInt().toString(),
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF141A2F),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Botón aumentar cantidad
+                                    GestureDetector(
+                                      onTap: () {
+                                        _actualizarCantidad(index, p.cantidad + 1);
+                                      },
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF141A2F),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.add,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                          
+                          
+                        ), //WARD ROW
+
+                        const SizedBox(height: 16), //WARD
+        
+                        // Separador
+                        Container(
+                          height: 1,
+                          color: const Color(0xFFF0F0F0),
+                        ),
+                        
+                        const SizedBox(height: 16),
+
+                        //calculos
+                          Column(
+                            children: [
+                              // Subtotal
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF6B7280),
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Subtotal',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    'L. ${((p.productoOriginal?.prodPrecioUnitario??0)*p.cantidad).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+
                       ],
                     ),
                   ),

@@ -208,7 +208,8 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     });
     try {
       final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
-      print(productos);
+      print(productos[3].toJson());
+      print(productos[3].descuentosEscala![0].toJson());
       setState(() {
         _productos = productos;
         _filteredProductos = List.from(_productos);
