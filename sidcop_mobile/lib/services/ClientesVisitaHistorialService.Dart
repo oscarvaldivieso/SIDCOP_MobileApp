@@ -123,7 +123,7 @@ class ClientesVisitaHistorialService {
       throw Exception('No se encontró el ID del usuario actual');
     }
 
-    final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/InsertarConImagenes');
+    final url = Uri.parse('$_apiServer/ImagenVisita/Insertar');
     
     final Map<String, dynamic> requestBody = {
       'diCl_Id': diClId,
@@ -225,9 +225,24 @@ class ClientesVisitaHistorialService {
       final vendId = globalVendId;
       if (vendId == null) throw Exception('ID del vendedor no disponible');
 
-      final rutasDelVendedor = await obtenerRutasPorVendedor(vendId);
+      // Obtener rutas con toda la info, no solo ruta_Id
+      final urlRutas = Uri.parse('$_apiServer/Vendedores/ListarPorRutas');
+      final resRutas = await http.get(urlRutas, headers: {
+        'accept': '*/*',
+        'X-Api-Key': _apiKey,
+      });
 
-      final response = await http.get(
+      if (resRutas.statusCode != 200) throw Exception('Error al obtener rutas');
+
+      final List<dynamic> relacionesVendedorRuta = jsonDecode(resRutas.body);
+
+      final rutasDelVendedor = relacionesVendedorRuta
+          .where((item) => item['vend_Id'] == vendId)
+          .toList();
+
+      final rutaIds = rutasDelVendedor.map((e) => e['ruta_Id'] as int).toList();
+
+      final resClientes = await http.get(
         Uri.parse('$_apiServer/Cliente/listar'),
         headers: {
           'accept': '*/*',
@@ -235,19 +250,26 @@ class ClientesVisitaHistorialService {
         },
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> clientes = jsonDecode(response.body);
+      if (resClientes.statusCode != 200) throw Exception('Error al obtener clientes');
 
-        // Filtrar los clientes que tengan una ruta_Id que esté en las rutas del vendedor
-        final clientesFiltrados = clientes.where((cliente) {
-          final rutaId = cliente['ruta_Id'];
-          return rutaId != null && rutasDelVendedor.contains(rutaId);
-        }).toList();
+      final List<dynamic> clientes = jsonDecode(resClientes.body);
 
-        return clientesFiltrados.cast<Map<String, dynamic>>();
-      } else {
-        throw Exception('Error al obtener clientes');
-      }
+      final clientesFiltrados = clientes.where((cliente) {
+        final rutaId = cliente['ruta_Id'];
+        return rutaId != null && rutaIds.contains(rutaId);
+      }).map<Map<String, dynamic>>((cliente) {
+        final rutaId = cliente['ruta_Id'];
+        final relacion = rutasDelVendedor.firstWhere(
+          (rel) => rel['ruta_Id'] == rutaId,
+          orElse: () => {},
+        );
+        return {
+          ...cliente,
+          'veRu_Id': relacion['veRu_Id'] ?? 0, // <-- Aquí agregas el veRu_Id
+        };
+      }).toList();
+
+      return clientesFiltrados;
     } catch (e) {
       developer.log('Error en obtenerClientesPorVendedor: $e');
       rethrow;
@@ -288,5 +310,91 @@ class ClientesVisitaHistorialService {
     }
     
     return imagenesBase64;
+  }
+
+  // 1. Insertar una nueva visita
+  Future<Map<String, dynamic>?> insertarVisita(Map<String, dynamic> visitaData) async {
+    print('Insertando visita con datos: $visitaData');
+    try {
+      final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/Insertar');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+        body: jsonEncode(visitaData),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error al insertar visita: ${response.statusCode}');
+      }
+    } catch (e) {
+      developer.log('Error en insertarVisita: $e');
+      rethrow;
+    }
+  }
+
+  // 2. Obtener la lista de visitas
+  Future<List<dynamic>> obtenerVisitas() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiServer/ClientesVisitaHistorial/Listar'),
+        headers: {'X-Api-Key': _apiKey},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error al obtener visitas: ${response.statusCode}');
+      }
+    } catch (e) {
+      developer.log('Error en obtenerVisitas: $e');
+      rethrow;
+    }
+  }
+
+  // 3. Asociar imagen a una visita
+  Future<bool> asociarImagenAVisita({
+    required int visitaId,
+    required String imagenUrl,
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiServer/ImagenVisita/Insertar'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+        body: jsonEncode({
+          'ImVi_Imagen': imagenUrl,
+          'ClVi_Id': visitaId,
+          'Usua_Creacion': usuarioId,
+          'ImVi_FechaCreacion': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      developer.log('Error en asociarImagenAVisita: $e');
+      return false;
+    }
+  }
+
+  // 4. Obtener la última visita creada
+  Future<Map<String, dynamic>?> obtenerUltimaVisita() async {
+    try {
+      final visitas = await obtenerVisitas();
+      if (visitas.isNotEmpty) {
+        return visitas.first;
+      }
+      return null;
+    } catch (e) {
+      developer.log('Error en obtenerUltimaVisita: $e');
+      return null;
+    }
   }
 }

@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
+import 'package:sidcop_mobile/services/cloudinary_service.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 class VisitaCreateScreen extends StatefulWidget {
   const VisitaCreateScreen({Key? key}) : super(key: key);
@@ -23,8 +28,8 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   final ClientesVisitaHistorialService _visitaService = ClientesVisitaHistorialService();
   
   DateTime? _selectedDate;
-  File? _selectedImage;
-  Uint8List? _selectedImageBytes;
+  List<File> _selectedImages = [];
+  List<Uint8List> _selectedImagesBytes = [];
   bool _isLoading = false;
   bool _isSubmitting = false;
 
@@ -98,27 +103,40 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     }
   }
 
-  Future<void> _seleccionarImagen() async {
+  Future<void> _pickImages() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-          _selectedImageBytes = _selectedImage!.readAsBytesSync();
-        });
+      final List<XFile>? images = await ImagePicker().pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 1000,
+      );
+
+      if (images != null && images.isNotEmpty) {
+        for (var image in images) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedImages.add(File(image.path));
+            _selectedImagesBytes.add(bytes);
+          });
+        }
       }
     } catch (e) {
-      _mostrarError('Error al seleccionar la imagen: $e');
+      _mostrarError('Error al seleccionar imágenes: $e');
     }
   }
 
-  Future<void> _tomarFoto() async {
+  Future<void> _takePhoto() async {
     try {
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      final XFile? photo = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1000,
+      );
+
       if (photo != null) {
+        final bytes = await photo.readAsBytes();
         setState(() {
-          _selectedImage = File(photo.path);
-          _selectedImageBytes = _selectedImage!.readAsBytesSync();
+          _selectedImages.add(File(photo.path));
+          _selectedImagesBytes.add(bytes);
         });
       }
     } catch (e) {
@@ -126,11 +144,127 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     }
   }
 
-  void _eliminarImagen() {
+  void _removeImage(int index) {
     setState(() {
-      _selectedImage = null;
-      _selectedImageBytes = null;
+      _selectedImages.removeAt(index);
+      _selectedImagesBytes.removeAt(index);
     });
+  }
+
+  Future<void> _showImageSourceDialog() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galería de fotos'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImages();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Tomar foto'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _takePhoto();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildImageGrid() {
+    if (_selectedImages.isEmpty) {
+      return GestureDetector(
+        onTap: _showImageSourceDialog,
+        child: Container(
+          height: 150,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_photo_alternate_outlined, size: 40, color: Colors.grey),
+              SizedBox(height: 8),
+              Text('Agregar imágenes de la visita', style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Botón para agregar más imágenes
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _showImageSourceDialog,
+            icon: const Icon(Icons.add_photo_alternate, color: Colors.blue),
+            label: const Text('Agregar más imágenes'),
+          ),
+        ),
+        
+        // Grid de imágenes
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _selectedImages.length,
+          itemBuilder: (context, index) {
+            return Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: kIsWeb 
+                          ? Image.memory(_selectedImagesBytes[index]).image 
+                          : FileImage(_selectedImages[index]) as ImageProvider,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: GestureDetector(
+                    onTap: () => _removeImage(index),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -149,53 +283,142 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedCliente == null ||
-        _selectedDireccion == null ||
+    if (_selectedCliente == null || 
+        _selectedDireccion == null || 
         _selectedEstadoVisita == null) {
       _mostrarError('Por favor complete todos los campos obligatorios');
       return;
     }
 
-    if (_selectedImage == null) {
-      _mostrarError('Debe subir al menos una imagen de la visita');
+    if (_selectedImages.isEmpty) {
+      _mostrarError('Debe subir al menos una imagen');
       return;
     }
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    setState(() => _isSubmitting = true);
 
     try {
-      // Convertir la imagen a base64
-      final imagenBytes = await _selectedImage!.readAsBytes();
-      final imagenBase64 = base64Encode(imagenBytes);
+      // 1. Preparar datos de la visita
+      final now = DateTime.now();
+      final visitaData = {
+        'clVi_Id': 0,
+        'diCl_Id': _selectedDireccion?['diCl_Id'] ?? 0,
+        'diCl_Latitud': 0,
+        'diCl_Longitud': 0,
+        'vend_Id': 0,
+        'vend_Codigo': '',
+        'vend_DNI': '',
+        'vend_Nombres': '',
+        'vend_Apellidos': '',
+        'vend_Telefono': '',
+        'vend_Tipo': '',
+        'vend_Imagen': '',
+        'ruta_Id':0,
+        'ruta_Descripcion': '',
+        'veRu_Id': _selectedCliente?['veRu_Id'],
+        'veRu_Dias': '',
+        'clie_Id': _selectedCliente?['clie_Id'],
+        'clie_Codigo': _selectedCliente?['clie_Codigo'],
+        'clie_Nombres': _selectedCliente?['clie_Nombres'],
+        'clie_Apellidos': _selectedCliente?['clie_Apellidos'],
+        'clie_NombreNegocio': _selectedCliente?['clie_NombreNegocio'],
+        'clie_Telefono': _selectedCliente?['clie_Telefono'],
+        'imVi_Imagen': '',
+        'esVi_Id': _selectedEstadoVisita?['esVi_Id'] ,
+        'esVi_Descripcion': '',
+        'clVi_Observaciones': _observacionesController.text,
+        'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
+        'usua_Creacion': 57,
+        'clVi_FechaCreacion': now.toIso8601String(),
+      };
 
-      // Crear la visita
-      final resultado = await _visitaService.crearVisitaConImagenes(
-        diClId: _selectedDireccion!['diCl_Id'],
-        veRuId: _selectedCliente!['veRu_Id'],
-        clieId: _selectedCliente!['clie_Id'],
-        esViId: _selectedEstadoVisita!['esVi_Id'],
-        clViObservaciones: _observacionesController.text,
-        clViFecha: _selectedDate!,
-        imagenesBase64: [imagenBase64],
-      );
+      // 2. Insertar la visita
+      await _visitaService.insertarVisita(visitaData);
 
+      // 3. Obtener la última visita creada
+      final ultimaVisita = await _visitaService.obtenerUltimaVisita();
+      if (ultimaVisita == null || ultimaVisita['clVi_Id'] == null) {
+        throw Exception('No se pudo obtener el ID de la visita creada');
+      }
+
+      final visitaId = ultimaVisita['clVi_Id'] as int;
+
+      // 4. Subir imágenes a Cloudinary y asociarlas
+      for (final image in _selectedImages) {
+        try {
+          // Subir a Cloudinary
+          final cloudinaryUrl = 'https://api.cloudinary.com/v1_1/dbt7mxrwk/upload';
+          final request = http.MultipartRequest('POST', Uri.parse(cloudinaryUrl));
+          final bytes = await image.readAsBytes();
+          
+          request.files.add(http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: 'visita_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          ));
+          request.fields['upload_preset'] = 'empleados';
+
+          final cloudinaryResponse = await request.send();
+          if (cloudinaryResponse.statusCode == 200) {
+            final responseData = await cloudinaryResponse.stream.bytesToString();
+            final jsonResponse = jsonDecode(responseData);
+            final imageUrl = jsonResponse['secure_url'] as String?;
+
+            if (imageUrl != null) {
+              await _visitaService.asociarImagenAVisita(
+                visitaId: visitaId,
+                imagenUrl: imageUrl,
+                usuarioId: globalVendId!,
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('Error al subir imagen: $e');
+        }
+      }
+
+      // Éxito
       if (mounted) {
-        Navigator.of(context).pop(true); // Retornar éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Visita creada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       _mostrarError('Error al guardar la visita: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
+        setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  Future<int> _getUserId() async {
+    // Implementa la lógica para obtener el ID del usuario actual
+    // Por ejemplo, desde SharedPreferences o tu servicio de autenticación
+    return 1; // Reemplaza con la lógica real
+  }
+
+  Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
+    try {
+      final cloudinaryService = CloudinaryService();
+      if (kIsWeb) {
+        return await cloudinaryService.uploadImageFromBytes(imageBytes);
+      } else {
+        // Crear archivo temporal para subir
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await file.writeAsBytes(imageBytes);
+        return await cloudinaryService.uploadImage(file);
+      }
+    } catch (e) {
+      debugPrint('Error al subir imagen a Cloudinary: $e');
+      return null;
     }
   }
 
@@ -347,49 +570,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                     // Sección de Imagen
                     const Text('Imagen de la Visita *', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    _selectedImage == null
-                        ? Row(
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: _seleccionarImagen,
-                                icon: const Icon(Icons.photo_library),
-                                label: const Text('Galería'),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton.icon(
-                                onPressed: _tomarFoto,
-                                icon: const Icon(Icons.camera_alt),
-                                label: const Text('Cámara'),
-                              ),
-                            ],
-                          )
-                        : Stack(
-                            children: [
-                              Container(
-                                height: 200,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                  image: DecorationImage(
-                                    image: FileImage(_selectedImage!),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: CircleAvatar(
-                                  backgroundColor: Colors.red,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                                    onPressed: _eliminarImagen,
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                    _buildImageGrid(),
                     
                     const SizedBox(height: 24),
                     
