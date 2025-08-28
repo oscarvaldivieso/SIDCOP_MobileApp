@@ -97,69 +97,241 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   void _showPrintOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Seleccione el tipo de impresión',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    isScrollControlled: true,
+    builder: (context) => Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Indicador visual del modal
+          Container(
+            width: 48,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.receipt_long, size: 24),
-                      label: const Text('ORIGINAL'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () {
+          ),
+          const SizedBox(height: 24),
+          
+          // Título con icono
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.print,
+                size: 28,
+                color: Colors.grey.shade700,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Opciones de Impresión',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Satoshi',
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          Text(
+            'Selecciona el tipo de documento a imprimir',
+            style: TextStyle(
+              fontSize: 16,
+              fontFamily: 'Satoshi',
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // Botones de opciones
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8.0),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
                         Navigator.pop(context);
                         _printInvoice(isOriginal: true);
                       },
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade600, Colors.blue.shade700],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.shade200.withOpacity(0.5),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.receipt_long,
+                                size: 28,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'ORIGINAL',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Satoshi',
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Documento oficial',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'Satoshi',
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.copy, size: 24),
-                      label: const Text('COPIA'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.grey.shade600,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () {
+              ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(left: 8.0),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
                         Navigator.pop(context);
                         _printInvoice(isOriginal: false);
                       },
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.grey.shade500, Colors.grey.shade600],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.shade300.withOpacity(0.5),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.content_copy,
+                                size: 28,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'COPIA',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Satoshi',
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Para archivo',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'Satoshi',
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextButton(
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          
+          // Botón de cancelar
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCELAR'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'CANCELAR',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Satoshi',
+                  color: Colors.grey.shade600,
+                ),
+              ),
             ),
-          ],
-        ),
+          ),
+          
+          // Espacio adicional para dispositivos con notch
+          SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 8),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _printInvoice({required bool isOriginal}) async {
     if (_facturaData == null) return;
