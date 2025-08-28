@@ -1,19 +1,83 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
+import 'package:sidcop_mobile/services/printer_service.dart';
 
-class PedidoDetalleBottomSheet extends StatelessWidget {
+class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
   const PedidoDetalleBottomSheet({super.key, required this.pedido});
+
+  @override
+  State<PedidoDetalleBottomSheet> createState() => _PedidoDetalleBottomSheetState();
+}
+
+class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
+  final PrinterService _printerService = PrinterService();
+  bool _isPrinting = false;
 
   Color get _primaryColor => const Color(0xFF141A2F);
   Color get _goldColor => const Color(0xFFE0C7A0);
   Color get _surfaceColor => const Color(0xFFF8FAFC);
   Color get _borderColor => const Color(0xFFE2E8F0);
 
+  Future<void> _printInvoice() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isPrinting = true;
+    });
+
+    try {
+      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
+      if (selectedDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Impresión cancelada'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
+
+      final connected = await _printerService.connect(selectedDevice);
+      if (!connected) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error al conectar con la impresora'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      final printSuccess = await _printerService.printPedido(widget.pedido); 
+
+      await _printerService.disconnect();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(printSuccess ? 'Pedido impreso exitosamente' : 'Error al imprimir el pedido'),
+            backgroundColor: printSuccess ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al imprimir: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
+        });
+      }
+    }
+  }
+
   @override
 Widget build(BuildContext context) {
-  final List<dynamic> detalles = _parseDetalles(pedido.detallesJson);
+  final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
   return DraggableScrollableSheet(
     initialChildSize: 0.75,
     minChildSize: 0.5,
@@ -44,6 +108,19 @@ Widget build(BuildContext context) {
                     ),
                   ),
                 ),
+                if (_isPrinting)
+                  const SizedBox(
+                    width: 24, 
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5)
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.print_outlined, color: Colors.black54),
+                    onPressed: _printInvoice,
+                    tooltip: 'Imprimir Pedido',
+                  ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.black54),
                   onPressed: () => Navigator.pop(context),
@@ -54,7 +131,7 @@ Widget build(BuildContext context) {
             _buildInfoCard(
               icon: Icons.store,
               title: 'Negocio',
-              value: pedido.clieNombreNegocio ?? '-',
+              value: widget.pedido.clieNombreNegocio ?? '-',
               color: _goldColor,
             ),
             const SizedBox(height: 12),
@@ -64,7 +141,7 @@ Widget build(BuildContext context) {
                   child: _buildInfoCard(
                     icon: Icons.event,
                     title: 'Pedido',
-                    value: _formatFecha(pedido.pediFechaPedido),
+                    value: _formatFecha(widget.pedido.pediFechaPedido),
                     color: _primaryColor,
                   ),
                 ),
@@ -73,7 +150,7 @@ Widget build(BuildContext context) {
                   child: _buildInfoCard(
                     icon: Icons.local_shipping,
                     title: 'Entrega',
-                    value: _formatFecha(pedido.pediFechaEntrega),
+                    value: _formatFecha(widget.pedido.pediFechaEntrega),
                     color: Colors.green.shade700,
                   ),
                 ),
@@ -90,7 +167,7 @@ Widget build(BuildContext context) {
             ),
             const SizedBox(height: 8),
             detalles.isEmpty
-                ? const Text('No hay productos en este pedido.')
+                ? const Text('No hay productos en este widget.pedido.')
                 : Expanded(
                     child: ListView.separated(
                       controller: scrollController,

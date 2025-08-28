@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/add_address_screen.dart';
 import 'package:sidcop_mobile/services/cloudinary_service.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
@@ -13,6 +15,7 @@ import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -62,6 +65,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final _telefonoController = TextEditingController();
   final _rtnController = TextEditingController();
   final List<DireccionCliente> _direcciones = [];
+  int? usuaIdPersona;
+  int? rutaId;
+
 
 
     var MKTelefono = new MaskTextInputFormatter(
@@ -87,6 +93,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   String? _telefonoError;
 
   @override
+  void initState() {
+    super.initState();
+    _loadAllClientData();
+  }
+  @override
   void dispose() {
     _nombresController.dispose();
     _apellidosController.dispose();
@@ -94,6 +105,69 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     _nombreNegocioController.dispose();
     super.dispose();
   }
+
+    Future<void> _loadAllClientData() async {
+
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+    
+    // Extraer rutasDelDiaJson y Ruta_Id
+    final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
+    
+    if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+      try {
+        final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
+        print('DEBUG: rutasDelDiaJson parseado = $rutasList');
+        
+        // Obtener el primer elemento de la lista de rutas y extraer Ruta_Id
+        if (rutasList.isNotEmpty) {
+          rutaId = rutasList[0]['Ruta_Id'] as int?;
+        }
+      } catch (e) {
+        print('ERROR al parsear rutasDelDiaJson: $e');
+      }
+    }
+    
+    print('DEBUG: rutaId = $rutaId');
+
+    usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    List<dynamic> clientes = [];
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+    } else if (esAdmin) {
+      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
+      try {
+        clientes = await SyncService.getClients();
+        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+      } catch (e) {
+        print('DEBUG: Error obteniendo clientes para admin: $e');
+        clientes = [];
+      }
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      clientes = await SyncService.getClients();
+      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
+    }
+    }
 
   bool _validateFields() {
     setState(() {
@@ -235,7 +309,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         ).toIso8601String(), // Default value
         'cana_Id': 1, // Default value
         'esCv_Id': 1, // Default value
-        'ruta_Id': 1, // Default value, should be selected from UI
+        'ruta_Id': rutaId, // Default value, should be selected from UI
         'clie_LimiteCredito': 0, // Default value
         'clie_DiasCredito': 0, // Default value
         'clie_Saldo': 0, // Default value
@@ -245,7 +319,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Confirmacion': false,
         'TiVi_Id': 1, // Default value
         'Clie_Nacionalidad': 'HND', // Default value
-        'usua_Creacion': 1, // TODO: Replace with actual user ID
+        'usua_Creacion': usuaIdPersona, // TODO: Replace with actual user ID
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
         'clie_Estado': true,
       };
