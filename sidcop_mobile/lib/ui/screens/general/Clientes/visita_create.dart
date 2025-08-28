@@ -12,6 +12,26 @@ import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
 import 'package:sidcop_mobile/services/cloudinary_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+
+final TextStyle _titleStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+);
+
+// Text style constants for consistent typography
+final TextStyle _labelStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+);
+
+final TextStyle _hintStyle = const TextStyle(
+  fontFamily: 'Satoshi',
+  color: Colors.grey,
+);
 
 class VisitaCreateScreen extends StatefulWidget {
   const VisitaCreateScreen({Key? key}) : super(key: key);
@@ -181,32 +201,110 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     );
   }
 
-  Widget _buildImageGrid() {
-    if (_selectedImages.isEmpty) {
-      return GestureDetector(
-        onTap: _showImageSourceDialog,
-        child: Container(
-          height: 150,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_photo_alternate_outlined, size: 40, color: Colors.grey),
-              SizedBox(height: 8),
-              Text('Agregar imágenes de la visita', style: TextStyle(color: Colors.grey)),
-            ],
-          ),
-        ),
-      );
-    }
+  Widget _buildImageField() {
+    final hasImages = _selectedImages.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Botón para agregar más imágenes
+        GestureDetector(
+          onTap: _showImageSourceDialog,
+          child: Container(
+            height: 150,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: hasImages
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: kIsWeb
+                        ? Image.memory(
+                            _selectedImagesBytes.first,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          )
+                        : Image.file(
+                            _selectedImages.first,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          ),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text(
+                        'Toca para seleccionar una imagen',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+
+        if (hasImages) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Imágenes seleccionadas (${_selectedImages.length}):',
+            style: _hintStyle.copyWith(fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+
+          // Miniaturas de imágenes
+          SizedBox(
+            height: 80,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _selectedImages.length,
+              itemBuilder: (context, index) {
+                return Stack(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: kIsWeb
+                          ? Image.memory(
+                              _selectedImagesBytes[index],
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.file(
+                              _selectedImages[index],
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () => _removeImage(index),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -215,57 +313,10 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             label: const Text('Agregar más imágenes'),
           ),
         ),
-        
-        // Grid de imágenes
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          itemCount: _selectedImages.length,
-          itemBuilder: (context, index) {
-            return Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: kIsWeb 
-                          ? Image.memory(_selectedImagesBytes[index]).image 
-                          : FileImage(_selectedImages[index]) as ImageProvider,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: GestureDetector(
-                    onTap: () => _removeImage(index),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
       ],
-    );
-  }
+    ],
+  );
+}
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -328,7 +379,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
         'imVi_Imagen': '',
         'esVi_Id': _selectedEstadoVisita?['esVi_Id'] ,
         'esVi_Descripcion': '',
-        'clVi_Observaciones': _observacionesController.text,
+        'clVi_Observaciones': _observacionesController.text.isNotEmpty ? _observacionesController.text : 'N/A',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
         'usua_Creacion': 57,
         'clVi_FechaCreacion': now.toIso8601String(),
@@ -398,12 +449,6 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     }
   }
 
-  Future<int> _getUserId() async {
-    // Implementa la lógica para obtener el ID del usuario actual
-    // Por ejemplo, desde SharedPreferences o tu servicio de autenticación
-    return 1; // Reemplaza con la lógica real
-  }
-
   Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
     try {
       final cloudinaryService = CloudinaryService();
@@ -435,17 +480,10 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nueva Visita'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _isSubmitting ? null : _submitForm,
-          ),
-        ],
-      ),
-      body: _isLoading
+    return AppBackground(
+      title: 'Nueva Visita',
+      icon: Icons.location_history,
+      child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -454,35 +492,152 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios,
+                            size: 20,
+                            color: Color(0xFF141A2F),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        Text(
+                          'Regresar',
+                          style: _titleStyle.copyWith(fontSize: 18),
+                        ),
+                      ],
+                    ),
                     // Dropdown de Cliente
-                    const Text('Cliente *', style: TextStyle(fontWeight: FontWeight.bold)),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: _selectedCliente,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: _clientes.map((cliente) {
-                        return DropdownMenuItem<Map<String, dynamic>>(
-                          value: cliente,
-                          child: Text(
-                            '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']} - ${cliente['clie_NombreNegocio']}',
-                            overflow: TextOverflow.ellipsis,
+                    Text('Cliente *', style: _labelStyle.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    RawAutocomplete<Map<String, dynamic>>(
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          return _clientes;
+                        }
+                        final searchValue = textEditingValue.text.toLowerCase();
+                        return _clientes.where((cliente) {
+                          return (cliente['clie_Nombres']?.toLowerCase().contains(searchValue) ?? false) ||
+                                (cliente['clie_Apellidos']?.toLowerCase().contains(searchValue) ?? false) ||
+                                (cliente['clie_NombreNegocio']?.toLowerCase().contains(searchValue) ?? false) ||
+                                (cliente['clie_Codigo']?.toLowerCase().contains(searchValue) ?? false);
+                        });
+                      },
+                      displayStringForOption: (Map<String, dynamic> cliente) =>
+                          '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
+                      fieldViewBuilder: (
+                        BuildContext context,
+                        TextEditingController textEditingController,
+                        FocusNode focusNode,
+                        VoidCallback onFieldSubmitted,
+                      ) {
+                        if (_selectedCliente == null) {
+                          textEditingController.clear();
+                        } else {
+                          textEditingController.text =
+                              '${_selectedCliente!['clie_Nombres']} ${_selectedCliente!['clie_Apellidos']}';
+                        }
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.white,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          child: TextFormField(
+                            controller: textEditingController,
+                            focusNode: focusNode,
+                            style: _labelStyle,
+                            decoration: InputDecoration(
+                              hintText: 'Buscar cliente...',
+                              hintStyle: _hintStyle,
+                              border: InputBorder.none,
+                              suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onTap: () {
+                              if (_selectedCliente != null) {
+                                setState(() {
+                                  _selectedCliente = null;
+                                  _selectedDireccion = null;
+                                  _direcciones = [];
+                                  textEditingController.clear();
+                                });
+                              }
+                            },
+                            validator: (value) => _selectedCliente == null ? 'Seleccione un cliente' : null,
                           ),
                         );
-                      }).toList(),
-                      onChanged: (value) async {
-                        if (value != null) {
-                          setState(() {
-                            _selectedCliente = value;
-                            _selectedDireccion = null;
-                          });
-                          await _cargarDireccionesCliente(value['clie_Id']);
-                        }
                       },
-                      validator: (value) => value == null ? 'Seleccione un cliente' : null,
+                      optionsViewBuilder: (
+                        BuildContext context,
+                        AutocompleteOnSelected<Map<String, dynamic>> onSelected,
+                        Iterable<Map<String, dynamic>> options,
+                      ) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4.0,
+                            child: Container(
+                              width: MediaQuery.of(context).size.width * 0.9,
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                itemCount: options.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final option = options.elementAt(index);
+                                  return InkWell(
+                                    onTap: () async {
+                                      onSelected(option);
+                                      setState(() {
+                                        _selectedCliente = option;
+                                        _selectedDireccion = null;
+                                      });
+                                      await _cargarDireccionesCliente(option['clie_Id']);
+                                    },
+                                    child: ListTile(
+                                      title: Text(
+                                        '${option['clie_Nombres']} ${option['clie_Apellidos']}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        option['clie_NombreNegocio'] ?? 'Sin negocio',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      onSelected: (Map<String, dynamic> selection) async {
+                        setState(() {
+                          _selectedCliente = selection;
+                          _selectedDireccion = null;
+                        });
+                        await _cargarDireccionesCliente(selection['clie_Id']);
+                      },
                     ),
-                    
+                    if (_selectedCliente != null) ...[
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: Text(
+                          _selectedCliente!['clie_NombreNegocio']?.isNotEmpty == true
+                              ? _selectedCliente!['clie_NombreNegocio']
+                              : 'Sin negocio registrado',
+                          style: _hintStyle.copyWith(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],                    
                     const SizedBox(height: 16),
                     
                     // Dropdown de Dirección
@@ -569,31 +724,18 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                     
                     // Sección de Imagen
                     const Text('Imagen de la Visita *', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    _buildImageGrid(),
+                    const SizedBox(height: 15),
+                    _buildImageField(),
                     
                     const SizedBox(height: 24),
                     
                     // Botón Guardar
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submitForm,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          textStyle: const TextStyle(fontSize: 16),
-                        ),
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text('GUARDAR VISITA'),
-                      ),
+                    CustomButton(
+                      text: 'Guardar Visita',
+                      onPressed: _submitForm,
+                      height: 56,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ],
                 ),
