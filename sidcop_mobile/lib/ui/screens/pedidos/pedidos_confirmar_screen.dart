@@ -482,7 +482,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
               // print(p.precioFinal);
               // print(p.precioBase);
               print(p.productoOriginal?.toJson());
-              print(p.productoOriginal?.prodId);
+              print(p.productoOriginal?.prodPagaImpuesto);
               if(p.productoOriginal?.descuentosEscala != null){
                 for(int i = 0; i < p.productoOriginal!.descuentosEscala!.length; i++){
                   print(p.productoOriginal?.descuentosEscala![i].toJson());
@@ -798,6 +798,147 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                   ),
                                 ],
                               ),
+
+                              // Descuento (si aplica)
+                              if (p.precioFinal != (p.productoOriginal?.prodPrecioUnitario??0)) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 4,
+                                          height: 16,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981),
+                                            borderRadius: BorderRadius.circular(2),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Descuento L. (${((p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal).toStringAsFixed(0)})',
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF374151),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      '-L. ${(((p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal)*p.cantidad).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF374151),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
+                              const SizedBox(height: 8),
+            
+                              // ISV
+                              
+                              if((p.productoOriginal?.prodPagaImpuesto??"N") == "S")
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFF374151),
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'ISV (${(((p.productoOriginal?.impuValor??0)*100).toInt()).toStringAsFixed(0)}%)',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '+L. ${(((p.productoOriginal?.impuValor??0)*p.precioFinal)*p.cantidad).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 12),
+            
+                              // Separador para el total
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFE5E7EB),
+                              ),
+                              
+                              const SizedBox(height: 12),
+
+                              // Total del producto
+                              
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF141A2F),
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Total producto',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF141A2F),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF141A2F),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'L. ${(p.precioFinal*p.cantidad + (((p.productoOriginal?.impuValor??0)*p.precioFinal)*p.cantidad) ).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+
                             ],
                           ),
 

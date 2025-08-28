@@ -279,6 +279,15 @@ class DescEspecificacionesModel {
     required this.descTipoFactura,
   });
 
+  Map<String, dynamic> toJson() {
+    return {
+      'Desc_Id': descId,
+      'Desc_Aplicar': descAplicar,
+      'Desc_Tipo': descTipo,
+      'Desc_TipoFactura': descTipoFactura,
+    };
+  }
+
   factory DescEspecificacionesModel.fromJson(Map<String, dynamic> json) {
     return DescEspecificacionesModel(
       descId: json['Desc_Id'],
