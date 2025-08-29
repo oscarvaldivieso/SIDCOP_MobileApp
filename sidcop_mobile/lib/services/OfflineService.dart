@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 /// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
@@ -324,6 +325,65 @@ class RutasScreenOffline {
     }
   }
 
+  /// Sincroniza el historial de visitas (ClientesVisitaHistorialService.listar)
+  /// y lo guarda en 'visitas_historial.json'.
+  static Future<List<dynamic>> sincronizarVisitasHistorial() async {
+    try {
+      final servicio = ClientesVisitaHistorialService();
+      final data = await servicio.listar();
+      await guardarJson('visitas_historial.json', data);
+      return data as List<dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Guarda manualmente una lista de visitas en el almacenamiento local (secure storage).
+  static Future<void> guardarVisitasHistorial(List<dynamic> visitas) async {
+    await guardarJson('visitas_historial.json', visitas);
+  }
+
+  /// Lee el historial de visitas almacenado localmente o devuelve lista vacía.
+  static Future<List<dynamic>> obtenerVisitasHistorialLocal() async {
+    final raw = await leerJson('visitas_historial.json');
+    if (raw == null) return [];
+    return List.from(raw as List);
+  }
+
+  /// Wrapper que fuerza lectura/sincronización remota para visitas (si se necesita).
+  static Future<List<dynamic>> leerVisitasHistorial() async {
+    return await sincronizarVisitasHistorial();
+  }
+
+  /// Sincroniza vendedores_por_rutas (VendedoresService.listarPorRutas) y guarda en 'vendedores_por_rutas.json'.
+  static Future<List<dynamic>> sincronizarVendedoresPorRutas() async {
+    try {
+      final servicio = VendedoresService();
+      final data = await servicio.listarPorRutas();
+      await guardarJson('vendedores_por_rutas.json', data);
+      return data as List<dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Guarda manualmente la estructura de vendedores por rutas.
+  static Future<void> guardarVendedoresPorRutas(List<dynamic> datos) async {
+    await guardarJson('vendedores_por_rutas.json', datos);
+  }
+
+  /// Lee vendedores por rutas desde almacenamiento local.
+  static Future<List<dynamic>> obtenerVendedoresPorRutasLocal() async {
+    final raw = await leerJson('vendedores_por_rutas.json');
+    if (raw == null) return [];
+    return List.from(raw as List);
+  }
+
+  /// Wrapper para forzar lectura remota
+  static Future<List<dynamic>> leerVendedoresPorRutas() async {
+    return await sincronizarVendedoresPorRutas();
+  }
+
   /// Sincroniza la lista de vendedores (útil para filtros/permisos) y la guarda en 'vendedores.json'.
   static Future<List<dynamic>> sincronizarVendedores() async {
     try {
@@ -495,5 +555,3 @@ class RutasScreenOffline {
     return await RutasScreenOffline.leerVendedores();
   }
 }
-
-class RutasMap_Offline {}
