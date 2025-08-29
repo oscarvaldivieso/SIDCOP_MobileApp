@@ -426,6 +426,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             final uploadData = jsonDecode(responseData) as Map<String, dynamic>;
             final String rutaImagen = uploadData['ruta'];
             
+            print('rutaImagen: $rutaImagen');
             // 4.2 Asociar la imagen a la visita usando /ImagenVisita/Insertar
             await _visitaService.asociarImagenAVisita(
               visitaId: visitaId,
