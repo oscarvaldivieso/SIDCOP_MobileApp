@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:archive/archive.dart';
-import 'package:archive/archive_io.dart';
+// archive package removed: we no longer extract ZIPs on-device; we download raw .mbtiles
 import 'package:path/path.dart' as p;
 // dart:math removed (not used)
 import 'dart:convert';
@@ -21,21 +20,21 @@ class RutasDescargasScreen extends StatefulWidget {
 class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
   final List<String> departamentos = const ['Honduras'];
 
+  // Original URL points to a ZIP; we will try to replace .zip -> .mbtiles when downloading
   final Map<String, String> urls = {
-    'Honduras': 'http://200.59.27.115/Honduras_map/Mapa.zip',
+    'Honduras':
+        'http://200.59.27.115/Honduras_map/mapa_honduras_2025-08-27_180657.mbtiles',
   };
 
-  String _slug(String departamento) {
-    return departamento
-        .toLowerCase()
-        .replaceAll(' ', '_')
-        .replaceAll('á', 'a')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('é', 'e')
-        .replaceAll('ú', 'u')
-        .replaceAll('ñ', 'n');
-  }
+  String _slug(String departamento) => departamento
+      .toLowerCase()
+      .replaceAll(' ', '_')
+      .replaceAll('á', 'a')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('é', 'e')
+      .replaceAll('ú', 'u')
+      .replaceAll('ñ', 'n');
 
   Future<Directory> _ensureMapsDir() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -44,35 +43,27 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     return mapsDir;
   }
 
-  bool _isZipHeader(List<int> bytes) =>
-      bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B;
-
-  Future<String> _zipPathFor(String departamento) async {
+  Future<String> _mbtilesPathFor(String departamento) async {
     final mapsDir = await _ensureMapsDir();
     final slug = _slug(departamento);
-    return p.join(mapsDir.path, '$slug.zip');
+    return p.join(mapsDir.path, '$slug.mbtiles');
   }
 
-  Future<bool> _isZipDownloaded(String departamento) async {
-    final path = await _zipPathFor(departamento);
-    final f = File(path);
-    if (!await f.exists()) return false;
-    try {
-      final header = await f.openRead(0, 4).first;
-      return _isZipHeader(header);
-    } catch (_) {
-      return false;
-    }
+  Future<bool> _isMbtilesDownloaded(String departamento) async {
+    final path = await _mbtilesPathFor(departamento);
+    return await File(path).exists();
   }
 
-  Future<String> _downloadAndSaveZip(
+  // Stream download .mbtiles to disk (tmp -> rename)
+  Future<String> _downloadAndSaveMbtiles(
     String url,
     String departamento,
     void Function(int, int) onProgress,
   ) async {
     final mapsDir = await _ensureMapsDir();
     final slug = _slug(departamento);
-    final zipPath = p.join(mapsDir.path, '$slug.zip');
+    final finalPath = p.join(mapsDir.path, '$slug.mbtiles');
+    final tmpPath = '$finalPath.tmp';
 
     final client = http.Client();
     final req = http.Request('GET', Uri.parse(url));
@@ -83,7 +74,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     }
 
     final contentLength = resp.contentLength ?? 0;
-    final sink = File(zipPath).openWrite();
+    final sink = File(tmpPath).openWrite();
     int received = 0;
     await for (final chunk in resp.stream) {
       sink.add(chunk);
@@ -95,27 +86,20 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     await sink.close();
     client.close();
 
-    final header = await File(zipPath).openRead(0, 4).first;
-    if (!_isZipHeader(header)) {
-      final r2 = await http.get(
-        Uri.parse(url),
-        headers: {'User-Agent': 'Mozilla/5.0'},
-      );
-      if (r2.statusCode == 200 && _isZipHeader(r2.bodyBytes)) {
-        await File(zipPath).writeAsBytes(r2.bodyBytes, flush: true);
-        return zipPath;
-      }
-      throw Exception('El recurso descargado no es un ZIP válido');
+    // rename
+    try {
+      await File(tmpPath).rename(finalPath);
+    } catch (_) {
+      await File(tmpPath).copy(finalPath);
+      try {
+        await File(tmpPath).delete();
+      } catch (_) {}
     }
-    return zipPath;
+
+    return finalPath;
   }
 
-  Future<List<String>> _extractZipToFolder(String zipPath) async {
-    return compute(_extractZipInBackground, zipPath);
-  }
-
-  // Register extracted map paths in maps/maps_index.json so other screens can find them
-  Future<void> _registerExtractedMap(String slug, String extractedPath) async {
+  Future<void> _registerMbtiles(String slug, String path) async {
     try {
       final mapsDir = await _ensureMapsDir();
       final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
@@ -129,11 +113,10 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
           index = {};
         }
       }
-      index[slug] = extractedPath;
+      index[slug] = path;
       await indexFile.writeAsString(json.encode(index), flush: true);
     } catch (e) {
-      // non-fatal
-      print('Error registrando ruta extraída: $e');
+      print('Error registrando MBTiles: $e');
     }
   }
 
@@ -141,7 +124,6 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     final url = urls[departamento];
     if (url == null) return;
 
-    // show streaming progress dialog (updates with bytes downloaded)
     final progressCtrl = StreamController<Map<String, int>>();
     showDialog(
       context: context,
@@ -176,35 +158,30 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     );
 
     try {
-      final zipPathCandidate = await _zipPathFor(departamento);
-      final f = File(zipPathCandidate);
+      final mbPath = await _mbtilesPathFor(departamento);
+      final f = File(mbPath);
       bool proceed = true;
       if (await f.exists()) {
-        try {
-          final header = await f.openRead(0, 4).first;
-          if (_isZipHeader(header)) {
-            final answer = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Re-descargar'),
-                content: const Text(
-                  'Ya existe un ZIP descargado. ¿Deseas reemplazarlo?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: const Text('No'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(true),
-                    child: const Text('Sí'),
-                  ),
-                ],
+        final answer = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Re-descargar'),
+            content: const Text(
+              'Ya existe un MBTiles descargado. ¿Deseas reemplazarlo?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('No'),
               ),
-            );
-            proceed = answer == true;
-          }
-        } catch (_) {}
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Sí'),
+              ),
+            ],
+          ),
+        );
+        proceed = answer == true;
       }
 
       if (!proceed) {
@@ -214,25 +191,23 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
 
       try {
         if (await f.exists()) await f.delete();
-        final extracted = Directory(
-          p.join(
-            p.dirname(zipPathCandidate),
-            p.basenameWithoutExtension(zipPathCandidate),
-          ),
-        );
-        if (await extracted.exists()) await extracted.delete(recursive: true);
       } catch (_) {}
 
       try {
-        await _downloadAndSaveZip(url, departamento, (r, t) {
-          try {
-            progressCtrl.add({'r': r, 't': t});
-          } catch (_) {}
-        });
+        final guessedMbUrl = url.endsWith('.zip')
+            ? url.replaceAllMapped(RegExp(r'\.zip\$'), (m) => '.mbtiles')
+            : url;
+        final savedPath = await _downloadAndSaveMbtiles(
+          guessedMbUrl,
+          departamento,
+          (r, t) {
+            try {
+              progressCtrl.add({'r': r, 't': t});
+            } catch (_) {}
+          },
+        );
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Descargado: ${p.basename(zipPathCandidate)}'),
-          ),
+          SnackBar(content: Text('Descargado: ${p.basename(savedPath)}')),
         );
         setState(() {});
       } finally {
@@ -250,16 +225,17 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
   }
 
   Future<void> _handleExtract(String departamento) async {
+    // In the new flow 'Extraer' will attempt to register existing MBTiles or download it raw
     try {
-      final zipPath = await _zipPathFor(departamento);
       final mapsDir = await _ensureMapsDir();
       final slug = _slug(departamento);
+      final mbPath = p.join(mapsDir.path, '$slug.mbtiles');
 
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => const AlertDialog(
-          title: Text('Extrayendo...'),
+          title: Text('Obteniendo MBTiles...'),
           content: SizedBox(
             height: 60,
             child: Center(child: CircularProgressIndicator()),
@@ -267,44 +243,48 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         ),
       );
 
-      if (await File(zipPath).exists()) {
-        // Extract ZIP (isolate) and register the extracted folder for offline use.
-        await _extractZipToFolder(zipPath);
-        final destBase = p.join(
-          p.dirname(zipPath),
-          p.basenameWithoutExtension(zipPath),
-        );
-        // register by slug so viewer can lookup by department
-        await _registerExtractedMap(slug, destBase);
+      if (await File(mbPath).exists()) {
+        await _registerMbtiles(slug, mbPath);
         if (mounted) Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ZIP extraído y registrado')),
+          const SnackBar(content: Text('MBTiles registrado (local)')),
         );
         setState(() {});
         return;
       }
 
-      final mbPath = p.join(mapsDir.path, '$slug.mbtiles');
-      if (await File(mbPath).exists()) {
-        // Do not open/process MBTiles; just register its path for offline use.
-        await _registerExtractedMap(slug, mbPath);
-        if (mounted) Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('MBTiles registrado (sin procesar)')),
-        );
-        setState(() {});
-        return;
+      final url = urls[departamento];
+      if (url != null) {
+        final guessedMbUrl = url.endsWith('.zip')
+            ? url.replaceAllMapped(RegExp(r'\.zip\$'), (m) => '.mbtiles')
+            : url;
+        try {
+          await _downloadAndSaveMbtiles(guessedMbUrl, departamento, (r, t) {});
+          await _registerMbtiles(slug, mbPath);
+          if (mounted) Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('MBTiles descargado y registrado')),
+          );
+          setState(() {});
+          return;
+        } catch (e) {
+          print('Error descargando MBTiles: $e');
+        }
       }
 
       if (mounted) Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se encontró ZIP ni MBTiles')),
+        const SnackBar(
+          content: Text(
+            'No se encontró MBTiles local ni fue posible descargarlo',
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error extrayendo: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -355,7 +335,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
           final d = departamentos[index];
           final hasUrl = urls.containsKey(d);
           return FutureBuilder<bool>(
-            future: _isZipDownloaded(d),
+            future: _isMbtilesDownloaded(d),
             builder: (context, snapZip) {
               final downloaded = snapZip.data ?? false;
               return ListTile(
@@ -394,66 +374,5 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         },
       ),
     );
-  }
-}
-
-Future<List<String>> _extractZipInBackground(String zipPath) async {
-  // Use InputFileStream to avoid loading whole ZIP into memory.
-  final input = InputFileStream(zipPath);
-  try {
-    // basic header check
-    if (input.length < 4) throw FormatException('Archivo no es un ZIP válido');
-    final header = input.readByte();
-    final header2 = input.readByte();
-    if (header != 0x50 || header2 != 0x4B)
-      throw FormatException('Archivo no es un ZIP válido');
-    // rewind
-    input.reset();
-
-    final archive = ZipDecoder().decodeBuffer(input);
-    final destDirPath = p.join(
-      p.dirname(zipPath),
-      p.basenameWithoutExtension(zipPath),
-    );
-    final destDir = Directory(destDirPath);
-    if (await destDir.exists()) await destDir.delete(recursive: true);
-    await destDir.create(recursive: true);
-    final List<String> foundMbtiles = [];
-    final baseName = p.basenameWithoutExtension(zipPath);
-
-    for (final entry in archive) {
-      var entryName = entry.name.replaceAll('\\', '/');
-      final parts = entryName.split('/').where((s) => s.isNotEmpty).toList();
-      if (parts.isNotEmpty && parts.first == baseName)
-        entryName = parts.sublist(1).join('/');
-
-      // sanitize path: prevent ../ escapes
-      final candidate = p.normalize(p.join(destDir.path, entryName));
-      if (!p.isWithin(destDir.path, candidate)) {
-        // skip suspicious entry
-        continue;
-      }
-
-      final outPath = candidate;
-      if (entry.isFile) {
-        final outFile = File(outPath);
-        await outFile.create(recursive: true);
-        final data = entry.content as List<int>;
-        await outFile.writeAsBytes(data);
-        if (outPath.toLowerCase().endsWith('.mbtiles'))
-          foundMbtiles.add(outFile.path);
-      } else {
-        await Directory(outPath).create(recursive: true);
-      }
-    }
-    try {
-      final sentinel = File(p.join(destDir.path, '.download_complete'));
-      await sentinel.writeAsString(DateTime.now().toIso8601String());
-    } catch (_) {}
-    return foundMbtiles;
-  } finally {
-    try {
-      input.close();
-    } catch (_) {}
   }
 }
