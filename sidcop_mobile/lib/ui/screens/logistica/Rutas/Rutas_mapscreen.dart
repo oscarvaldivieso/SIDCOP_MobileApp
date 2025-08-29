@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:sidcop_mobile/services/OfflineService.dart';
 
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'dart:ui' as ui;
@@ -43,30 +44,6 @@ class RutaMapScreen extends StatefulWidget {
 bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
-  String? _rutaImagenMapaStatic;
-  // Descarga y guarda la imagen de Google Maps Static
-  Future<String?> guardarImagenDeMapaStatic(
-    String imageUrl,
-    String nombreArchivo,
-  ) async {
-    try {
-      final response = await http.get(Uri.parse(imageUrl));
-      if (response.statusCode == 200) {
-        final directory = await getApplicationDocumentsDirectory();
-        final filePath = '${directory.path}/$nombreArchivo.png';
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-        return filePath;
-      }
-    } catch (e) {
-      developer.log(
-        'Error guardando imagen de mapa: $e',
-        name: 'RutasMapScreen',
-      );
-    }
-    return null;
-  }
-
   // Paleta local (solo para esta pantalla)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);

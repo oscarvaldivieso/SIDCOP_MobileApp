@@ -18,6 +18,7 @@ import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
+import 'package:sidcop_mobile/services/OfflineService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -122,6 +123,8 @@ class _RutasScreenState extends State<RutasScreen> {
       });
       // Guardar rutas encriptadas offline
       await _guardarRutasOffline(_rutas);
+      // Pre-generar y guardar detalles de todas las rutas en background
+      RutasScreenOffline.guardarDetallesTodasRutas();
     } catch (e) {
       // Si falla, intentar leer rutas offline
       final rutasOffline = await _leerRutasOffline();
