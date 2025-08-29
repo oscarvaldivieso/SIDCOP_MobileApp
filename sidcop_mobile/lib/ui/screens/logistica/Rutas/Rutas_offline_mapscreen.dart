@@ -354,25 +354,35 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             point: LatLng(lat, lng),
             width: 40,
             height: 40,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _showClienteDetails(clienteMap, d),
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: Image.asset(
-                  'assets/marker_cliente.png',
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    // Fallback a círculo azul si el asset no está disponible
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                    );
-                  },
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  final clIdRaw = rawClId;
+                  final clIdStrLog = clIdRaw == null
+                      ? 'unknown'
+                      : clIdRaw.toString();
+                  print('OFFLINE: marker tapped clId=$clIdStrLog');
+                  _showClienteDetails(clienteMap, d);
+                },
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Image.asset(
+                    'assets/marker_cliente.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback a círculo azul si el asset no está disponible
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
