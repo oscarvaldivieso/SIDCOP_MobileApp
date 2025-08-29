@@ -291,8 +291,9 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    // Use local marker asset for consistency with offline markers
-    const iconUrl = 'assets/marker_cliente.png';
+    // Usar URL remota para el icono marker (Cloudinary)
+    const iconUrl =
+        'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
     final markers = direccionesFiltradas
         .map(
           (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
