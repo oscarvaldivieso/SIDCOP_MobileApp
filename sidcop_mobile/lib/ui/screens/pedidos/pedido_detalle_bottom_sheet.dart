@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
-import 'package:sidcop_mobile/services/printer_service.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
@@ -12,68 +12,12 @@ class PedidoDetalleBottomSheet extends StatefulWidget {
 }
 
 class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
-  final PrinterService _printerService = PrinterService();
-  bool _isPrinting = false;
 
   Color get _primaryColor => const Color(0xFF141A2F);
   Color get _goldColor => const Color(0xFFE0C7A0);
   Color get _surfaceColor => const Color(0xFFF8FAFC);
   Color get _borderColor => const Color(0xFFE2E8F0);
 
-  Future<void> _printInvoice() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isPrinting = true;
-    });
-
-    try {
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      if (selectedDevice == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Impresión cancelada'), backgroundColor: Colors.orange),
-          );
-        }
-        return;
-      }
-
-      final connected = await _printerService.connect(selectedDevice);
-      if (!connected) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error al conectar con la impresora'), backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-
-      final printSuccess = await _printerService.printPedido(widget.pedido); 
-
-      await _printerService.disconnect();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(printSuccess ? 'Pedido impreso exitosamente' : 'Error al imprimir el pedido'),
-            backgroundColor: printSuccess ? Colors.green : Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al imprimir: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPrinting = false;
-        });
-      }
-    }
-  }
 
   @override
 Widget build(BuildContext context) {
@@ -108,17 +52,17 @@ Widget build(BuildContext context) {
                     ),
                   ),
                 ),
-                if (_isPrinting)
-                  const SizedBox(
-                    width: 24, 
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2.5)
-                  )
-                else
                   IconButton(
                     icon: const Icon(Icons.print_outlined, color: Colors.black54),
-                    onPressed: _printInvoice,
-                    tooltip: 'Imprimir Pedido',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+                        ),
+                      );
+                    },
+                    tooltip: 'Ver Factura',
                   ),
                 const SizedBox(width: 8),
                 IconButton(

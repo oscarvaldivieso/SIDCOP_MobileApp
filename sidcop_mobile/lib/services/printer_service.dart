@@ -524,13 +524,14 @@ $logoZPL
 ^FO0,285^FB384,1,0,C,0^CF0,22^FDTel: $telefono^FS
 ^FO0,310^FB384,1,0,C,0^CF0,22^FD$correo^FS
 
-^FO0,350^CF0,22^FDNo. Factura: $pedidoCodigo^FS
-^FO0,375^CF0,22^FDFecha Emision: $fechaPedido^FS
-^FO0,400^CF0,22^FDTipo Venta: CONTADO^FS
+^FO0,350^CF0,22^FDCAI: 35ABDF-AB7210-9748E0-63BE03-090965^FS
+^FO0,375^CF0,22^FDNo. Factura: $pedidoCodigo^FS
+^FO0,400^CF0,22^FDFecha Emision: $fechaPedido^FS
+^FO0,425^CF0,22^FDTipo Venta: CONTADO^FS
 
-^FO0,425^CF0,22^FDCliente: $clienteNombre^FS
-^FO0,450^CF0,22^FDRTN cliente: $clienteRTN^FS
-^FO0,475^CF0,22^FDVendedor: $vendedorNombre^FS
+^FO0,450^CF0,22^FDCliente: $clienteNombre^FS
+^FO0,475^CF0,22^FDRTN cliente: $clienteRTN^FS
+^FO0,500^CF0,22^FDVendedor: $vendedorNombre^FS
 
 ^FX --- Column Headers ---
 ^FX Producto: x=0, Cant: x=175, Precio: x=215, Monto: x=300
