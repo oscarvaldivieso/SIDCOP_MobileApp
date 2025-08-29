@@ -50,6 +50,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   List<Map<String, dynamic>> _clientesFiltradosOffline = [];
   List<Map<String, dynamic>> _direccionesFiltradasOffline = [];
   List<Marker> _clientMarkers = [];
+  // Quick lookup by cliente id (string)
+  Map<String, Map<String, dynamic>> _clientesById = {};
   // (no visit-tracking needed for offline viewer)
 
   // Device-based center (may be null until obtained). Fallback coords are
@@ -245,6 +247,15 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           .map((s) => s!)
           .toSet();
 
+      // Build lookup map for quick access when creating marker tap handlers
+      _clientesById = Map.fromEntries(
+        _clientesFiltradosOffline.map((c) {
+          final id = (c['clie_Id'] ?? c['clieId'] ?? c['clie_id'] ?? c['clie'])
+              ?.toString();
+          return MapEntry(id ?? '', Map<String, dynamic>.from(c));
+        }),
+      );
+
       // Normalizar claves de direcciones a lowercase para manejar variaciones
       final normDirecciones = direcciones.map<Map<String, dynamic>>((d) {
         final m = Map<String, dynamic>.from(d);
@@ -331,27 +342,38 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           continue;
         }
 
+        // Find corresponding cliente for this direccion (if available)
+        final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+        final clIdStr = rawClId == null ? null : rawClId.toString();
+        final clienteMap = clIdStr != null && clIdStr.isNotEmpty
+            ? _clientesById[clIdStr]
+            : null;
+
         markers.add(
           Marker(
             point: LatLng(lat, lng),
             width: 40,
             height: 40,
-            child: SizedBox(
-              width: 32,
-              height: 32,
-              child: Image.asset(
-                'assets/marker_cliente.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  // Fallback a círculo azul si el asset no está disponible
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                  );
-                },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _showClienteDetails(clienteMap, d),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Image.asset(
+                  'assets/marker_cliente.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback a círculo azul si el asset no está disponible
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -370,6 +392,130 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     } catch (e, st) {
       print('OFFLINE: error loading clientes offline: $e\n$st');
     }
+  }
+
+  // Show a bottom sheet with cliente photo, business name and cliente full name
+  void _showClienteDetails(
+    Map<String, dynamic>? cliente,
+    Map<String, dynamic> direccion,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: _darkBg,
+      builder: (context) {
+        final imageUrl = cliente == null
+            ? null
+            : (cliente['clie_ImagenDelNegocio'] ??
+                      cliente['clieImagenDelNegocio'] ??
+                      cliente['imagen'] ??
+                      '')
+                  .toString();
+        final nombreNegocio = cliente == null
+            ? ''
+            : (cliente['clie_NombreNegocio'] ??
+                      cliente['clieNombreNegocio'] ??
+                      cliente['nombre_negocio'] ??
+                      '')
+                  .toString();
+        final nombreCliente = cliente == null
+            ? ''
+            : ((cliente['clie_Nombres'] ?? cliente['nombres'] ?? '')
+                          .toString() +
+                      ' ' +
+                      (cliente['clie_Apellidos'] ?? cliente['apellidos'] ?? '')
+                          .toString())
+                  .trim();
+
+        return Container(
+          decoration: BoxDecoration(
+            color: _darkBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: imageUrl != null && imageUrl.isNotEmpty
+                        ? Image.network(
+                            imageUrl,
+                            width: 220,
+                            height: 140,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 220,
+                                height: 140,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.store, size: 60),
+                              );
+                            },
+                          )
+                        : Container(
+                            width: 220,
+                            height: 140,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.store, size: 60),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    nombreNegocio,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: _gold,
+                      fontFamily: 'Satoshi',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (nombreCliente.isNotEmpty)
+                  Center(
+                    child: Text(
+                      nombreCliente,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: _body,
+                        fontFamily: 'Satoshi',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                if (direccion['dicl_direccionexacta'] != null ||
+                    direccion['muni_descripcion'] != null ||
+                    direccion['depa_descripcion'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      '${direccion['dicl_direccionexacta'] ?? ''} ${direccion['muni_descripcion'] ?? ''} ${direccion['depa_descripcion'] ?? ''}'
+                          .trim(),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: _body,
+                        fontFamily: 'Satoshi',
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<File?> _findFirstMbtilesFile() async {
