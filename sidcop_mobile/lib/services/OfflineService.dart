@@ -292,6 +292,13 @@ class RutasScreenOffline {
     try {
       final servicio = RutasService();
       final data = await servicio.getRutas();
+      // Log para diagnosticar respuesta remota
+      try {
+        final lista = List.from(data);
+        print('SYNC: sincronizarRutas fetched ${lista.length} items');
+      } catch (_) {
+        print('SYNC: sincronizarRutas fetched (unknown count)');
+      }
       // Guardar la respuesta tal cual (normalmente es List)
       await guardarJson('rutas.json', data);
       return data;
@@ -305,6 +312,12 @@ class RutasScreenOffline {
     try {
       final servicio = ClientesService();
       final data = await servicio.getClientes();
+      try {
+        final lista = List.from(data);
+        print('SYNC: sincronizarClientes fetched ${lista.length} items');
+      } catch (_) {
+        print('SYNC: sincronizarClientes fetched (unknown count)');
+      }
       await guardarJson(_archivoClientes, data);
       // Intentar convertir a lista de mapas
       return List<Map<String, dynamic>>.from(data);
@@ -318,6 +331,12 @@ class RutasScreenOffline {
     try {
       final servicio = DireccionClienteService();
       final data = await servicio.getDireccionesPorCliente();
+      try {
+        final lista = List.from(data);
+        print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
+      } catch (_) {
+        print('SYNC: sincronizarDirecciones fetched (unknown count)');
+      }
       await guardarJson('direcciones.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -331,6 +350,14 @@ class RutasScreenOffline {
     try {
       final servicio = ClientesVisitaHistorialService();
       final data = await servicio.listar();
+      try {
+        final lista = List.from(data);
+        print(
+          'SYNC: sincronizarVisitasHistorial fetched ${lista.length} items',
+        );
+      } catch (_) {
+        print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
+      }
       await guardarJson('visitas_historial.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -360,6 +387,14 @@ class RutasScreenOffline {
     try {
       final servicio = VendedoresService();
       final data = await servicio.listarPorRutas();
+      try {
+        final lista = List.from(data);
+        print(
+          'SYNC: sincronizarVendedoresPorRutas fetched ${lista.length} items',
+        );
+      } catch (_) {
+        print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
+      }
       await guardarJson('vendedores_por_rutas.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -389,6 +424,12 @@ class RutasScreenOffline {
     try {
       final servicio = VendedoresService();
       final data = await servicio.listar();
+      try {
+        final lista = List.from(data);
+        print('SYNC: sincronizarVendedores fetched ${lista.length} items');
+      } catch (_) {
+        print('SYNC: sincronizarVendedores fetched (unknown count)');
+      }
       await guardarJson('vendedores.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -406,6 +447,17 @@ class RutasScreenOffline {
         sincronizarDirecciones(),
         sincronizarVendedores(),
       ]);
+      try {
+        final r = List.from(results[0]);
+        final c = List.from(results[1]);
+        final d = List.from(results[2]);
+        final v = List.from(results[3]);
+        print(
+          'SYNC: sincronizarRutas_Todo results sizes -> rutas=${r.length}, clientes=${c.length}, direcciones=${d.length}, vendedores=${v.length}',
+        );
+      } catch (_) {
+        print('SYNC: sincronizarRutas_Todo results sizes unknown');
+      }
       return {
         'rutas': results[0],
         'clientes': results[1],

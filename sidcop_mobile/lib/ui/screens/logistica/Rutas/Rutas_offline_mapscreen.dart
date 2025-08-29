@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:sidcop_mobile/services/OfflineService.dart';
 
 /// Offline map viewer that serves tiles from a local .mbtiles file via a
 /// loopback HTTP server and uses flutter_map to render them.
@@ -45,6 +46,12 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   final List<String> _cacheOrder = [];
   final int _cacheMaxEntries = 200;
 
+  // Clientes / direcciones cargadas desde almacenamiento offline
+  List<Map<String, dynamic>> _clientesFiltradosOffline = [];
+  List<Map<String, dynamic>> _direccionesFiltradasOffline = [];
+  List<Marker> _clientMarkers = [];
+  // (no visit-tracking needed for offline viewer)
+
   // Device-based center (may be null until obtained). Fallback coords are
   // initialized to a sensible default but will be updated from the device
   // (last known position or current) when available.
@@ -59,6 +66,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     // Start obtaining device location and initialize server in parallel.
     _setInitialPositionFromDevice();
     _initMbtilesServer();
+    // Also load offline clients immediately so markers appear even without MBTiles
+    _loadClientesOffline();
   }
 
   Future<void> _setInitialPositionFromDevice() async {
@@ -191,12 +200,175 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         _starting = false;
         _hasMbtiles = true;
       });
+      // Cargar clientes/direcciones offline para mostrar marcadores
+      try {
+        await _loadClientesOffline();
+      } catch (_) {}
     } catch (e) {
       // If anything fails, fall back to no-mbtiles UI
       setState(() {
         _starting = false;
         _hasMbtiles = false;
       });
+    }
+  }
+
+  // Carga clientes y direcciones desde RutasScreenOffline y genera marcadores.
+  Future<void> _loadClientesOffline() async {
+    try {
+      final clientes = await RutasScreenOffline.obtenerClientesLocal();
+      final direcciones = await RutasScreenOffline.obtenerDireccionesLocal();
+      print(
+        'OFFLINE: obtenerClientesLocal returned ${clientes.length} entries',
+      );
+      print(
+        'OFFLINE: obtenerDireccionesLocal returned ${direcciones.length} entries',
+      );
+
+      // Filtrar clientes que pertenezcan a esta ruta (soporte para varias variantes de nombre)
+      _clientesFiltradosOffline = clientes
+          .where(
+            (c) =>
+                ((c['ruta_Id'] ?? c['rutaId'] ?? c['ruta_id'] ?? c['ruta']) ==
+                widget.rutaId),
+          )
+          .map<Map<String, dynamic>>((c) => Map<String, dynamic>.from(c))
+          .toList();
+
+      // Normalizar cliente IDs a String para evitar mismatches por tipo
+      final clienteIds = _clientesFiltradosOffline
+          .map(
+            (c) => (c['clie_Id'] ?? c['clieId'] ?? c['clie_id'] ?? c['clie'])
+                ?.toString(),
+          )
+          .where((id) => id != null && id.isNotEmpty)
+          .map((s) => s!)
+          .toSet();
+
+      // Normalizar claves de direcciones a lowercase para manejar variaciones
+      final normDirecciones = direcciones.map<Map<String, dynamic>>((d) {
+        final m = Map<String, dynamic>.from(d);
+        final norm = <String, dynamic>{};
+        m.forEach((k, v) {
+          try {
+            norm[k.toString().toLowerCase()] = v;
+          } catch (_) {
+            norm[k.toLowerCase()] = v;
+          }
+        });
+        return norm;
+      }).toList();
+
+      _direccionesFiltradasOffline = normDirecciones
+          .where((d) {
+            final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+            final clIdStr = rawClId == null ? null : rawClId.toString();
+            return clIdStr != null && clienteIds.contains(clIdStr);
+          })
+          .map<Map<String, dynamic>>((d) => Map<String, dynamic>.from(d))
+          .toList();
+
+      print(
+        'OFFLINE: filtered clientes=${_clientesFiltradosOffline.length} direcciones=${_direccionesFiltradasOffline.length}',
+      );
+
+      // Crear marcadores simples para cada dirección con coordenadas (soporta varias claves)
+      // Intentar parsear coordenadas con mayor tolerancia y recopilar fallos
+      final failures = <Map<String, dynamic>>[];
+      List<Marker> markers = [];
+      for (final d in _direccionesFiltradasOffline) {
+        dynamic latRaw =
+            d['dicl_latitud'] ??
+            d['lat'] ??
+            d['latitude'] ??
+            d['latitud'] ??
+            d['latitudd'];
+        dynamic lngRaw =
+            d['dicl_longitud'] ??
+            d['lon'] ??
+            d['lng'] ??
+            d['longitude'] ??
+            d['longitud'] ??
+            d['longitudd'];
+
+        // Some APIs store coordinates in a single string like 'lat,lon'
+        if ((latRaw == null || lngRaw == null) &&
+            d.containsKey('coordenadas')) {
+          final combo = d['coordenadas'];
+          if (combo is String && combo.contains(',')) {
+            final parts = combo.split(',');
+            if (parts.length >= 2) {
+              latRaw = latRaw ?? parts[0];
+              lngRaw = lngRaw ?? parts[1];
+            }
+          }
+        }
+
+        double? lat;
+        double? lng;
+
+        double? tryParseCoord(dynamic raw) {
+          if (raw == null) return null;
+          if (raw is num) return raw.toDouble();
+          if (raw is String) {
+            final cleaned = raw
+                .replaceAll(' ', '')
+                .replaceAll('\u00A0', '')
+                .replaceAll(',', '.');
+            return double.tryParse(cleaned);
+          }
+          return null;
+        }
+
+        lat = tryParseCoord(latRaw);
+        lng = tryParseCoord(lngRaw);
+
+        if (lat == null || lng == null) {
+          // store small sample for debugging
+          if (failures.length < 10) {
+            failures.add({'direccion': d, 'latRaw': latRaw, 'lngRaw': lngRaw});
+          }
+          continue;
+        }
+
+        markers.add(
+          Marker(
+            point: LatLng(lat, lng),
+            width: 40,
+            height: 40,
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: Image.asset(
+                'assets/marker_cliente.png',
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback a círculo azul si el asset no está disponible
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      }
+
+      _clientMarkers = markers;
+      if (failures.isNotEmpty) {
+        print(
+          'OFFLINE: marker parse failures=${failures.length}, examples=${failures.length <= 10 ? failures : failures.sublist(0, 10)}',
+        );
+      }
+
+      print('OFFLINE: created markers=${_clientMarkers.length}');
+      setState(() {});
+    } catch (e, st) {
+      print('OFFLINE: error loading clientes offline: $e\n$st');
     }
   }
 
@@ -309,7 +481,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   Widget build(BuildContext context) {
     final double centerLat = _centerLat ?? _fallbackLat;
     final double centerLng = _centerLng ?? _fallbackLng;
-    final markers = [LatLng(centerLat, centerLng)];
 
     Widget map;
     if (_starting) {
@@ -321,6 +492,27 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     } else if (_hasMbtiles && _serverPort != null) {
       final urlTemplate = 'http://127.0.0.1:$_serverPort/{z}/{x}/{y}.png';
       print('Using tile url template: $urlTemplate');
+      // Always show device location marker along with client markers.
+      final deviceMarker = Marker(
+        point: LatLng(centerLat, centerLng),
+        width: 15,
+        height: 15,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.blue,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [BoxShadow(color: Colors.blue, blurRadius: 18)],
+          ),
+        ),
+      );
+
+      final List<Marker> combinedMarkers = [];
+      combinedMarkers.add(deviceMarker);
+      combinedMarkers.addAll(_clientMarkers);
+
       map = FlutterMap(
         mapController: _mapController,
         options: MapOptions(center: LatLng(centerLat, centerLng), zoom: 15.0),
@@ -329,33 +521,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             urlTemplate: urlTemplate,
             tileProvider: NetworkTileProvider(),
           ),
-          MarkerLayer(
-            markers: markers
-                .map(
-                  (latlng) => Marker(
-                    point: latlng,
-                    width: 15,
-                    height: 15,
-                    child: Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.blue,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue,
-                            blurRadius: 6,
-                            spreadRadius: 0.5,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
+          MarkerLayer(markers: combinedMarkers),
         ],
       );
     } else {
@@ -368,7 +534,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             const SizedBox(height: 8),
             Text(
               'No se detectó MBTiles activo.',
-              style: TextStyle(color: _body),
+              style: TextStyle(color: _bodyDim),
             ),
             const SizedBox(height: 12),
             ElevatedButton(

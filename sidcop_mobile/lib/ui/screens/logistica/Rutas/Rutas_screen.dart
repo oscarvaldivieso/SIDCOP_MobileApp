@@ -123,8 +123,25 @@ class _RutasScreenState extends State<RutasScreen> {
       });
       // Guardar rutas encriptadas offline
       await _guardarRutasOffline(_rutas);
-      // Pre-generar y guardar detalles de todas las rutas en background
-      RutasScreenOffline.guardarDetallesTodasRutas();
+      // Lanzar sincronización en background para asegurar que las ubicaciones
+      // de clientes y direcciones se persistan al entrar al listado de rutas.
+      // Intentamos sincronizar clientes/direcciones primero (guardan JSON local)
+      // y luego generamos los detalles por ruta. Errores se registran pero no
+      // bloquean la UI.
+      Future.microtask(() async {
+        try {
+          await RutasScreenOffline.sincronizarClientes();
+          await RutasScreenOffline.sincronizarDirecciones();
+        } catch (e) {
+          print('SYNC: warning - sincronizar clientes/direcciones failed: $e');
+        }
+        try {
+          await RutasScreenOffline.guardarDetallesTodasRutas();
+          print('SYNC: guardarDetallesTodasRutas completed');
+        } catch (e) {
+          print('SYNC: guardarDetallesTodasRutas failed: $e');
+        }
+      });
     } catch (e) {
       // Si falla, intentar leer rutas offline
       final rutasOffline = await _leerRutasOffline();
@@ -274,8 +291,8 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    const iconUrl =
-        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+    // Use local marker asset for consistency with offline markers
+    const iconUrl = 'assets/marker_cliente.png';
     final markers = direccionesFiltradas
         .map(
           (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
