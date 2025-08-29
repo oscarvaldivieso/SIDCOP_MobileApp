@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../utils/numero_en_letras.dart';
+import '../models/PedidosViewModel.Dart';
 
 class PrinterService {
   List<BluetoothDevice> _devices = [];
@@ -445,6 +446,123 @@ class PrinterService {
     rethrow;
   }
 }
+
+  Future<bool> printPedido(PedidosViewModel pedido) async {
+    try {
+      if (!_isConnected) {
+        throw Exception('Impresora no conectada');
+      }
+
+      final zplContent = _generatePedidoZPL(pedido);
+      return await printZPL(zplContent);
+    } catch (e) {
+      debugPrint('Error printing pedido: $e');
+      rethrow;
+    }
+  }
+
+  String _generatePedidoZPL(PedidosViewModel pedido) {
+    final empresaNombre = pedido.coFaNombreEmpresa ?? 'Nombre de Empresa no disponible';
+    final now = DateTime.now();
+    final fecha = _formatDate(now.toString());
+    final direccion = pedido.coFaDireccionEmpresa ?? 'Dirección no disponible';
+    final telefono = pedido.coFaTelefono1 ?? 'N/A';
+    final correo = pedido.coFaCorreo ?? 'N/A';
+
+    final pedidoCodigo = pedido.pedi_Codigo ?? 'N/A';
+    final clienteNombre = pedido.clieNombreNegocio ?? '${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}';
+    final clienteRTN = pedido.prodDescripcion ?? 'N/A';
+    final vendedorNombre = '${pedido.vendNombres ?? ''} ${pedido.vendApellidos ?? ''}';
+    final fechaPedido = _formatDate(pedido.pediFechaPedido.toString());
+
+    final detalles = jsonDecode(pedido.detallesJson ?? '[]') as List<dynamic>;
+    String productosZPL = '';
+    int yPosition = 620;
+    double totalPedido = 0;
+
+        for (var detalle in detalles) {
+      final producto = detalle['descripcion']?.toString() ?? 'Sin producto';
+      final cantidad = _getIntValue(detalle, 'cantidad');
+      final precio = _getDoubleValue(detalle, 'precio');
+      final totalItem = cantidad * precio;
+      totalPedido += totalItem;
+
+      final productoLimpio = _cleanSpecialCharacters(producto);
+      final precioStr = 'L.' + precio.toStringAsFixed(2);
+      final totalItemStr = 'L.' + totalItem.toStringAsFixed(2);
+
+      productosZPL += '^FO0,${yPosition}^FB170,3,0,L,0^FD$productoLimpio^FS\n';
+      productosZPL += '^FO175,${yPosition}^FB35,1,0,R,0^FD$cantidad^FS\n';
+      productosZPL += '^FO215,${yPosition}^FB80,1,0,R,0^FD$precioStr^FS\n';
+      productosZPL += '^FO300,${yPosition}^FB85,1,0,R,0^FD$totalItemStr^FS\n';
+
+      // Adjusted for a font width of ~14 chars per line with FB width of 170
+      int lineasProducto = (productoLimpio.length / 14).ceil();
+      if (lineasProducto < 1) lineasProducto = 1;
+      yPosition += (lineasProducto * 25) + 20;
+    }
+
+    final totalPedidoStr = totalPedido.toStringAsFixed(2);
+
+    final alturaTotal = yPosition + 350;
+
+    const String logoZPL = ''''^FX ===== LOGO CENTRADO =====
+^FO130,60
+^GFA,1950,1666,17,
+,::::::M07U018O0M0EU01EO0L01EV0FO00000807EV0F802L00001807CV0FC06L00001C0FCV07E07L00003C1FCV07E07L00003C1F8V03F0FL00003E3FW03F0F8K00003E3F0001F8Q01F8F8K00003E3E00071CR0F8F8K00007E3C000E0CR078F8K00007E21801E0CQ0318F8K00003E07001ES03C0F8K00003E0F003ES01E0F8K00003E3F003ES01F0F8K00043C3E007CS01F8F0800000061C7E007CT0FC70C000000618FE007CT0FE21C000000F00FC007CT07E01C000000F81F80078T07E03C000000F81F80078T03F03C000000F81F000F8T01F07C000000FC1E000FV0F07C000000FC12000FV0907C0000007C06000EV0C0FC0000007C0E001EV0E0FC0000007C1E001C0000FFFF8M0F0F80000003C3C00380007F7FFEM0F8F80000003C7C0070001E03C1FM0FC7K0001CFC00FE003807C078L07C7040000608FC01FFC06007C078L07E60C0000701F80787E0C0078078L07E01C0000781F80F01F180078078L03F03C00007C1F00E00F980078078L03F07C00007E1F004007F000F00FM01F0F800007E1E200003F060F01EL010F1F800003F1C6K0F8F0F03CL01871F800003F00EK079F0FFF8L01C13F000001F80EK03FE1EFEM01E03F000001F81EL0FC1E3CM01F03E000000F83EN01C3CM01F07E000000783EN03C1EM01F87C000000383EN03C1EM01F83K01C087EN0381EN0F82070000F007EN0780FN0FC03E0000FC07CN0780FN0FC0FE00007F07CN0700F8M07C1FC00007F8784M0F0078L047C3F800003FC78CM0E0078L063C7F800001FE71CM0E003CL071CFF000000FE43CM0C003EL0708FE0000007E03CP01EL0F81F80000001F03CP01FL0F81FK0K07CQ0F8K0F81L0070007C2P07800C10FC003C00003F007C3P03C00C18FC01F800003FC07C7P01E00C187C0FF000001FF0FC7Q0F81C3C7C1FF000000FF87C78P07E383C7C3FE0000007FC78F8P01FE03C7C7FC0000003FC78F8T03E3CFFK0000FE70F88R043E18FEK00003E20F8CR047E08F8K0M0F8ER0E7EO0M0F8FQ01E7EO0000FE00F8FQ03E3E01FEK0000FFC0F8F8P03E3E0FFCK00007FF0F0F8P07E3C1FF8K00003FF870FCP07E1C3FFL00000FFC60FCP07C087FEL000003FC007C6M01CFC00FF8L0K0FC007C7CL0F8FC00FEM0O07E3FK03F8F8Q0L03C03C3FC00007F0F80F8N0K0FFF83C1FE0001FE0F07FFCM0K07FFE1C0FF0003FE060FFFCM0K03FFF0C07F8003FC041FFF8M0L0FFF0003F8007F8001FFEN0L01FC0000FC007E00007FO0P0E003C007801ER0O0FFCN07FEQ0N03FFE00038000FFF8P0N0FFFC00078000FFFEP0M01FFF80F0781E03FFFP0N07FE0FFC38FFC0FF8P0Q03FFE00FFFT0Q0FFFC007FFCS0P01FFF0003FFFS0Q07FC0000FFCS0,
+^FS''';
+
+    return ''''^XA
+^LL$alturaTotal
+^LH0,0
+^CI28
+
+$logoZPL
+
+^FO0,190^FB384,1,0,C,0^CF0,28^FD$empresaNombre^FS
+^FO0,225^FB384,3,0,C,0^CF0,22^FD$direccion^FS
+^FO0,285^FB384,1,0,C,0^CF0,22^FDTel: $telefono^FS
+^FO0,310^FB384,1,0,C,0^CF0,22^FD$correo^FS
+
+^FO0,350^CF0,22^FDCAI: 35ABDF-AB7210-9748E0-63BE03-090965^FS
+^FO0,375^CF0,22^FDNo. Factura: $pedidoCodigo^FS
+^FO0,400^CF0,22^FDFecha Emision: $fechaPedido^FS
+^FO0,425^CF0,22^FDTipo Venta: CONTADO^FS
+
+^FO0,450^CF0,22^FDCliente: $clienteNombre^FS
+^FO0,475^CF0,22^FDRTN cliente: $clienteRTN^FS
+^FO0,500^CF0,22^FDVendedor: $vendedorNombre^FS
+
+^FX --- Column Headers ---
+^FX Producto: x=0, Cant: x=175, Precio: x=215, Monto: x=300
+^FO0,600^CF0,22^FDProd^FS
+^FO175,600^CF0,22^FDCant^FS
+^FO215,600^CF0,22^FDPrecio^FS
+^FO300,600^CF0,22^FDMonto^FS
+^FO0,620^GB384,1,1^FS
+
+$productosZPL
+
+^FO0,${yPosition}^GB384,2,2^FS
+
+^FO0,${yPosition + 20}^CF0,22^FDSubtotal: L. $totalPedidoStr^FS
+^FO0,${yPosition + 45}^CF0,22^FDTotalDescuento: L. 0.00^FS
+^FO0,${yPosition + 70}^CF0,22^FDImporte Exento: L. 0.00^FS
+^FO0,${yPosition + 95}^CF0,22^FDImporte Exonerado: L. 0.00^FS
+^FO0,${yPosition + 120}^CF0,22^FDImporte Gravado 15%: L. 0.00^FS
+^FO0,${yPosition + 145}^CF0,22^FDImporte Gravado 18%: L. 0.00^FS
+^FO0,${yPosition + 170}^CF0,22^FDTotal Impuesto 15%: L. 0.00^FS
+^FO0,${yPosition + 195}^CF0,22^FDTotal Impuesto 18%: L. 0.00^FS
+^FO0,${yPosition + 220}^GB384,1,1^FS
+^FO0,${yPosition + 235}^CF0,25^FDTotal: L. $totalPedidoStr^FS
+
+^FO0,${yPosition + 270}^CF0,22^FDVendedor: $vendedorNombre^FS
+^FO0,${yPosition + 300}^FB384,1,0,C,0^CF0,22^FDGracias por su compra^FS
+^FO0,${yPosition + 325}^FB384,1,0,C,0^CF0,22^FDSIDCOP - Sistema POS^FS
+^FO0,${yPosition + 350}^FB384,1,0,C,0^CF0,22^FD$fecha^FS
+
+^XZ''';
+  }
 
 String _generateInventoryZPL(Map<String, dynamic> inventoryData) {
   // Extraer información del header
