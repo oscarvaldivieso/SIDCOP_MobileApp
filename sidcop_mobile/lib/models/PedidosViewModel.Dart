@@ -1,4 +1,11 @@
 class PedidosViewModel {
+  final String? coFaNombreEmpresa;
+  final String? coFaDireccionEmpresa;
+  final String? coFaRTN;
+  final String? coFaCorreo;
+  final String? coFaTelefono1;
+  final String? coFaTelefono2;
+  final String? coFaLogo;
   final int? secuencia;
   final int pediId;
   final int diClId;
@@ -32,6 +39,13 @@ class PedidosViewModel {
   final String? detallesJson;
 
   PedidosViewModel({
+    this.coFaNombreEmpresa,
+    this.coFaDireccionEmpresa,
+    this.coFaRTN,
+    this.coFaCorreo,
+    this.coFaTelefono1,
+    this.coFaTelefono2,
+    this.coFaLogo,
     this.secuencia,
     required this.pediId,
     required this.diClId,
@@ -67,6 +81,13 @@ class PedidosViewModel {
 
   factory PedidosViewModel.fromJson(Map<String, dynamic> json) {
     return PedidosViewModel(
+      coFaNombreEmpresa: json['coFa_NombreEmpresa'],
+      coFaDireccionEmpresa: json['coFa_DireccionEmpresa'],
+      coFaRTN: json['coFa_RTN'],
+      coFaCorreo: json['coFa_Correo'],
+      coFaTelefono1: json['coFa_Telefono1'],
+      coFaTelefono2: json['coFa_Telefono2'],
+      coFaLogo: json['coFa_Logo'],
       secuencia: json['secuencia'],
       pediId: json['pedi_Id'],
       diClId: json['diCl_Id'],

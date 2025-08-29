@@ -6,16 +6,22 @@ import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-class CloudinaryService {
-  static const String _cloudName = 'dbt7mxrwk';
-  static const String _apiKey = '134792964771762';
-  static const String _apiSecret = 'ImAB6ob6wd7HosRxpmPeVGQ-Xs0';
-  static const String _uploadPreset = 'ml_default';
-  static const String _folder = 'Clientes';
+class ImageUploadService {
+  static const String _baseUrl = 'http://200.59.27.115:8091';
+  static const String _uploadEndpoint = '/Imagen/Subir';
+  static const String _apiKey = 'bdccf3f3-d486-4e1e-ab44-74081aefcdbc';
+
+  /// Returns the complete URL for displaying images
+  static String getImageUrl(String imagePath) {
+    if (imagePath.startsWith('http')) {
+      return imagePath; // Already a complete URL
+    }
+    return '$_baseUrl$imagePath';
+  }
 
   Future<String?> uploadImage(File imageFile, {String? publicId}) async {
     try {
-      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/upload');
+      final url = Uri.parse('$_baseUrl$_uploadEndpoint');
       
       // Read file as bytes
       final bytes = await imageFile.readAsBytes();
@@ -23,17 +29,32 @@ class CloudinaryService {
       // Create multipart request
       var request = http.MultipartRequest('POST', url);
       
+      // Add headers
+      request.headers['accept'] = '*/*';
+      request.headers['X-Api-Key'] = _apiKey;
+      
+      // Determine content type based on file extension
+      String extension = path.extension(imageFile.path).toLowerCase();
+      MediaType contentType;
+      switch (extension) {
+        case '.png':
+          contentType = MediaType('image', 'png');
+          break;
+        case '.jpg':
+        case '.jpeg':
+          contentType = MediaType('image', 'jpeg');
+          break;
+        default:
+          contentType = MediaType('image', 'jpeg');
+      }
+      
       // Add file to request
       request.files.add(http.MultipartFile.fromBytes(
-        'file',
+        'imagen',
         bytes,
-        filename: '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}',
-        contentType: MediaType('image', 'jpeg'),
+        filename: path.basename(imageFile.path),
+        contentType: contentType,
       ));
-      
-      // Add other parameters
-      request.fields['upload_preset'] = _uploadPreset;
-      request.fields['folder'] = _folder;
       
       // Send request
       final streamedResponse = await request.send();
@@ -41,35 +62,53 @@ class CloudinaryService {
       
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        return responseData['secure_url'];
+        final imagePath = responseData['ruta'];
+        return getImageUrl(imagePath); // Return complete URL
       } else {
-        print('Cloudinary upload failed: ${response.statusCode} - ${response.body}');
+        print('Image upload failed: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error uploading to Cloudinary: $e');
+      print('Error uploading image: $e');
       return null;
     }
   }
 
   Future<String?> uploadImageFromBytes(Uint8List imageBytes, {String? publicId, String? fileName}) async {
     try {
-      final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/upload');
+      final url = Uri.parse('$_baseUrl$_uploadEndpoint');
       
       // Create multipart request
       var request = http.MultipartRequest('POST', url);
       
+      // Add headers
+      request.headers['accept'] = '*/*';
+      request.headers['X-Api-Key'] = _apiKey;
+      
+      // Determine content type based on filename extension
+      String finalFileName = fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      String extension = path.extension(finalFileName).toLowerCase();
+      MediaType contentType;
+      switch (extension) {
+        case '.png':
+          contentType = MediaType('image', 'png');
+          break;
+        case '.jpg':
+        case '.jpeg':
+          contentType = MediaType('image', 'jpeg');
+          break;
+        default:
+          contentType = MediaType('image', 'jpeg');
+          finalFileName = '${path.basenameWithoutExtension(finalFileName)}.jpg';
+      }
+      
       // Add file to request
       request.files.add(http.MultipartFile.fromBytes(
-        'file',
+        'imagen',
         imageBytes,
-        filename: fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg',
-        contentType: MediaType('image', 'jpeg'),
+        filename: finalFileName,
+        contentType: contentType,
       ));
-      
-      // Add other parameters
-      request.fields['upload_preset'] = _uploadPreset;
-      request.fields['folder'] = _folder;
       
       // Send request
       final streamedResponse = await request.send();
@@ -77,13 +116,14 @@ class CloudinaryService {
       
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        return responseData['secure_url'];
+        final imagePath = responseData['ruta'];
+        return getImageUrl(imagePath); // Return complete URL
       } else {
-        print('Cloudinary upload failed: ${response.statusCode} - ${response.body}');
+        print('Image upload failed: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error uploading to Cloudinary from bytes: $e');
+      print('Error uploading image from bytes: $e');
       return null;
     }
   }

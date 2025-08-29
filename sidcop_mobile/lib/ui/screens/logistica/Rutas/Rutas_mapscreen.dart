@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:sidcop_mobile/services/OfflineService.dart';
 
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'dart:ui' as ui;
@@ -43,30 +44,6 @@ class RutaMapScreen extends StatefulWidget {
 bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
-  String? _rutaImagenMapaStatic;
-  // Descarga y guarda la imagen de Google Maps Static
-  Future<String?> guardarImagenDeMapaStatic(
-    String imageUrl,
-    String nombreArchivo,
-  ) async {
-    try {
-      final response = await http.get(Uri.parse(imageUrl));
-      if (response.statusCode == 200) {
-        final directory = await getApplicationDocumentsDirectory();
-        final filePath = '${directory.path}/$nombreArchivo.png';
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-        return filePath;
-      }
-    } catch (e) {
-      developer.log(
-        'Error guardando imagen de mapa: $e',
-        name: 'RutasMapScreen',
-      );
-    }
-    return null;
-  }
-
   // Paleta local (solo para esta pantalla)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
@@ -328,9 +305,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         print('Registro a enviar (toString): $registro');
       }
       await servicio.insertar(registro);
-      // Recargar historial para actualizar los checks: pasar el dicl_Id de la dirección
-      // si está disponible; de lo contrario pasar un set vacío para cargar todo
-      await _cargarHistorialVisitas(dicl_Id != null ? {dicl_Id} : <int?>{});
+      // Recargar historial para actualizar los checks: cargar TODO el historial
+      // para no perder los checks previamente marcados.
+      await _cargarHistorialVisitas(<int?>{});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -916,463 +893,485 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         ),
         dividerColor: const Color(0xFF2A344A),
       ),
-      child: Scaffold(
-        key: _scaffoldKey,
-        appBar: AppBar(
-          backgroundColor: _darkBg,
-          iconTheme: const IconThemeData(color: _gold),
-          title: Text(
-            widget.descripcion ?? 'Ubicación Ruta',
-            style: const TextStyle(
-              fontFamily: 'Satoshi',
-              fontWeight: FontWeight.w700,
-              fontSize: 20,
-              color: _gold,
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.list_alt, color: _gold),
-              tooltip: 'Ver orden de paradas',
-              onPressed: () {
-                // Solo abrir el drawer, NO mostrar la ruta automáticamente
-                _scaffoldKey.currentState?.openEndDrawer();
-              },
-            ),
-            PopupMenuButton<MapType>(
-              color: _darkBg,
-              icon: const Icon(Icons.map, color: _gold),
-              onSelected: (type) {
-                setState(() {
-                  _mapType = type;
-                });
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: MapType.normal,
-                  child: Text('Normal', style: TextStyle(color: _body)),
+      child: Stack(
+        children: [
+          Scaffold(
+            key: _scaffoldKey,
+            appBar: AppBar(
+              backgroundColor: _darkBg,
+              iconTheme: const IconThemeData(color: _gold),
+              title: Text(
+                widget.descripcion ?? 'Ubicación Ruta',
+                style: const TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  color: _gold,
                 ),
-                const PopupMenuItem(
-                  value: MapType.hybrid,
-                  child: Text('Satelital', style: TextStyle(color: _body)),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.list_alt, color: _gold),
+                  tooltip: 'Ver orden de paradas',
+                  onPressed: () {
+                    // Solo abrir el drawer, NO mostrar la ruta automáticamente
+                    _scaffoldKey.currentState?.openEndDrawer();
+                  },
+                ),
+                PopupMenuButton<MapType>(
+                  color: _darkBg,
+                  icon: const Icon(Icons.map, color: _gold),
+                  onSelected: (type) {
+                    setState(() {
+                      _mapType = type;
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: MapType.normal,
+                      child: Text('Normal', style: TextStyle(color: _body)),
+                    ),
+                    const PopupMenuItem(
+                      value: MapType.hybrid,
+                      child: Text('Satelital', style: TextStyle(color: _body)),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-        endDrawer: Drawer(
-          backgroundColor: _darkBg,
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Orden de visitas',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Satoshi',
-                      color: _gold,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _ordenParadas.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No hay orden disponible',
-                            style: TextStyle(
-                              color: _bodyDim,
-                              fontFamily: 'Satoshi',
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _ordenParadas.length,
-                          itemBuilder: (context, idx) {
-                            final parada = _ordenParadas[idx];
-                            if (parada['tipo'] == 'origen') {
-                              return ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: _darkBg,
-                                  child: Icon(
-                                    Icons.person_pin_circle,
-                                    color: _gold,
-                                  ),
-                                ),
-                                title: const Text(
-                                  'Tu ubicación',
-                                  style: TextStyle(
-                                    color: _body,
-                                    fontFamily: 'Satoshi',
-                                  ),
-                                ),
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                  if (_userLocation != null &&
-                                      _mapController != null) {
-                                    _mapController!.animateCamera(
-                                      CameraUpdate.newCameraPosition(
-                                        CameraPosition(
-                                          target: _userLocation!,
-                                          zoom: 16,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                              );
-                            }
-                            final cliente = parada['cliente'] as Cliente?;
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                dividerColor: Colors.transparent,
-                                splashColor: Colors.transparent,
-                                highlightColor: Colors.transparent,
-                              ),
-                              child: ExpansionTile(
-                                collapsedIconColor: _gold,
-                                iconColor: _gold,
-                                leading: CircleAvatar(
-                                  backgroundColor: _darkBg,
-                                  child: Text(
-                                    '$idx',
-                                    style: const TextStyle(
-                                      color: _gold,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'Satoshi',
-                                    ),
-                                  ),
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        cliente?.clie_Nombres != null &&
-                                                cliente?.clie_Apellidos != null
-                                            ? '${cliente?.clie_Nombres ?? ''} ${cliente?.clie_Apellidos ?? ''}'
-                                            : parada['nombre'] ?? '',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: _body,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                    ),
-                                    // Marcar dirección como visitada si su dicl_id está en _direccionesVisitadas
-                                    if (parada['latlng'] != null)
-                                      Builder(
-                                        builder: (context) {
-                                          int? dicl_Id;
-                                          final paradaLatLng =
-                                              parada['latlng'] as LatLng?;
-                                          if (paradaLatLng != null) {
-                                            final idxDireccion =
-                                                _direccionesFiltradas
-                                                    .indexWhere(
-                                                      (d) =>
-                                                          d.dicl_latitud ==
-                                                              paradaLatLng
-                                                                  .latitude &&
-                                                          d.dicl_longitud ==
-                                                              paradaLatLng
-                                                                  .longitude,
-                                                    );
-                                            if (idxDireccion != -1) {
-                                              dicl_Id =
-                                                  _direccionesFiltradas[idxDireccion]
-                                                      .dicl_id;
-                                            }
-                                          }
-                                          developer.log(
-                                            'Render Checkbox: dicl_Id=$dicl_Id, visitados=$_direccionesVisitadas',
-                                            name: 'RutasMapScreen',
-                                          );
-                                          return Checkbox(
-                                            value:
-                                                dicl_Id != null &&
-                                                _direccionesVisitadas.contains(
-                                                  dicl_Id,
-                                                ),
-                                            onChanged:
-                                                (dicl_Id != null &&
-                                                        _direccionesVisitadas
-                                                            .contains(
-                                                              dicl_Id,
-                                                            )) ||
-                                                    _enviandoVisita
-                                                ? null
-                                                : (val) async {
-                                                    if (val == true &&
-                                                        cliente != null) {
-                                                      await _confirmarVisitaCliente(
-                                                        cliente,
-                                                        idx,
-                                                        parada['latlng'],
-                                                      );
-                                                    }
-                                                  },
-                                            checkColor: Colors.green,
-                                            side: const BorderSide(
-                                              color: _gold,
-                                              width: 1.4,
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                  ],
-                                ),
-                                children: [
-                                  if (cliente?.clie_NombreNegocio != null &&
-                                      cliente!.clie_NombreNegocio!.isNotEmpty)
-                                    ListTile(
-                                      title: const Text(
-                                        'Negocio',
-                                        style: TextStyle(
-                                          color: _gold,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        cliente.clie_NombreNegocio ?? '',
-                                        style: const TextStyle(
-                                          color: _body,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                    ),
-                                  if (cliente?.clie_Telefono != null &&
-                                      cliente?.clie_Telefono != '')
-                                    ListTile(
-                                      title: const Text(
-                                        'Teléfono',
-                                        style: TextStyle(
-                                          color: _gold,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        cliente?.clie_Telefono ?? '',
-                                        style: const TextStyle(
-                                          color: _body,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                    ),
-                                  if (parada['direccion'] != null &&
-                                      parada['direccion'] != '')
-                                    ListTile(
-                                      title: const Text(
-                                        'Dirección',
-                                        style: TextStyle(
-                                          color: _gold,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        parada['direccion'],
-                                        style: const TextStyle(
-                                          color: _body,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                    ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: _darkBg,
-                                            foregroundColor: _gold,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            textStyle: const TextStyle(
-                                              fontSize: 14,
-                                              fontFamily: 'Satoshi',
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          icon: const Icon(
-                                            Icons.location_on,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Mostrar en mapa'),
-                                          onPressed: () {
-                                            Navigator.of(context).pop();
-                                            if (parada['latlng'] != null &&
-                                                _mapController != null) {
-                                              _mapController!.animateCamera(
-                                                CameraUpdate.newCameraPosition(
-                                                  CameraPosition(
-                                                    target: parada['latlng'],
-                                                    zoom: 16,
-                                                  ),
-                                                ),
-                                              );
-                                              // Opcional: mostrar info window si lo deseas
-                                            }
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: _darkBg,
-                                            foregroundColor: _gold,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            textStyle: const TextStyle(
-                                              fontSize: 14,
-                                              fontFamily: 'Satoshi',
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          icon: const Icon(
-                                            Icons.alt_route,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Ver ruta'),
-                                          onPressed: () {
-                                            Navigator.of(context).pop();
-                                            final paradaLatLng =
-                                                parada['latlng'];
-                                            final idxDireccion =
-                                                _direccionesFiltradas
-                                                    .indexWhere(
-                                                      (d) =>
-                                                          d.dicl_latitud ==
-                                                              paradaLatLng
-                                                                  .latitude &&
-                                                          d.dicl_longitud ==
-                                                              paradaLatLng
-                                                                  .longitude,
-                                                    );
-                                            if (_userLocation != null &&
-                                                idxDireccion != -1) {
-                                              final destino =
-                                                  _direccionesFiltradas[idxDireccion];
-                                              _mostrarRutaACliente(destino);
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ); // end Theme
-                          },
+            endDrawer: Drawer(
+              backgroundColor: _darkBg,
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Orden de visitas',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Satoshi',
+                          color: _gold,
                         ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _initialPosition == null
-            ? const Center(
-                child: Text(
-                  'No hay direcciones para mostrar',
-                  style: TextStyle(color: _bodyDim, fontFamily: 'Satoshi'),
-                ),
-              )
-            : Stack(
-                children: [
-                  GoogleMap(
-                    mapType: _mapType,
-                    initialCameraPosition: CameraPosition(
-                      target: _initialPosition!,
-                      zoom: 12,
+                      ),
                     ),
-                    markers: _markers,
-                    polylines: _polylines,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    zoomControlsEnabled: false,
-                    mapToolbarEnabled: false,
-                    onMapCreated: (GoogleMapController controller) {
-                      _customInfoWindowController.googleMapController =
-                          controller;
-                      _mapController = controller;
-                    },
-                    onCameraMove: (position) {
-                      _customInfoWindowController.onCameraMove!();
-                    },
-                    onTap: (position) {
-                      _customInfoWindowController.hideInfoWindow!();
-                    },
-                  ),
-                  CustomInfoWindow(
-                    controller: _customInfoWindowController,
-                    height: 220,
-                    width: MediaQuery.of(context).size.width * 0.6,
-                    offset: 40,
-                  ),
-                  Positioned(
-                    bottom: 24,
-                    right: 24,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        FloatingActionButton(
-                          backgroundColor: _darkBg,
-                          foregroundColor: _gold,
-                          onPressed: _userLocation == null || _markers.isEmpty
-                              ? null
-                              : () async {
-                                  await _loadDirecciones();
-                                  if (_direccionesFiltradas.isNotEmpty &&
-                                      _userLocation != null) {
-                                    DireccionCliente? closest =
-                                        await _getClienteMasCercanoPorRuta();
-                                    if (closest != null) {
-                                      _mostrarRutaACliente(closest);
-                                      if (_mapController != null) {
+                    Expanded(
+                      child: _ordenParadas.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No hay orden disponible',
+                                style: TextStyle(
+                                  color: _bodyDim,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _ordenParadas.length,
+                              itemBuilder: (context, idx) {
+                                final parada = _ordenParadas[idx];
+                                if (parada['tipo'] == 'origen') {
+                                  return ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: _darkBg,
+                                      child: Icon(
+                                        Icons.person_pin_circle,
+                                        color: _gold,
+                                      ),
+                                    ),
+                                    title: const Text(
+                                      'Tu ubicación',
+                                      style: TextStyle(
+                                        color: _body,
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      if (_userLocation != null &&
+                                          _mapController != null) {
                                         _mapController!.animateCamera(
                                           CameraUpdate.newCameraPosition(
                                             CameraPosition(
-                                              target: LatLng(
-                                                closest.dicl_latitud!,
-                                                closest.dicl_longitud!,
-                                              ),
+                                              target: _userLocation!,
                                               zoom: 16,
                                             ),
                                           ),
                                         );
                                       }
-                                    }
-                                  }
-                                },
-                          child: const Icon(Icons.alt_route),
-                          tooltip: 'Ver rutas',
-                        ),
-                        const SizedBox(height: 16),
-                        FloatingActionButton(
-                          backgroundColor: _darkBg,
-                          foregroundColor: _gold,
-                          onPressed: _mapController == null
-                              ? null
-                              : _centerOnUser,
-                          child: const Icon(Icons.my_location),
-                          tooltip: 'Centrar en mi ubicación',
-                        ),
-                      ],
+                                    },
+                                  );
+                                }
+                                final cliente = parada['cliente'] as Cliente?;
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    dividerColor: Colors.transparent,
+                                    splashColor: Colors.transparent,
+                                    highlightColor: Colors.transparent,
+                                  ),
+                                  child: ExpansionTile(
+                                    collapsedIconColor: _gold,
+                                    iconColor: _gold,
+                                    leading: CircleAvatar(
+                                      backgroundColor: _darkBg,
+                                      child: Text(
+                                        '$idx',
+                                        style: const TextStyle(
+                                          color: _gold,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'Satoshi',
+                                        ),
+                                      ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            cliente?.clie_Nombres != null &&
+                                                    cliente?.clie_Apellidos !=
+                                                        null
+                                                ? '${cliente?.clie_Nombres ?? ''} ${cliente?.clie_Apellidos ?? ''}'
+                                                : parada['nombre'] ?? '',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: _body,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                        ),
+                                        // Marcar dirección como visitada si su dicl_id está en _direccionesVisitadas
+                                        if (parada['latlng'] != null)
+                                          Builder(
+                                            builder: (context) {
+                                              int? dicl_Id;
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                final idxDireccion =
+                                                    _direccionesFiltradas
+                                                        .indexWhere(
+                                                          (d) =>
+                                                              d.dicl_latitud ==
+                                                                  paradaLatLng
+                                                                      .latitude &&
+                                                              d.dicl_longitud ==
+                                                                  paradaLatLng
+                                                                      .longitude,
+                                                        );
+                                                if (idxDireccion != -1) {
+                                                  dicl_Id =
+                                                      _direccionesFiltradas[idxDireccion]
+                                                          .dicl_id;
+                                                }
+                                              }
+                                              developer.log(
+                                                'Render Checkbox: dicl_Id=$dicl_Id, visitados=$_direccionesVisitadas',
+                                                name: 'RutasMapScreen',
+                                              );
+                                              return Checkbox(
+                                                value:
+                                                    dicl_Id != null &&
+                                                    _direccionesVisitadas
+                                                        .contains(dicl_Id),
+                                                onChanged:
+                                                    (dicl_Id != null &&
+                                                            _direccionesVisitadas
+                                                                .contains(
+                                                                  dicl_Id,
+                                                                )) ||
+                                                        _enviandoVisita
+                                                    ? null
+                                                    : (val) async {
+                                                        if (val == true &&
+                                                            cliente != null) {
+                                                          await _confirmarVisitaCliente(
+                                                            cliente,
+                                                            idx,
+                                                            parada['latlng'],
+                                                          );
+                                                        }
+                                                      },
+                                                checkColor: Colors.green,
+                                                side: const BorderSide(
+                                                  color: _gold,
+                                                  width: 1.4,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                    children: [
+                                      if (cliente?.clie_NombreNegocio != null &&
+                                          cliente!
+                                              .clie_NombreNegocio!
+                                              .isNotEmpty)
+                                        ListTile(
+                                          title: const Text(
+                                            'Negocio',
+                                            style: TextStyle(
+                                              color: _gold,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            cliente.clie_NombreNegocio ?? '',
+                                            style: const TextStyle(
+                                              color: _body,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                        ),
+                                      if (cliente?.clie_Telefono != null &&
+                                          cliente?.clie_Telefono != '')
+                                        ListTile(
+                                          title: const Text(
+                                            'Teléfono',
+                                            style: TextStyle(
+                                              color: _gold,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            cliente?.clie_Telefono ?? '',
+                                            style: const TextStyle(
+                                              color: _body,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                        ),
+                                      if (parada['direccion'] != null &&
+                                          parada['direccion'] != '')
+                                        ListTile(
+                                          title: const Text(
+                                            'Dirección',
+                                            style: TextStyle(
+                                              color: _gold,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            parada['direccion'],
+                                            style: const TextStyle(
+                                              color: _body,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                        ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0,
+                                          horizontal: 16.0,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            ElevatedButton.icon(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: _darkBg,
+                                                foregroundColor: _gold,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                textStyle: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontFamily: 'Satoshi',
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.location_on,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Mostrar en mapa',
+                                              ),
+                                              onPressed: () {
+                                                Navigator.of(context).pop();
+                                                if (parada['latlng'] != null &&
+                                                    _mapController != null) {
+                                                  _mapController!.animateCamera(
+                                                    CameraUpdate.newCameraPosition(
+                                                      CameraPosition(
+                                                        target:
+                                                            parada['latlng'],
+                                                        zoom: 16,
+                                                      ),
+                                                    ),
+                                                  );
+                                                  // Opcional: mostrar info window si lo deseas
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton.icon(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: _darkBg,
+                                                foregroundColor: _gold,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                textStyle: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontFamily: 'Satoshi',
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.alt_route,
+                                                size: 18,
+                                              ),
+                                              label: const Text('Ver ruta'),
+                                              onPressed: () {
+                                                Navigator.of(context).pop();
+                                                final paradaLatLng =
+                                                    parada['latlng'];
+                                                final idxDireccion =
+                                                    _direccionesFiltradas
+                                                        .indexWhere(
+                                                          (d) =>
+                                                              d.dicl_latitud ==
+                                                                  paradaLatLng
+                                                                      .latitude &&
+                                                              d.dicl_longitud ==
+                                                                  paradaLatLng
+                                                                      .longitude,
+                                                        );
+                                                if (_userLocation != null &&
+                                                    idxDireccion != -1) {
+                                                  final destino =
+                                                      _direccionesFiltradas[idxDireccion];
+                                                  _mostrarRutaACliente(destino);
+                                                }
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ); // end Theme
+                              },
+                            ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+            ),
+            body: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _initialPosition == null
+                ? const Center(
+                    child: Text(
+                      'No hay direcciones para mostrar',
+                      style: TextStyle(color: _bodyDim, fontFamily: 'Satoshi'),
+                    ),
+                  )
+                : Stack(
+                    children: [
+                      GoogleMap(
+                        mapType: _mapType,
+                        initialCameraPosition: CameraPosition(
+                          target: _initialPosition!,
+                          zoom: 12,
+                        ),
+                        markers: _markers,
+                        polylines: _polylines,
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: false,
+                        mapToolbarEnabled: false,
+                        onMapCreated: (GoogleMapController controller) {
+                          _customInfoWindowController.googleMapController =
+                              controller;
+                          _mapController = controller;
+                        },
+                        onCameraMove: (position) {
+                          _customInfoWindowController.onCameraMove!();
+                        },
+                        onTap: (position) {
+                          _customInfoWindowController.hideInfoWindow!();
+                        },
+                      ),
+                      CustomInfoWindow(
+                        controller: _customInfoWindowController,
+                        height: 220,
+                        width: MediaQuery.of(context).size.width * 0.6,
+                        offset: 40,
+                      ),
+                      Positioned(
+                        bottom: 24,
+                        right: 24,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            FloatingActionButton(
+                              backgroundColor: _darkBg,
+                              foregroundColor: _gold,
+                              onPressed:
+                                  _userLocation == null || _markers.isEmpty
+                                  ? null
+                                  : () async {
+                                      await _loadDirecciones();
+                                      if (_direccionesFiltradas.isNotEmpty &&
+                                          _userLocation != null) {
+                                        DireccionCliente? closest =
+                                            await _getClienteMasCercanoPorRuta();
+                                        if (closest != null) {
+                                          _mostrarRutaACliente(closest);
+                                          if (_mapController != null) {
+                                            _mapController!.animateCamera(
+                                              CameraUpdate.newCameraPosition(
+                                                CameraPosition(
+                                                  target: LatLng(
+                                                    closest.dicl_latitud!,
+                                                    closest.dicl_longitud!,
+                                                  ),
+                                                  zoom: 16,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
+                              child: const Icon(Icons.alt_route),
+                              tooltip: 'Ver rutas',
+                            ),
+                            const SizedBox(height: 16),
+                            FloatingActionButton(
+                              backgroundColor: _darkBg,
+                              foregroundColor: _gold,
+                              onPressed: _mapController == null
+                                  ? null
+                                  : _centerOnUser,
+                              child: const Icon(Icons.my_location),
+                              tooltip: 'Centrar en mi ubicación',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          if (_enviandoVisita)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black45,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFD6B68A)),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
