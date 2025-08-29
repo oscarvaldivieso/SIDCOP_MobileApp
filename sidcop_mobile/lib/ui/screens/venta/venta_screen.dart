@@ -225,6 +225,12 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
         widget.vendedorId!,
       );
       
+      // Sort products with prod_Impulsado first
+      _allProducts.sort((a, b) {
+        if (a.prod_Impulsado == b.prod_Impulsado) return 0;
+        return a.prod_Impulsado ? -1 : 1;
+      });
+      
       _filteredProducts = List.from(_allProducts);
       
       // Store products in the map for easy access
@@ -1472,6 +1478,7 @@ Widget paso1() {
     final currentQuantity = _selectedProducts[product.prodId] ?? 0;
     final isSelected = currentQuantity > 0;
     final productoConDescuento = _productosConDescuento[product.prodId];
+    final isImpulsado = product.prod_Impulsado ?? false;
     
     // Obtener el mejor descuento disponible
     double? mejorDescuento;
@@ -1514,6 +1521,41 @@ Widget paso1() {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
+            if (isImpulsado)
+              Positioned(
+                right: 16,
+                top: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color.fromARGB(255, 27, 181, 55),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.local_offer, size: 14, color: Colors.black87),
+                      SizedBox(width: 4),
+                      Text(
+                        '¡IMPULSADO!',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
