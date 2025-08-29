@@ -2,7 +2,6 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:path/path.dart' as p;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/RutasService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
@@ -19,7 +18,6 @@ import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
-import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -73,45 +71,6 @@ class _RutasScreenState extends State<RutasScreen> {
       return filePath;
     }
     return null;
-  }
-
-  // Comprueba si existen tiles locales para un departamento (slug de descripcion)
-  Future<bool> _departmentTilesExist(String descripcion) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final mapsDir = Directory('${directory.path}/maps');
-      if (!await mapsDir.exists()) return false;
-      // Normalización consistente con la usada en el descargador
-      String slug(String s) {
-        return s
-            .toLowerCase()
-            .replaceAll(' ', '_')
-            .replaceAll('á', 'a')
-            .replaceAll('í', 'i')
-            .replaceAll('ó', 'o')
-            .replaceAll('é', 'e')
-            .replaceAll('ú', 'u')
-            .replaceAll('ñ', 'n');
-      }
-
-      final candidate = Directory('${mapsDir.path}/${slug(descripcion)}');
-      if (!await candidate.exists()) return false;
-
-      // Preferir sentinel .download_complete cuando exista
-      final sentinel = File(p.join(candidate.path, '.download_complete'));
-      if (await sentinel.exists()) return true;
-
-      try {
-        final hasPng = await candidate
-            .list(recursive: true)
-            .any((f) => f is File && f.path.toLowerCase().endsWith('.png'));
-        return hasPng;
-      } catch (_) {
-        return false;
-      }
-    } catch (_) {
-      return false;
-    }
   }
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
@@ -455,24 +414,6 @@ class _RutasScreenState extends State<RutasScreen> {
                     const SizedBox(height: 18),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: CustomButton(
-                          text: 'Mapas Offline',
-                          width: 180,
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const RutasDescargasScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
                         'Lista de rutas:',
                         style: const TextStyle(
@@ -537,33 +478,17 @@ class _RutasScreenState extends State<RutasScreen> {
                                               ),
                                             );
                                           } else {
-                                            final hasTiles =
-                                                await _departmentTilesExist(
-                                                  'Atlántida',
-                                                );
-                                            if (hasTiles) {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      RutasOfflineMapScreen(
-                                                        rutaId: ruta.ruta_Id,
-                                                        descripcion:
-                                                            'Atlántida',
-                                                      ),
-                                                ),
-                                              );
-                                            } else {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'No hay mapas offline descargados para Atlántida.',
-                                                  ),
-                                                ),
-                                              );
-                                            }
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RutasOfflineMapScreen(
+                                                      rutaId: ruta.ruta_Id,
+                                                      descripcion:
+                                                          ruta.ruta_Descripcion,
+                                                    ),
+                                              ),
+                                            );
                                           }
                                         },
                                         child: Card(
@@ -721,33 +646,17 @@ class _RutasScreenState extends State<RutasScreen> {
                                               ),
                                             );
                                           } else {
-                                            final hasTiles =
-                                                await _departmentTilesExist(
-                                                  'Atlántida',
-                                                );
-                                            if (hasTiles) {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      RutasOfflineMapScreen(
-                                                        rutaId: ruta.ruta_Id,
-                                                        descripcion:
-                                                            'Atlántida',
-                                                      ),
-                                                ),
-                                              );
-                                            } else {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'No hay mapas offline descargados para Atlántida.',
-                                                  ),
-                                                ),
-                                              );
-                                            }
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RutasOfflineMapScreen(
+                                                      rutaId: ruta.ruta_Id,
+                                                      descripcion:
+                                                          ruta.ruta_Descripcion,
+                                                    ),
+                                              ),
+                                            );
                                           }
                                         },
                                         child: Card(
@@ -898,6 +807,18 @@ class _RutasScreenState extends State<RutasScreen> {
                   ],
                 ),
               ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF141A2F),
+        foregroundColor: const Color(0xFFD6B68A),
+        tooltip: 'Descargas - Mapas Offline',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RutasDescargasScreen()),
+          );
+        },
+        child: const Icon(Icons.download),
       ),
     );
   }

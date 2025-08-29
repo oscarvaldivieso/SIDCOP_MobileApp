@@ -45,13 +45,37 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
 
   Future<String> _mbtilesPathFor(String departamento) async {
     final mapsDir = await _ensureMapsDir();
-    final slug = _slug(departamento);
-    return p.join(mapsDir.path, '$slug.mbtiles');
+    // This app uses a single nationwide MBTiles (Honduras).
+    // Always store/use the canonical filename 'honduras.mbtiles'.
+    return p.join(mapsDir.path, 'honduras.mbtiles');
   }
 
   Future<bool> _isMbtilesDownloaded(String departamento) async {
-    final path = await _mbtilesPathFor(departamento);
-    return await File(path).exists();
+    try {
+      final mapsDir = await _ensureMapsDir();
+      final slug = _slug(departamento);
+
+      // 1) If there's an index file and it contains this slug, consider it downloaded
+      final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
+      if (await indexFile.exists()) {
+        try {
+          final content = await indexFile.readAsString();
+          if (content.trim().isNotEmpty) {
+            final Map<String, dynamic> index = json.decode(content);
+            if (index.containsKey(slug)) return true;
+          }
+        } catch (_) {}
+      }
+
+      // 2) Fallback: any .mbtiles file in the maps directory counts as downloaded
+      final list = mapsDir.listSync();
+      for (final ent in list) {
+        if (ent is File && p.extension(ent.path).toLowerCase() == '.mbtiles') {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   // Stream download .mbtiles to disk (tmp -> rename)
@@ -61,8 +85,8 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     void Function(int, int) onProgress,
   ) async {
     final mapsDir = await _ensureMapsDir();
-    final slug = _slug(departamento);
-    final finalPath = p.join(mapsDir.path, '$slug.mbtiles');
+    // Use canonical filename for the nationwide MBTiles
+    final finalPath = p.join(mapsDir.path, 'honduras.mbtiles');
     final tmpPath = '$finalPath.tmp';
 
     final client = http.Client();
@@ -228,8 +252,8 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     // In the new flow 'Extraer' will attempt to register existing MBTiles or download it raw
     try {
       final mapsDir = await _ensureMapsDir();
-      final slug = _slug(departamento);
-      final mbPath = p.join(mapsDir.path, '$slug.mbtiles');
+      // Use the single Honduras mbtiles file
+      final mbPath = p.join(mapsDir.path, 'honduras.mbtiles');
 
       showDialog(
         context: context,
@@ -244,7 +268,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
       );
 
       if (await File(mbPath).exists()) {
-        await _registerMbtiles(slug, mbPath);
+        await _registerMbtiles('honduras', mbPath);
         if (mounted) Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('MBTiles registrado (local)')),
@@ -260,7 +284,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
             : url;
         try {
           await _downloadAndSaveMbtiles(guessedMbUrl, departamento, (r, t) {});
-          await _registerMbtiles(slug, mbPath);
+          await _registerMbtiles('honduras', mbPath);
           if (mounted) Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('MBTiles descargado y registrado')),
@@ -299,15 +323,15 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
       if (picked.path == null) return;
       final src = File(picked.path!);
       final mapsDir = await _ensureMapsDir();
-      final slug = _slug(departamento);
+      // Always import as the canonical honduras.mbtiles
       if ((picked.extension ?? '').toLowerCase() == 'mbtiles') {
-        final dest = File(p.join(mapsDir.path, '$slug.mbtiles'));
+        final dest = File(p.join(mapsDir.path, 'honduras.mbtiles'));
         await src.copy(dest.path);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('MBTiles importado')));
       } else {
-        final dest = File(p.join(mapsDir.path, '$slug.zip'));
+        final dest = File(p.join(mapsDir.path, 'honduras.zip'));
         await src.copy(dest.path);
         ScaffoldMessenger.of(
           context,
