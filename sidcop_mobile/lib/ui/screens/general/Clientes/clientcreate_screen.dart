@@ -293,35 +293,31 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       final clienteData = {
         'clie_Codigo':
             'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-        'clie_Nombres': _nombresController.text.trim(),
-        'clie_Apellidos': _apellidosController.text.trim(),
+        'clie_Nacionalidad': 'HND', // Required parameter
         'clie_DNI': _dniController.text.trim(),
         'clie_RTN': _rtnController.text.trim(),
+        'clie_Nombres': _nombresController.text.trim(),
+        'clie_Apellidos': _apellidosController.text.trim(),
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
         'clie_Telefono': _telefonoController.text.trim(), 
-        'clie_Correo':'${_nombresController.text.trim().toLowerCase()}.${_apellidosController.text.trim().toLowerCase()}@gmail.com',
-        'clie_Sexo': 'M', // Default value
-        'clie_FechaNacimiento': DateTime(
-          1990,
-          1,
-          1,
-        ).toIso8601String(), // Default value
-        'cana_Id': 1, // Default value
-        'esCv_Id': 1, // Default value
-        'ruta_Id': rutaId, // Default value, should be selected from UI
-        'clie_LimiteCredito': 0, // Default value
-        'clie_DiasCredito': 0, // Default value
-        'clie_Saldo': 0, // Default value
-        'clie_Vencido': false, // Default value
+        'clie_Correo':'${_nombresController.text.trim().toLowerCase().replaceAll(' ', '')}.${_apellidosController.text.trim().toLowerCase().replaceAll(' ', '')}@gmail.com',
+        'clie_Sexo': 'M',
+        'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(),
+        'tiVi_Id': 1, // Fixed parameter name
+        'cana_Id': 1,
+        'esCv_Id': 1,
+        'ruta_Id': rutaId,
+        'clie_LimiteCredito': 0,
+        'clie_DiasCredito': 0,
+        'clie_Saldo': 0,
+        'clie_Vencido': false,
         'clie_Observaciones': 'Cliente creado desde la app móvil',
         'clie_ObservacionRetiro': 'Ninguna',
         'clie_Confirmacion': false,
-        'TiVi_Id': 1, // Default value
-        'Clie_Nacionalidad': 'HND', // Default value
-        'usua_Creacion': usuaIdPersona, // TODO: Replace with actual user ID
+        'usua_Creacion': usuaIdPersona,
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
-        'clie_Estado': true,
+        // Removed 'tras_Id' and 'clie_Estado' as they're not in the stored procedure
       };
 
       print('Enviando datos del cliente: $clienteData');
@@ -437,11 +433,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
   Future<String?> _uploadImage() async {
     try {
-      final cloudinaryService = CloudinaryService();
+      final imageUploadService = ImageUploadService();
       final imageBytes = await _getImageBytes();
       return kIsWeb
-          ? await cloudinaryService.uploadImageFromBytes(imageBytes)
-          : await cloudinaryService.uploadImage(_selectedImage!);
+          ? await imageUploadService.uploadImageFromBytes(imageBytes)
+          : await imageUploadService.uploadImage(_selectedImage!);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
