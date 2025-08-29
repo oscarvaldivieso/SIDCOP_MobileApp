@@ -607,11 +607,11 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
   String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true}) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
-    final empresaDireccion =
-        invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
+    final empresaDireccion = invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
     final empresaRTN = invoiceData['coFa_RTN'] ?? '08019987654321';
     final empresaTelefono = invoiceData['coFa_Telefono1'] ?? '2234-5678';
     final empresaCorreo = invoiceData['coFa_Correo'] ?? 'info@sidcop.com';
+    final empresaLogo = invoiceData['coFa_Logo'] ?? 'info@sidcop.com';
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
@@ -635,6 +635,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
     final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
     final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
+    final anulada = invoiceData['fact_Anulado'] == true || invoiceData['fact_Anulado'] == 1;
 
     // Información del vendedor y sucursal
     final vendedorNombre = invoiceData['vendedor'] ?? 'Vendedor';
@@ -813,11 +814,41 @@ totalY += 10; // Espacio adicional para el total en letras
     footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS, ¡"EXIJALA"!^FS\n';
     currentFooterY += 50; // Espacio para 2 líneas
 
-    // 9. Espacio adicional antes del identificador de copia
-    currentFooterY += 10;
+    // ===== NUEVA SECCIÓN: MARCA DE ANULADA =====
+    if (anulada) {
+      currentFooterY += 20; // Espacio adicional antes de la marca ANULADA
 
-    // Calcular la altura total de la etiqueta
-    final alturaTotal = footerY + 400; // 100px adicionales para el footer
+      // Definir dimensiones del recuadro
+      final int anchoRecuadro = 250; // Ancho del recuadro
+      final int altoRecuadro = 80;   // Alto del recuadro
+      final int xRecuadro = (anchoEtiqueta - anchoRecuadro) ~/ 2; // Centrar horizontalmente
+      final int yRecuadro = currentFooterY;
+
+      // 1. Recuadro exterior (línea gruesa)
+      footerZPL += '^FO$xRecuadro,$yRecuadro^GB$anchoRecuadro,$altoRecuadro,4^FS\n';
+
+      // 2. Recuadro interior (línea delgada, para efecto de doble borde)
+      final int xInterior = xRecuadro + 8;
+      final int yInterior = yRecuadro + 8;
+      final int anchoInterior = anchoRecuadro - 16;
+      final int altoInterior = altoRecuadro - 16;
+      footerZPL += '^FO$xInterior,$yInterior^GB$anchoInterior,$altoInterior,2^FS\n';
+
+      // 3. Texto "A N U L A D A" centrado en el recuadro
+      final int yTextoAnulada = yRecuadro + 25; // Centrar verticalmente en el recuadro
+      footerZPL += '^FO$xRecuadro,$yTextoAnulada^FB$anchoRecuadro,1,0,C,0^CF0,28,32^FDA N U L A D A^FS\n';
+
+      currentFooterY += altoRecuadro + 20; // Actualizar posición después del recuadro
+    }
+
+    // 9. Espacio adicional antes del identificador de copia
+    if (!anulada) {
+      currentFooterY += 10;
+    }
+
+  
+    final alturaTotal = currentFooterY + (anulada ? 100 : 50);
+
 
     // Logo GFA (formato correcto y completo)
     const String logoZPL = '''^FX ===== LOGO CENTRADO =====
