@@ -542,7 +542,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 }
-// <- aquí termina correctamente el método
+// aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
@@ -618,7 +618,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           controller.addListener(() {
             final text = controller.text;
             final value = int.tryParse(text);
-            if (value != null && value >= 0) {
+            if (value != null && value >= 0 ) {
               _cantidades[prodId] = value;
             } else if (text.isEmpty) {
               _cantidades[prodId] = 0;
@@ -728,7 +728,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text("ID de usuario inválido."),
+                          content: Text("usuario inválido."),
                         ),
                       );
                     }
@@ -746,12 +746,37 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                         },
                       )
                       .toList();
+                     
+                  for(var detalle in detalles)
+                  {
+                    if(int.tryParse(detalle['reDe_Cantidad'].toString())! > 99)
+                    {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("La cantidad máxima es 99."),
+                        ),
+                      );
+                      return;
+                    }
+                  }
                   if (detalles.isEmpty) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Selecciona al menos un producto."),
-                        ),
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Alerta!'),
+                            content: const Text('Selecciona al menos un producto.'),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop(); // Dismiss the dialog
+                                },
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          );
+                        }
                       );
                     }
                     return;
@@ -827,7 +852,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       controller.addListener(() {
         final text = controller.text;
         final value = int.tryParse(text);
-        if (value != null && value >= 0) {
+        if (value != null && value >= 0 ) {
           setState(() {
             _cantidades[producto.prod_Id] = value;
           });
@@ -841,9 +866,26 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     } else {
       // Si la cantidad cambia por botones, actualiza el texto
       final currentText = _controllers[producto.prod_Id]!.text;
-      final expectedText = cantidad > 0 ? cantidad.toString() : '';
-      if (currentText != expectedText) {
-        _controllers[producto.prod_Id]!.text = expectedText;
+      var text;
+
+      if (cantidad > 0) {
+        text = cantidad.toString();
+      }
+      else
+      {
+        text = '';
+      }
+
+      if (cantidad < 99) {
+       text = cantidad.toString();
+      }
+      else
+      {
+        text = '99';
+      }
+
+      if (currentText != text) {
+        _controllers[producto.prod_Id]!.text = text;
       }
     }
 
@@ -913,13 +955,15 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    final newValue = cantidad + 1;
+                  onPressed: cantidad < 99
+                  ? () {
+                    final newValue = cantidad + 1;  
                     _controllers[producto.prod_Id]?.text = newValue.toString();
                     setState(() {
                       _cantidades[producto.prod_Id] = newValue;
                     });
-                  },
+                  }
+                  : null,
                 ),
               ],
             ),
