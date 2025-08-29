@@ -34,6 +34,12 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   // Controller for programmatic map movements
   final MapController _mapController = MapController();
 
+  // Palette copied from Rutas_mapscreen (dark theme)
+  static const Color _darkBg = Color(0xFF141A2F);
+  static const Color _gold = Color(0xFFD6B68A);
+  static const Color _body = Color(0xFFE6E8EC);
+  static const Color _bodyDim = Color(0xFFB5B8BF);
+
   // Simple LRU cache for tiles (key = z/x/y)
   final Map<String, Uint8List> _tileCache = {};
   final List<String> _cacheOrder = [];
@@ -307,7 +313,11 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
 
     Widget map;
     if (_starting) {
-      map = const Center(child: CircularProgressIndicator());
+      map = Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(_gold),
+        ),
+      );
     } else if (_hasMbtiles && _serverPort != null) {
       final urlTemplate = 'http://127.0.0.1:$_serverPort/{z}/{x}/{y}.png';
       print('Using tile url template: $urlTemplate');
@@ -354,11 +364,18 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.info_outline, size: 48),
+            Icon(Icons.info_outline, size: 48, color: _body),
             const SizedBox(height: 8),
-            const Text('No se detectó MBTiles activo.'),
+            Text(
+              'No se detectó MBTiles activo.',
+              style: TextStyle(color: _body),
+            ),
             const SizedBox(height: 12),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _darkBg,
+              ),
               onPressed: () async {
                 setState(() => _starting = true);
                 // attempt to init again
@@ -372,9 +389,19 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.descripcion ?? 'Mapa Offline')),
+      backgroundColor: _darkBg,
+      appBar: AppBar(
+        backgroundColor: _darkBg,
+        iconTheme: const IconThemeData(color: _gold),
+        title: Text(
+          widget.descripcion ?? 'Mapa Offline',
+          style: const TextStyle(color: _gold, fontWeight: FontWeight.bold),
+        ),
+      ),
       body: map,
       floatingActionButton: FloatingActionButton(
+        backgroundColor: _darkBg,
+        foregroundColor: _gold,
         child: const Icon(Icons.my_location),
         onPressed: _recenterToDevice,
         tooltip: 'Ir a ubicación',
