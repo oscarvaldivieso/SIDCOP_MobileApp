@@ -12,6 +12,7 @@ class ProductoConDescuento {
   final double prodCostoTotal;
   final String prodPagaImpuesto;
   final int cantidadDisponible;
+  final bool prod_Impulsado;
   final List<ListaPrecio> listasPrecio;
   final List<DescuentoEscala> descuentosEscala;
 
@@ -25,6 +26,7 @@ class ProductoConDescuento {
     required this.prodCostoTotal,
     required this.prodPagaImpuesto,
     required this.cantidadDisponible,
+    this.prod_Impulsado = false,
     required this.listasPrecio,
     required this.descuentosEscala,
   });
@@ -39,6 +41,7 @@ class ProductoConDescuento {
       prodPrecioUnitario: (json['prod_PrecioUnitario'] as num).toDouble(),
       prodCostoTotal: (json['prod_CostoTotal'] as num).toDouble(),
       prodPagaImpuesto: json['prod_PagaImpuesto'] as String,
+      prod_Impulsado: json['prod_Impulsado'] as bool? ?? false,
       cantidadDisponible: json['cantidadDisponible'] as int,
       listasPrecio: json['listasPrecio_JSON'] != null 
           ? List<ListaPrecio>.from(

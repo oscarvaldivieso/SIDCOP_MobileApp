@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -31,21 +30,6 @@ class PrinterService {
       "38eb4a80-c570-11e3-9507-0002a5d5c51b";
   // CAMBIO PRINCIPAL: Usar la característica que SÍ es escribible
   static const String ZEBRA_WRITE_UUID = "38eb4a82-c570-11e3-9507-0002a5d5c51b";
-
-  // Helper method to identify potential printer devices
-  bool _isPotentialPrinter(String deviceName) {
-    String name = deviceName.toLowerCase();
-    return name.contains('zebra') ||
-        name.contains('zq') ||
-        name.contains('printer') ||
-        name.contains('print') ||
-        name.contains('thermal') ||
-        name.contains('pos') ||
-        name.contains('receipt') ||
-        name.contains('label') ||
-        name.contains('mobile') ||
-        name.contains('portable');
-  }
 
   // Check and request Bluetooth permissions
   Future<bool> _checkPermissions() async {
@@ -642,6 +626,7 @@ $logoZPL
 
 ^FO0,230^GB360,2,2^FS
 
+
 ^FX ===== INFORMACION =====
 ^CF0,20,22
 ^FO0,250^FB360,1,0,L,0^FD$rutaLimpia^FS
@@ -723,13 +708,13 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 }
 
   // Print invoice optimizado
-  Future<bool> printInvoice(Map<String, dynamic> invoiceData) async {
+  Future<bool> printInvoice(Map<String, dynamic> invoiceData, {bool isOriginal = true}) async {
     try {
       if (!_isConnected) {
         throw Exception('Impresora no conectada');
       }
 
-      final zplContent = _generateInvoiceZPL(invoiceData);
+      final zplContent = _generateInvoiceZPL(invoiceData, isOriginal: isOriginal);
       return await printZPL(zplContent);
     } catch (e) {
       debugPrint('Error printing invoice: $e');
@@ -737,7 +722,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     }
   }
 
-  String _generateInvoiceZPL(Map<String, dynamic> invoiceData) {
+  String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true}) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
     final empresaDireccion = invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
@@ -748,6 +733,9 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
+  
+    // Texto ORIGINAL o COPIA
+    final tipoCopia = isOriginal ? 'ORIGINAL' : 'COPIA';
     final factTipoRaw = invoiceData['fact_TipoVenta'] ?? 'EFECTIVO';
     final factTipo = factTipoRaw == 'CO' ? 'CONTADO' : (factTipoRaw == 'CR' ? 'CREDITO' : factTipoRaw);
     final factFecha = _formatDate(invoiceData['fact_FechaEmision']);
@@ -808,7 +796,7 @@ for (var detalle in detalles) {
 
   // Agregar asterisco si el producto no paga impuesto (pagaImpuesto == 'N')
   final asterisco = pagaImpuesto == 'N' ? ' *' : '';
-  final productoConAsterisco = '$producto$asterisco';
+  final productoConAsterisco = '$asterisco$producto';
 
   // Producto con múltiples líneas (máximo 5 líneas, ancho 160 dots para dejar espacio a las otras columnas)
   // Usando CF0,22,24 como el resto de la información de factura
@@ -832,7 +820,7 @@ for (var detalle in detalles) {
   if (descuentoProducto > 0) {
     yPosition += 6; // Pequeño espacio antes del descuento
     final descuentoFormateado = descuentoProducto.toStringAsFixed(2);
-    productosZPL += '^FO200,$yPosition^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
+    productosZPL += '^FO10,$yPosition^FB350,1,0,R^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
     yPosition += 24; // Espacio del descuento
   }
 
@@ -894,23 +882,28 @@ totalY += 10;
 
 // Total final alineado a la derecha y destacado
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal: L$total^FS\n';
-totalY += 25;
+totalY += 50;
 
 // Total en letras (convertir el total a número, quitar el signo de L si existe)
 final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
 final totalEnLetras = ' ${NumeroEnLetras.convertir(totalNum)}';
 totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,3,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
-totalY += 50; // Espacio adicional para el total en letras
+totalY += 10; // Espacio adicional para el total en letras
 
     // Footer con posiciones dinámicas
     final footerY = totalY + 50; // Espacio antes del footer
 
     // Generar footer ZPL
     String footerZPL = '';
-    int currentFooterY = footerY + 15; // Posición inicial dentro del footer
+    int currentFooterY = footerY + 15;
+    
+     // Posición inicial dentro del footer
+
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$tipoCopia^FS\n';
+    currentFooterY += 45;
 
     // 1. FechaLimite Emision (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFechaLimite Emision: $fechaLimiteEmision^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFecha limite de emision: $fechaLimiteEmision^FS\n';
     currentFooterY += 45;
 
     // 2. Rango Autorizado (1 línea, centrado)
@@ -971,8 +964,9 @@ totalY += 50; // Espacio adicional para el total en letras
       currentFooterY += 10;
     }
 
-    // Calcular la altura total de la etiqueta
+  
     final alturaTotal = currentFooterY + (anulada ? 100 : 50);
+
 
     // Logo GFA (formato correcto y completo)
     const String logoZPL = '''^FX ===== LOGO CENTRADO =====
@@ -1030,16 +1024,11 @@ $logoZPL
 ^FX ===== PRODUCTOS =====
 $productosZPL
 
-
 ^FX ===== TOTALES =====
 ^FO0,$totalesY^GB360,2,2^FS
 $totalesZPL
 
-^FX ===== FOOTER =====
-^FO0,$footerY^GB360,2,2^FS
 $footerZPL
-
-
 ^XZ''';
   }
 
@@ -1104,102 +1093,297 @@ $footerZPL
     BuildContext context,
   ) async {
     try {
+      // Mostrar diálogo de carga
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Buscando impresoras Zebra...'),
-          content: Column(
+        builder: (context) => Dialog(
+          backgroundColor: const Color(0xFF262B40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD5B58A)),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Buscando impresoras...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Asegúrate de que la impresora esté encendida y en modo visible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Escanear dispositivos
+      final devices = await startScan();
+      if (context.mounted) Navigator.of(context).pop();
+
+      if (devices.isEmpty) {
+        if (context.mounted) {
+          await showDialog(
+            context: context,
+            builder: (context) => Dialog(
+              backgroundColor: const Color(0xFF262B40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.print,
+                      size: 48,
+                      color: const Color(0xFFD5B58A),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No se encontraron impresoras',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Verifica que la impresora esté encendida y en modo visible.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD5B58A),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'ENTENDIDO',
+                          style: TextStyle(
+                            color: Color(0xFF262B40),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        return null;
+      }
+
+      return await showDialog<BluetoothDevice?>(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: const Color(0xFF262B40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Escaneando dispositivos Bluetooth'),
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E344B),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.print_rounded,
+                      color: const Color(0xFFD5B58A),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Seleccionar impresora',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Lista de dispositivos
+              Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).pop(device),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD5B58A).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.print_rounded,
+                                  color: const Color(0xFFD5B58A),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      device.name,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 15,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      device.id.id,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white38,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Botón de cancelar
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                      ),
+                    ),
+                    child: Text(
+                      'CANCELAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       );
+    } catch (e) {
+      if (context.mounted) {
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
 
-      final devices = await startScan();
-      Navigator.of(context).pop();
-
-      if (devices.isEmpty) {
+        // Mostrar error con diseño mejorado
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se encontraron dispositivos Bluetooth.'),
-            backgroundColor: Colors.orange,
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Error al buscar impresoras: ${e.toString()}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
-        return null;
       }
-
-      return await showDialog<BluetoothDevice>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Seleccionar Impresora Zebra'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView.builder(
-              itemCount: devices.length,
-              itemBuilder: (context, index) {
-                final device = devices[index];
-                final isPrinter = _isPotentialPrinter(device.platformName);
-
-                return Card(
-                  color: isPrinter ? Colors.blue.shade50 : Colors.grey.shade100,
-                  child: ListTile(
-                    leading: Icon(
-                      isPrinter ? Icons.print : Icons.bluetooth,
-                      color: isPrinter ? Colors.blue : Colors.grey,
-                    ),
-                    title: Text(
-                      device.platformName.isNotEmpty
-                          ? device.platformName
-                          : 'Dispositivo sin nombre',
-                      style: TextStyle(
-                        fontWeight: isPrinter
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ID: ${device.remoteId}'),
-                        if (isPrinter)
-                          const Text(
-                            '✓ Posible impresora Zebra',
-                            style: TextStyle(color: Colors.green),
-                          ),
-                      ],
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).pop(device),
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
       return null;
     }
   }
