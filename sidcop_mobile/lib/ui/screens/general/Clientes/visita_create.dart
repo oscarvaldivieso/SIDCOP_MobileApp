@@ -14,6 +14,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'dart:developer' as developer;
+import 'package:http/http.dart' as http;
 
 final TextStyle _titleStyle = const TextStyle(
   fontFamily: 'Satoshi',
@@ -366,7 +369,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
         'vend_Telefono': '',
         'vend_Tipo': '',
         'vend_Imagen': '',
-        'ruta_Id':0,
+        'ruta_Id': 0,
         'ruta_Descripcion': '',
         'veRu_Id': _selectedCliente?['veRu_Id'],
         'veRu_Dias': '',
@@ -377,11 +380,13 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
         'clie_NombreNegocio': _selectedCliente?['clie_NombreNegocio'],
         'clie_Telefono': _selectedCliente?['clie_Telefono'],
         'imVi_Imagen': '',
-        'esVi_Id': _selectedEstadoVisita?['esVi_Id'] ,
-        'esVi_Descripcion': '',
-        'clVi_Observaciones': _observacionesController.text.isNotEmpty ? _observacionesController.text : 'N/A',
+        'esVi_Id': _selectedEstadoVisita?['esVi_Id'],
+        'esVi_Descripcion': _selectedEstadoVisita?['esVi_Descripcion'] ?? '',
+        'clVi_Observaciones': _observacionesController.text.isNotEmpty 
+            ? _observacionesController.text 
+            : 'N/A',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
-        'usua_Creacion': 57,
+        'usua_Creacion': globalVendId ?? 0,
         'clVi_FechaCreacion': now.toIso8601String(),
       };
 
@@ -396,37 +401,43 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
 
       final visitaId = ultimaVisita['clVi_Id'] as int;
 
-      // 4. Subir imágenes a Cloudinary y asociarlas
+      // 4. Subir imágenes al servidor y asociarlas a la visita
       for (final image in _selectedImages) {
         try {
-          // Subir a Cloudinary
-          final cloudinaryUrl = 'https://api.cloudinary.com/v1_1/dbt7mxrwk/upload';
-          final request = http.MultipartRequest('POST', Uri.parse(cloudinaryUrl));
-          final bytes = await image.readAsBytes();
+          // 4.1 Subir la imagen al endpoint /Imagen/Subir
+          final uploadUrl = Uri.parse('$apiServer/Imagen/Subir');
+          var request = http.MultipartRequest('POST', uploadUrl);
           
-          request.files.add(http.MultipartFile.fromBytes(
-            'file',
-            bytes,
-            filename: 'visita_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          // Agregar la imagen al request
+          request.files.add(await http.MultipartFile.fromPath(
+            'imagen',
+            image.path,
           ));
-          request.fields['upload_preset'] = 'empleados';
-
-          final cloudinaryResponse = await request.send();
-          if (cloudinaryResponse.statusCode == 200) {
-            final responseData = await cloudinaryResponse.stream.bytesToString();
-            final jsonResponse = jsonDecode(responseData);
-            final imageUrl = jsonResponse['secure_url'] as String?;
-
-            if (imageUrl != null) {
-              await _visitaService.asociarImagenAVisita(
-                visitaId: visitaId,
-                imagenUrl: imageUrl,
-                usuarioId: globalVendId!,
-              );
-            }
+          
+          // Agregar headers
+          request.headers['X-Api-Key'] = apikey;
+          request.headers['accept'] = '*/*';
+          
+          // Enviar la solicitud
+          final uploadResponse = await request.send();
+          final responseData = await uploadResponse.stream.bytesToString();
+          
+          if (uploadResponse.statusCode == 200) {
+            final uploadData = jsonDecode(responseData) as Map<String, dynamic>;
+            final String rutaImagen = uploadData['ruta'];
+            
+            // 4.2 Asociar la imagen a la visita usando /ImagenVisita/Insertar
+            await _visitaService.asociarImagenAVisita(
+              visitaId: visitaId,
+              imagenUrl: rutaImagen,
+              usuarioId: globalVendId ?? 0,
+            );
+          } else {
+            throw Exception('Error al subir imagen: ${uploadResponse.statusCode} - $responseData');
           }
         } catch (e) {
-          debugPrint('Error al subir imagen: $e');
+          debugPrint('Error al procesar imagen: $e');
+          // Continuar con las demás imágenes si hay un error
         }
       }
 
@@ -449,23 +460,23 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     }
   }
 
-  Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
-    try {
-      final cloudinaryService = CloudinaryService();
-      if (kIsWeb) {
-        return await cloudinaryService.uploadImageFromBytes(imageBytes);
-      } else {
-        // Crear archivo temporal para subir
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await file.writeAsBytes(imageBytes);
-        return await cloudinaryService.uploadImage(file);
-      }
-    } catch (e) {
-      debugPrint('Error al subir imagen a Cloudinary: $e');
-      return null;
-    }
-  }
+  // Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
+  //   try {
+  //     final cloudinaryService = CloudinaryService();
+  //     if (kIsWeb) {
+  //       return await cloudinaryService.uploadImageFromBytes(imageBytes);
+  //     } else {
+  //       // Crear archivo temporal para subir
+  //       final tempDir = await getTemporaryDirectory();
+  //       final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
+  //       await file.writeAsBytes(imageBytes);
+  //       return await cloudinaryService.uploadImage(file);
+  //     }
+  //   } catch (e) {
+  //     debugPrint('Error al subir imagen a Cloudinary: $e');
+  //     return null;
+  //   }
+  // }
 
   void _mostrarError(String mensaje) {
     if (mounted) {

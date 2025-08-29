@@ -108,7 +108,7 @@ class ClientesVisitaHistorialService {
       rethrow;
     }
   }
-
+  // Public getters
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
