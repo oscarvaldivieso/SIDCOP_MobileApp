@@ -622,11 +622,11 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
   String _generateInvoiceZPL(Map<String, dynamic> invoiceData) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
-    final empresaDireccion =
-        invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
+    final empresaDireccion = invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
     final empresaRTN = invoiceData['coFa_RTN'] ?? '08019987654321';
     final empresaTelefono = invoiceData['coFa_Telefono1'] ?? '2234-5678';
     final empresaCorreo = invoiceData['coFa_Correo'] ?? 'info@sidcop.com';
+    final empresaLogo = invoiceData['coFa_Logo'] ?? 'info@sidcop.com';
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
@@ -647,6 +647,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
     final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
     final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
+    final anulada = invoiceData['fact_Anulado'] == true || invoiceData['fact_Anulado'] == 1;
 
     // Información del vendedor y sucursal
     final vendedorNombre = invoiceData['vendedor'] ?? 'Vendedor';
@@ -681,38 +682,44 @@ int yPosition = 870; // Posición inicial de productos
 for (var detalle in detalles) {
   final producto = detalle['prod_Descripcion'] ?? 'Producto';
   final codigoProducto = detalle['prod_CodigoBarra'] ?? '';
+  final pagaImpuesto = detalle['prod_PagaImpuesto'] ?? 'NO';
   final cantidad = detalle['faDe_Cantidad']?.toString() ?? '1';
+  final descuentoProducto = double.tryParse(detalle['faDe_Descuento']?.toString() ?? '0') ?? 0.0;
   final precioUnitario = (detalle['faDe_PrecioUnitario'] ?? 0).toStringAsFixed(2);
   final totalItem = (detalle['faDe_Subtotal'] ?? 0).toStringAsFixed(2);
 
+  // Agregar asterisco si el producto no paga impuesto (pagaImpuesto == 'N')
+  final asterisco = pagaImpuesto == 'N' ? ' *' : '';
+  final productoConAsterisco = '$producto$asterisco';
+
   // Producto con múltiples líneas (máximo 5 líneas, ancho 160 dots para dejar espacio a las otras columnas)
   // Usando CF0,22,24 como el resto de la información de factura
-  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$producto^FS\n';
+  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$productoConAsterisco^FS\n';
   
   // Cantidad, Precio y Monto alineados a la primera línea del producto
   productosZPL += '^FO165,$yPosition^CF0,22,24^FD$cantidad^FS\n';
   productosZPL += '^FO210,$yPosition^CF0,22,24^FDL$precioUnitario^FS\n';
   productosZPL += '^FO295,$yPosition^CF0,22,24^FDL$totalItem^FS\n';
 
-  // Extraer campos adicionales para el footer
-    
-
   // Calcular espacio necesario para el producto (más preciso para ancho menor)
-  int lineasProducto = (producto.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
+  int lineasProducto = (productoConAsterisco.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
   if (lineasProducto > 5) lineasProducto = 5; // Máximo 5 líneas
   if (lineasProducto < 1) lineasProducto = 1; // Mínimo 1 línea
   
   yPosition += (lineasProducto * 24); // 24 dots por línea para fuente 22,24
 
-  // Código de producto (mismo tamaño de fuente, debajo del producto)
-  if (codigoProducto.isNotEmpty) {
-    yPosition += 6; // Pequeño espacio antes del código
-    productosZPL += '^FO0,$yPosition^CF0,22,24^FDCod: $codigoProducto^FS\n';
-    yPosition += 24; // Espacio del código
+  
+
+  // Mostrar descuento del producto si es mayor a cero
+  if (descuentoProducto > 0) {
+    yPosition += 6; // Pequeño espacio antes del descuento
+    final descuentoFormateado = descuentoProducto.toStringAsFixed(2);
+    productosZPL += '^FO200,$yPosition^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
+    yPosition += 24; // Espacio del descuento
   }
 
   // Más espacio entre productos para mejor legibilidad
-  yPosition += 25;
+  yPosition += 50;
 }
 
     // Calcular posición para totales dinámicamente
@@ -814,11 +821,40 @@ totalY += 50; // Espacio adicional para el total en letras
     footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS, ¡"EXIJALA"!^FS\n';
     currentFooterY += 50; // Espacio para 2 líneas
 
+    // ===== NUEVA SECCIÓN: MARCA DE ANULADA =====
+    if (anulada) {
+      currentFooterY += 20; // Espacio adicional antes de la marca ANULADA
+
+      // Definir dimensiones del recuadro
+      final int anchoRecuadro = 250; // Ancho del recuadro
+      final int altoRecuadro = 80;   // Alto del recuadro
+      final int xRecuadro = (anchoEtiqueta - anchoRecuadro) ~/ 2; // Centrar horizontalmente
+      final int yRecuadro = currentFooterY;
+
+      // 1. Recuadro exterior (línea gruesa)
+      footerZPL += '^FO$xRecuadro,$yRecuadro^GB$anchoRecuadro,$altoRecuadro,4^FS\n';
+
+      // 2. Recuadro interior (línea delgada, para efecto de doble borde)
+      final int xInterior = xRecuadro + 8;
+      final int yInterior = yRecuadro + 8;
+      final int anchoInterior = anchoRecuadro - 16;
+      final int altoInterior = altoRecuadro - 16;
+      footerZPL += '^FO$xInterior,$yInterior^GB$anchoInterior,$altoInterior,2^FS\n';
+
+      // 3. Texto "A N U L A D A" centrado en el recuadro
+      final int yTextoAnulada = yRecuadro + 25; // Centrar verticalmente en el recuadro
+      footerZPL += '^FO$xRecuadro,$yTextoAnulada^FB$anchoRecuadro,1,0,C,0^CF0,28,32^FDA N U L A D A^FS\n';
+
+      currentFooterY += altoRecuadro + 20; // Actualizar posición después del recuadro
+    }
+
     // 9. Espacio adicional antes del identificador de copia
-    currentFooterY += 10;
+    if (!anulada) {
+      currentFooterY += 10;
+    }
 
     // Calcular la altura total de la etiqueta
-    final alturaTotal = footerY + 300; // 100px adicionales para el footer
+    final alturaTotal = currentFooterY + (anulada ? 100 : 50);
 
     // Logo GFA (formato correcto y completo)
     const String logoZPL = '''^FX ===== LOGO CENTRADO =====

@@ -225,7 +225,7 @@ class PedidosService {
       // 5. Filtrar códigos existentes de esta ruta
       final codigosRuta = pedidos
           .map((p) => p.pedi_Codigo ?? '')
-          .where((c) => c.isNotEmpty && RegExp(r'^PED-' + rutaCodigoNumerico + r'-\d{8}$').hasMatch(c))
+          .where((c) => c.isNotEmpty && RegExp(r'^PED-' + rutaCodigoNumerico + r'-\d{7}$').hasMatch(c))
           .toList();
       
       // 6. Calcular el siguiente número
@@ -238,7 +238,7 @@ class PedidosService {
       }
       
       // 7. Generar el nuevo código
-      final nuevoCodigo = 'PED-$rutaCodigoNumerico-${siguienteNumero.toString().padLeft(8, '0')}';
+      final nuevoCodigo = 'PED-$rutaCodigoNumerico-${siguienteNumero.toString().padLeft(7, '0')}';
       print('Código generado: $nuevoCodigo');
       
       return nuevoCodigo;
