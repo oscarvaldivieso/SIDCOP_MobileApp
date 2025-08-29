@@ -351,7 +351,7 @@ class ClientesVisitaHistorialService {
   }
 
   // 1. Insertar una nueva visita
-  Future<Map<String, dynamic>?> insertarVisita(Map<String, dynamic> visitaData) async {
+  Future<Map<String, dynamic>> insertarVisita(Map<String, dynamic> visitaData) async {
     print('Insertando visita con datos: $visitaData');
     try {
       final url = Uri.parse('$_apiServer/ClientesVisitaHistorial/Insertar');
@@ -364,11 +364,25 @@ class ClientesVisitaHistorialService {
         body: jsonEncode(visitaData),
       );
 
+      print('Insertar visita response status: ${response.statusCode}');
+      print('Insertar visita response body: ${response.body}');
+
+      final responseData = jsonDecode(response.body);
+      
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        throw Exception('Error al insertar visita: ${response.statusCode}');
+        if (responseData is Map<String, dynamic> && 
+            responseData['data'] != null && 
+            responseData['data']['code_Status'] == 1) {
+          // Si la respuesta tiene el formato esperado
+          return {
+            'clVi_Id': int.tryParse(responseData['data']['data']?.toString() ?? '0') ?? 0,
+            'success': true
+          };
+        }
       }
+      
+      // Si llegamos aquí, hubo un error
+      throw Exception(responseData['data']?['message_Status'] ?? 'Error desconocido al insertar visita');
     } catch (e) {
       developer.log('Error en insertarVisita: $e');
       rethrow;
