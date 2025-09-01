@@ -90,7 +90,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             final signaturesRemote = <String>{};
             for (final r in visitasJson) {
               try {
-                if (r is Map && r['local_signature'] != null) {
+                if (r['local_signature'] != null) {
                   signaturesRemote.add(r['local_signature'].toString());
                 }
               } catch (_) {}
@@ -149,11 +149,14 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push<bool?>(
             context,
             MaterialPageRoute(builder: (context) => const VisitaCreateScreen()),
           );
+          if (mounted && result == true) {
+            await _loadVisitas();
+          }
         },
         backgroundColor: const Color(0xFF141A2F),
         child: const Icon(Icons.add, color: Colors.white),
@@ -381,7 +384,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                     const SizedBox(height: 16),
                     _infoRow(Icons.calendar_today_rounded, 'Fecha', fecha),
                     const SizedBox(height: 16),
-                    
+
                     // Botón para ver imágenes
                     SizedBox(
                       width: double.infinity,
@@ -408,7 +411,13 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                           elevation: 0,
                         ),
                         icon: const Icon(Icons.photo_library, size: 20),
-                        label: const Text('Ver Imágenes', style: TextStyle(fontFamily: 'Satoshi', fontWeight: FontWeight.w600)),
+                        label: const Text(
+                          'Ver Imágenes',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   ],

@@ -494,6 +494,56 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         });
       }
       _ordenParadasOffline = orden;
+      // Additionally, mark as visited any direcciones that already appear in the
+      // local visitas_historial.json. We only add those direcciones that belong
+      // to the current route (present in ordenParadasOffline) to avoid polluting
+      // other routes' visit state.
+      try {
+        final visitasLocal =
+            await RutasScreenOffline.obtenerVisitasHistorialLocal();
+        final diclIdsInOrden = _ordenParadasOffline
+            .map((e) => (e['dicl_id'] ?? '').toString())
+            .where((s) => s.isNotEmpty)
+            .toSet();
+        final nuevos = <String>{};
+        for (final v in visitasLocal) {
+          try {
+            if (v is Map) {
+              final possibleKeys = [
+                'diCl_Id',
+                'diClId',
+                'dicl_id',
+                'di_cl_id',
+                'di_clid',
+                'di_cl',
+                'diclId',
+                'di_cl_id',
+              ];
+              String? found;
+              for (final k in possibleKeys) {
+                if (v.containsKey(k) && v[k] != null) {
+                  found = v[k].toString();
+                  break;
+                }
+              }
+              if (found != null && found.isNotEmpty) {
+                // Only mark if the direccion id belongs to this route
+                if (diclIdsInOrden.contains(found)) {
+                  nuevos.add(found);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        if (nuevos.isNotEmpty) {
+          setState(() {
+            _direccionesVisitadasOffline.addAll(nuevos);
+          });
+          await _saveVisitedSet();
+        }
+      } catch (e) {
+        // ignore
+      }
       if (failures.isNotEmpty) {
         print(
           'OFFLINE: marker parse failures=${failures.length}, examples=${failures.length <= 10 ? failures : failures.sublist(0, 10)}',
@@ -1079,12 +1129,32 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                               title: Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      titulo,
-                                      style: const TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        color: _body,
-                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          titulo,
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            color: _body,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Mostrar la dirección como campo informativo debajo del nombre
+                                        if (parada['direccion'] != null &&
+                                            (parada['direccion'] ?? '').toString().isNotEmpty)
+                                          Text(
+                                            parada['direccion'].toString(),
+                                            style: const TextStyle(
+                                              fontFamily: 'Satoshi',
+                                              color: _bodyDim,
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
                                     ),
                                   ),
                                   // Checkbox for marking visita (parity with online)
