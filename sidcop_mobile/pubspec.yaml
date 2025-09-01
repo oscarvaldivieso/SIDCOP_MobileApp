@@ -79,6 +79,7 @@ flutter:
     - assets/breadcrum2.png
     - assets/breadcrum1.svg
     - assets/test.svg
+    - assets/marker_cliente.png
     - assets/Key.png
     - assets/fondo_usuario.png
     - assets/galaxia.jpg
@@ -91,7 +92,6 @@ flutter:
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
     - assets/Ellipse1.png
-    - assets/marker_cliente.png
   # - assets/tiles
   
   fonts:

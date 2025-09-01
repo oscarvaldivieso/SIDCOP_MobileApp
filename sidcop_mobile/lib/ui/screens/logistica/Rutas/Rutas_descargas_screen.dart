@@ -3,12 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-// archive package removed: we no longer extract ZIPs on-device; we download raw .mbtiles
 import 'package:path/path.dart' as p;
-// dart:math removed (not used)
 import 'dart:convert';
 import 'dart:async';
-import 'package:file_picker/file_picker.dart';
 
 class RutasDescargasScreen extends StatefulWidget {
   const RutasDescargasScreen({Key? key}) : super(key: key);
@@ -20,23 +17,12 @@ class RutasDescargasScreen extends StatefulWidget {
 class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
   final List<String> departamentos = const ['Honduras'];
 
-  // Original URL points to a ZIP; we will try to replace .zip -> .mbtiles when downloading
   final Map<String, String> urls = {
     'Honduras':
         'http://200.59.27.115/Honduras_map/mapa_honduras_2025-08-27_180657.mbtiles',
   };
 
-  String _slug(String departamento) => departamento
-      .toLowerCase()
-      .replaceAll(' ', '_')
-      .replaceAll('á', 'a')
-      .replaceAll('í', 'i')
-      .replaceAll('ó', 'o')
-      .replaceAll('é', 'e')
-      .replaceAll('ú', 'u')
-      .replaceAll('ñ', 'n');
-
-  Future<Directory> _ensureMapsDir() async {
+  Future<Directory> _Mapdir() async {
     final dir = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(dir.path, 'maps'));
     if (!await mapsDir.exists()) await mapsDir.create(recursive: true);
@@ -44,30 +30,26 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
   }
 
   Future<String> _mbtilesPathFor(String departamento) async {
-    final mapsDir = await _ensureMapsDir();
-    // This app uses a single nationwide MBTiles (Honduras).
-    // Always store/use the canonical filename 'honduras.mbtiles'.
+    final mapsDir = await _Mapdir();
+
     return p.join(mapsDir.path, 'honduras.mbtiles');
   }
 
   Future<bool> _isMbtilesDownloaded(String departamento) async {
     try {
-      final mapsDir = await _ensureMapsDir();
-      final slug = _slug(departamento);
+      final mapsDir = await _Mapdir();
 
-      // 1) If there's an index file and it contains this slug, consider it downloaded
       final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
       if (await indexFile.exists()) {
         try {
           final content = await indexFile.readAsString();
           if (content.trim().isNotEmpty) {
             final Map<String, dynamic> index = json.decode(content);
-            if (index.containsKey(slug)) return true;
+            if (index.containsKey('honduras')) return true;
           }
         } catch (_) {}
       }
 
-      // 2) Fallback: any .mbtiles file in the maps directory counts as downloaded
       final list = mapsDir.listSync();
       for (final ent in list) {
         if (ent is File && p.extension(ent.path).toLowerCase() == '.mbtiles') {
@@ -78,14 +60,13 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     return false;
   }
 
-  // Stream download .mbtiles to disk (tmp -> rename)
   Future<String> _downloadAndSaveMbtiles(
     String url,
     String departamento,
     void Function(int, int) onProgress,
   ) async {
-    final mapsDir = await _ensureMapsDir();
-    // Use canonical filename for the nationwide MBTiles
+    final mapsDir = await _Mapdir();
+
     final finalPath = p.join(mapsDir.path, 'honduras.mbtiles');
     final tmpPath = '$finalPath.tmp';
 
@@ -110,7 +91,6 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     await sink.close();
     client.close();
 
-    // rename
     try {
       await File(tmpPath).rename(finalPath);
     } catch (_) {
@@ -121,27 +101,6 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     }
 
     return finalPath;
-  }
-
-  Future<void> _registerMbtiles(String slug, String path) async {
-    try {
-      final mapsDir = await _ensureMapsDir();
-      final indexFile = File(p.join(mapsDir.path, 'maps_index.json'));
-      Map<String, dynamic> index = {};
-      if (await indexFile.exists()) {
-        try {
-          final content = await indexFile.readAsString();
-          if (content.trim().isNotEmpty)
-            index = json.decode(content) as Map<String, dynamic>;
-        } catch (_) {
-          index = {};
-        }
-      }
-      index[slug] = path;
-      await indexFile.writeAsString(json.encode(index), flush: true);
-    } catch (e) {
-      print('Error registrando MBTiles: $e');
-    }
   }
 
   Future<void> _handleDownload(String departamento) async {
@@ -191,7 +150,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
           builder: (ctx) => AlertDialog(
             title: const Text('Re-descargar'),
             content: const Text(
-              'Ya existe un MBTiles descargado. ¿Deseas reemplazarlo?',
+              'Ya existe un mapa descargado. ¿Deseas reemplazarlo?',
             ),
             actions: [
               TextButton(
@@ -214,22 +173,14 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
       }
 
       try {
-        if (await f.exists()) await f.delete();
-      } catch (_) {}
-
-      try {
-        final guessedMbUrl = url.endsWith('.zip')
-            ? url.replaceAllMapped(RegExp(r'\.zip\$'), (m) => '.mbtiles')
-            : url;
-        final savedPath = await _downloadAndSaveMbtiles(
-          guessedMbUrl,
-          departamento,
-          (r, t) {
-            try {
-              progressCtrl.add({'r': r, 't': t});
-            } catch (_) {}
-          },
-        );
+        final savedPath = await _downloadAndSaveMbtiles(url, departamento, (
+          r,
+          t,
+        ) {
+          try {
+            progressCtrl.add({'r': r, 't': t});
+          } catch (_) {}
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Descargado: ${p.basename(savedPath)}')),
         );
@@ -248,103 +199,6 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     }
   }
 
-  Future<void> _handleExtract(String departamento) async {
-    // In the new flow 'Extraer' will attempt to register existing MBTiles or download it raw
-    try {
-      final mapsDir = await _ensureMapsDir();
-      // Use the single Honduras mbtiles file
-      final mbPath = p.join(mapsDir.path, 'honduras.mbtiles');
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const AlertDialog(
-          title: Text('Obteniendo MBTiles...'),
-          content: SizedBox(
-            height: 60,
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ),
-      );
-
-      if (await File(mbPath).exists()) {
-        await _registerMbtiles('honduras', mbPath);
-        if (mounted) Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('MBTiles registrado (local)')),
-        );
-        setState(() {});
-        return;
-      }
-
-      final url = urls[departamento];
-      if (url != null) {
-        final guessedMbUrl = url.endsWith('.zip')
-            ? url.replaceAllMapped(RegExp(r'\.zip\$'), (m) => '.mbtiles')
-            : url;
-        try {
-          await _downloadAndSaveMbtiles(guessedMbUrl, departamento, (r, t) {});
-          await _registerMbtiles('honduras', mbPath);
-          if (mounted) Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('MBTiles descargado y registrado')),
-          );
-          setState(() {});
-          return;
-        } catch (e) {
-          print('Error descargando MBTiles: $e');
-        }
-      }
-
-      if (mounted) Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No se encontró MBTiles local ni fue posible descargarlo',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  Future<void> _handleImport(String departamento) async {
-    try {
-      final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip', 'mbtiles'],
-      );
-      if (res == null || res.files.isEmpty) return;
-      final picked = res.files.first;
-      if (picked.path == null) return;
-      final src = File(picked.path!);
-      final mapsDir = await _ensureMapsDir();
-      // Always import as the canonical honduras.mbtiles
-      if ((picked.extension ?? '').toLowerCase() == 'mbtiles') {
-        final dest = File(p.join(mapsDir.path, 'honduras.mbtiles'));
-        await src.copy(dest.path);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('MBTiles importado')));
-      } else {
-        final dest = File(p.join(mapsDir.path, 'honduras.zip'));
-        await src.copy(dest.path);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('ZIP importado')));
-      }
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error importando: $e')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -352,50 +206,78 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         title: const Text('Descargas - Mapas Offline'),
         backgroundColor: const Color(0xFF141A2F),
       ),
-      body: ListView.separated(
-        itemCount: departamentos.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final d = departamentos[index];
-          final hasUrl = urls.containsKey(d);
-          return FutureBuilder<bool>(
-            future: _isMbtilesDownloaded(d),
-            builder: (context, snapZip) {
-              final downloaded = snapZip.data ?? false;
-              return ListTile(
-                title: Text(d),
-                subtitle: Text(
-                  downloaded ? 'Estado: descargado' : 'Estado: no descargado',
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            color: const Color(0xFF141A2F),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Row(
+              children: const [
+                Icon(Icons.signal_wifi_off, color: Color(0xFFD6B68A)),
+                SizedBox(width: 10),
+                Text(
+                  'Mapa Sin conexion',
+                  style: TextStyle(
+                    color: Color(0xFFD6B68A),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'Importar ZIP/MBTiles',
-                      icon: const Icon(Icons.folder_open),
-                      color: const Color(0xFF90A4AE),
-                      onPressed: () => _handleImport(d),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: downloaded ? 'Volver a descargar' : 'Descargar',
-                      icon: const Icon(Icons.download),
-                      color: const Color(0xFFD6B68A),
-                      onPressed: hasUrl ? () => _handleDownload(d) : null,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Extraer',
-                      icon: const Icon(Icons.unarchive),
-                      color: const Color(0xFFD6B68A),
-                      onPressed: () => _handleExtract(d),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              itemCount: departamentos.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final d = departamentos[index];
+                final hasUrl = urls.containsKey(d);
+                return FutureBuilder<bool>(
+                  future: _isMbtilesDownloaded(d),
+                  builder: (context, snapZip) {
+                    final downloaded = snapZip.data ?? false;
+                    return Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        title: Text(
+                          d,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          downloaded
+                              ? 'Estado: descargado'
+                              : 'Estado: no descargado',
+                        ),
+                        trailing: IconButton(
+                          tooltip: downloaded
+                              ? 'Volver a descargar'
+                              : 'Descargar',
+                          icon: const Icon(Icons.download),
+                          color: const Color(0xFFD6B68A),
+                          onPressed: hasUrl ? () => _handleDownload(d) : null,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

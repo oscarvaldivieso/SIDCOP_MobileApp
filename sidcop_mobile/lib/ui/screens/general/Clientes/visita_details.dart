@@ -20,7 +20,8 @@ class VisitaDetailsScreen extends StatefulWidget {
 }
 
 class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
-  final ClientesVisitaHistorialService _visitaService = ClientesVisitaHistorialService();
+  final ClientesVisitaHistorialService _visitaService =
+      ClientesVisitaHistorialService();
   List<Map<String, dynamic>> _imagenes = [];
   bool _isLoading = true;
   String _errorMessage = '';
@@ -37,9 +38,11 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         _isLoading = true;
         _errorMessage = '';
       });
-      
-      final imagenes = await _visitaService.listarImagenesPorVisita(widget.visitaId);
-      
+
+      final imagenes = await _visitaService.listarImagenesPorVisita(
+        widget.visitaId,
+      );
+
       setState(() {
         _imagenes = imagenes;
         _isLoading = false;
@@ -73,7 +76,11 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: Colors.grey[300],
-                    child: const Icon(Icons.broken_image, color: Colors.grey, size: 60),
+                    child: const Icon(
+                      Icons.broken_image,
+                      color: Colors.grey,
+                      size: 60,
+                    ),
                   ),
                 ),
               ),
@@ -124,7 +131,9 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final baseUrl = 'http://200.59.27.115:8091';
-    final primeraImagen = _imagenes.isNotEmpty ? _imagenes.first['imVi_Imagen'] as String? : null;
+    final primeraImagen = _imagenes.isNotEmpty
+        ? _imagenes.first['imVi_Imagen'] as String?
+        : null;
 
     return Scaffold(
       drawerScrimColor: Colors.black54,
@@ -138,13 +147,17 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
               await _cargarImagenes();
             },
             child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _errorMessage.isNotEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage.isNotEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 60,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           _errorMessage,
@@ -213,7 +226,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                 value: widget.clienteNombre,
                               ),
                               const SizedBox(height: 12),
-                            ]
+                            ],
                           ),
                         ),
 
@@ -249,11 +262,16 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                         tag: 'featured_image',
                                         child: Image.network(
                                           "$baseUrl$primeraImagen",
-                                          width: MediaQuery.of(context).size.width - 48,
+                                          width:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.width -
+                                              48,
                                           height: 200,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              _buildDefaultImage(),
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  _buildDefaultImage(),
                                         ),
                                       ),
                                     )
@@ -280,28 +298,35 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                         // Image Gallery
                         if (_imagenes.length > 1)
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                            ),
                             child: GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 1,
-                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 1,
+                                  ),
                               itemCount: _imagenes.length,
                               itemBuilder: (context, index) {
                                 final imagen = _imagenes[index];
-                                final tag = 'gallery_image_${imagen['imVi_Id'] ?? index}';
-                                final imagePath = imagen['imVi_Imagen'] as String?;
+                                final tag =
+                                    'gallery_image_${imagen['imVi_Id'] ?? index}';
+                                final imagePath =
+                                    imagen['imVi_Imagen'] as String?;
 
-                                if (imagePath == null) return const SizedBox.shrink();
+                                if (imagePath == null)
+                                  return const SizedBox.shrink();
 
                                 final imageUrl = "$baseUrl$imagePath";
 
                                 return GestureDetector(
-                                  onTap: () => _showImageFullScreen(imageUrl, tag),
+                                  onTap: () =>
+                                      _showImageFullScreen(imageUrl, tag),
                                   child: Container(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(12),
@@ -320,15 +345,16 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                         child: Image.network(
                                           imageUrl,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              Container(
-                                            color: Colors.grey[300],
-                                            child: const Icon(
-                                              Icons.broken_image,
-                                              color: Colors.grey,
-                                              size: 40,
-                                            ),
-                                          ),
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Container(
+                                                    color: Colors.grey[300],
+                                                    child: const Icon(
+                                                      Icons.broken_image,
+                                                      color: Colors.grey,
+                                                      size: 40,
+                                                    ),
+                                                  ),
                                         ),
                                       ),
                                     ),
@@ -348,7 +374,9 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                           ),
 
                         // Empty state if no images
-                        if (_imagenes.isEmpty && !_isLoading && _errorMessage.isEmpty)
+                        if (_imagenes.isEmpty &&
+                            !_isLoading &&
+                            _errorMessage.isEmpty)
                           const Padding(
                             padding: EdgeInsets.all(40.0),
                             child: Center(
@@ -374,7 +402,9 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                             ),
                           ),
 
-                        const SizedBox(height: 24), // Espacio adicional al final
+                        const SizedBox(
+                          height: 24,
+                        ), // Espacio adicional al final
                       ],
                     ),
                   ),
