@@ -1231,7 +1231,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         ),
                                         child: Row(
                                           mainAxisAlignment:
-                                              MainAxisAlignment.end,
+                                              MainAxisAlignment.start,
                                           children: [
                                             ElevatedButton.icon(
                                               style: ElevatedButton.styleFrom(
@@ -1321,7 +1321,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       const SizedBox(height: 8),
                                       Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                            MainAxisAlignment.start,
                                         children: [
                                           ElevatedButton.icon(
                                             style: ElevatedButton.styleFrom(
