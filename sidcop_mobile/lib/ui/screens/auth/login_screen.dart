@@ -7,6 +7,7 @@ import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
 import '../../screens/auth/forgot_password_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -14,6 +15,14 @@ class LoginScreen extends StatefulWidget {
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+
+  // Método estático para limpiar credenciales guardadas (accesible desde otras clases)
+  static Future<void> clearSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('remember_me');
+    await prefs.remove('saved_email');
+    await prefs.remove('saved_password');
+  }
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -32,6 +41,47 @@ class _LoginScreenState extends State<LoginScreen> {
   String _syncStatus = '';
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedSession();
+  }
+
+  // Verificar si hay una sesión guardada
+  Future<void> _checkSavedSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+    final savedEmail = prefs.getString('saved_email') ?? '';
+    final savedPassword = prefs.getString('saved_password') ?? '';
+    
+    if (rememberMe && savedEmail.isNotEmpty && savedPassword.isNotEmpty) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _passwordController.text = savedPassword;
+        _rememberMe = true;
+      });
+      
+      // Auto-login si hay credenciales guardadas
+      await _handleLogin();
+    }
+  }
+
+  // Guardar credenciales si "Remember me" está activado
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    if (_rememberMe) {
+      await prefs.setBool('remember_me', true);
+      await prefs.setString('saved_email', _emailController.text.trim());
+      await prefs.setString('saved_password', _passwordController.text);
+    } else {
+      await prefs.remove('remember_me');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+    }
+  }
+
 
   Future<void> _handleLogin() async {
     // Limpiar errores previos
@@ -74,6 +124,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result != null && result['error'] != true) {
         // Login exitoso - guardar datos del usuario
         await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        // Guardar credenciales si "Remember me" está activado
+        await _saveCredentials();
         
         // Sincronización
         setState(() {
@@ -231,6 +284,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             Row(
   children: [
+Row(
+  children: [
+    Checkbox(
+      value: _rememberMe,
+      onChanged: (value) {
+        setState(() {
+          _rememberMe = value ?? false;
+        });
+      },
+      activeColor: const Color(0xFF98774A), // tu color de diseño
+    ),
+    const Text(
+      "Mantener sesión activa",
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  ],
+),
 
 
   ],
@@ -278,59 +352,112 @@ const SizedBox(height: 30),
               );
             },
           ),
-          
-          // Overlay de carga con animación
+          // Overlay de carga con animación - pantalla completa
           if (_isLoading)
-            Container(
-              color: Colors.black.withOpacity(0.6),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF181E34).withOpacity(0.95), // Azul oscuro
+                      const Color(0xFF06115B).withOpacity(0.95), // Azul más oscuro
                     ],
                   ),
+                ),
+                child: Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Indicador de carga circular animado
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 4,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Theme.of(context).primaryColor,
+                      // Contenedor con efecto glassmorphism
+                      Container(
+                        padding: const EdgeInsets.all(40),
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF98774A).withOpacity(0.3),
+                            width: 1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
-                        style: const TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Indicador de carga circular con colores de marca
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF98774A), // Dorado
+                                    const Color(0xFFD6B68A), // Dorado claro
+                                  ],
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  backgroundColor: Colors.white.withOpacity(0.3),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+                            // Texto principal
+                            Text(
+                              _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
+                              style: const TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            // Texto secundario
+                            Text(
+                              'Por favor espere',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFFD6B68A), // Dorado claro
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 20),
+                            // Indicador de puntos animados
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(3, (index) {
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF98774A).withOpacity(0.7),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Por favor espere',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
