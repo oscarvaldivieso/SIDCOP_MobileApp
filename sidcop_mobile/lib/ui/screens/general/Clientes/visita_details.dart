@@ -6,7 +6,7 @@ import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 class VisitaDetailsScreen extends StatefulWidget {
   final int visitaId;
   final String clienteNombre;
-  final Map<String, dynamic>? visitaData; // Para mostrar detalles de la visita
+  final Map<String, dynamic>? visitaData; // Para mostrar Imagenes de la visita
 
   const VisitaDetailsScreen({
     Key? key,
@@ -132,7 +132,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
       body: Stack(
         children: [
           AppBackground(
-            title: 'Detalles de la Visita',
+            title: 'Imagenes de la Visita',
             icon: Icons.visibility_outlined,
             onRefresh: () async {
               await _cargarImagenes();
@@ -186,7 +186,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                               const SizedBox(width: 16),
                               const Expanded(
                                 child: Text(
-                                  'Detalles de la Visita',
+                                  'Imagenes de la Visita',
                                   style: TextStyle(
                                     fontFamily: 'Satoshi',
                                     fontSize: 24,
@@ -201,7 +201,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                         // Visit Information
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 24.0,
+                            horizontal: 24.0,ñ
                             vertical: 8.0,
                           ),
                           child: Column(
