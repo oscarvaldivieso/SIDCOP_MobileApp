@@ -141,8 +141,8 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
           const SizedBox(height: 16),
           _buildPagosCard(),
           const SizedBox(height: 16),
-          _buildActionButtons(),
-          const SizedBox(height: 32),
+          // _buildActionButtons(),
+          // const SizedBox(height: 32),
         ],
       ),
     );
@@ -685,31 +685,31 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
-    final cuenta = _cuentaDetalle!;
-    final bool tienePendiente = (cuenta.cpCo_Saldo ?? 0) > 0;
-    final bool estaAnulado = cuenta.cpCo_Anulado == true;
-    final bool estaSaldado = cuenta.cpCo_Saldada == true;
+  // Widget _buildActionButtons() {
+  //   final cuenta = _cuentaDetalle!;
+  //   final bool tienePendiente = (cuenta.cpCo_Saldo ?? 0) > 0;
+  //   final bool estaAnulado = cuenta.cpCo_Anulado == true;
+  //   final bool estaSaldado = cuenta.cpCo_Saldada == true;
     
-    return Row(
-      children: [
-        // Botón Registrar Pago (solo si tiene saldo pendiente y no está anulado ni saldado)
-        if (tienePendiente && !estaAnulado && !estaSaldado)
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _navigateToPaymentScreen(),
-              icon: const Icon(Icons.payment_rounded, size: 18, color: Colors.white),
-              label: const Text('Registrar Pago', style: TextStyle(fontSize: 14, fontFamily: 'Satoshi', color: Colors.white, fontWeight: FontWeight.w600)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade600,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+  //   return Row(
+  //     children: [
+  //       // Botón Registrar Pago (solo si tiene saldo pendiente y no está anulado ni saldado)
+  //       if (tienePendiente && !estaAnulado && !estaSaldado)
+  //         Expanded(
+  //           child: ElevatedButton.icon(
+  //             onPressed: () => _navigateToPaymentScreen(),
+  //             icon: const Icon(Icons.payment_rounded, size: 18, color: Colors.white),
+  //             label: const Text('Registrar Pago', style: TextStyle(fontSize: 14, fontFamily: 'Satoshi', color: Colors.white, fontWeight: FontWeight.w600)),
+  //             style: ElevatedButton.styleFrom(
+  //               backgroundColor: Colors.green.shade600,
+  //               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  //             ),
+  //           ),
+  //         ),
+  //     ],
+  //   );
+  // }
 
   void _navigateToPaymentScreen() async {
     final cuenta = _cuentaDetalle!;
