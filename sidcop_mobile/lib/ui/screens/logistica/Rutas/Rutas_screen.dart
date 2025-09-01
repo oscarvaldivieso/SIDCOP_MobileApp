@@ -183,7 +183,11 @@ class _RutasScreenState extends State<RutasScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mostrando rutas sin conexión a Internet.')),
+          SnackBar(
+            content: Text(
+              'Error al cargar las rutas. Mostrando rutas precargadas.',
+            ),
+          ),
         );
       }
     }
