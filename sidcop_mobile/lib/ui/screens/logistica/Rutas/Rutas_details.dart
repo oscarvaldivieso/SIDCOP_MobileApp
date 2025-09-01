@@ -76,6 +76,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
   }
 
   Future<void> _cargarDatos() async {
+    // Try online first, then fall back to per-route offline details, then to
+    // global offline collections (clientes.json + direcciones.json).
     try {
       final clientesService = ClientesService();
       final direccionesService = DireccionClienteService();
@@ -99,7 +101,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       for (final d in direccionesFiltradas) {
         mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
       }
-      // Usar el mismo icono marker que en Rutas_screen.dart
+
+      // Build static URL for UI (may be cached later)
       const iconUrl =
           'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
       final markers = direccionesFiltradas
@@ -113,30 +116,36 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
           .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
           .join('|');
-      // El parámetro visible fuerza a que todos los puntos estén en la imagen
       final staticUrl =
           'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
+
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
           _direccionesPorCliente = mapDirecciones;
           _staticMapUrl = staticUrl;
           _loading = false;
+          _error = null;
         });
       }
-      // Intentar guardar la imagen static localmente (UI) y luego guardar detalles
-      await _guardarImagenDesdeUrlSiEsPosible(staticUrl, widget.ruta.ruta_Id);
-      // Guardar detalles encriptados offline usando el servicio central
+
+      // attempt to save static image locally (non-blocking)
+      _guardarImagenDesdeUrlSiEsPosible(staticUrl, widget.ruta.ruta_Id);
+      // persist per-route details for offline use
       await _guardarDetallesOffline(
         clientesFiltrados,
         direccionesFiltradas,
         staticUrl,
       );
+      return;
     } catch (e) {
-      // Si falla, intentar leer detalles offline
+      // online attempt failed - try per-route offline details
+    }
+
+    // Try per-route details stored via RutasScreenOffline
+    try {
       final detallesOffline = await _leerDetallesOffline();
       if (detallesOffline != null &&
-          detallesOffline['clientes'] != null &&
           (detallesOffline['clientes'] as List).isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -145,17 +154,62 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                 detallesOffline['direccionesPorCliente'] ?? {};
             _staticMapUrl = detallesOffline['staticMapUrl'];
             _loading = false;
-            _error = null; // No mostrar error si hay datos offline
+            _error = null;
           });
         }
-      } else {
-        if (mounted) {
-          setState(() {
-            _error =
-                'No hay datos disponibles. Compruebe su conexión a Internet.';
-            _loading = false;
-          });
-        }
+        return;
+      }
+    } catch (_) {}
+
+    // Fall back to global offline collections (clientes.json + direcciones.json)
+    try {
+      final clientesRaw = await RutasScreenOffline.obtenerClientesLocal();
+      final direccionesRaw = await RutasScreenOffline.obtenerDireccionesLocal();
+
+      final clientesFiltrados = <Cliente>[];
+      for (final j in clientesRaw) {
+        try {
+          final c = Cliente.fromJson(j);
+          if (c.ruta_Id == widget.ruta.ruta_Id) clientesFiltrados.add(c);
+        } catch (_) {}
+      }
+
+      final clienteIds = clientesFiltrados
+          .map((c) => c.clie_Id)
+          .whereType<int>()
+          .toSet();
+
+      final direccionesFiltradas = <DireccionCliente>[];
+      for (final j in direccionesRaw) {
+        try {
+          final d = DireccionCliente.fromJson(j);
+          if (clienteIds.contains(d.clie_id)) direccionesFiltradas.add(d);
+        } catch (_) {}
+      }
+
+      final mapDirecciones = <int, List<DireccionCliente>>{};
+      for (final d in direccionesFiltradas) {
+        mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
+      }
+
+      if (mounted) {
+        setState(() {
+          _clientes = clientesFiltrados;
+          _direccionesPorCliente = mapDirecciones;
+          _staticMapUrl = null;
+          _loading = false;
+          _error = null;
+        });
+      }
+      return;
+    } catch (e) {
+      // final fallback: show error
+      if (mounted) {
+        setState(() {
+          _error =
+              'No hay datos disponibles. Compruebe su conexión a Internet.';
+          _loading = false;
+        });
       }
     }
   }
