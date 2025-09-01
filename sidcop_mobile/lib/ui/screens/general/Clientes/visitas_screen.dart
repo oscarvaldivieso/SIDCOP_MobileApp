@@ -32,6 +32,37 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       _errorMessage = '';
     });
 
+    // Intentar sincronizar datos maestros para que los dropdowns en
+    // `VisitaCreateScreen` estén actualizados cada vez que se entra a
+    // la pantalla de visitas. Errores no deben bloquear la carga.
+    try {
+      await VisitasOffline.sincronizarEstadosVisita();
+    } catch (_) {}
+    try {
+      await VisitasOffline.sincronizarClientes();
+    } catch (_) {}
+    try {
+      await VisitasOffline.sincronizarDirecciones();
+    } catch (_) {}
+
+    // Intentar enviar visitas pendientes guardadas en modo offline.
+    try {
+      final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
+      if (mounted && pendientesEnviadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$pendientesEnviadas visita(s) sincronizada(s) con éxito',
+            ),
+            backgroundColor: const Color(0xFF2E7D32),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (_) {
+      // No interrumpir la carga si falla la sincronización de pendientes
+    }
+
     try {
       final visitas = await _service.listarPorVendedor();
 

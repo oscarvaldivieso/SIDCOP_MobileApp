@@ -200,6 +200,19 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           } catch (_) {}
         }
       }
+      // Fallbacks: si por alguna razón la carga remota devolvió vacíos, intentar usar cache local
+      if (_estadosVisita.isEmpty) {
+        try {
+          final estadosLocal = await VisitasOffline.obtenerEstadosVisitaLocal();
+          if (estadosLocal.isNotEmpty) _estadosVisita = estadosLocal;
+        } catch (_) {}
+      }
+      if (_clientes.isEmpty) {
+        try {
+          final clientesLocal = await VisitasOffline.obtenerClientesLocal();
+          if (clientesLocal.isNotEmpty) _clientes = clientesLocal;
+        } catch (_) {}
+      }
     } catch (e) {
       _mostrarError('Error al cargar datos iniciales: $e');
     } finally {
@@ -221,9 +234,30 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     });
 
     try {
-      _direcciones = await _visitaService.obtenerDireccionesPorCliente(
-        clienteId,
-      );
+      // Verificar conexión para decidir si usamos el servicio remoto o el cache local
+      final online = await _verificarConexion();
+      if (online) {
+        _direcciones = await _visitaService.obtenerDireccionesPorCliente(
+          clienteId,
+        );
+        // Guardar en cache local para uso offline
+        try {
+          await VisitasOffline.guardarDirecciones(_direcciones);
+        } catch (_) {}
+      } else {
+        final todas = await VisitasOffline.obtenerDireccionesLocal();
+        _direcciones = todas
+            .where((d) {
+              final cidA = d is Map ? (d['clie_Id'] ?? d['clie_id']) : null;
+              return cidA != null && cidA == clienteId;
+            })
+            .map(
+              (e) => e is Map
+                  ? e as Map<String, dynamic>
+                  : Map<String, dynamic>.from(e as Map),
+            )
+            .toList();
+      }
 
       // If a specific direccion id was requested, try to select it
       if (selectDiclId != null) {
@@ -511,7 +545,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             ? _observacionesController.text
             : '',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
-        'usua_Creacion': globalVendId ?? 0,
+        'usua_Creacion': 57,
         'clVi_FechaCreacion': now.toIso8601String(),
       };
 
@@ -599,7 +633,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             await _visitaService.asociarImagenAVisita(
               visitaId: visitaId,
               imagenUrl: rutaImagen,
-              usuarioId: globalVendId ?? 0,
+              usuarioId: 57,
             );
           } else {
             throw Exception(

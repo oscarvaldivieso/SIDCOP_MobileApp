@@ -5,8 +5,10 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 /// Servicio offline para operaciones relacionadas con el historial de visitas.
 class VisitasOffline {
@@ -362,6 +364,15 @@ class VisitasOffline {
     }
   }
 
+  /// Lee los estados de visita preferiendo el cache local. Si no hay datos
+  /// locales, intenta sincronizar desde el servicio remoto y los guarda.
+  /// Útil para poblar dropdowns: primero intenta usar lo ya descargado.
+  static Future<List<Map<String, dynamic>>> leerEstadosVisita() async {
+    final local = await obtenerEstadosVisitaLocal();
+    if (local.isNotEmpty) return local;
+    return await sincronizarEstadosVisita();
+  }
+
   /// Devuelve la ruta absoluta en Documents para un nombre de archivo simple.
   static Future<String> rutaEnDocuments(String nombreArchivo) async {
     final docs = await _directorioDocuments();
@@ -417,47 +428,150 @@ class VisitasOffline {
             [];
 
         final diClId = int.tryParse('${visita['diCl_Id'] ?? 0}') ?? 0;
-        final veRuId = int.tryParse('${visita['veRu_Id'] ?? 0}') ?? 0;
         final clieId = int.tryParse('${visita['clie_Id'] ?? 0}') ?? 0;
-        final esViId = int.tryParse('${visita['esVi_Id'] ?? 0}') ?? 0;
-        final clViObservaciones = visita['clVi_Observaciones'] ?? '';
 
-        DateTime clViFecha;
-        try {
-          clViFecha = DateTime.parse(
-            visita['clVi_Fecha'] ?? DateTime.now().toIso8601String(),
-          );
-        } catch (_) {
-          clViFecha = DateTime.now();
-        }
-
-        // Intentar crear la visita con imágenes
-        await servicio.crearVisitaConImagenes(
-          diClId: diClId,
-          veRuId: veRuId,
-          clieId: clieId,
-          esViId: esViId,
-          clViObservaciones: clViObservaciones,
-          clViFecha: clViFecha,
-          imagenesBase64: imagenesBase64,
+        final sig = (visita['local_signature'] ?? 'no-signature').toString();
+        print(
+          'SYNC: intentando subir visita local_signature=$sig clieId=$clieId diClId=$diClId imagenes=${imagenesBase64.length}',
         );
 
-        // Si no lanzó excepción, consideramos sincronizado: eliminar de la lista local
         try {
-          remaining.removeWhere((item) {
-            try {
-              return item is Map &&
-                  item['local_signature'] == visita['local_signature'];
-            } catch (_) {
-              return false;
-            }
-          });
-        } catch (_) {}
+          // Construir payload para insertar la visita (reutilizamos la estructura local)
+          final visitaPayload = Map<String, dynamic>.from(visita);
+          // Limpiar campos locales/aux
+          visitaPayload.remove('imagenesBase64');
+          visitaPayload.remove('offline');
+          visitaPayload.remove('local_signature');
+          visitaPayload.remove('local_created_at');
+          // Asegurar usuario: preferir el valor guardado en la visita (cuando se guardó offline),
+          // si no existe usar el `globalVendId`. No sobrescribir por 0.
+          int? usuarioGuardado;
+          try {
+            usuarioGuardado = int.tryParse('${visita['usua_Creacion'] ?? ''}');
+          } catch (_) {
+            usuarioGuardado = null;
+          }
+          if (usuarioGuardado != null && usuarioGuardado > 0) {
+            visitaPayload['usua_Creacion'] = usuarioGuardado;
+            print(
+              'SYNC: usando usua_Creacion desde visita guardada = $usuarioGuardado',
+            );
+          } else if ((globalVendId ?? 0) > 0) {
+            visitaPayload['usua_Creacion'] = globalVendId;
+            print(
+              'SYNC: usando usua_Creacion desde globalVendId = $globalVendId',
+            );
+          } else {
+            visitaPayload.remove('usua_Creacion');
+            print('SYNC: no hay usua_Creacion valido, se elimina del payload');
+          }
 
-        sincronizadas++;
-      } catch (e) {
-        // Ignorar error por visita y continuar con las demás
-        // Podríamos agregar logging aquí si se requiere.
+          // Intentar crear la visita remoto usando el mismo flujo que la UI
+          final insertResult = await servicio.insertarVisita(visitaPayload);
+          final createdId =
+              int.tryParse('${insertResult['clVi_Id'] ?? 0}') ?? 0;
+
+          if (createdId > 0) {
+            print(
+              'SYNC: visita creada en remoto clVi_Id=$createdId local_signature=$sig',
+            );
+
+            // Subir y asociar imágenes (si existen)
+            int uploadedCount = 0;
+            for (var i = 0; i < imagenesBase64.length; i++) {
+              final base64str = imagenesBase64[i];
+              try {
+                final bytes = base64Decode(base64str);
+                final uploadUrl = Uri.parse('$apiServer/Imagen/Subir');
+                final req = http.MultipartRequest('POST', uploadUrl);
+                req.headers['X-Api-Key'] = apikey;
+                req.headers['accept'] = '*/*';
+                final filename = 'visita_${sig}_$i.jpg';
+                req.files.add(
+                  http.MultipartFile.fromBytes(
+                    'imagen',
+                    bytes,
+                    filename: filename,
+                    contentType: MediaType('image', 'jpeg'),
+                  ),
+                );
+
+                final streamedResp = await req.send();
+                final respBody = await streamedResp.stream.bytesToString();
+                if (streamedResp.statusCode == 200) {
+                  try {
+                    final uploadData =
+                        jsonDecode(respBody) as Map<String, dynamic>;
+                    final rutaImagen = uploadData['ruta']?.toString() ?? '';
+                    if (rutaImagen.isNotEmpty) {
+                      final asociado = await servicio.asociarImagenAVisita(
+                        visitaId: createdId,
+                        imagenUrl: rutaImagen,
+                        usuarioId: globalVendId ?? 0,
+                      );
+                      if (asociado) uploadedCount++;
+                    } else {
+                      print(
+                        'SYNC ERROR: upload returned empty ruta for visita $createdId',
+                      );
+                    }
+                  } catch (e) {
+                    print(
+                      'SYNC ERROR: parsing upload response for visita $createdId: $e',
+                    );
+                  }
+                } else {
+                  print(
+                    'SYNC ERROR: upload failed status=${streamedResp.statusCode} body=$respBody',
+                  );
+                }
+              } catch (e, st) {
+                print(
+                  'SYNC ERROR: error uploading image #$i for visita local_signature=$sig: $e',
+                );
+                print(st);
+              }
+            }
+
+            // Considerar sincronizada aunque algunas imágenes hayan fallado en asociar
+            try {
+              remaining.removeWhere((item) {
+                try {
+                  return (item as Map)['local_signature'] ==
+                      visita['local_signature'];
+                } catch (_) {
+                  return false;
+                }
+              });
+            } catch (_) {}
+
+            sincronizadas++;
+            print(
+              'SYNC: visita sincronizada y procesadas imágenes=$uploadedCount local_signature=$sig',
+            );
+          } else {
+            print(
+              'SYNC ERROR: insertarVisita no devolvió clVi_Id para local_signature=$sig response=$insertResult',
+            );
+          }
+        } catch (e, st) {
+          // Log detallado para depuración cuando la API devuelve error
+          try {
+            print(
+              'SYNC ERROR: fallo general al procesar visita local_signature=$sig',
+            );
+            print('SYNC ERROR: payload = ${visita.toString()}');
+            print('SYNC ERROR: exception = $e');
+            print('SYNC ERROR: stacktrace = $st');
+          } catch (_) {}
+          // conservar la visita para reintentos posteriores
+        }
+      } catch (e, st) {
+        // Error al procesar la visita local (parsing/u otro). Loggear para investigar.
+        try {
+          print('SYNC ERROR: error procesando visita local: $e');
+          print('SYNC ERROR: stacktrace = $st');
+        } catch (_) {}
       }
     }
 

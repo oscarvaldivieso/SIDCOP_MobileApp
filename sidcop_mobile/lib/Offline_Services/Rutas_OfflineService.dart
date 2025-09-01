@@ -70,10 +70,30 @@ class RutasScreenOffline {
     Uint8List bytes,
   ) async {
     try {
-      // Guardar bytes en secure storage como base64
+      // Guardar bytes en secure storage como base64 (fallback) y también
+      // escribir un archivo en disco dentro de la carpeta 'offline' para
+      // que consumidores que esperan ruta/archivo local funcionen offline.
       final key = 'bin:$nombreArchivo';
       final encoded = base64Encode(bytes);
       await _secureStorage.write(key: key, value: encoded);
+
+      // Escribir a disco de forma atómica: escribir en un temporal y renombrar.
+      try {
+        final ruta = await _rutaArchivo(nombreArchivo);
+        final targetFile = File(ruta);
+        final tempPath = '$ruta.tmp';
+        final tempFile = File(tempPath);
+        // Asegurar que el directorio padre existe ( _rutaArchivo ya lo crea )
+        await tempFile.writeAsBytes(bytes, flush: true);
+        if (await targetFile.exists()) {
+          await targetFile.delete();
+        }
+        await tempFile.rename(ruta);
+      } catch (e) {
+        // No abortar todo el proceso si la escritura a disco falla; ya tenemos
+        // la copia en secure storage. Loguear para diagnóstico.
+        print('WARN: guardarBytes fallo al escribir en disco: $e');
+      }
     } catch (e) {
       rethrow;
     }
@@ -82,21 +102,38 @@ class RutasScreenOffline {
   /// Lee bytes desde un archivo. Devuelve null si no existe.
   static Future<Uint8List?> leerBytes(String nombreArchivo) async {
     try {
-      // Intentar leer desde secure storage primero
+      // Intentar leer desde disco primero (mejor rendimiento y compatibilidad
+      // con consumidores que esperan archivos locales). Si no existe en disco,
+      // intentar leer desde secure storage.
+      final ruta = await _rutaArchivo(nombreArchivo);
+      try {
+        final archivo = File(ruta);
+        if (await archivo.exists()) {
+          final bytes = await archivo.readAsBytes();
+          return Uint8List.fromList(bytes);
+        }
+      } catch (_) {
+        // si fallo leyendo disco, seguir con secure storage
+      }
+
+      // Fallback: leer desde secure storage
       final key = 'bin:$nombreArchivo';
       try {
         final s = await _secureStorage.read(key: key);
         if (s != null) {
           final decoded = base64Decode(s);
+          // Escribir una copia en disco para futuros accesos rápidos
+          try {
+            final rutaSave = await _rutaArchivo(nombreArchivo);
+            final archivoSave = File(rutaSave);
+            if (!await archivoSave.exists()) {
+              await archivoSave.writeAsBytes(decoded, flush: true);
+            }
+          } catch (_) {}
           return Uint8List.fromList(decoded);
         }
       } catch (_) {}
-      // Fallback: leer desde disco
-      final ruta = await _rutaArchivo(nombreArchivo);
-      final archivo = File(ruta);
-      if (!await archivo.exists()) return null;
-      final bytes = await archivo.readAsBytes();
-      return Uint8List.fromList(bytes);
+      return null;
     } catch (e) {
       rethrow;
     }
@@ -372,6 +409,21 @@ class RutasScreenOffline {
   static Future<Uint8List?> leerFotoNegocio(String clienteId) async {
     final filename = 'foto_negocio_${clienteId}.jpg';
     return await leerBytes(filename);
+  }
+
+  /// Devuelve la ruta absoluta en disco del archivo de foto del negocio si
+  /// existe, o null si no está disponible en disco. Esto es útil para
+  /// widgets que prefieren `Image.file(File(path))`.
+  static Future<String?> rutaFotoNegocioLocal(String clienteId) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    try {
+      final ruta = await _rutaArchivo(filename);
+      final archivo = File(ruta);
+      if (await archivo.exists()) return ruta;
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.

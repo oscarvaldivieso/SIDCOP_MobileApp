@@ -77,6 +77,37 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     _initMbtilesServer();
     // Also load offline clients immediately so markers appear even without MBTiles
     _loadClientesOffline();
+    // Load persisted visited-direcciones set (if any)
+    _loadVisitedSet();
+  }
+
+  // Persist visited direcciones under this filename using RutasScreenOffline
+  // so the checkbox state survives app restarts.
+  Future<void> _loadVisitedSet() async {
+    try {
+      final raw = await RutasScreenOffline.leerJson('visited_direcciones.json');
+      if (raw is List) {
+        final list = raw
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+        setState(() {
+          _direccionesVisitadasOffline.clear();
+          _direccionesVisitadasOffline.addAll(list);
+        });
+      }
+    } catch (e) {
+      // ignore load errors
+    }
+  }
+
+  Future<void> _saveVisitedSet() async {
+    try {
+      final list = _direccionesVisitadasOffline.toList();
+      await RutasScreenOffline.guardarJson('visited_direcciones.json', list);
+    } catch (e) {
+      // ignore save errors
+    }
   }
 
   Future<void> _setInitialPositionFromDevice() async {
@@ -511,12 +542,68 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                           .toString())
                   .trim();
 
+        // Tolerant lookup for common keys used in different APIs
+        final rtn = cliente == null
+            ? ''
+            : (cliente['clie_RTN'] ??
+                      cliente['clie_rtn'] ??
+                      cliente['rtn'] ??
+                      cliente['rtn_numero'] ??
+                      cliente['identificacionfiscal'] ??
+                      cliente['clie_identificacion'] ??
+                      '')
+                  .toString();
+        final dni = cliente == null
+            ? ''
+            : (cliente['clie_DNI'] ??
+                      cliente['clie_dni'] ??
+                      cliente['dni'] ??
+                      cliente['identificacion'] ??
+                      '')
+                  .toString();
+        final telefono = cliente == null
+            ? ''
+            : (cliente['clie_Telefono'] ??
+                      cliente['clie_telefono'] ??
+                      cliente['telefono'] ??
+                      '')
+                  .toString();
+
+        final direccionGeneral =
+            (direccion['dirdescripcion'] ??
+                    direccion['direccion'] ??
+                    direccion['direccion_general'] ??
+                    direccion['direccion'] ??
+                    '')
+                .toString();
+
+        final direccionExacta =
+            (direccion['dicl_direccionexacta'] ??
+                    direccion['diCl_DireccionExacta'] ??
+                    direccion['dicl_direccion'] ??
+                    direccion['direccion_exacta'] ??
+                    '')
+                .toString();
+
+        final observaciones =
+            (direccion['dicl_observaciones'] ??
+                    direccion['observaciones'] ??
+                    direccion['obs'] ??
+                    '')
+                .toString();
+
+        // Combine direccion general + direccion exacta for single display
+        final combinedDireccion = [
+          direccionGeneral,
+          direccionExacta,
+        ].where((s) => s.trim().isNotEmpty).join('\n');
+
         return Container(
           decoration: BoxDecoration(
             color: _darkBg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,36 +611,72 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
               children: [
                 Center(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: imageUrl != null && imageUrl.isNotEmpty
-                        ? Image.network(
-                            imageUrl,
-                            width: 220,
-                            height: 140,
+                    borderRadius: BorderRadius.circular(12),
+                    child: FutureBuilder<String?>(
+                      future: () async {
+                        if (cliente == null) return null;
+                        final id =
+                            (cliente['clie_Id'] ??
+                                    cliente['clieId'] ??
+                                    cliente['id'])
+                                ?.toString();
+                        if (id == null) return null;
+                        return await RutasScreenOffline.rutaFotoNegocioLocal(
+                          id,
+                        );
+                      }(),
+                      builder: (context, snap) {
+                        final localPath = snap.data;
+                        if (localPath != null && localPath.isNotEmpty) {
+                          return Image.file(
+                            File(localPath),
+                            width: 200,
+                            height: 120,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
-                                width: 220,
-                                height: 140,
+                                width: 200,
+                                height: 120,
                                 color: Colors.grey[300],
-                                child: const Icon(Icons.store, size: 60),
+                                child: const Icon(Icons.store, size: 56),
                               );
                             },
-                          )
-                        : Container(
-                            width: 220,
-                            height: 140,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.store, size: 60),
-                          ),
+                          );
+                        }
+
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return Image.network(
+                            imageUrl,
+                            width: 200,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 200,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.store, size: 56),
+                              );
+                            },
+                          );
+                        }
+
+                        return Container(
+                          width: 200,
+                          height: 120,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.store, size: 56),
+                        );
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Center(
                   child: Text(
                     nombreNegocio,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: _gold,
                       fontFamily: 'Satoshi',
@@ -567,7 +690,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                     child: Text(
                       nombreCliente,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: _body,
                         fontFamily: 'Satoshi',
@@ -576,21 +699,66 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                     ),
                   ),
                 const SizedBox(height: 12),
-                if (direccion['dicl_direccionexacta'] != null ||
-                    direccion['muni_descripcion'] != null ||
-                    direccion['depa_descripcion'] != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      '${direccion['dicl_direccionexacta'] ?? ''} ${direccion['muni_descripcion'] ?? ''} ${direccion['depa_descripcion'] ?? ''}'
-                          .trim(),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: _body,
-                        fontFamily: 'Satoshi',
-                      ),
+
+                if (rtn.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'RTN',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(rtn, style: const TextStyle(color: _body)),
+                  ),
+
+                if (dni.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'DNI',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(dni, style: const TextStyle(color: _body)),
+                  ),
+
+                if (telefono.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Teléfono',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      telefono,
+                      style: const TextStyle(color: _body),
                     ),
                   ),
+
+                if (combinedDireccion.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Dirección',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      combinedDireccion,
+                      style: const TextStyle(color: _body),
+                    ),
+                  ),
+
+                if (observaciones.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Observaciones',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      observaciones,
+                      style: const TextStyle(color: _body),
+                    ),
+                  ),
+
                 const SizedBox(height: 8),
               ],
             ),
@@ -962,6 +1130,14 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                                 diclId,
                                               );
                                             });
+                                            await _saveVisitedSet();
+                                          } else if (v == false) {
+                                            // allow unchecking manually (if UI ever allows)
+                                            setState(() {
+                                              _direccionesVisitadasOffline
+                                                  .remove(diclId);
+                                            });
+                                            await _saveVisitedSet();
                                           }
                                         },
                                       );
