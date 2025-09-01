@@ -18,7 +18,7 @@ import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
-import 'package:sidcop_mobile/services/OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -55,6 +55,15 @@ class _RutasScreenState extends State<RutasScreen> {
         final filePath = '${directory.path}/$nombreArchivo.png';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
+        // write metadata to help verify saved images
+        try {
+          final metaPath = '${directory.path}/$nombreArchivo.url.txt';
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$imageUrl\nbytes:${response.bodyBytes.length}',
+          );
+        } catch (_) {}
+        print('DEBUG: guardarImagenDeMapaStatic saved $filePath');
         return filePath;
       }
     } catch (e) {
@@ -64,15 +73,6 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   // Obtiene la ruta local de la imagen static si existe
-  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/map_static_$rutaId.png';
-    final file = File(filePath);
-    if (await file.exists()) {
-      return filePath;
-    }
-    return null;
-  }
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
@@ -173,11 +173,29 @@ class _RutasScreenState extends State<RutasScreen> {
 
   // Lee la lista de rutas encriptada
   Future<List<Ruta>> _leerRutasOffline() async {
-    final rutasString = await secureStorage.read(key: 'rutas_offline');
-    print('DEBUG rutas_offline (offline): $rutasString');
-    if (rutasString == null) return [];
-    final rutasList = jsonDecode(rutasString) as List;
-    return rutasList.map((json) => Ruta.fromJson(json)).toList();
+    try {
+      final rutasString = await secureStorage.read(key: 'rutas_offline');
+      print('DEBUG rutas_offline (offline): $rutasString');
+      if (rutasString != null) {
+        final rutasList = jsonDecode(rutasString) as List;
+        return rutasList.map((json) => Ruta.fromJson(json)).toList();
+      }
+    } catch (e) {
+      print('DEBUG: error leyendo rutas_offline key: $e');
+    }
+
+    // Fallback: intentar leer el JSON gestionado por RutasScreenOffline ('rutas.json')
+    try {
+      final raw = await RutasScreenOffline.leerJson('rutas.json');
+      print('DEBUG rutas.json (offline service): $raw');
+      if (raw == null) return [];
+      final lista = List.from(raw as List);
+      return lista.map((json) => Ruta.fromJson(json)).toList();
+    } catch (e) {
+      print('DEBUG: error leyendo rutas.json desde RutasScreenOffline: $e');
+    }
+
+    return [];
   }
 
   Future<void> _cargarRutasAsignadasVendedor() async {
@@ -291,49 +309,45 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    // Use local marker asset for consistency with offline markers
-    const iconUrl = 'assets/marker_cliente.png';
+    // Usar URL remota para el icono marker
+    const iconUrl =
+        'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
     final markers = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
         .map(
           (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
         )
         .join('&');
-    String center;
-    if (direccionesFiltradas.isNotEmpty) {
-      double sumLat = 0;
-      double sumLng = 0;
-      int count = 0;
-      for (var d in direccionesFiltradas) {
-        if (d.dicl_latitud != null && d.dicl_longitud != null) {
-          sumLat += double.tryParse(d.dicl_latitud.toString()) ?? 0;
-          sumLng += double.tryParse(d.dicl_longitud.toString()) ?? 0;
-          count++;
-        }
-      }
-      if (count > 0) {
-        double avgLat = sumLat / count;
-        double avgLng = sumLng / count;
-        center = '$avgLat,$avgLng';
-      } else {
-        center = '15.525585,-88.013512';
-      }
-    } else {
-      center = '15.525585,-88.013512';
-    }
-    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=400x150&$markers&key=$mapApikey';
+    final visiblePoints = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+        .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
+        .join('|');
+    // El parámetro visible fuerza a que todos los puntos estén en la imagen
+    return 'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
   }
 
   // Preferir imagen local si existe; si no, generar URL remota
   Future<String> _getMapUrlPreferLocal(Ruta ruta) async {
     try {
-      final local = await obtenerImagenLocalStatic(ruta.ruta_Id);
-      if (local != null) {
-        print('DEBUG: Usando imagen local para ruta ${ruta.ruta_Id}: $local');
-        return 'file://$local';
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/map_static_${ruta.ruta_Id}.png';
+      final file = File(filePath);
+      // Si existe imagen local, preferirla
+      if (await file.exists()) {
+        print(
+          'DEBUG: imagen local encontrada para ruta ${ruta.ruta_Id} -> $filePath',
+        );
+        return 'file://$filePath';
+      }
+      // No hay imagen local: comprobar conectividad antes de generar URL remota
+      await verificarConexion();
+      if (!isOnline) {
+        print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
+        return '';
       }
       final remote = await _getStaticMapMarkers(ruta);
       print(
-        'DEBUG: No hay imagen local para ruta ${ruta.ruta_Id}, usando remote: $remote',
+        'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
       );
       return remote;
     } catch (e) {

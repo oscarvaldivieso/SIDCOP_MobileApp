@@ -449,4 +449,30 @@ class ClientesVisitaHistorialService {
       return null;
     }
   }
+
+  Future<List<Map<String, dynamic>>> listarImagenesPorVisita(int visitaId) async {
+    try {
+      final url = Uri.parse('$_apiServer/ImagenVisita/ListarPorVisita/$visitaId');
+      
+      developer.log('ListarImagenesPorVisita Request URL: $url');
+    
+      final response = await http.post(
+        url,
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
+      );
+      
+      developer.log('ListarImagenesPorVisita status: ${response.statusCode}');
+      developer.log('ListarImagenesPorVisita body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        throw Exception('Error al cargar las imágenes de la visita: ${response.statusCode}');
+      }
+    } catch (e) {
+      developer.log('ListarImagenesPorVisita Error: $e');
+      rethrow;
+    }
+  }
 }
