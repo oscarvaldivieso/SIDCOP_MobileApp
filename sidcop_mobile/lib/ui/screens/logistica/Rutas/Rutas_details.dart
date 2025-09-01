@@ -78,14 +78,13 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
           )
           .join('&');
-      final center =
-          (direccionesFiltradas.isNotEmpty &&
-              direccionesFiltradas.first.dicl_latitud != null &&
-              direccionesFiltradas.first.dicl_longitud != null)
-          ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
-          : '15.525585,-88.013512';
+      final visiblePoints = direccionesFiltradas
+          .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+          .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
+          .join('|');
+      // El parámetro visible fuerza a que todos los puntos estén en la imagen
       final staticUrl =
-          'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
+          'https://maps.googleapis.com/maps/api/staticmap?size=600x250&$markers&visible=$visiblePoints&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;

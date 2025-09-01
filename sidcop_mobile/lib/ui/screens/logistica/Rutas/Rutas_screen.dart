@@ -291,50 +291,36 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
-    // Usar URL remota para el icono marker (Cloudinary)
+    // Usar URL remota para el icono marker
     const iconUrl =
         'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
     final markers = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
         .map(
           (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
         )
         .join('&');
-    String center;
-    if (direccionesFiltradas.isNotEmpty) {
-      double sumLat = 0;
-      double sumLng = 0;
-      int count = 0;
-      for (var d in direccionesFiltradas) {
-        if (d.dicl_latitud != null && d.dicl_longitud != null) {
-          sumLat += double.tryParse(d.dicl_latitud.toString()) ?? 0;
-          sumLng += double.tryParse(d.dicl_longitud.toString()) ?? 0;
-          count++;
-        }
-      }
-      if (count > 0) {
-        double avgLat = sumLat / count;
-        double avgLng = sumLng / count;
-        center = '$avgLat,$avgLng';
-      } else {
-        center = '15.525585,-88.013512';
-      }
-    } else {
-      center = '15.525585,-88.013512';
-    }
-    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=400x150&$markers&key=$mapApikey';
+    final visiblePoints = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+        .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
+        .join('|');
+    // El parámetro visible fuerza a que todos los puntos estén en la imagen
+    return 'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
   }
 
   // Preferir imagen local si existe; si no, generar URL remota
   Future<String> _getMapUrlPreferLocal(Ruta ruta) async {
     try {
-      final local = await obtenerImagenLocalStatic(ruta.ruta_Id);
-      if (local != null) {
-        print('DEBUG: Usando imagen local para ruta ${ruta.ruta_Id}: $local');
-        return 'file://$local';
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/map_static_${ruta.ruta_Id}.png';
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete(); // Elimina la imagen local para forzar regeneración
+        print('DEBUG: Imagen local eliminada para ruta ${ruta.ruta_Id}');
       }
       final remote = await _getStaticMapMarkers(ruta);
       print(
-        'DEBUG: No hay imagen local para ruta ${ruta.ruta_Id}, usando remote: $remote',
+        'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
       );
       return remote;
     } catch (e) {
