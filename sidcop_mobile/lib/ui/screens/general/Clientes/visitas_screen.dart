@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart'; // Importar la pantalla de detalles
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -379,6 +380,37 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                     ),
                     const SizedBox(height: 16),
                     _infoRow(Icons.calendar_today_rounded, 'Fecha', fecha),
+                    const SizedBox(height: 16),
+                    
+                    // Botón para ver imágenes
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VisitaDetailsScreen(
+                                visitaId: visita.clVi_Id ?? 0,
+                                clienteNombre: clienteNombre,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor.withOpacity(0.1),
+                          foregroundColor: primaryColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(color: primaryColor),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.photo_library, size: 20),
+                        label: const Text('Ver Imágenes', style: TextStyle(fontFamily: 'Satoshi', fontWeight: FontWeight.w600)),
+                      ),
+                    ),
                   ],
                 ),
               ),
