@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:sidcop_mobile/ui/screens/general/clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
@@ -649,7 +650,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
                             child: OutlinedButton(
                               onPressed: () {
                                 Navigator.pop(context);
-                                _resetearFormulario();
+                                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => clientScreen()));
                               },
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(color: Color(0xFF141A2F)),
@@ -1164,7 +1165,7 @@ Widget paso1() {
             ),
           ),
           const SizedBox(height: 24),
-          _buildPaymentOption('Efectivo', Icons.money, 'EFECTIVO'),
+          _buildPaymentOption('Contado', Icons.money, 'EFECTIVO'),
           const SizedBox(height: 16),
           Opacity(
             opacity: _tieneCredito ? 1.0 : 0.6,
@@ -1528,7 +1529,7 @@ Widget paso1() {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 27, 181, 55),
+                    color: const Color.fromARGB(171, 75, 212, 86),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
@@ -1667,6 +1668,51 @@ Widget paso1() {
                               ],
                             ),
                             const SizedBox(height: 4),
+                            // Stock disponible
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: product.cantidadDisponible > 0 
+                                    ? const Color(0xFFE8F5E9) 
+                                    : const Color(0xFFFFEBEE),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: product.cantidadDisponible > 0 
+                                      ? const Color(0xFF98BF4A).withOpacity(0.3) 
+                                      : const Color(0xFFEF5350).withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    product.cantidadDisponible > 0 
+                                        ? Icons.inventory_2_outlined 
+                                        : Icons.error_outline,
+                                    size: 14,
+                                    color: product.cantidadDisponible > 0 
+                                        ? const Color(0xFF2E7D32) 
+                                        : const Color(0xFFD32F2F),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    product.cantidadDisponible > 0 
+                                        ? '${product.cantidadDisponible.toInt()} disponibles' 
+                                        : 'Sin existencias',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: product.cantidadDisponible > 0 
+                                          ? const Color(0xFF2E7D32) 
+                                          : const Color(0xFFD32F2F),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             Row(
                               children: [
                                 if (mejorDescuento != null && mejorDescuento > 0) ...[

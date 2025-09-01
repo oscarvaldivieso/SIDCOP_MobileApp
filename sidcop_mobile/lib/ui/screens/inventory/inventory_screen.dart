@@ -31,6 +31,51 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _loadSellerName();
   }
 
+  Future<void> _handleStartJornada() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Call the startJornada method
+      final result = await _inventoryService.startJornada(widget.usuaIdPersona);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Jornada iniciada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Refresh the inventory data
+        _loadInventoryData();
+      }
+    } catch (e) {
+      // Close loading dialog if still mounted
+      if (mounted) Navigator.of(context).pop();
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar jornada: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleCloseJornada() async {
   try {
     // Show modern loading dialog
@@ -829,7 +874,17 @@ Widget _buildSummaryItem(String label, String value, Color color) {
 
             const SizedBox(height: 24),
 
-            _buildCloseJornadaButton(),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStartJornadaButton(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCloseJornadaButton(),
+                ),
+              ],
+            ),
 
             const SizedBox(height: 24), 
 
@@ -1849,6 +1904,19 @@ Widget _buildSummaryItem(String label, String value, Color color) {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStartJornadaButton() {
+    return ElevatedButton.icon(
+      onPressed: _handleStartJornada,
+      icon: const Icon(Icons.lock_open, color: Colors.white),
+      label: const Text('Iniciar Jornada', style: TextStyle(fontFamily: 'Satoshi', fontSize: 13, fontWeight: FontWeight.w500)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF10B981), // Green color
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
     );
   }
