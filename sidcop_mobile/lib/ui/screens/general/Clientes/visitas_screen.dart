@@ -14,7 +14,8 @@ class VendedorVisitasScreen extends StatefulWidget {
 }
 
 class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
-  final ClientesVisitaHistorialService _service = ClientesVisitaHistorialService();
+  final ClientesVisitaHistorialService _service =
+      ClientesVisitaHistorialService();
   List<VisitasViewModel> _visitas = [];
   bool _isLoading = true;
   String _errorMessage = '';
@@ -69,10 +70,10 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage.isNotEmpty
-                  ? _buildErrorWidget()
-                  : _visitas.isEmpty
-                      ? _buildEmptyWidget()
-                      : _buildVisitasList(),
+              ? _buildErrorWidget()
+              : _visitas.isEmpty
+              ? _buildEmptyWidget()
+              : _buildVisitasList(),
         ),
       ),
     );
@@ -87,7 +88,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           const SizedBox(height: 16),
           Text(
             _errorMessage,
-            style: const TextStyle(fontFamily: 'Satoshi', fontSize: 16, color: Color(0xFF8E8E93)),
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 16,
+              color: Color(0xFF8E8E93),
+            ),
           ),
         ],
       ),
@@ -101,13 +106,24 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         children: const [
           Icon(Icons.location_off, size: 64, color: Color(0xFF8E8E93)),
           SizedBox(height: 16),
-          Text('No hay visitas registradas',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Satoshi', color: Color(0xFF141A2F))),
+          Text(
+            'No hay visitas registradas',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Satoshi',
+              color: Color(0xFF141A2F),
+            ),
+          ),
           SizedBox(height: 8),
           Text(
             'Las visitas realizadas aparecerán aquí',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, fontFamily: 'Satoshi', color: Color(0xFF8E8E93)),
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: 'Satoshi',
+              color: Color(0xFF8E8E93),
+            ),
           ),
         ],
       ),
@@ -127,12 +143,16 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Widget _buildVisitaCard(VisitasViewModel visita) {
-    final clienteNombre = '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'.trim();
+    final clienteNombre =
+        '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'.trim();
     final negocio = visita.clie_NombreNegocio ?? 'Negocio no disponible';
     final estadoDescripcion = visita.esVi_Descripcion ?? 'Estado desconocido';
     final observaciones = visita.clVi_Observaciones ?? 'Sin observaciones';
-    final fecha = visita.clVi_Fecha?.toLocal().toString().split(' ')[0] ?? 'Fecha no disponible';
-    final vendedor = '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
+    final fecha =
+        visita.clVi_Fecha?.toLocal().toString().split(' ')[0] ??
+        'Fecha no disponible';
+    final vendedor =
+        '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
     final ruta = visita.ruta_Descripcion ?? 'Ruta no disponible';
 
     // COLORES Y ETIQUETA DE ESTADO
@@ -190,7 +210,10 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
               // Header
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.centerLeft,
@@ -251,7 +274,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                     const SizedBox(height: 16),
                     _infoRow(Icons.route, 'Ruta', ruta),
                     const SizedBox(height: 16),
-                    _infoRow(Icons.notes_rounded, 'Observaciones', observaciones),
+                    _infoRow(
+                      Icons.notes_rounded,
+                      'Observaciones',
+                      observaciones,
+                    ),
                     const SizedBox(height: 16),
                     _infoRow(Icons.calendar_today_rounded, 'Fecha', fecha),
                   ],
@@ -274,13 +301,15 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Satoshi',
-                    color: Color(0xFF6B7280),
-                  )),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Satoshi',
+                  color: Color(0xFF6B7280),
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 value,

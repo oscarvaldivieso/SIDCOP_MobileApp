@@ -5,7 +5,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:custom_info_window/custom_info_window.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
-import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -17,8 +16,8 @@ import 'dart:ui' as ui;
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
-import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
@@ -44,7 +43,7 @@ class RutaMapScreen extends StatefulWidget {
 bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
-  String? _rutaImagenMapaStatic;
+  // Removed unused _rutaImagenMapaStatic
   // Descarga y guarda la imagen de Google Maps Static
   Future<String?> guardarImagenDeMapaStatic(
     String imageUrl,
@@ -151,7 +150,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   // Clientes marcados como visitados (checkbox en la barra lateral)
   // Eliminado: Set<int> _clientesVisitados
   bool _enviandoVisita = false;
-  bool _historialCargado = false;
+  // _historialCargado removed (not used)
 
   Future<void> _cargarHistorialVisitas(Set<int?> diclIdsRuta) async {
     try {
@@ -181,184 +180,13 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         _direccionesVisitadas.addAll(direccionesPrevias);
       });
       // (Se omite impresión adicional) direccionesPrevias actualizado
-      _historialCargado = true;
     } catch (e) {
       developer.log('Error al cargar historial: $e', name: 'RutasMapScreen');
     }
   }
 
-  Future<void> _confirmarVisitaCliente(
-    Cliente cliente,
-    int indiceLista,
-    LatLng? paradaLatLng,
-  ) async {
-    if (_enviandoVisita) return;
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: _darkBg,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Confirmar visita',
-            style: TextStyle(
-              color: _gold,
-              fontFamily: 'Satoshi',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            '¿Marcar al cliente "${cliente.clie_NombreNegocio ?? (cliente.clie_Nombres ?? '')}" como visitado?',
-            style: const TextStyle(color: _body, fontFamily: 'Satoshi'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(color: _bodyDim, fontFamily: 'Satoshi'),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _gold,
-                foregroundColor: _darkBg,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text(
-                'Confirmar',
-                style: TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmado != true) return;
-    try {
-      setState(() => _enviandoVisita = true);
-      final servicio = ClientesVisitaHistorialService();
-      // TODO: Obtener usuario real autenticado. Usando 1 como placeholder.
-      final int usuarioId = 1;
-      // Obtener veRuId correcto usando el endpoint ListarPorRutas
-      final vendedoresService = VendedoresService();
-      final vendedoresPorRuta = await vendedoresService.listarPorRutas();
-      // Agrupar por ruta para decidir qué veRu_Id usar
-      final porRuta = vendedoresPorRuta
-          .where((v) => v.ruta_Id == widget.rutaId)
-          .toList();
-      print(
-        'vendedoresPorRuta count=${vendedoresPorRuta.length}, porRuta count=${porRuta.length}, rutaId=${widget.rutaId}, vendId=${widget.vendId}',
-      );
-
-      var vendedorRuta;
-      // Si nos pasaron vendId desde la pantalla superior, intentar usarlo
-      if (widget.vendId != null) {
-        final matches = porRuta
-            .where((v) => v.vend_Id == widget.vendId)
-            .toList();
-        if (matches.isNotEmpty) {
-          vendedorRuta = matches.first;
-        } else {
-          print(
-            'No se encontró vendedorRuta con vend_Id=${widget.vendId} en la ruta ${widget.rutaId}',
-          );
-        }
-      }
-
-      // Si no logramos obtener vendedorRuta por vendId, y solo hay una opción en la ruta,
-      // la usamos como fallback automático.
-      if (vendedorRuta == null) {
-        if (porRuta.length == 1) {
-          vendedorRuta = porRuta.first;
-          print(
-            'Usando vendedorRuta inferido (único) veRu_Id=${vendedorRuta.veRu_Id}',
-          );
-        } else {
-          // No podemos decidir automáticamente
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: Colors.red.shade700,
-                content: const Text(
-                  'No se pudo determinar el vendedor para esta ruta. Inicia sesión o selecciona vendedor.',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            );
-          }
-          setState(() => _enviandoVisita = false);
-          return;
-        }
-      }
-
-      final veruId = vendedorRuta.veRu_Id;
-
-      // Obtener la dirección seleccionada para este cliente/parada
-      int? dicl_Id;
-      if (paradaLatLng != null) {
-        final idxDireccion = _direccionesFiltradas.indexWhere(
-          (d) =>
-              d.dicl_latitud == paradaLatLng.latitude &&
-              d.dicl_longitud == paradaLatLng.longitude,
-        );
-        if (idxDireccion != -1) {
-          dicl_Id = _direccionesFiltradas[idxDireccion].dicl_id;
-        }
-      }
-      final registro = ClientesVisitaHistorialModel(
-        veRu_Id: veruId,
-        diCl_Id:
-            dicl_Id ??
-            0, // Usa el id de la dirección seleccionada, o 0 si no se encuentra
-        esVi_Id: 1, // O el estado que corresponda
-        clVi_Observaciones: 'Visitado',
-        clVi_Fecha: DateTime.now(),
-        usua_Creacion: usuarioId,
-        clVi_FechaCreacion: DateTime.now(),
-      );
-      // Imprimir el registro que se enviará para depuración
-      try {
-        print('Registro a enviar (Insertar): ${jsonEncode(registro.toJson())}');
-      } catch (e) {
-        print('Registro a enviar (toString): $registro');
-      }
-      await servicio.insertar(registro);
-      // Recargar historial para actualizar los checks: cargar TODO el historial
-      // para no perder los checks previamente marcados.
-      await _cargarHistorialVisitas(<int?>{});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: _darkBg,
-            content: const Text(
-              'Cliente marcado como visitado',
-              style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red.shade700,
-            content: Text(
-              'Error al registrar visita: $e',
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _enviandoVisita = false);
-    }
-  }
+  // NOTE: Visit-adding logic removed. Visit creation should be handled in a dedicated
+  // screen. The checkbox will now redirect to the visit-entry screen.
 
   Stream<Position>? _positionStream;
 
@@ -1150,10 +978,45 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                     : (val) async {
                                                         if (val == true &&
                                                             cliente != null) {
-                                                          await _confirmarVisitaCliente(
-                                                            cliente,
-                                                            idx,
-                                                            parada['latlng'],
+                                                          // Redirect to visit-entry screen
+                                                          final paradaLatLng =
+                                                              parada['latlng']
+                                                                  as LatLng?;
+                                                          Navigator.of(
+                                                            context,
+                                                          ).pop();
+                                                          Navigator.of(
+                                                            context,
+                                                          ).push(
+                                                            MaterialPageRoute(
+                                                              builder: (_) =>
+                                                                  const VisitaCreateScreen(),
+                                                              settings: RouteSettings(
+                                                                arguments: {
+                                                                  'clienteId':
+                                                                      cliente
+                                                                          .clie_Id,
+                                                                  'diclId':
+                                                                      dicl_Id,
+                                                                  // parada (destination) coordinates
+                                                                  'paradaLat':
+                                                                      paradaLatLng
+                                                                          ?.latitude,
+                                                                  'paradaLon':
+                                                                      paradaLatLng
+                                                                          ?.longitude,
+                                                                  // user (origin) coordinates at that moment
+                                                                  'userLat':
+                                                                      _userLocation
+                                                                          ?.latitude,
+                                                                  'userLon':
+                                                                      _userLocation
+                                                                          ?.longitude,
+                                                                  'rutaId': widget
+                                                                      .rutaId,
+                                                                },
+                                                              ),
+                                                            ),
                                                           );
                                                         }
                                                       },
@@ -1319,74 +1182,116 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.start,
-                                        children: [
-                                          ElevatedButton.icon(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _darkBg,
-                                              foregroundColor: _gold,
+                                      Theme(
+                                        data: Theme.of(context).copyWith(
+                                          dividerColor: Colors.transparent,
+                                        ),
+                                        child: ExpansionTile(
+                                          collapsedIconColor: _gold,
+                                          iconColor: _gold,
+                                          tilePadding: EdgeInsets.zero,
+                                          title: const Text(
+                                            'Abrir en...',
+                                            style: TextStyle(
+                                              color: _body,
+                                              fontFamily: 'Satoshi',
+                                            ),
+                                          ),
+                                          children: [
+                                            Padding(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
+                                                    horizontal: 16.0,
+                                                    vertical: 6.0,
                                                   ),
-                                              textStyle: const TextStyle(
-                                                fontSize: 14,
-                                                fontFamily: 'Satoshi',
-                                                fontWeight: FontWeight.w600,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.start,
+                                                children: [
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: _darkBg,
+                                                      foregroundColor: _gold,
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 8,
+                                                          ),
+                                                      textStyle:
+                                                          const TextStyle(
+                                                            fontSize: 14,
+                                                            fontFamily:
+                                                                'Satoshi',
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                                    icon: const Icon(
+                                                      Icons.map,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text(
+                                                      'Google Maps',
+                                                    ),
+                                                    onPressed: () async {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop();
+                                                      final paradaLatLng =
+                                                          parada['latlng']
+                                                              as LatLng?;
+                                                      if (paradaLatLng !=
+                                                          null) {
+                                                        await _openExternalDirections(
+                                                          paradaLatLng,
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: _darkBg,
+                                                      foregroundColor: _gold,
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 8,
+                                                          ),
+                                                      textStyle:
+                                                          const TextStyle(
+                                                            fontSize: 14,
+                                                            fontFamily:
+                                                                'Satoshi',
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                                    icon: const Icon(
+                                                      Icons.navigation,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text('Waze'),
+                                                    onPressed: () async {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop();
+                                                      final paradaLatLng =
+                                                          parada['latlng']
+                                                              as LatLng?;
+                                                      if (paradaLatLng !=
+                                                          null) {
+                                                        await _openExternalWaze(
+                                                          paradaLatLng,
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            icon: const Icon(
-                                              Icons.map,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Google Maps'),
-                                            onPressed: () async {
-                                              Navigator.of(context).pop();
-                                              final paradaLatLng =
-                                                  parada['latlng'] as LatLng?;
-                                              if (paradaLatLng != null) {
-                                                await _openExternalDirections(
-                                                  paradaLatLng,
-                                                );
-                                              }
-                                            },
-                                          ),
-                                          const SizedBox(width: 12),
-                                          ElevatedButton.icon(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _darkBg,
-                                              foregroundColor: _gold,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
-                                                  ),
-                                              textStyle: const TextStyle(
-                                                fontSize: 14,
-                                                fontFamily: 'Satoshi',
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            icon: const Icon(
-                                              Icons.navigation,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Waze'),
-                                            onPressed: () async {
-                                              Navigator.of(context).pop();
-                                              final paradaLatLng =
-                                                  parada['latlng'] as LatLng?;
-                                              if (paradaLatLng != null) {
-                                                await _openExternalWaze(
-                                                  paradaLatLng,
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1478,31 +1383,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     },
                               child: const Icon(Icons.alt_route),
                               tooltip: 'Ver rutas',
-                            ),
-                            const SizedBox(height: 12),
-                            FloatingActionButton(
-                              backgroundColor: _darkBg,
-                              foregroundColor: _gold,
-                              onPressed:
-                                  _userLocation == null || _markers.isEmpty
-                                  ? null
-                                  : () async {
-                                      await _loadDirecciones();
-                                      if (_direccionesFiltradas.isNotEmpty &&
-                                          _userLocation != null) {
-                                        final closest =
-                                            await _getClienteMasCercanoPorRuta();
-                                        if (closest != null) {
-                                          final dest = LatLng(
-                                            closest.dicl_latitud!,
-                                            closest.dicl_longitud!,
-                                          );
-                                          await _openExternalDirections(dest);
-                                        }
-                                      }
-                                    },
-                              child: const Icon(Icons.map),
-                              tooltip: 'Abrir en Maps',
                             ),
                             const SizedBox(height: 16),
                             FloatingActionButton(
