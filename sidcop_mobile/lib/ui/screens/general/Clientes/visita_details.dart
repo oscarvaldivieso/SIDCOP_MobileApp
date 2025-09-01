@@ -201,7 +201,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                         // Visit Information
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 24.0,ñ
+                            horizontal: 24.0,
                             vertical: 8.0,
                           ),
                           child: Column(
