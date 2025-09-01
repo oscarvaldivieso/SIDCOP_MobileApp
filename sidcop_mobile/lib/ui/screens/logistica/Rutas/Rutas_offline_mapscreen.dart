@@ -59,7 +59,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   // Track visited addresses (store dicl_id as string)
   final Set<String> _direccionesVisitadasOffline = {};
-  // (no visit-tracking needed for offline viewer)
+  // (visit-tracking will be sourced from visitas_historial.json; do not persist a separate order)
 
   // Device-based center (may be null until obtained). Fallback coords are
   // initialized to a sensible default but will be updated from the device
@@ -77,38 +77,12 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     _initMbtilesServer();
     // Also load offline clients immediately so markers appear even without MBTiles
     _loadClientesOffline();
-    // Load persisted visited-direcciones set (if any)
-    _loadVisitedSet();
   }
 
-  // Persist visited direcciones under this filename using RutasScreenOffline
-  // so the checkbox state survives app restarts.
-  Future<void> _loadVisitedSet() async {
-    try {
-      final raw = await RutasScreenOffline.leerJson('visited_direcciones.json');
-      if (raw is List) {
-        final list = raw
-            .map((e) => e?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList();
-        setState(() {
-          _direccionesVisitadasOffline.clear();
-          _direccionesVisitadasOffline.addAll(list);
-        });
-      }
-    } catch (e) {
-      // ignore load errors
-    }
-  }
-
-  Future<void> _saveVisitedSet() async {
-    try {
-      final list = _direccionesVisitadasOffline.toList();
-      await RutasScreenOffline.guardarJson('visited_direcciones.json', list);
-    } catch (e) {
-      // ignore save errors
-    }
-  }
+  // Note: do not persist a separate visited_direcciones.json; visited state is
+  // derived from `visitas_historial.json` (local visitas) which is managed by
+  // the Visitas offline service. The copying/merging from visitas_historial.json
+  // into `_direccionesVisitadasOffline` happens in `_loadClientesOffline()`.
 
   Future<void> _setInitialPositionFromDevice() async {
     try {
@@ -539,7 +513,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           setState(() {
             _direccionesVisitadasOffline.addAll(nuevos);
           });
-          await _saveVisitedSet();
+          // Don't persist a separate visited file; visited state is sourced from visitas_historial.json
         }
       } catch (e) {
         // ignore
@@ -833,6 +807,77 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     return null;
   }
 
+  // Build the order list directly from offline addresses loaded into
+  // `_direccionesFiltradasOffline`. This ensures the drawer checkboxes are
+  // driven by the offline address data.
+  List<Map<String, dynamic>> _construirOrdenDesdeOffline() {
+    final orden = <Map<String, dynamic>>[];
+    if (_centerLat != null && _centerLng != null) {
+      orden.add({
+        'tipo': 'origen',
+        'nombre': 'Tu ubicación',
+        'direccion': '',
+        'latlng': LatLng(_centerLat!, _centerLng!),
+      });
+    }
+
+    for (final d in _direccionesFiltradasOffline) {
+      final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+      final clIdStr = rawClId == null ? null : rawClId.toString();
+      final cliente = clIdStr != null && clIdStr.isNotEmpty
+          ? _clientesById[clIdStr]
+          : null;
+
+      final diclIdRaw =
+          d['dicl_id'] ??
+          d['diCl_Id'] ??
+          d['diClId'] ??
+          d['di_cl_id'] ??
+          d['id'];
+      final diclIdStr = diclIdRaw == null ? '' : diclIdRaw.toString();
+
+      final direccionDisplay =
+          (d['dirdescripcion'] ??
+                  d['direccion'] ??
+                  d['direccion_general'] ??
+                  '')
+              .toString();
+
+      orden.add({
+        'tipo': 'parada',
+        'nombre': cliente == null
+            ? (d['nombre'] ?? d['clie_nombre'] ?? 'Sin nombre').toString()
+            : (((cliente['clie_Nombres'] ?? '').toString() +
+                      ' ' +
+                      (cliente['clie_Apellidos'] ?? '').toString())
+                  .trim()),
+        'cliente': cliente,
+        'direccion': direccionDisplay,
+        'direccion_exacta':
+            (d['dicl_direccionexacta'] ??
+                    d['diCl_DireccionExacta'] ??
+                    d['dicl_direccion'] ??
+                    '')
+                .toString(),
+        'dicl_id': diclIdStr,
+        'latlng': (() {
+          final lat = (d['dicl_latitud'] ?? d['lat'] ?? d['latitude']);
+          final lng =
+              (d['dicl_longitud'] ?? d['lon'] ?? d['lng'] ?? d['longitude']);
+          try {
+            final la = double.parse(lat.toString());
+            final ln = double.parse(lng.toString());
+            return LatLng(la, ln);
+          } catch (_) {
+            return null;
+          }
+        })(),
+      });
+    }
+
+    return orden;
+  }
+
   Future<Uint8List?> _getTileBytes(int z, int x, int y) async {
     // build a real key string from numbers
     final keyStr = '\$z/\$x/\$y'
@@ -1046,7 +1091,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 ),
               ),
               Expanded(
-                child: _ordenParadasOffline.isEmpty
+                child: _construirOrdenDesdeOffline().isEmpty
                     ? const Center(
                         child: Text(
                           'No hay orden disponible',
@@ -1057,9 +1102,9 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                         ),
                       )
                     : ListView.builder(
-                        itemCount: _ordenParadasOffline.length,
+                        itemCount: _construirOrdenDesdeOffline().length,
                         itemBuilder: (context, idx) {
-                          final parada = _ordenParadasOffline[idx];
+                          final parada = _construirOrdenDesdeOffline()[idx];
                           if (parada['tipo'] == 'origen') {
                             return ListTile(
                               leading: const CircleAvatar(
@@ -1130,7 +1175,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
@@ -1143,7 +1189,9 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                         const SizedBox(height: 4),
                                         // Mostrar la dirección como campo informativo debajo del nombre
                                         if (parada['direccion'] != null &&
-                                            (parada['direccion'] ?? '').toString().isNotEmpty)
+                                            (parada['direccion'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
                                           Text(
                                             parada['direccion'].toString(),
                                             style: const TextStyle(
@@ -1200,14 +1248,16 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                                 diclId,
                                               );
                                             });
-                                            await _saveVisitedSet();
+                                            // refresh visited state from local visitas_historial
+                                            await _loadClientesOffline();
                                           } else if (v == false) {
                                             // allow unchecking manually (if UI ever allows)
                                             setState(() {
                                               _direccionesVisitadasOffline
                                                   .remove(diclId);
                                             });
-                                            await _saveVisitedSet();
+                                            // refresh visited state from local visitas_historial
+                                            await _loadClientesOffline();
                                           }
                                         },
                                       );
