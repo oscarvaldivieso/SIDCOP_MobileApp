@@ -52,6 +52,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   List<Marker> _clientMarkers = [];
   // Quick lookup by cliente id (string)
   Map<String, Map<String, dynamic>> _clientesById = {};
+  // Orden de paradas para el drawer (versión offline)
+  List<Map<String, dynamic>> _ordenParadasOffline = [];
   // (no visit-tracking needed for offline viewer)
 
   // Device-based center (may be null until obtained). Fallback coords are
@@ -391,6 +393,52 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       }
 
       _clientMarkers = markers;
+      // Build a simple orden de paradas for the endDrawer (no proximity sorting)
+      List<Map<String, dynamic>> orden = [];
+      if (_centerLat != null && _centerLng != null) {
+        orden.add({
+          'tipo': 'origen',
+          'nombre': 'Tu ubicación',
+          'direccion': '',
+          'latlng': LatLng(_centerLat!, _centerLng!),
+        });
+      }
+      for (var d in _direccionesFiltradasOffline) {
+        final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+        final clIdStr = rawClId == null ? null : rawClId.toString();
+        final cliente = clIdStr != null && clIdStr.isNotEmpty
+            ? _clientesById[clIdStr]
+            : null;
+        orden.add({
+          'tipo': 'parada',
+          'nombre': cliente == null
+              ? (d['nombre'] ?? d['clie_nombre'] ?? 'Sin nombre').toString()
+              : ((cliente['clie_Nombres'] ?? '').toString() +
+                        ' ' +
+                        (cliente['clie_Apellidos'] ?? '').toString())
+                    .trim(),
+          'cliente': cliente,
+          'direccion':
+              (d['dicl_direccionexacta'] ??
+                      d['dirdescripcion'] ??
+                      d['direccion'] ??
+                      '')
+                  .toString(),
+          'latlng': (() {
+            final lat = (d['dicl_latitud'] ?? d['lat'] ?? d['latitude']);
+            final lng =
+                (d['dicl_longitud'] ?? d['lon'] ?? d['lng'] ?? d['longitude']);
+            try {
+              final la = double.parse(lat.toString());
+              final ln = double.parse(lng.toString());
+              return LatLng(la, ln);
+            } catch (_) {
+              return null;
+            }
+          })(),
+        });
+      }
+      _ordenParadasOffline = orden;
       if (failures.isNotEmpty) {
         print(
           'OFFLINE: marker parse failures=${failures.length}, examples=${failures.length <= 10 ? failures : failures.sublist(0, 10)}',
@@ -867,21 +915,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             tileProvider: NetworkTileProvider(),
           ),
           MarkerLayer(markers: combinedMarkers),
-          // Button to open visitas list (offline)
-          Positioned(
-            top: 12,
-            right: 12,
-            child: FloatingActionButton(
-              backgroundColor: _darkBg,
-              foregroundColor: _gold,
-              mini: true,
-              onPressed: () {
-                _showVisitasList();
-              },
-              child: const Icon(Icons.list),
-              tooltip: 'Lista de visitas',
-            ),
-          ),
         ],
       );
     } else {
@@ -921,7 +954,104 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         iconTheme: const IconThemeData(color: _gold),
         title: Text(
           widget.descripcion ?? 'Mapa Offline',
-          style: const TextStyle(color: _gold, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: _gold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt, color: _gold),
+            tooltip: 'Lista de visitas',
+            onPressed: _showVisitasList,
+          ),
+        ],
+      ),
+      endDrawer: Drawer(
+        backgroundColor: _darkBg,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Orden de visitas',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Satoshi',
+                    color: _gold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _ordenParadasOffline.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No hay orden disponible',
+                          style: TextStyle(
+                            color: _bodyDim,
+                            fontFamily: 'Satoshi',
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _ordenParadasOffline.length,
+                        itemBuilder: (context, idx) {
+                          final parada = _ordenParadasOffline[idx];
+                          if (parada['tipo'] == 'origen') {
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: _darkBg,
+                                child: Icon(
+                                  Icons.person_pin_circle,
+                                  color: _gold,
+                                ),
+                              ),
+                              title: const Text(
+                                'Tu ubicación',
+                                style: TextStyle(color: _body),
+                              ),
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                if (_centerLat != null) {
+                                  try {
+                                    _mapController.move(
+                                      LatLng(_centerLat!, _centerLng!),
+                                      16.0,
+                                    );
+                                  } catch (_) {}
+                                }
+                              },
+                            );
+                          }
+                          return ListTile(
+                            title: Text(
+                              parada['nombre'] ?? '',
+                              style: const TextStyle(color: _body),
+                            ),
+                            subtitle: Text(
+                              parada['direccion'] ?? '',
+                              style: const TextStyle(color: _bodyDim),
+                            ),
+                            onTap: () {
+                              final latlng = parada['latlng'] as LatLng?;
+                              if (latlng != null) {
+                                try {
+                                  _mapController.move(latlng, 17.0);
+                                } catch (_) {}
+                              }
+                              Navigator.of(context).pop();
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
       body: map,
