@@ -267,17 +267,9 @@ class RutasScreenOffline {
     String imageUrl,
     String nombreArchivo,
   ) async {
-    try {
-      final resp = await http.get(Uri.parse(imageUrl));
-      if (resp.statusCode == 200) {
-        final ruta = await rutaEnDocuments('$nombreArchivo.png');
-        final file = File(ruta);
-        await file.writeAsBytes(resp.bodyBytes);
-        return ruta;
-      }
-    } catch (e) {
-      // fallthrough
-    }
+    // Per requirement: offline service must not download or call remote static
+    // map endpoints. Image caching must be handled by the UI while online.
+    // Keep a placeholder implementation for legacy callers.
     return null;
   }
 
@@ -485,15 +477,10 @@ class RutasScreenOffline {
       final List<dynamic> direccionesRaw = await DireccionClienteService()
           .getDireccionesPorCliente();
 
-      const iconUrl =
-          'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
-
       for (final r in rutas) {
         try {
           // soportar objetos Map o formatos ya convertidos
-          final rutaId = (r is Map)
-              ? r['ruta_Id'] ?? r['rutaId']
-              : (r is Map ? r['ruta_Id'] : null);
+          final rutaId = (r is Map) ? r['ruta_Id'] ?? r['rutaId'] : null;
           if (rutaId == null) continue;
 
           // filtrar clientes por ruta
@@ -510,33 +497,36 @@ class RutasScreenOffline {
               .where((d) => clienteIds.contains(d is Map ? d['clie_id'] : null))
               .toList();
 
-          final markers = direccionesFiltradas
+          // Construir lista de puntos visibles por si se necesita la URL
+          final visiblePoints = direccionesFiltradas
               .where(
                 (d) =>
                     (d is Map ? d['dicl_latitud'] : null) != null &&
                     (d is Map ? d['dicl_longitud'] : null) != null,
               )
-              .map(
-                (d) =>
-                    'markers=icon:$iconUrl%7C${d['dicl_latitud']},${d['dicl_longitud']}',
-              )
-              .join('&');
+              .map((d) => '${d['dicl_latitud']},${d['dicl_longitud']}')
+              .join('|');
 
-          final center =
-              (direccionesFiltradas.isNotEmpty &&
-                  (direccionesFiltradas.first is Map) &&
-                  direccionesFiltradas.first['dicl_latitud'] != null &&
-                  direccionesFiltradas.first['dicl_longitud'] != null)
-              ? '${direccionesFiltradas.first['dicl_latitud']},${direccionesFiltradas.first['dicl_longitud']}'
-              : '15.525585,-88.013512';
-
+          // Construir una URL informativa (no la usaremos para descargar)
           final staticUrl =
-              'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
+              'https://maps.googleapis.com/maps/api/staticmap?size=400x150&visible=$visiblePoints&key=$mapApikey';
 
-          // Guardar imagen estática en Documents
-          await guardarImagenDeMapaStatic(staticUrl, 'map_static_$rutaId');
+          // NO descargar desde Google Static Maps aquí. Usar la imagen que
+          // ya fue generada por `Rutas_screen` y guardada en Documents.
+          final localPath = await rutaEnDocuments('map_static_$rutaId.png');
+          final localFile = File(localPath);
+          final hasLocal = await localFile.exists();
+          if (hasLocal) {
+            print(
+              'DEBUG: usar imagen local existente para ruta $rutaId -> $localPath',
+            );
+          } else {
+            print(
+              'DEBUG: no se encontró imagen local para ruta $rutaId; no se descargará aquí',
+            );
+          }
 
-          // Construir detalles y guardarlos
+          // Construir detalles y guardarlos (incluye referencia local si existe)
           final detalles = {
             'clientes': clientesFiltrados
                 .map((c) => c is Map ? c : {})
@@ -545,6 +535,7 @@ class RutasScreenOffline {
                 .map((d) => d is Map ? d : {})
                 .toList(),
             'staticMapUrl': staticUrl,
+            'staticMapLocalPath': hasLocal ? localPath : null,
           };
           await guardarDetallesRuta(rutaId, detalles);
         } catch (_) {

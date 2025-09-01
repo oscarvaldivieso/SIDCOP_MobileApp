@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
@@ -28,6 +29,35 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     final file = File(filePath);
     if (await file.exists()) return filePath;
     return null;
+  }
+
+  /// Descarga la imagen desde `url` y la guarda en Documents como map_static_<rutaId>.png
+  Future<void> _guardarImagenDesdeUrlSiEsPosible(String url, int rutaId) async {
+    if (url.isEmpty) return;
+    try {
+      final uri = Uri.parse(url);
+      final resp = await http.get(uri);
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        final path = await RutasScreenOffline.rutaEnDocuments(
+          'map_static_$rutaId.png',
+        );
+        final file = File(path);
+        await file.writeAsBytes(resp.bodyBytes);
+        // metadata
+        try {
+          final metaPath = await RutasScreenOffline.rutaEnDocuments(
+            'map_static_$rutaId.url.txt',
+          );
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$url\nbytes:${resp.bodyBytes.length}',
+          );
+        } catch (_) {}
+        print('DEBUG: detalles - imagen guardada en $path');
+      }
+    } catch (e) {
+      print('DEBUG: no se pudo descargar imagen de detalles: $e');
+    }
   }
 
   // Usar el servicio centralizado para persistencia offline
@@ -84,7 +114,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           .join('|');
       // El parámetro visible fuerza a que todos los puntos estén en la imagen
       final staticUrl =
-          'https://maps.googleapis.com/maps/api/staticmap?size=600x250&$markers&visible=$visiblePoints&key=$mapApikey';
+          'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
@@ -93,11 +123,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
-      // Guardar imagen estática offline usando el servicio central
-      await RutasScreenOffline.guardarImagenDeMapaStatic(
-        staticUrl,
-        'map_static_${widget.ruta.ruta_Id}',
-      );
+      // Intentar guardar la imagen static localmente (UI) y luego guardar detalles
+      await _guardarImagenDesdeUrlSiEsPosible(staticUrl, widget.ruta.ruta_Id);
       // Guardar detalles encriptados offline usando el servicio central
       await _guardarDetallesOffline(
         clientesFiltrados,

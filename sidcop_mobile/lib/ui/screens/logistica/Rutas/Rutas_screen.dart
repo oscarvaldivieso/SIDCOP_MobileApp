@@ -55,6 +55,15 @@ class _RutasScreenState extends State<RutasScreen> {
         final filePath = '${directory.path}/$nombreArchivo.png';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
+        // write metadata to help verify saved images
+        try {
+          final metaPath = '${directory.path}/$nombreArchivo.url.txt';
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$imageUrl\nbytes:${response.bodyBytes.length}',
+          );
+        } catch (_) {}
+        print('DEBUG: guardarImagenDeMapaStatic saved $filePath');
         return filePath;
       }
     } catch (e) {
@@ -64,15 +73,6 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   // Obtiene la ruta local de la imagen static si existe
-  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/map_static_$rutaId.png';
-    final file = File(filePath);
-    if (await file.exists()) {
-      return filePath;
-    }
-    return null;
-  }
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
@@ -332,9 +332,18 @@ class _RutasScreenState extends State<RutasScreen> {
       final directory = await getApplicationDocumentsDirectory();
       final filePath = '${directory.path}/map_static_${ruta.ruta_Id}.png';
       final file = File(filePath);
+      // Si existe imagen local, preferirla
       if (await file.exists()) {
-        await file.delete(); // Elimina la imagen local para forzar regeneración
-        print('DEBUG: Imagen local eliminada para ruta ${ruta.ruta_Id}');
+        print(
+          'DEBUG: imagen local encontrada para ruta ${ruta.ruta_Id} -> $filePath',
+        );
+        return 'file://$filePath';
+      }
+      // No hay imagen local: comprobar conectividad antes de generar URL remota
+      await verificarConexion();
+      if (!isOnline) {
+        print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
+        return '';
       }
       final remote = await _getStaticMapMarkers(ruta);
       print(

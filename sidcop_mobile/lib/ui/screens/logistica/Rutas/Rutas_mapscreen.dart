@@ -56,6 +56,17 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         final filePath = '${directory.path}/$nombreArchivo.png';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
+        try {
+          final metaPath = '${directory.path}/$nombreArchivo.url.txt';
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$imageUrl\nbytes:${response.bodyBytes.length}',
+          );
+        } catch (_) {}
+        developer.log(
+          'DEBUG: guardarImagenDeMapaStatic saved $filePath',
+          name: 'RutasMapScreen',
+        );
         return filePath;
       }
     } catch (e) {
