@@ -11,7 +11,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:sidcop_mobile/services/OfflineService.dart';
 
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'dart:ui' as ui;
@@ -19,6 +18,7 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 List<Map<String, dynamic>> _ordenParadas = [];
 List<DireccionCliente> _direccionesFiltradas = [];
@@ -44,6 +44,30 @@ class RutaMapScreen extends StatefulWidget {
 bool isOnline = true;
 
 class _RutaMapScreenState extends State<RutaMapScreen> {
+  String? _rutaImagenMapaStatic;
+  // Descarga y guarda la imagen de Google Maps Static
+  Future<String?> guardarImagenDeMapaStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$nombreArchivo.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      developer.log(
+        'Error guardando imagen de mapa: $e',
+        name: 'RutasMapScreen',
+      );
+    }
+    return null;
+  }
+
   // Paleta local (solo para esta pantalla)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
@@ -337,6 +361,46 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   }
 
   Stream<Position>? _positionStream;
+
+  Future<void> _openExternalDirections(LatLng destino) async {
+    if (_userLocation == null) return;
+    final origin = '${_userLocation!.latitude},${_userLocation!.longitude}';
+    final dest = '${destino.latitude},${destino.longitude}';
+    // Prefer Google Maps app scheme
+    final googleMapsUri = Uri.parse('google.navigation:q=$dest&mode=d');
+    // Fallback to web directions
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving',
+    );
+
+    try {
+      if (await canLaunchUrl(googleMapsUri)) {
+        await launchUrl(googleMapsUri);
+        return;
+      }
+    } catch (_) {}
+    if (await canLaunchUrl(webUri)) {
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openExternalWaze(LatLng destino) async {
+    final lat = destino.latitude;
+    final lon = destino.longitude;
+    final wazeUri = Uri.parse('waze://?ll=$lat,$lon&navigate=yes');
+    final webUri = Uri.parse(
+      'https://www.waze.com/ul?ll=$lat,$lon&navigate=yes',
+    );
+    try {
+      if (await canLaunchUrl(wazeUri)) {
+        await launchUrl(wazeUri);
+        return;
+      }
+    } catch (_) {}
+    if (await canLaunchUrl(webUri)) {
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   void initState() {
@@ -910,14 +974,6 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                 ),
               ),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.list_alt, color: _gold),
-                  tooltip: 'Ver orden de paradas',
-                  onPressed: () {
-                    // Solo abrir el drawer, NO mostrar la ruta automáticamente
-                    _scaffoldKey.currentState?.openEndDrawer();
-                  },
-                ),
                 PopupMenuButton<MapType>(
                   color: _darkBg,
                   icon: const Icon(Icons.map, color: _gold),
@@ -936,6 +992,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                       child: Text('Satelital', style: TextStyle(color: _body)),
                     ),
                   ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.list_alt, color: _gold),
+                  tooltip: 'Ver orden de paradas',
+                  onPressed: () {
+                    // Solo abrir el drawer, NO mostrar la ruta automáticamente
+                    _scaffoldKey.currentState?.openEndDrawer();
+                  },
                 ),
               ],
             ),
@@ -1188,9 +1252,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                 Icons.location_on,
                                                 size: 18,
                                               ),
-                                              label: const Text(
-                                                'Mostrar en mapa',
-                                              ),
+                                              label: const Text('Ubicación'),
                                               onPressed: () {
                                                 Navigator.of(context).pop();
                                                 if (parada['latlng'] != null &&
@@ -1252,8 +1314,79 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                 }
                                               },
                                             ),
+                                            const SizedBox(width: 8),
                                           ],
                                         ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.map,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Google Maps'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalDirections(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.navigation,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Waze'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalWaze(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -1345,6 +1478,31 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                     },
                               child: const Icon(Icons.alt_route),
                               tooltip: 'Ver rutas',
+                            ),
+                            const SizedBox(height: 12),
+                            FloatingActionButton(
+                              backgroundColor: _darkBg,
+                              foregroundColor: _gold,
+                              onPressed:
+                                  _userLocation == null || _markers.isEmpty
+                                  ? null
+                                  : () async {
+                                      await _loadDirecciones();
+                                      if (_direccionesFiltradas.isNotEmpty &&
+                                          _userLocation != null) {
+                                        final closest =
+                                            await _getClienteMasCercanoPorRuta();
+                                        if (closest != null) {
+                                          final dest = LatLng(
+                                            closest.dicl_latitud!,
+                                            closest.dicl_longitud!,
+                                          );
+                                          await _openExternalDirections(dest);
+                                        }
+                                      }
+                                    },
+                              child: const Icon(Icons.map),
+                              tooltip: 'Abrir en Maps',
                             ),
                             const SizedBox(height: 16),
                             FloatingActionButton(

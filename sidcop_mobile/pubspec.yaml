@@ -91,7 +91,6 @@ flutter:
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
     - assets/Ellipse1.png
-    - assets/marker_cliente.png
   # - assets/tiles
   
   fonts:
