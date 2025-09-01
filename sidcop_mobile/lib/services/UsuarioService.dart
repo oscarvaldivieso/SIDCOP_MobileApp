@@ -80,7 +80,7 @@ class UsuarioService {
         
         // code_Status == 1, login exitoso
         // Verificar que tenga los campos esenciales del usuario
-        if (!data.containsKey('personaId') || data['personaId'] == null) {
+        if (!data.containsKey('usua_IdPersona') || data['usua_IdPersona'] == null) {
           return {
             'error': true,
             'message': 'Error al obtener datos del usuario',
@@ -92,7 +92,9 @@ class UsuarioService {
         globalVendId = data['personaId'] is int
             ? data['personaId']
             : int.tryParse(data['personaId'].toString());
-        
+
+        print('este es el globalVendId: $globalVendId');
+
         developer.log('Usuario ID: $globalVendId');
         
         // Validar que se haya guardado correctamente el ID

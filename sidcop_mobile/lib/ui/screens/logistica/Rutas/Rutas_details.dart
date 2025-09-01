@@ -7,11 +7,8 @@ import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:sidcop_mobile/services/OfflineService.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
@@ -25,36 +22,15 @@ class RutasDetailsScreen extends StatefulWidget {
 class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
   // Obtiene la ruta local de la imagen static si existe
   Future<String?> obtenerImagenLocalStatic(int rutaId) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/map_static_$rutaId.png';
+    final filePath = await RutasScreenOffline.rutaEnDocuments(
+      'map_static_$rutaId.png',
+    );
     final file = File(filePath);
-    if (await file.exists()) {
-      return filePath;
-    }
+    if (await file.exists()) return filePath;
     return null;
   }
 
-  // Descarga y guarda la imagen de Google Maps Static
-  Future<String?> guardarImagenDeMapaStatic(
-    String imageUrl,
-    String nombreArchivo,
-  ) async {
-    try {
-      final response = await http.get(Uri.parse(imageUrl));
-      if (response.statusCode == 200) {
-        final directory = await getApplicationDocumentsDirectory();
-        final filePath = '${directory.path}/$nombreArchivo.png';
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-        return filePath;
-      }
-    } catch (e) {
-      print('Error guardando imagen de mapa: $e');
-    }
-    return null;
-  }
-
-  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
+  // Usar el servicio centralizado para persistencia offline
   bool _loading = true;
   String? _error;
   List<Cliente> _clientes = [];
@@ -118,12 +94,12 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
-      // Guardar imagen estática offline igual que en Rutas_screen.dart
-      await guardarImagenDeMapaStatic(
+      // Guardar imagen estática offline usando el servicio central
+      await RutasScreenOffline.guardarImagenDeMapaStatic(
         staticUrl,
         'map_static_${widget.ruta.ruta_Id}',
       );
-      // Guardar detalles encriptados offline
+      // Guardar detalles encriptados offline usando el servicio central
       await _guardarDetallesOffline(
         clientesFiltrados,
         direccionesFiltradas,
@@ -157,7 +133,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     }
   }
 
-  // Guarda los detalles encriptados offline por ruta
+  // Guarda los detalles encriptados offline por ruta usando RutasScreenOffline
   Future<void> _guardarDetallesOffline(
     List<Cliente> clientes,
     List<DireccionCliente> direcciones,
@@ -168,19 +144,18 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       'direcciones': direcciones.map((d) => d.toJson()).toList(),
       'staticMapUrl': staticMapUrl,
     };
-    await secureStorage.write(
-      key: 'details_ruta_${widget.ruta.ruta_Id}',
-      value: jsonEncode(detalles),
+    await RutasScreenOffline.guardarJsonSeguro(
+      'details_ruta_${widget.ruta.ruta_Id}',
+      detalles,
     );
   }
 
-  // Lee los detalles encriptados offline por ruta
+  // Lee los detalles encriptados offline por ruta usando RutasScreenOffline
   Future<Map<String, dynamic>?> _leerDetallesOffline() async {
-    final detallesString = await secureStorage.read(
-      key: 'details_ruta_${widget.ruta.ruta_Id}',
+    final detallesMap = await RutasScreenOffline.leerJsonSeguro(
+      'details_ruta_${widget.ruta.ruta_Id}',
     );
-    if (detallesString == null) return null;
-    final detallesMap = jsonDecode(detallesString);
+    if (detallesMap == null) return null;
     // Reconstruir objetos
     final clientes =
         (detallesMap['clientes'] as List?)
