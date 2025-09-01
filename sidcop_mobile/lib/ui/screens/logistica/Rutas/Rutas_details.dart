@@ -70,7 +70,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       }
       // Usar el mismo icono marker que en Rutas_screen.dart
       const iconUrl =
-          'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+          'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
       final markers = direccionesFiltradas
           .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
           .map(
