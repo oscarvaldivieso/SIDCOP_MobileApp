@@ -530,6 +530,129 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                       ),
                                     ),
                                   const SizedBox(height: 8),
+                                  // Action buttons: Ruta + external navigation
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8.0,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _gold,
+                                            foregroundColor: _darkBg,
+                                          ),
+                                          icon: const Icon(Icons.alt_route),
+                                          label: const Text('Ruta'),
+                                          onPressed: () async {
+                                            Navigator.of(context).pop();
+                                            // try to find the direccion for this cliente
+                                            DireccionCliente? direccion;
+                                            try {
+                                              direccion = _direccionesFiltradas
+                                                  .firstWhere(
+                                                    (d) =>
+                                                        d.clie_id ==
+                                                        cliente.clie_Id,
+                                                  );
+                                            } catch (_) {
+                                              direccion = null;
+                                            }
+                                            if (direccion != null &&
+                                                direccion.dicl_latitud !=
+                                                    null &&
+                                                direccion.dicl_longitud !=
+                                                    null) {
+                                              _mostrarRutaACliente(direccion);
+                                            }
+                                          },
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton.icon(
+                                                icon: const Icon(Icons.map),
+                                                label: const Text(
+                                                  'Google Maps',
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.of(context).pop();
+                                                  DireccionCliente? direccion;
+                                                  try {
+                                                    direccion =
+                                                        _direccionesFiltradas
+                                                            .firstWhere(
+                                                              (d) =>
+                                                                  d.clie_id ==
+                                                                  cliente
+                                                                      .clie_Id,
+                                                            );
+                                                  } catch (_) {
+                                                    direccion = null;
+                                                  }
+                                                  if (direccion != null &&
+                                                      direccion.dicl_latitud !=
+                                                          null &&
+                                                      direccion.dicl_longitud !=
+                                                          null) {
+                                                    _openExternalDirections(
+                                                      LatLng(
+                                                        direccion.dicl_latitud!,
+                                                        direccion
+                                                            .dicl_longitud!,
+                                                      ),
+                                                    );
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: OutlinedButton.icon(
+                                                icon: const Icon(
+                                                  Icons.navigation,
+                                                ),
+                                                label: const Text('Waze'),
+                                                onPressed: () {
+                                                  Navigator.of(context).pop();
+                                                  DireccionCliente? direccion;
+                                                  try {
+                                                    direccion =
+                                                        _direccionesFiltradas
+                                                            .firstWhere(
+                                                              (d) =>
+                                                                  d.clie_id ==
+                                                                  cliente
+                                                                      .clie_Id,
+                                                            );
+                                                  } catch (_) {
+                                                    direccion = null;
+                                                  }
+                                                  if (direccion != null &&
+                                                      direccion.dicl_latitud !=
+                                                          null &&
+                                                      direccion.dicl_longitud !=
+                                                          null) {
+                                                    _openExternalWaze(
+                                                      LatLng(
+                                                        direccion.dicl_latitud!,
+                                                        direccion
+                                                            .dicl_longitud!,
+                                                      ),
+                                                    );
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
                                   Text(
                                     'Dirección:',
                                     style: const TextStyle(

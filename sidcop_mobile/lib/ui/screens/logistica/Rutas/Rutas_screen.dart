@@ -18,7 +18,7 @@ import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
-import 'package:sidcop_mobile/services/OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});

@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sidcop_mobile/services/OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 /// Offline map viewer that serves tiles from a local .mbtiles file via a
 /// loopback HTTP server and uses flutter_map to render them.
@@ -689,7 +689,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             Icon(Icons.info_outline, size: 48, color: _body),
             const SizedBox(height: 8),
             Text(
-              'No se detectó MBTiles activo.',
+              'No se detectó Mapa Descargado.',
               style: TextStyle(color: _bodyDim),
             ),
             const SizedBox(height: 12),
@@ -703,7 +703,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 // attempt to init again
                 await _initMbtilesServer();
               },
-              child: const Text('Reintentar detectar MBTiles'),
+              child: const Text('Reintentar detectar mapa'),
             ),
           ],
         ),

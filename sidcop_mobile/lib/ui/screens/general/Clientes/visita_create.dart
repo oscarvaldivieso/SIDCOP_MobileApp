@@ -5,18 +5,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
-import 'package:sidcop_mobile/services/cloudinary_service.dart';
-import 'package:path_provider/path_provider.dart';
+// Removed unused imports: provider, ClientesVisitaHistorialModel, cloudinary_service
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
-import 'dart:developer' as developer;
-import 'package:http/http.dart' as http;
 
 final TextStyle _titleStyle = const TextStyle(
   fontFamily: 'Satoshi',
@@ -55,7 +50,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   List<File> _selectedImages = [];
   List<Uint8List> _selectedImagesBytes = [];
   bool _isLoading = false;
-  bool _isSubmitting = false;
+  // submission state handled inline; removed unused _isSubmitting
   // if the screen was opened with route arguments, store them to apply after data loads
   Map<String, dynamic>? _initialRouteArgs;
 
@@ -87,41 +82,122 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     });
   }
 
+  /// Ping sencillo a Google para verificar conectividad de red.
+  /// Devuelve true si Google responde en tiempo razonable.
+  Future<bool> _verificarConexion() async {
+    try {
+      final resp = await http
+          .get(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 3));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _cargarDatosIniciales() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Cargar estados de visita
-      _estadosVisita = await _visitaService.obtenerEstadosVisita();
+      // Verificar conectividad consultando Google. Si responde usamos endpoints remotos,
+      // si no, caemos a los datos guardados por el Offline Service.
+      final online = await _verificarConexion();
 
-      // Cargar clientes del vendedor actual
-      _clientes = await _visitaService.obtenerClientesPorVendedor();
+      if (online) {
+        // Cargar estados de visita (remoto)
+        _estadosVisita = await _visitaService.obtenerEstadosVisita();
 
-      // Si solo hay un cliente, seleccionarlo automáticamente
-      if (_clientes.length == 1) {
-        _selectedCliente = _clientes.first;
-        await _cargarDireccionesCliente(_selectedCliente!['clie_Id']);
-      } else if (_initialRouteArgs != null &&
-          _initialRouteArgs!['clienteId'] != null &&
-          _initialRouteArgs!['rutaId'] != null) {
-        // If the screen was opened with a clienteId, try to preselect it
-        try {
-          final cidNum = _initialRouteArgs!['clienteId'] as num?;
-          final cid = cidNum?.toInt();
-          if (cid != null) {
-            _selectedCliente = _clientes.firstWhere(
-              (c) => (c['clie_Id'] as num?)?.toInt() == cid,
-            );
-            // load addresses and try to preselect a direccion if provided
-            await _cargarDireccionesCliente(
-              _selectedCliente!['clie_Id'],
-              selectDiclId: (_initialRouteArgs!['diclId'] as num?)?.toInt(),
-            );
+        // Cargar clientes del vendedor actual (remoto)
+        _clientes = await _visitaService.obtenerClientesPorVendedor();
+
+        // Si solo hay un cliente, seleccionarlo automáticamente
+        if (_clientes.length == 1) {
+          _selectedCliente = _clientes.first;
+          await _cargarDireccionesCliente(_selectedCliente!['clie_Id']);
+        } else if (_initialRouteArgs != null &&
+            _initialRouteArgs!['clienteId'] != null &&
+            _initialRouteArgs!['rutaId'] != null) {
+          // If the screen was opened with a clienteId, try to preselect it
+          try {
+            final cidNum = _initialRouteArgs!['clienteId'] as num?;
+            final cid = cidNum?.toInt();
+            if (cid != null) {
+              _selectedCliente = _clientes.firstWhere(
+                (c) => (c['clie_Id'] as num?)?.toInt() == cid,
+              );
+              // load addresses and try to preselect a direccion if provided
+              await _cargarDireccionesCliente(
+                _selectedCliente!['clie_Id'],
+                selectDiclId: (_initialRouteArgs!['diclId'] as num?)?.toInt(),
+              );
+            }
+          } catch (_) {
+            // ignore failures and continue
           }
-        } catch (_) {
-          // ignore failures and continue
+        }
+      } else {
+        // Offline: leer datos locales desde VisitasOffline
+        final clientesLocal = await VisitasOffline.obtenerClientesLocal();
+        final direccionesLocal = await VisitasOffline.obtenerDireccionesLocal();
+        final estadosLocal = await VisitasOffline.obtenerEstadosVisitaLocal();
+
+        _estadosVisita = estadosLocal;
+        _clientes = clientesLocal;
+
+        // Si sólo hay un cliente, seleccionar y buscar sus direcciones en el cache local
+        if (_clientes.length == 1) {
+          _selectedCliente = _clientes.first;
+          _direcciones = direccionesLocal
+              .where((d) {
+                final cidA = d is Map ? (d['clie_Id'] ?? d['clie_id']) : null;
+                return cidA != null && cidA == _selectedCliente!['clie_Id'];
+              })
+              .map(
+                (e) => e is Map
+                    ? e as Map<String, dynamic>
+                    : Map<String, dynamic>.from(e as Map),
+              )
+              .toList();
+          if (_direcciones.length == 1) _selectedDireccion = _direcciones.first;
+        } else if (_initialRouteArgs != null &&
+            _initialRouteArgs!['clienteId'] != null &&
+            _initialRouteArgs!['rutaId'] != null) {
+          try {
+            final cidNum = _initialRouteArgs!['clienteId'] as num?;
+            final cid = cidNum?.toInt();
+            if (cid != null) {
+              _selectedCliente = _clientes.firstWhere(
+                (c) => (c['clie_Id'] as num?)?.toInt() == cid,
+              );
+              // filtrar direcciones locales
+              _direcciones = direccionesLocal
+                  .where((d) {
+                    final cidA = d is Map
+                        ? (d['clie_Id'] ?? d['clie_id'])
+                        : null;
+                    return cidA != null && cidA == _selectedCliente!['clie_Id'];
+                  })
+                  .map(
+                    (e) => e is Map
+                        ? e as Map<String, dynamic>
+                        : Map<String, dynamic>.from(e as Map),
+                  )
+                  .toList();
+              final selectDicl = (_initialRouteArgs!['diclId'] as num?)
+                  ?.toInt();
+              if (selectDicl != null) {
+                try {
+                  _selectedDireccion = _direcciones.firstWhere(
+                    (d) => (d['diCl_Id'] as num?)?.toInt() == selectDicl,
+                  );
+                } catch (_) {
+                  _selectedDireccion = null;
+                }
+              }
+            }
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -177,7 +253,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile>? images = await ImagePicker().pickMultiImage(
+      final List<XFile>? images = await _picker.pickMultiImage(
         imageQuality: 80,
         maxWidth: 1000,
       );
@@ -198,7 +274,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
 
   Future<void> _takePhoto() async {
     try {
-      final XFile? photo = await ImagePicker().pickImage(
+      final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 80,
         maxWidth: 1000,
@@ -400,7 +476,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() => _isLoading = true);
 
     try {
       // 1. Preparar datos de la visita
@@ -435,10 +511,54 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             ? _observacionesController.text
             : '',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
-        'usua_Creacion': 57,
+        'usua_Creacion': globalVendId ?? 0,
         'clVi_FechaCreacion': now.toIso8601String(),
       };
 
+      // Verificar si estamos online
+      final online = await _verificarConexion();
+      if (!online) {
+        // Guardar la visita localmente (incluyendo imágenes en base64) para sincronizar después
+        final List<String> imagenesBase64 = [];
+        for (final bytes in _selectedImagesBytes) {
+          try {
+            imagenesBase64.add(base64Encode(bytes));
+          } catch (_) {}
+        }
+
+        final visitaLocal = {
+          ...visitaData,
+          'imagenesBase64': imagenesBase64,
+          'offline': true,
+        };
+
+        final bool added = await VisitasOffline.agregarVisitaLocal(visitaLocal);
+
+        if (mounted) {
+          if (added) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Visita guardada en modo offline'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Visita duplicada detectada. No se guardó nuevamente.',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          Navigator.of(context).pop(true);
+        }
+
+        return;
+      }
+
+      // Online: proceder a insertar en remoto
       // 2. Insertar la visita
       await _visitaService.insertarVisita(visitaData);
 
@@ -506,7 +626,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
       _mostrarError('Error al guardar la visita: $e');
     } finally {
       if (mounted) {
-        setState(() => _isSubmitting = false);
+        setState(() => _isLoading = false);
       }
     }
   }
