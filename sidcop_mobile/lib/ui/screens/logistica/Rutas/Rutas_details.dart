@@ -8,7 +8,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'dart:io';
-import 'package:sidcop_mobile/services/OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 

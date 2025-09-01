@@ -1,7 +1,7 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 
@@ -34,11 +34,78 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
     try {
       final visitas = await _service.listarPorVendedor();
+
+      // Guardar la lista remota localmente para permitir lectura offline
+      try {
+        final visitasJson = visitas.map((v) => v.toJson()).toList();
+
+        // Fusionar con visitas locales pendientes (offline == true) para no
+        // sobrescribir visitas guardadas en modo offline cuando la API
+        // devuelva una lista vacía o parcial.
+        try {
+          final localRaw = await VisitasOffline.obtenerVisitasHistorialLocal();
+          final pendientes = localRaw.where((e) {
+            try {
+              return e is Map && (e['offline'] == true);
+            } catch (_) {
+              return false;
+            }
+          }).toList();
+
+          if (pendientes.isNotEmpty) {
+            // Evitar duplicados simples: si la entrada pendiente tiene
+            // `local_signature` y alguna visita remota la contiene, no la añadimos.
+            final signaturesRemote = <String>{};
+            for (final r in visitasJson) {
+              try {
+                if (r is Map && r['local_signature'] != null) {
+                  signaturesRemote.add(r['local_signature'].toString());
+                }
+              } catch (_) {}
+            }
+
+            for (final p in pendientes) {
+              try {
+                final sig = (p as Map)['local_signature']?.toString();
+                if (sig == null || !signaturesRemote.contains(sig)) {
+                  visitasJson.add(p as Map<String, dynamic>);
+                }
+              } catch (_) {
+                // si falla, añadir de todas formas
+                try {
+                  visitasJson.add(p as Map<String, dynamic>);
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+
+        await VisitasOffline.guardarVisitasHistorial(visitasJson);
+      } catch (_) {
+        // Si falla el guardado local, no interrumpir la carga en pantalla
+      }
+
       setState(() {
         _visitas = visitas;
         _isLoading = false;
       });
     } catch (e) {
+      // Si hay error al obtener remoto, intentar cargar la copia local
+      try {
+        final raw = await VisitasOffline.obtenerVisitasHistorialLocal();
+        if (raw.isNotEmpty) {
+          final localVisitas = raw
+              .map((m) => VisitasViewModel.fromJson(m as Map<String, dynamic>))
+              .toList();
+          setState(() {
+            _visitas = localVisitas;
+            _isLoading = false;
+            _errorMessage = '';
+          });
+          return;
+        }
+      } catch (_) {}
+
       setState(() {
         _errorMessage = 'Error al cargar las visitas';
         _isLoading = false;
