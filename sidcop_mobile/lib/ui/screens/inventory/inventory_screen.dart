@@ -6,14 +6,20 @@ import '../../../services/printer_service.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
+  final int usuaCreacion;
 
-  const InventoryScreen({super.key, required this.usuaIdPersona});
+  const InventoryScreen({super.key, required this.usuaIdPersona, required this.usuaCreacion});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
+
+  int? _usuaIdPersona;
+  int? _usuaCreacion;
+
+  
   final PrinterService _printerService = PrinterService();
   final InventoryService _inventoryService = InventoryService();
   Map<String, dynamic>? _facturaData;
@@ -27,8 +33,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
+    print('usuaIdPersona en InventoryScreen: ${widget.usuaIdPersona}'); 
+    print('usuaCreacion en InventoryScreen: ${widget.usuaCreacion}'); 
     _loadInventoryData();
     _loadSellerName();
+
+    _usuaIdPersona = widget.usuaIdPersona;
+    _usuaCreacion = widget.usuaCreacion;
   }
 
   Future<void> _handleStartJornada() async {
@@ -39,11 +50,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
         barrierDismissible: false,
         builder: (context) => const Center(
           child: CircularProgressIndicator(),
+
         ),
       );
 
-      // Call the startJornada method
-      final result = await _inventoryService.startJornada(widget.usuaIdPersona);
+      // Verificar que usuaIdPersona sea un ID válido (mayor a 0)
+      if (widget.usuaIdPersona <= 0) {
+        throw Exception('ID de usuario no válido para iniciar jornada');
+      }
+      
+      // Llamar al servicio con el ID de usuario
+      final result = await _inventoryService.startJornada(_usuaCreacion!, _usuaIdPersona!);
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();

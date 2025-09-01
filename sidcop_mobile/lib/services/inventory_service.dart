@@ -63,8 +63,8 @@ class InventoryService {
   }
 
 
-    Future<Map<String, dynamic>?> startJornada(int vendorId) async {
-    final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId');
+    Future<Map<String, dynamic>?> startJornada(int vendorId, int usuaCreacion) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId&Usuario_Creacion=$usuaCreacion');
     try {
       final response = await http.get(
         url,
