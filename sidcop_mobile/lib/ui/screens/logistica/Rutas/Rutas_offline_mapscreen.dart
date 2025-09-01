@@ -528,6 +528,195 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     );
   }
 
+  // Show a full list of visitas (direcciones) for this route — ignores proximity.
+  void _showVisitasList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: _darkBg,
+      builder: (context) {
+        final visitas = _direccionesFiltradasOffline;
+
+        double? tryParseCoord(dynamic raw) {
+          if (raw == null) return null;
+          if (raw is num) return raw.toDouble();
+          if (raw is String) {
+            final cleaned = raw
+                .replaceAll(' ', '')
+                .replaceAll('\u00A0', '')
+                .replaceAll(',', '.');
+            return double.tryParse(cleaned);
+          }
+          return null;
+        }
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5,
+          minChildSize: 0.25,
+          maxChildSize: 0.9,
+          builder: (context, controller) {
+            return Container(
+              decoration: BoxDecoration(
+                color: _darkBg,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    width: 48,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6.0,
+                      horizontal: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Visitas',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: _gold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${visitas.length}',
+                          style: const TextStyle(color: _bodyDim),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: controller,
+                      itemCount: visitas.length,
+                      itemBuilder: (context, idx) {
+                        final d = visitas[idx];
+                        final rawClId =
+                            d['clie_id'] ?? d['clieid'] ?? d['clie'];
+                        final clIdStr = rawClId == null
+                            ? null
+                            : rawClId.toString();
+                        final cliente = clIdStr != null && clIdStr.isNotEmpty
+                            ? _clientesById[clIdStr]
+                            : null;
+
+                        final direccionText =
+                            (d['dicl_direccionexacta'] ??
+                                    d['dirdescripcion'] ??
+                                    d['direccion'] ??
+                                    '')
+                                .toString();
+
+                        // Attempt to parse coordinates with tolerant rules
+                        dynamic latRaw =
+                            d['dicl_latitud'] ??
+                            d['lat'] ??
+                            d['latitude'] ??
+                            d['latitud'] ??
+                            d['latitudd'];
+                        dynamic lngRaw =
+                            d['dicl_longitud'] ??
+                            d['lon'] ??
+                            d['lng'] ??
+                            d['longitude'] ??
+                            d['longitud'] ??
+                            d['longitudd'];
+                        if ((latRaw == null || lngRaw == null) &&
+                            d.containsKey('coordenadas')) {
+                          final combo = d['coordenadas'];
+                          if (combo is String && combo.contains(',')) {
+                            final parts = combo.split(',');
+                            if (parts.length >= 2) {
+                              latRaw = latRaw ?? parts[0];
+                              lngRaw = lngRaw ?? parts[1];
+                            }
+                          }
+                        }
+
+                        final lat = tryParseCoord(latRaw);
+                        final lng = tryParseCoord(lngRaw);
+
+                        final titulo = cliente == null
+                            ? (d['nombre'] ??
+                                      d['clie_nombre'] ??
+                                      d['cliente'] ??
+                                      'Sin nombre')
+                                  .toString()
+                            : ((cliente['clie_Nombres'] ??
+                                              cliente['nombres'] ??
+                                              '')
+                                          .toString() +
+                                      ' ' +
+                                      (cliente['clie_Apellidos'] ??
+                                              cliente['apellidos'] ??
+                                              '')
+                                          .toString())
+                                  .trim();
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blueGrey,
+                            child: Image.asset(
+                              'assets/marker_cliente.png',
+                              width: 28,
+                              height: 28,
+                              errorBuilder: (c, e, s) =>
+                                  const Icon(Icons.store),
+                            ),
+                          ),
+                          title: Text(
+                            titulo,
+                            style: const TextStyle(color: _body),
+                          ),
+                          subtitle: Text(
+                            direccionText,
+                            style: const TextStyle(color: _bodyDim),
+                          ),
+                          trailing: lat != null && lng != null
+                              ? const Icon(
+                                  Icons.location_on,
+                                  color: Colors.redAccent,
+                                )
+                              : null,
+                          onTap: () {
+                            if (lat != null && lng != null) {
+                              try {
+                                _mapController.move(LatLng(lat, lng), 17.0);
+                              } catch (_) {}
+                            }
+                            Navigator.of(context).pop();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<File?> _findFirstMbtilesFile() async {
     final docs = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(docs.path, 'maps'));
@@ -678,6 +867,21 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             tileProvider: NetworkTileProvider(),
           ),
           MarkerLayer(markers: combinedMarkers),
+          // Button to open visitas list (offline)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: FloatingActionButton(
+              backgroundColor: _darkBg,
+              foregroundColor: _gold,
+              mini: true,
+              onPressed: () {
+                _showVisitasList();
+              },
+              child: const Icon(Icons.list),
+              tooltip: 'Lista de visitas',
+            ),
+          ),
         ],
       );
     } else {
