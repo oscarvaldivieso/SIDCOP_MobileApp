@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
+import 'Rutas_offline_mapscreen.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -392,16 +393,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                     const SizedBox(height: 16),
                     _staticMapUrl != null
                         ? GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => RutaMapScreen(
-                                    rutaId: widget.ruta.ruta_Id,
-                                    descripcion: widget.ruta.ruta_Descripcion,
-                                    vendId: globalVendId,
-                                  ),
-                                ),
-                              );
+                            onTap: () async {
+                              await _abrirMapaSegunConexion();
                             },
                             child: Stack(
                               children: [
@@ -690,5 +683,46 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
               ),
             ),
     );
+  }
+
+  Future<void> _abrirMapaSegunConexion() async {
+    try {
+      // Quick connectivity probe
+      final resp = await http
+          .get(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 5));
+      final online = resp.statusCode == 200;
+      if (online) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RutaMapScreen(
+              rutaId: widget.ruta.ruta_Id,
+              descripcion: widget.ruta.ruta_Descripcion,
+              vendId: globalVendId,
+            ),
+          ),
+        );
+      } else {
+        // fallback to offline map
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RutasOfflineMapScreen(
+              rutaId: widget.ruta.ruta_Id,
+              descripcion: widget.ruta.ruta_Descripcion,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // On timeout or any network error, open offline map
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RutasOfflineMapScreen(
+            rutaId: widget.ruta.ruta_Id,
+            descripcion: widget.ruta.ruta_Descripcion,
+          ),
+        ),
+      );
+    }
   }
 }

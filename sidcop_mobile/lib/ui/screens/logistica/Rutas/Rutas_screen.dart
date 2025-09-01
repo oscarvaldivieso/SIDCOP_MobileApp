@@ -88,8 +88,39 @@ class _RutasScreenState extends State<RutasScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRutas();
     _searchController.addListener(_applySearch);
+    // On entering the Rutas screen we must persist all remote data locally
+    // (rutas, clientes, direcciones, vendedores, visitas_historial, etc).
+    // Run startup sync then load rutas. Use a microtask to avoid making
+    // initState async and to keep UI responsive while we perform the
+    // necessary persistence operations.
+    Future.microtask(() async {
+      try {
+        await _syncAllOnEntry();
+      } catch (e) {
+        print('SYNC: startup full sync failed: $e');
+      }
+      // After attempting to persist all data, load rutas for the UI.
+      await _fetchRutas();
+    });
+  }
+
+  Future<void> _syncAllOnEntry() async {
+    try {
+      print('SYNC: starting full startup sync...');
+
+      await RutasScreenOffline.sincronizarRutas_Todo();
+
+      await RutasScreenOffline.sincronizarVisitasHistorial();
+
+      await RutasScreenOffline.sincronizarVendedoresPorRutas();
+
+      await RutasScreenOffline.guardarDetallesTodasRutas();
+      print('SYNC: full startup sync completed');
+    } catch (e) {
+      print('SYNC: _syncAllOnEntry encountered error: $e');
+      rethrow;
+    }
   }
 
   @override
