@@ -115,21 +115,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         final points = _decodePolyline(
           data['routes'][0]['overview_polyline']['points'],
         );
-        setState(() {
-          _polylines = {};
-          _polylines = {
-            Polyline(
-              polylineId: const PolylineId('route_cliente'),
-              color: Colors.blue,
-              width: 4,
-              patterns: [],
-              endCap: Cap.roundCap,
-              startCap: Cap.roundCap,
-              jointType: JointType.round,
-              points: points,
-            ),
-          };
-        });
+        // store the full route points into the class-level list and set the visible polyline
+        _activeRoutePoints = points;
+        _setPolylineFromActivePoints();
       }
     }
   }
@@ -140,6 +128,8 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
   MapType _mapType = MapType.hybrid;
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
+  // active route points for the currently displayed polyline
+  List<LatLng> _activeRoutePoints = [];
   bool _loading = true;
   LatLng? _initialPosition;
   final CustomInfoWindowController _customInfoWindowController =
@@ -243,6 +233,10 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
         _updateUserMarker();
         // Ya no se actualiza la ruta general
       });
+      // Trim active route polyline as user moves
+      if (_userLocation != null) {
+        _trimRouteToPosition(_userLocation!);
+      }
       // Cuando la ubicación cambia, recalcula el orden de visitas
       _loadDirecciones();
     });
@@ -305,6 +299,61 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
       points.add(LatLng(lat / 1E5, lng / 1E5));
     }
     return points;
+  }
+
+  void _setPolylineFromActivePoints() {
+    if (_activeRoutePoints.isEmpty) {
+      setState(() {
+        _polylines = {};
+      });
+      return;
+    }
+    setState(() {
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('route_cliente'),
+          color: Colors.blue,
+          width: 4,
+          patterns: [],
+          endCap: Cap.roundCap,
+          startCap: Cap.roundCap,
+          jointType: JointType.round,
+          points: List<LatLng>.from(_activeRoutePoints),
+        ),
+      };
+    });
+  }
+
+  void _trimRouteToPosition(LatLng userPos, {double thresholdMeters = 20}) {
+    if (_activeRoutePoints.isEmpty) return;
+    int bestIdx = 0;
+    double bestDist = double.infinity;
+    for (int i = 0; i < _activeRoutePoints.length; i++) {
+      final p = _activeRoutePoints[i];
+      final d = Geolocator.distanceBetween(
+        userPos.latitude,
+        userPos.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    int startIdx;
+    if (bestDist <= thresholdMeters) {
+      // user is within threshold of the nearest route point — drop up to it
+      startIdx = bestIdx;
+    } else {
+      // not quite on the route point yet; keep a small look-back to avoid
+      // trimming too aggressively and producing a jumpy polyline
+      startIdx = (bestIdx > 0) ? bestIdx - 1 : 0;
+    }
+    if (startIdx > 0 && startIdx < _activeRoutePoints.length) {
+      _activeRoutePoints = _activeRoutePoints.sublist(startIdx);
+      _setPolylineFromActivePoints();
+    }
   }
 
   Future<void> _getUserLocation() async {
@@ -985,9 +1034,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                           Navigator.of(
                                                             context,
                                                           ).pop();
-                                                          Navigator.of(
-                                                            context,
-                                                          ).push(
+                                                          final result = await Navigator.of(context).push<bool>(
                                                             MaterialPageRoute(
                                                               builder: (_) =>
                                                                   const VisitaCreateScreen(),
@@ -1018,6 +1065,9 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                                               ),
                                                             ),
                                                           );
+                                                          if (result == true) {
+                                                            await _loadDirecciones();
+                                                          }
                                                         }
                                                       },
                                                 checkColor: Colors.green,
