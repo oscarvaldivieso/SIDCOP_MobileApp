@@ -311,11 +311,67 @@ class RutasScreenOffline {
         print('SYNC: sincronizarClientes fetched (unknown count)');
       }
       await guardarJson(_archivoClientes, data);
+      // After saving clients JSON, attempt to download and cache business images
+      try {
+        for (final c in data) {
+          try {
+            if (c is! Map) continue;
+            final id = (c['clie_Id'] ?? c['clieId'] ?? c['id'])?.toString();
+            if (id == null || id.isEmpty) continue;
+            // Support several possible image keys
+            final imageUrl =
+                (c['clie_ImagenDelNegocio'] ??
+                        c['clieImagenDelNegocio'] ??
+                        c['imagen'] ??
+                        c['foto'] ??
+                        '')
+                    ?.toString() ??
+                '';
+            if (imageUrl.isEmpty) continue;
+            final filename = 'foto_negocio_${id}.jpg';
+            final exists = await existe(filename);
+            if (exists) continue; // skip if already stored
+            try {
+              final resp = await http
+                  .get(Uri.parse(imageUrl))
+                  .timeout(const Duration(seconds: 8));
+              if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+                await guardarBytes(
+                  filename,
+                  Uint8List.fromList(resp.bodyBytes),
+                );
+                print('SYNC: saved negocio image for cliente $id -> $filename');
+              } else {
+                // ignore non-200
+              }
+            } catch (_) {
+              // Ignore download failures per-client to avoid aborting sync
+            }
+          } catch (_) {
+            continue;
+          }
+        }
+      } catch (_) {}
       // Intentar convertir a lista de mapas
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Guarda la foto de negocio de un cliente (nombre: 'foto_negocio_<clienteId>.jpg').
+  static Future<void> guardarFotoNegocio(
+    String clienteId,
+    Uint8List bytes,
+  ) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    await guardarBytes(filename, bytes);
+  }
+
+  /// Lee la foto de negocio de un cliente si existe.
+  static Future<Uint8List?> leerFotoNegocio(String clienteId) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    return await leerBytes(filename);
   }
 
   /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.
@@ -472,10 +528,11 @@ class RutasScreenOffline {
         rutas = await sincronizarRutas();
       }
 
-      // Traer clientes y direcciones una sola vez
-      final List<dynamic> clientesRaw = await ClientesService().getClientes();
-      final List<dynamic> direccionesRaw = await DireccionClienteService()
-          .getDireccionesPorCliente();
+      // Traer (y sincronizar) clientes y direcciones una sola vez.
+      // Usar las funciones sincronizar* para asegurar que las imágenes de negocio
+      // se descarguen y guarden en el offline store.
+      final List<dynamic> clientesRaw = await sincronizarClientes();
+      final List<dynamic> direccionesRaw = await sincronizarDirecciones();
 
       for (final r in rutas) {
         try {
