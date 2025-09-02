@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
+import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/EncryptedCsvStorageService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
 import 'dart:isolate';
 import 'dart:async';
@@ -122,11 +126,63 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
   }
   
   /// Navega a la siguiente pantalla después de completar la inicialización
-  void _navigateToNextScreen() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-    );
+  Future<void> _navigateToNextScreen() async {
+    // Verificar si hay credenciales guardadas para auto-login
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+    final savedEmail = prefs.getString('saved_email') ?? '';
+    final savedPassword = prefs.getString('saved_password') ?? '';
+    
+    if (rememberMe && savedEmail.isNotEmpty && savedPassword.isNotEmpty) {
+      // Intentar auto-login
+      try {
+        final usuarioService = UsuarioService();
+        final perfilUsuarioService = PerfilUsuarioService();
+        
+        final result = await usuarioService.iniciarSesion(savedEmail, savedPassword);
+        
+        if (result != null && result['error'] != true) {
+          // Login exitoso - guardar datos del usuario
+          await perfilUsuarioService.guardarDatosUsuario(result);
+          
+          // Sincronización rápida
+          await SyncService.syncAfterLogin(
+            immediate: false,
+            onProgress: (status) {
+              developer.log('Auto-login sync: $status');
+            },
+          );
+          
+          // Navegar directamente al HomeScreen
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+          return;
+        } else {
+          // Si el auto-login falla, limpiar credenciales guardadas
+          await prefs.remove('remember_me');
+          await prefs.remove('saved_email');
+          await prefs.remove('saved_password');
+        }
+      } catch (e) {
+        developer.log('Error en auto-login: $e');
+        // Si hay error, limpiar credenciales guardadas
+        await prefs.remove('remember_me');
+        await prefs.remove('saved_email');
+        await prefs.remove('saved_password');
+      }
+    }
+    
+    // Si no hay credenciales o el auto-login falló, ir al onboarding
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    }
   }
 
   @override

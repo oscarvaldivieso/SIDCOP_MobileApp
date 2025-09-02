@@ -63,7 +63,32 @@ class InventoryService {
   }
 
 
-    Future<Map<String, dynamic>?> closeJornada(int vendorId) async {
+    Future<Map<String, dynamic>?> startJornada(int vendorId) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(response.body);
+        if (jsonData.isNotEmpty) {
+          return jsonData[0] as Map<String, dynamic>;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error starting jornada: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> closeJornada(int vendorId) async {
     final url = Uri.parse('$_apiServer/InventarioBodegas/CierreJornada?Vend_Id=$vendorId');
     try {
       final response = await http.get(
