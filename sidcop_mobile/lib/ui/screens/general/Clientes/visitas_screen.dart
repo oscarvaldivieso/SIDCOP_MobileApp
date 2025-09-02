@@ -4,7 +4,8 @@ import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
-import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart'; // Importar la pantalla de detalles
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
+import 'dart:convert';
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -15,16 +16,24 @@ class VendedorVisitasScreen extends StatefulWidget {
 }
 
 class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
-  final ClientesVisitaHistorialService _service =
-      ClientesVisitaHistorialService();
+  final ClientesVisitaHistorialService _service = ClientesVisitaHistorialService();
   List<VisitasViewModel> _visitas = [];
+  List<VisitasViewModel> _filteredVisitas = [];
   bool _isLoading = true;
+  bool _isLoadingEstados = false;
   String _errorMessage = '';
+  final TextEditingController _searchController = TextEditingController();
+  
+  // Estados para el filtro
+  List<Map<String, dynamic>> _estadosVisita = [];
+  Set<String> _selectedStatuses = {};
 
   @override
   void initState() {
     super.initState();
     _loadVisitas();
+    _loadEstadosVisita();
+    _searchController.addListener(_onSearchChanged);
   }
 
   Future<void> _loadVisitas() async {
@@ -119,6 +128,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
       setState(() {
         _visitas = visitas;
+        _filteredVisitas = List.from(visitas);
         _isLoading = false;
       });
     } catch (e) {
@@ -131,6 +141,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
               .toList();
           setState(() {
             _visitas = localVisitas;
+            _filteredVisitas = List.from(localVisitas);
             _isLoading = false;
             _errorMessage = '';
           });
@@ -143,6 +154,93 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadEstadosVisita() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingEstados = true;
+    });
+
+    try {
+      final estados = await _service.obtenerEstadosVisita();
+      if (!mounted) return;
+      
+      setState(() {
+        _estadosVisita = estados;
+      });
+    } catch (e) {
+      // Si falla, usar estados por defecto
+      _estadosVisita = [
+        {'esVi_Id': 1, 'esVi_Descripcion': 'Pendiente'},
+        {'esVi_Id': 2, 'esVi_Descripcion': 'Venta realizada'},
+        {'esVi_Id': 3, 'esVi_Descripcion': 'Negocio cerrado'},
+      ];
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingEstados = false;
+        });
+      }
+    }
+  }
+
+  String normalizeAndClean(String str) {
+    if (str.isEmpty) return '';
+
+    // Convertimos a minúsculas
+    String normalized = str.toLowerCase();
+
+    // Reemplazamos acentos y caracteres especiales
+    const accents = 'áàäâãåéèëêíìïîóòöôõúùüûñç';
+    const withoutAccents = 'aaaaaaeeeeiiiiooooouuuunc';
+
+    for (int i = 0; i < accents.length; i++) {
+      normalized = normalized.replaceAll(accents[i], withoutAccents[i]);
+    }
+
+    // Eliminamos caracteres que no sean letras, números o espacios
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), '');
+
+    // Eliminamos espacios dobles
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return normalized;
+  }
+
+  void _onSearchChanged() {
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    final searchTerm = normalizeAndClean(_searchController.text);
+
+    setState(() {
+      _filteredVisitas = _visitas.where((visita) {
+        final clienteNombre = normalizeAndClean('${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}');
+        final negocio = normalizeAndClean(visita.clie_NombreNegocio ?? '');
+        final observaciones = normalizeAndClean(visita.clVi_Observaciones ?? '');
+        final estado = normalizeAndClean(visita.esVi_Descripcion ?? '');
+        
+        final matchesSearch = searchTerm.isEmpty ||
+            clienteNombre.contains(searchTerm) ||
+            negocio.contains(searchTerm) ||
+            observaciones.contains(searchTerm) ||
+            estado.contains(searchTerm);
+        
+        final matchesStatus = _selectedStatuses.isEmpty || 
+            _selectedStatuses.any((status) => normalizeAndClean(status) == estado);
+        
+        return matchesSearch && matchesStatus;
+      }).toList();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -170,8 +268,6 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage.isNotEmpty
               ? _buildErrorWidget()
-              : _visitas.isEmpty
-              ? _buildEmptyWidget()
               : _buildVisitasList(),
         ),
       ),
@@ -230,13 +326,392 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Widget _buildVisitasList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _visitas.length,
-      itemBuilder: (context, index) {
-        final visita = _visitas[index];
-        return _buildVisitaCard(visita);
+    return Column(
+      children: [
+        // Search Bar mejorada con botón de filtro
+        _buildSearchBar(),
+        const SizedBox(height: 12),
+        _buildFilterAndCount(),
+        const SizedBox(height: 16),
+        
+        // Visitas List
+        _filteredVisitas.isEmpty
+            ? _buildEmptyWidget()
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredVisitas.length,
+                itemBuilder: (context, index) {
+                  final visita = _filteredVisitas[index];
+                  return _buildVisitaCard(visita);
+                },
+              ),
+      ],
+    );
+  }
+
+  // Nuevo método para construir la barra de búsqueda con filtro
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 45,
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(fontFamily: 'Satoshi'),
+                decoration: InputDecoration(
+                  hintText: 'Buscar visitas...',
+                  hintStyle: const TextStyle(
+                    color: Colors.grey,
+                    fontFamily: 'Satoshi',
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _applyFilters();
+                          },
+                        )
+                      : null,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            height: 48,
+            width: 48,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(width: 1),
+            ),
+            child: IconButton(
+              onPressed: _showStatusFilters,
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
+              tooltip: 'Filtrar por estado',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Nuevo método para mostrar contador y limpiar filtros
+  Widget _buildFilterAndCount() {
+    final bool hasTextFilter = _searchController.text.isNotEmpty;
+    final bool hasStatusFilter = _selectedStatuses.isNotEmpty;
+    final bool hasAnyFilter = hasTextFilter || hasStatusFilter;
+
+    final int resultCount = _filteredVisitas.length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      child: Row(
+        children: [
+          Text(
+            '$resultCount resultados',
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Satoshi',
+            ),
+          ),
+          const Spacer(),
+          if (hasAnyFilter)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _selectedStatuses.clear();
+                });
+                _applyFilters();
+              },
+              child: const Text(
+                'Limpiar filtros',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Nuevo método para construir la sección de filtros (similar a clientes)
+  Widget _buildFilterSection(
+    String title,
+    IconData icon,
+    List<Map<String, dynamic>> items,
+    Set<String> selectedValues,
+    Function(String, bool) onSelectionChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A2F),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: items.map((item) {
+              final description = item['esVi_Descripcion'] as String;
+              final isSelected = selectedValues.contains(description.toLowerCase());
+
+              return ChoiceChip(
+                label: Text(
+                  description,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: isSelected
+                        ? const Color(0xFF141A2F)
+                        : Colors.white,
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: const Color(0xFFD6B68A),
+                backgroundColor: const Color(0xFF141A2F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSelected
+                        ? Colors.white
+                        : const Color(0xFFD6B68A),
+                  ),
+                ),
+                onSelected: (selected) {
+                  onSelectionChanged(description.toLowerCase(), selected);
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Nuevo método para mostrar el modal de filtros de estado
+  void _showStatusFilters() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.5,
+                minChildSize: 0.3,
+                maxChildSize: 0.8,
+                builder: (context, scrollController) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF141A2F),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Drag handle
+                        Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+
+                        // Header with title and close/clear buttons
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Filtrar por estado',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontFamily: 'Satoshi',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  setModalState(() {
+                                    _selectedStatuses.clear();
+                                  });
+                                  setState(() {
+                                    _selectedStatuses.clear();
+                                  });
+                                  _applyFilters();
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD6B68A),
+                                ),
+                                child: const Text('Limpiar'),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Filter sections
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Column(
+                                children: [
+                                  // Estados section
+                                  _buildFilterSection(
+                                    'Estados de Visita',
+                                    Icons.assignment_turned_in,
+                                    _estadosVisita,
+                                    _selectedStatuses,
+                                    (estado, selected) {
+                                      setModalState(() {
+                                        if (selected) {
+                                          _selectedStatuses.add(estado);
+                                        } else {
+                                          _selectedStatuses.remove(estado);
+                                        }
+                                      });
+                                      setState(() {
+                                        if (selected) {
+                                          _selectedStatuses.add(estado);
+                                        } else {
+                                          _selectedStatuses.remove(estado);
+                                        }
+                                      });
+                                    },
+                                  ),
+
+                                  // Apply button
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _applyFilters();
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF141A2F),
+                                        side: const BorderSide(
+                                          color: Color(0xFFD6B68A),
+                                        ),
+                                        elevation: 0,
+                                        foregroundColor: const Color(0xFFD6B68A),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Aplicar filtros',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height: MediaQuery.of(context).viewInsets.bottom + 16,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -274,8 +749,8 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         iconoEstado = Icons.check_circle_rounded;
         break;
       default:
-        primaryColor = const Color(0xFF2196F3);
-        secondaryColor = const Color(0xFF64B5F6);
+        primaryColor = const Color.fromARGB(255, 20, 108, 180);
+        secondaryColor = const Color.fromARGB(255, 66, 137, 195);
         backgroundColor = const Color(0xFFE3F2FD);
         iconoEstado = Icons.info_outline_rounded;
     }
@@ -357,7 +832,6 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                         ],
                       ),
                     ),
-                    // const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
                   ],
                 ),
               ),
