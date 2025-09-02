@@ -119,7 +119,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     try {
       final direccionesData = await _direccionClienteService
           .getDireccionesPorCliente();
-      final facturasData = await _facturaService.getFacturas();
+      final facturasData = await _facturaService.getFacturasDevolucionesLimite();
 
       if (!mounted) return;
 
