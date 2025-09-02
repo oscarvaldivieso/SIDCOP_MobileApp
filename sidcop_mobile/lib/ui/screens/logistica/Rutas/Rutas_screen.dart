@@ -115,6 +115,9 @@ class _RutasScreenState extends State<RutasScreen> {
 
       await RutasScreenOffline.sincronizarVendedoresPorRutas();
 
+      // Limpiar detalles obsoletos antes de regenerar
+      await RutasScreenOffline.limpiarTodosLosDetalles();
+
       await RutasScreenOffline.guardarDetallesTodasRutas();
       print('SYNC: full startup sync completed');
     } catch (e) {

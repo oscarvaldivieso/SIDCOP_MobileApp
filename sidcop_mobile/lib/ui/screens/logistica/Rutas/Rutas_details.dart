@@ -126,12 +126,6 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       }
       // Intentar guardar la imagen static localmente (UI) y luego guardar detalles
       await _guardarImagenDesdeUrlSiEsPosible(staticUrl, widget.ruta.ruta_Id);
-      // Guardar detalles encriptados offline usando el servicio central
-      await _guardarDetallesOffline(
-        clientesFiltrados,
-        direccionesFiltradas,
-        staticUrl,
-      );
     } catch (e) {
       // Si falla, intentar leer detalles offline
       final detallesOffline = await _leerDetallesOffline();
@@ -160,48 +154,73 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     }
   }
 
-  // Guarda los detalles encriptados offline por ruta usando RutasScreenOffline
-  Future<void> _guardarDetallesOffline(
-    List<Cliente> clientes,
-    List<DireccionCliente> direcciones,
-    String staticMapUrl,
-  ) async {
-    final detalles = {
-      'clientes': clientes.map((c) => c.toJson()).toList(),
-      'direcciones': direcciones.map((d) => d.toJson()).toList(),
-      'staticMapUrl': staticMapUrl,
-    };
-    await RutasScreenOffline.guardarJsonSeguro(
-      'details_ruta_${widget.ruta.ruta_Id}',
-      detalles,
-    );
-  }
+  // Nota: la pantalla ya no guarda detalles de ruta en almacenamiento.
 
   // Lee los detalles encriptados offline por ruta usando RutasScreenOffline
   Future<Map<String, dynamic>?> _leerDetallesOffline() async {
-    final detallesMap = await RutasScreenOffline.leerJsonSeguro(
-      'details_ruta_${widget.ruta.ruta_Id}',
+    final detalles = await RutasScreenOffline.leerDetallesRuta(
+      widget.ruta.ruta_Id,
     );
-    if (detallesMap == null) return null;
-    // Reconstruir objetos
+    if (detalles == null) {
+      print(
+        'DEBUG: _leerDetallesOffline - no hay detalles para ruta ${widget.ruta.ruta_Id}',
+      );
+      return null;
+    }
+
+    print('DEBUG: _leerDetallesOffline - detalles keys: ${detalles.keys}');
+    print(
+      'DEBUG: _leerDetallesOffline - clientes count: ${(detalles['clientes'] as List?)?.length ?? 0}',
+    );
+    print(
+      'DEBUG: _leerDetallesOffline - direcciones count: ${(detalles['direcciones'] as List?)?.length ?? 0}',
+    );
+
+    // convertir a objetos modelo para el UI
     final clientes =
-        (detallesMap['clientes'] as List?)
-            ?.map((j) => Cliente.fromJson(j))
-            .toList() ??
+        (detalles['clientes'] as List?)?.map((j) {
+          print(
+            'DEBUG: converting cliente JSON: ${j.toString().substring(0, 100)}...',
+          );
+          return Cliente.fromJson(j);
+        }).toList() ??
         [];
     final direcciones =
-        (detallesMap['direcciones'] as List?)
-            ?.map((j) => DireccionCliente.fromJson(j))
-            .toList() ??
+        (detalles['direcciones'] as List?)?.map((j) {
+          print(
+            'DEBUG: converting direccion JSON: ${j.toString().substring(0, 100)}...',
+          );
+          return DireccionCliente.fromJson(j);
+        }).toList() ??
         [];
+
+    print(
+      'DEBUG: _leerDetallesOffline - converted clientes: ${clientes.length}',
+    );
+    print(
+      'DEBUG: _leerDetallesOffline - converted direcciones: ${direcciones.length}',
+    );
+
     final mapDirecciones = <int, List<DireccionCliente>>{};
     for (final d in direcciones) {
+      print(
+        'DEBUG: direccion clie_id=${d.clie_id}, dicl_direccionexacta=${d.dicl_direccionexacta}',
+      );
       mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
     }
+
+    for (final c in clientes) {
+      final dirs = mapDirecciones[c.clie_Id ?? -1] ?? [];
+      print(
+        'DEBUG: cliente ${c.clie_NombreNegocio} (id=${c.clie_Id}) tiene ${dirs.length} direcciones',
+      );
+    }
+
     return {
       'clientes': clientes,
       'direccionesPorCliente': mapDirecciones,
-      'staticMapUrl': detallesMap['staticMapUrl'],
+      'staticMapUrl':
+          detalles['staticMapUrl'] ?? detalles['staticMapLocalPath'],
     };
   }
 
