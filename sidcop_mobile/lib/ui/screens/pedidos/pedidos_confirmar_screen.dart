@@ -221,6 +221,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           "prod_Id": p.prodId ?? 0, // Necesitamos agregar este campo
           "peDe_Cantidad": p.cantidad,
           "peDe_ProdPrecio": p.precioBase,
+          "peDe_Impuesto": p.productoOriginal?.impuValor??0*p.precioFinal,
+          "peDe_ProdDescuento": (p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal,
+          "peDe_Subtotal": p.cantidad * p.precioBase,
           "peDe_ProdPrecioFinal": p.precioFinal,
         };
       }).toList();
@@ -382,7 +385,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e) 
+    {
       // Cerrar loading si hay error
       if (context.mounted) {
         Navigator.of(context).pop();

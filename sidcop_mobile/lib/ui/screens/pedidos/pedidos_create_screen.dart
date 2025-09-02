@@ -209,7 +209,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     try {
       final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
       print(productos[3].toJson());
-      print(productos[3].descuentosEscala![0].toJson());
+      //print(productos[3].descuentosEscala![0].toJson());
       setState(() {
         _productos = productos;
         _filteredProductos = List.from(_productos);
@@ -218,7 +218,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _error = 'Error al cargar productos';
+        _error = 'Error al cargar productos $e';
       });
     }
   }
