@@ -15,11 +15,14 @@ import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import '../../../services/OfflineAuthService.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visitas_screen.dart';
+
 
 class CustomDrawer extends StatefulWidget {
   final List<dynamic> permisos;
@@ -180,6 +183,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
+                        // Limpiar credenciales guardadas de "Remember me"
+                        await LoginScreen.clearSavedCredentials();
+                        // Limpiar credenciales offline
+                        await OfflineAuthService.clearOfflineCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
@@ -295,8 +302,30 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
               },
             ),
-
-            if (tienePermiso(35)) // Devoluciones
+            ListTile(
+            leading: const Icon(
+              Icons.location_history,
+              color: Color(0xFFD6B68A),
+            ),
+            title: const Text(
+              'Visitas',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VendedorVisitasScreen(usuaIdPersona: _usuaIdPersona ?? 0),
+                ),
+              );
+            },
+          ),
+          if (tienePermiso(35)) // Devoluciones
               ListTile(
                 leading: const Icon(
                   Icons.restart_alt_outlined,

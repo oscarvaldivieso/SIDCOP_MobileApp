@@ -6,7 +6,10 @@ import '../../widgets/custom_button.dart';
 import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
+import '../../../services/OfflineAuthService.dart';
 import '../../screens/auth/forgot_password_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -14,6 +17,14 @@ class LoginScreen extends StatefulWidget {
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+
+  // Método estático para limpiar credenciales guardadas (accesible desde otras clases)
+  static Future<void> clearSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('remember_me');
+    await prefs.remove('saved_email');
+    await prefs.remove('saved_password');
+  }
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -32,6 +43,242 @@ class _LoginScreenState extends State<LoginScreen> {
   String _syncStatus = '';
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedSession();
+  }
+
+  // Verificar si hay una sesión guardada
+  Future<void> _checkSavedSession() async {
+    // Primero verificar si hay una sesión offline válida para auto-login directo
+    final hasValidSession = await OfflineAuthService.hasValidOfflineSession();
+    
+    if (hasValidSession) {
+      // Verificar conectividad para decidir el tipo de auto-login
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      setState(() {
+        _isLoading = true;
+        _syncStatus = hasConnection ? 'Restaurando sesión...' : 'Restaurando sesión offline...';
+      });
+      
+      try {
+        Map<String, dynamic>? result;
+        
+        if (hasConnection) {
+          // Intentar auto-login online con credenciales guardadas
+          final prefs = await SharedPreferences.getInstance();
+          final savedEmail = prefs.getString('saved_email') ?? '';
+          final savedPassword = prefs.getString('saved_password') ?? '';
+          
+          try {
+            result = await _usuarioService.iniciarSesion(savedEmail, savedPassword);
+            
+            if (result != null && result['error'] != true) {
+              // Actualizar credenciales offline con datos frescos
+              await OfflineAuthService.saveOfflineCredentials(
+                username: savedEmail,
+                password: savedPassword,
+                userData: result,
+              );
+              await OfflineAuthService.updateLastOnlineLogin();
+            }
+          } catch (e) {
+            // Si falla online, usar offline
+            result = await OfflineAuthService.autoRestoreOfflineSession();
+          }
+        } else {
+          // Sin conexión, usar directamente offline
+          result = await OfflineAuthService.autoRestoreOfflineSession();
+        }
+        
+        if (result != null && result['error'] != true) {
+          // Auto-login exitoso - ir directo al home
+          await _perfilUsuarioService.guardarDatosUsuario(result);
+          
+          if (hasConnection && result['offline_login'] != true) {
+            // Sincronización rápida para login online
+            setState(() {
+              _syncStatus = 'Sincronizando...';
+            });
+            
+            await SyncService.syncAfterLogin(
+              immediate: false,
+              onProgress: (status) {
+                if (mounted) {
+                  setState(() {
+                    _syncStatus = status;
+                  });
+                }
+              },
+            );
+          }
+          
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+          return; // Salir temprano, no mostrar pantalla de login
+        }
+      } catch (e) {
+        // Error en auto-login, continuar con pantalla de login normal
+      }
+      
+      // Si llegamos aquí, el auto-login falló, mostrar pantalla normal
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _syncStatus = '';
+        });
+      }
+    }
+    
+    // Comportamiento normal: cargar credenciales en la pantalla de login
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+    final savedEmail = prefs.getString('saved_email') ?? '';
+    final savedPassword = prefs.getString('saved_password') ?? '';
+    
+    if (rememberMe && savedEmail.isNotEmpty && savedPassword.isNotEmpty) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _passwordController.text = savedPassword;
+        _rememberMe = true;
+      });
+    }
+  }
+
+  // Maneja el auto-login con soporte para modo offline
+  Future<void> _handleAutoLogin() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      Map<String, dynamic>? result;
+      bool isOfflineLogin = false;
+      
+      if (hasConnection) {
+        // Intentar auto-login online primero
+        setState(() {
+          _syncStatus = 'Restaurando sesión...';
+        });
+        
+        try {
+          result = await _usuarioService.iniciarSesion(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+          
+          if (result != null && result['error'] != true) {
+            // Auto-login online exitoso - actualizar credenciales offline
+            await OfflineAuthService.saveOfflineCredentials(
+              username: _emailController.text.trim(),
+              password: _passwordController.text,
+              userData: result,
+            );
+            await OfflineAuthService.updateLastOnlineLogin();
+          }
+        } catch (e) {
+          // Error de conexión - intentar auto-login offline
+          setState(() {
+            _syncStatus = 'Sin conexión, restaurando sesión offline...';
+          });
+          
+          result = await _attemptOfflineLogin();
+          isOfflineLogin = true;
+        }
+      } else {
+        // Sin conexión - usar auto-login offline directamente
+        setState(() {
+          _syncStatus = 'Modo offline - Restaurando sesión...';
+        });
+        
+        result = await _attemptOfflineLogin();
+        isOfflineLogin = true;
+      }
+
+      if (result != null && result['error'] != true) {
+        // Auto-login exitoso (online u offline)
+        await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        if (isOfflineLogin) {
+          setState(() {
+            _syncStatus = 'Sesión restaurada (offline)';
+          });
+          
+          // Pequeña pausa para mostrar el mensaje
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } else {
+          // Sincronización solo para auto-login online
+          setState(() {
+            _syncStatus = 'Sincronizando datos...';
+          });
+          
+          await SyncService.syncAfterLogin(
+            immediate: false,
+            onProgress: (status) {
+              if (mounted) {
+                setState(() {
+                  _syncStatus = status;
+                });
+              }
+            },
+          );
+        }
+        
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      } else {
+        // Auto-login fallido - mostrar pantalla de login normal
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _syncStatus = '';
+          });
+        }
+      }
+    } catch (e) {
+      // Error en auto-login - mostrar pantalla de login normal
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _syncStatus = '';
+        });
+      }
+    }
+  }
+
+  // Guardar credenciales si "Remember me" está activado
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    if (_rememberMe) {
+      await prefs.setBool('remember_me', true);
+      await prefs.setString('saved_email', _emailController.text.trim());
+      await prefs.setString('saved_password', _passwordController.text);
+    } else {
+      await prefs.remove('remember_me');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+      // NO limpiar credenciales offline aquí - solo limpiar "Remember me"
+      // Las credenciales offline deben persistir para permitir login offline
+    }
+  }
+
 
   Future<void> _handleLogin() async {
     // Limpiar errores previos
@@ -66,30 +313,96 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await _usuarioService.iniciarSesion(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (result != null && result['error'] != true) {
-        // Login exitoso - guardar datos del usuario
-        await _perfilUsuarioService.guardarDatosUsuario(result);
-        
-        // Sincronización
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      Map<String, dynamic>? result;
+      bool isOfflineLogin = false;
+      
+      if (hasConnection) {
+        // Intentar login online primero
         setState(() {
-          _syncStatus = 'Ingresando';
+          _syncStatus = 'Conectando al servidor...';
         });
         
-        await SyncService.syncAfterLogin(
-          immediate: false,  //que no demore el login
-          onProgress: (status) {
-            if (mounted) {
-              setState(() {
-                _syncStatus = status;
-              });
-            }
-          },
-        );
+        try {
+          result = await _usuarioService.iniciarSesion(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+          
+          if (result != null && result['error'] != true) {
+            // Login online exitoso - SIEMPRE guardar credenciales offline
+            await OfflineAuthService.saveOfflineCredentials(
+              username: _emailController.text.trim(),
+              password: _passwordController.text,
+              userData: result,
+            );
+            
+            // Actualizar timestamp del último login online
+            await OfflineAuthService.updateLastOnlineLogin();
+          }
+        } catch (e) {
+          // Error de conexión - intentar login offline
+          setState(() {
+            _syncStatus = 'Sin conexión, intentando acceso offline...';
+          });
+          
+          result = await _attemptOfflineLogin();
+          isOfflineLogin = true;
+        }
+      } else {
+        // Sin conexión - usar login offline directamente
+        setState(() {
+          _syncStatus = 'Modo offline - Verificando credenciales...';
+        });
+        
+        result = await _attemptOfflineLogin();
+        isOfflineLogin = true;
+      }
+
+      if (result != null && result['error'] != true) {
+        // Login exitoso (online u offline)
+        await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        // Si fue login online exitoso, asegurar que se guarden credenciales offline
+        if (!isOfflineLogin) {
+          await OfflineAuthService.saveOfflineCredentials(
+            username: _emailController.text.trim(),
+            password: _passwordController.text,
+            userData: result,
+          );
+          await OfflineAuthService.updateLastOnlineLogin();
+        }
+        
+        // Guardar credenciales si "Remember me" está activado
+        await _saveCredentials();
+        
+        if (isOfflineLogin) {
+          setState(() {
+            _syncStatus = 'Acceso offline exitoso';
+          });
+          
+          // Pequeña pausa para mostrar el mensaje
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } else {
+          // Sincronización solo para login online
+          setState(() {
+            _syncStatus = 'Ingresando';
+          });
+          
+          await SyncService.syncAfterLogin(
+            immediate: false,
+            onProgress: (status) {
+              if (mounted) {
+                setState(() {
+                  _syncStatus = status;
+                });
+              }
+            },
+          );
+        }
         
         if (mounted) {
           Navigator.pushReplacement(
@@ -98,14 +411,15 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        // Login fallido - mostrar error específico o genérico
+        // Login fallido
+        final errorMessage = result?['message'] ?? "Usuario y/o contraseña incorrectos";
         setState(() {
-          _generalError = "Usuario y/o contraseña incorrectos";
+          _generalError = errorMessage;
         });
       }
     } catch (e) {
       setState(() {
-        _generalError = 'Error de conexión: $e';
+        _generalError = 'Error inesperado: $e';
       });
     } finally {
       if (mounted) {
@@ -113,6 +427,41 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+  
+  /// Intenta realizar login offline
+  Future<Map<String, dynamic>?> _attemptOfflineLogin() async {
+    try {
+      // Verificar si hay credenciales offline disponibles
+      final hasOfflineCredentials = await OfflineAuthService.hasOfflineCredentials();
+      
+      if (!hasOfflineCredentials) {
+        return {
+          'error': true,
+          'message': 'No hay credenciales guardadas para acceso offline. Necesitas conectarte a internet para el primer login.',
+        };
+      }
+      
+      // Verificar si las credenciales han expirado (opcional)
+      final areExpired = await OfflineAuthService.areCredentialsExpired(maxDaysOffline: 30);
+      if (areExpired) {
+        return {
+          'error': true,
+          'message': 'Las credenciales offline han expirado. Conecta a internet para renovar el acceso.',
+        };
+      }
+      
+      // Intentar autenticación offline
+      return await OfflineAuthService.authenticateOffline(
+        username: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    } catch (e) {
+      return {
+        'error': true,
+        'message': 'Error en autenticación offline: $e',
+      };
     }
   }
 
@@ -231,6 +580,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             Row(
   children: [
+Row(
+  children: [
+    Checkbox(
+      value: _rememberMe,
+      onChanged: (value) {
+        setState(() {
+          _rememberMe = value ?? false;
+        });
+      },
+      activeColor: const Color(0xFF98774A), // tu color de diseño
+    ),
+    const Text(
+      "Mantener sesión activa",
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  ],
+),
 
 
   ],
@@ -278,59 +648,112 @@ const SizedBox(height: 30),
               );
             },
           ),
-          
-          // Overlay de carga con animación
+          // Overlay de carga con animación - pantalla completa
           if (_isLoading)
-            Container(
-              color: Colors.black.withOpacity(0.6),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF181E34).withOpacity(0.95), // Azul oscuro
+                      const Color(0xFF06115B).withOpacity(0.95), // Azul más oscuro
                     ],
                   ),
+                ),
+                child: Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Indicador de carga circular animado
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 4,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Theme.of(context).primaryColor,
+                      // Contenedor con efecto glassmorphism
+                      Container(
+                        padding: const EdgeInsets.all(40),
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF98774A).withOpacity(0.3),
+                            width: 1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
-                        style: const TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Indicador de carga circular con colores de marca
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF98774A), // Dorado
+                                    const Color(0xFFD6B68A), // Dorado claro
+                                  ],
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  backgroundColor: Colors.white.withOpacity(0.3),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+                            // Texto principal
+                            Text(
+                              _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
+                              style: const TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            // Texto secundario
+                            Text(
+                              'Por favor espere',
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFFD6B68A), // Dorado claro
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 20),
+                            // Indicador de puntos animados
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(3, (index) {
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF98774A).withOpacity(0.7),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Por favor espere',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),

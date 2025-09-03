@@ -17,6 +17,9 @@ import 'package:http/http.dart' as http;
 import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
+import 'Rutas_descargas_screen.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -25,22 +28,15 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
-  bool isOnline = true;
+  bool isOnline =
+      false; // Variable de clase para almacenar el estado de conexión
 
-  Future<void> verificarConexion() async {
-    try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
-      if (response.statusCode == 200) {
-        isOnline = true;
-      } else {
-        isOnline = false;
-      }
-    } catch (e) {
-      isOnline = false;
-    }
+  Future<void> verificarconexion() async {
+    isOnline = await VerificarService.verificarConexion();
+    setState(() {}); // Actualiza la UI si es necesario
   }
 
-  Map<int, String?> _mapasStaticLocales = {};
+  // mapas static locales cache handled via archivos en getApplicationDocumentsDirectory()
   // Descarga y guarda la imagen de Google Maps Static
   Future<String?> guardarImagenDeMapaStatic(
     String imageUrl,
@@ -53,6 +49,15 @@ class _RutasScreenState extends State<RutasScreen> {
         final filePath = '${directory.path}/$nombreArchivo.png';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
+        // write metadata to help verify saved images
+        try {
+          final metaPath = '${directory.path}/$nombreArchivo.url.txt';
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$imageUrl\nbytes:${response.bodyBytes.length}',
+          );
+        } catch (_) {}
+        print('DEBUG: guardarImagenDeMapaStatic saved $filePath');
         return filePath;
       }
     } catch (e) {
@@ -62,15 +67,6 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   // Obtiene la ruta local de la imagen static si existe
-  Future<String?> obtenerImagenLocalStatic(int rutaId) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/map_static_$rutaId.png';
-    final file = File(filePath);
-    if (await file.exists()) {
-      return filePath;
-    }
-    return null;
-  }
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
@@ -86,8 +82,42 @@ class _RutasScreenState extends State<RutasScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRutas();
     _searchController.addListener(_applySearch);
+    // On entering the Rutas screen we must persist all remote data locally
+    // (rutas, clientes, direcciones, vendedores, visitas_historial, etc).
+    // Run startup sync then load rutas. Use a microtask to avoid making
+    // initState async and to keep UI responsive while we perform the
+    // necessary persistence operations.
+    Future.microtask(() async {
+      try {
+        await _syncAllOnEntry();
+      } catch (e) {
+        print('SYNC: startup full sync failed: $e');
+      }
+      // After attempting to persist all data, load rutas for the UI.
+      await _fetchRutas();
+    });
+  }
+
+  Future<void> _syncAllOnEntry() async {
+    try {
+      print('SYNC: starting full startup sync...');
+
+      await RutasScreenOffline.sincronizarRutas_Todo();
+
+      await RutasScreenOffline.sincronizarVisitasHistorial();
+
+      await RutasScreenOffline.sincronizarVendedoresPorRutas();
+
+      // Limpiar detalles obsoletos antes de regenerar
+      await RutasScreenOffline.limpiarTodosLosDetalles();
+
+      await RutasScreenOffline.guardarDetallesTodasRutas();
+      print('SYNC: full startup sync completed');
+    } catch (e) {
+      print('SYNC: _syncAllOnEntry encountered error: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -98,7 +128,7 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   Future<void> _fetchRutas() async {
-    try {
+    if (isOnline) {
       // 1. Obtener rutas asignadas al vendedor (si existe variable global)
       await _cargarRutasAsignadasVendedor();
 
@@ -121,7 +151,26 @@ class _RutasScreenState extends State<RutasScreen> {
       });
       // Guardar rutas encriptadas offline
       await _guardarRutasOffline(_rutas);
-    } catch (e) {
+      // Lanzar sincronización en background para asegurar que las ubicaciones
+      // de clientes y direcciones se persistan al entrar al listado de rutas.
+      // Intentamos sincronizar clientes/direcciones primero (guardan JSON local)
+      // y luego generamos los detalles por ruta. Errores se registran pero no
+      // bloquean la UI.
+      Future.microtask(() async {
+        try {
+          await RutasScreenOffline.sincronizarClientes();
+          await RutasScreenOffline.sincronizarDirecciones();
+        } catch (e) {
+          print('SYNC: warning - sincronizar clientes/direcciones failed: $e');
+        }
+        try {
+          await RutasScreenOffline.guardarDetallesTodasRutas();
+          print('SYNC: guardarDetallesTodasRutas completed');
+        } catch (e) {
+          print('SYNC: guardarDetallesTodasRutas failed: $e');
+        }
+      });
+    } else {
       // Si falla, intentar leer rutas offline
       final rutasOffline = await _leerRutasOffline();
       if (mounted) {
@@ -131,11 +180,7 @@ class _RutasScreenState extends State<RutasScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error al cargar las rutas. Mostrando rutas precargadas.',
-            ),
-          ),
+          SnackBar(content: Text('Mostrando rutas sin conexión a Internet.')),
         );
       }
     }
@@ -152,10 +197,29 @@ class _RutasScreenState extends State<RutasScreen> {
 
   // Lee la lista de rutas encriptada
   Future<List<Ruta>> _leerRutasOffline() async {
-    final rutasString = await secureStorage.read(key: 'rutas_offline');
-    if (rutasString == null) return [];
-    final rutasList = jsonDecode(rutasString) as List;
-    return rutasList.map((json) => Ruta.fromJson(json)).toList();
+    try {
+      final rutasString = await secureStorage.read(key: 'rutas_offline');
+      print('DEBUG rutas_offline (offline): $rutasString');
+      if (rutasString != null) {
+        final rutasList = jsonDecode(rutasString) as List;
+        return rutasList.map((json) => Ruta.fromJson(json)).toList();
+      }
+    } catch (e) {
+      print('DEBUG: error leyendo rutas_offline key: $e');
+    }
+
+    // Fallback: intentar leer el JSON gestionado por RutasScreenOffline ('rutas.json')
+    try {
+      final raw = await RutasScreenOffline.leerJson('rutas.json');
+      print('DEBUG rutas.json (offline service): $raw');
+      if (raw == null) return [];
+      final lista = List.from(raw as List);
+      return lista.map((json) => Ruta.fromJson(json)).toList();
+    } catch (e) {
+      print('DEBUG: error leyendo rutas.json desde RutasScreenOffline: $e');
+    }
+
+    return [];
   }
 
   Future<void> _cargarRutasAsignadasVendedor() async {
@@ -269,41 +333,56 @@ class _RutasScreenState extends State<RutasScreen> {
     final direccionesFiltradas = todasDirecciones
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
+    // Usar URL remota para el icono marker
     const iconUrl =
-        'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+        'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
     final markers = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
         .map(
           (d) => 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
         )
         .join('&');
-    String center;
-    if (direccionesFiltradas.isNotEmpty) {
-      double sumLat = 0;
-      double sumLng = 0;
-      int count = 0;
-      for (var d in direccionesFiltradas) {
-        if (d.dicl_latitud != null && d.dicl_longitud != null) {
-          sumLat += double.tryParse(d.dicl_latitud.toString()) ?? 0;
-          sumLng += double.tryParse(d.dicl_longitud.toString()) ?? 0;
-          count++;
-        }
+    final visiblePoints = direccionesFiltradas
+        .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+        .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
+        .join('|');
+    // El parámetro visible fuerza a que todos los puntos estén en la imagen
+    return 'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
+  }
+
+  // Preferir imagen local si existe; si no, generar URL remota
+  Future<String> _getMapUrlPreferLocal(Ruta ruta) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/map_static_${ruta.ruta_Id}.png';
+      final file = File(filePath);
+      // Si existe imagen local, preferirla
+      if (await file.exists()) {
+        print(
+          'DEBUG: imagen local encontrada para ruta ${ruta.ruta_Id} -> $filePath',
+        );
+        return 'file://$filePath';
       }
-      if (count > 0) {
-        double avgLat = sumLat / count;
-        double avgLng = sumLng / count;
-        center = '$avgLat,$avgLng';
-      } else {
-        center = '15.525585,-88.013512';
+      // No hay imagen local: comprobar conectividad antes de generar URL remota
+      await verificarconexion();
+      if (!isOnline) {
+        print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
+        return '';
       }
-    } else {
-      center = '15.525585,-88.013512';
+      final remote = await _getStaticMapMarkers(ruta);
+      print(
+        'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
+      );
+      return remote;
+    } catch (e) {
+      print('DEBUG: Error obteniendo mapa para ruta ${ruta.ruta_Id}: $e');
+      return '';
     }
-    return 'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=400x150&$markers&key=$mapApikey';
   }
 
   @override
   Widget build(BuildContext context) {
-    final mapApiKey = mapApikey; // fallback use
+    // fallback use for map API key is available as mapApikey
     return Scaffold(
       backgroundColor: Colors.transparent,
       drawer: CustomDrawer(permisos: permisos),
@@ -404,246 +483,358 @@ class _RutasScreenState extends State<RutasScreen> {
                     const SizedBox(height: 6),
                     ..._filteredRutas.map(
                       (ruta) => FutureBuilder<String>(
-                        future: _getStaticMapMarkers(ruta),
+                        future: _getMapUrlPreferLocal(ruta),
                         builder: (context, snapshot) {
-                          final mapUrl =
-                              snapshot.data ??
-                              'https://maps.googleapis.com/maps/api/staticmap?center=15.525585,-88.013512&zoom=10&size=400x150&markers=color:0xFFD6B68A%7C15.525585,-88.013512&key=$mapApiKey';
+                          final mapUrl = snapshot.data ?? '';
+                          print(
+                            'DEBUG FutureBuilder ruta ${ruta.ruta_Id} mapUrl=$mapUrl state=${snapshot.connectionState} hasData=${snapshot.hasData}',
+                          );
                           if (snapshot.connectionState ==
                                   ConnectionState.done &&
                               snapshot.hasData) {
-                            guardarImagenDeMapaStatic(
-                              mapUrl,
-                              'map_static_${ruta.ruta_Id}',
-                            );
-                            // Mostrar imagen online
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 6.0,
-                              ),
-                              child: Card(
-                                color: const Color(0xFF141A2F),
-                                margin: EdgeInsets.zero,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: const BorderSide(
-                                    color: Color(0xFFD6B68A),
-                                    width: 1,
-                                  ),
+                            // Si es local, mapUrl empieza con file://
+                            if (mapUrl.startsWith('file://')) {
+                              final localPath = mapUrl.replaceFirst(
+                                'file://',
+                                '',
+                              );
+                              print(
+                                'DEBUG mostrando imagen local para ruta ${ruta.ruta_Id} -> $localPath',
+                              );
+                              // mostrar tarjeta con imagen local
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                  vertical: 6.0,
                                 ),
-                                elevation: 4,
-                                child: Row(
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () async {
-                                        await verificarConexion();
-                                        if (isOnline) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => RutaMapScreen(
-                                                rutaId: ruta.ruta_Id,
-                                                descripcion:
-                                                    ruta.ruta_Descripcion,
-                                                vendId: globalVendId,
+                                child: Card(
+                                  color: const Color(0xFF141A2F),
+                                  margin: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: const BorderSide(
+                                      color: Color(0xFFD6B68A),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  elevation: 4,
+                                  child: Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () async {
+                                          await verificarconexion();
+                                          if (isOnline) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => RutaMapScreen(
+                                                  rutaId: ruta.ruta_Id,
+                                                  descripcion:
+                                                      ruta.ruta_Descripcion,
+                                                  vendId: globalVendId,
+                                                ),
                                               ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RutasOfflineMapScreen(
+                                                      rutaId: ruta.ruta_Id,
+                                                      descripcion:
+                                                          ruta.ruta_Descripcion,
+                                                    ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: Card(
+                                          color: const Color(0xFFF5F5F5),
+                                          margin: const EdgeInsets.only(
+                                            left: 8,
+                                            top: 8,
+                                            bottom: 8,
+                                          ),
+                                          elevation: 2,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(16),
+                                              bottomLeft: Radius.circular(16),
                                             ),
-                                          );
-                                        } else {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  RutasOfflineMapScreen(
-                                                    rutaId: ruta.ruta_Id,
-                                                    descripcion:
-                                                        ruta.ruta_Descripcion,
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topLeft: Radius.circular(16),
+                                                  bottomLeft: Radius.circular(
+                                                    16,
                                                   ),
+                                                ),
+                                            child: Image.file(
+                                              File(localPath),
+                                              height: 120,
+                                              width: 140,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      height: 120,
+                                                      width: 140,
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.map,
+                                                        size: 40,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    );
+                                                  },
                                             ),
-                                          );
-                                        }
-                                      },
-                                      child: Card(
-                                        color: const Color(0xFFF5F5F5),
-                                        margin: const EdgeInsets.only(
-                                          left: 8,
-                                          top: 8,
-                                          bottom: 8,
-                                        ),
-                                        elevation: 2,
-                                        shape: const RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(16),
-                                            bottomLeft: Radius.circular(16),
                                           ),
                                         ),
-                                        child: ClipRRect(
-                                          borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(16),
-                                            bottomLeft: Radius.circular(16),
-                                          ),
-                                          child: Stack(
+                                      ),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Image.network(
-                                                mapUrl,
-                                                height: 120,
-                                                width: 140,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) {
-                                                  // Si falla la imagen online, intentar mostrar la local offline
-                                                  return FutureBuilder<String?>(
-                                                    future:
-                                                        obtenerImagenLocalStatic(
-                                                          ruta.ruta_Id,
-                                                        ),
-                                                    builder:
-                                                        (
-                                                          context,
-                                                          snapshotLocal,
-                                                        ) {
-                                                          if (snapshotLocal
-                                                                      .connectionState ==
-                                                                  ConnectionState
-                                                                      .done &&
-                                                              snapshotLocal
-                                                                      .data !=
-                                                                  null) {
-                                                            return Image.file(
-                                                              File(
-                                                                snapshotLocal
-                                                                    .data!,
-                                                              ),
-                                                              height: 120,
-                                                              width: 140,
-                                                              fit: BoxFit.cover,
-                                                            );
-                                                          } else {
-                                                            return Container(
-                                                              height: 120,
-                                                              width: 140,
-                                                              color: Colors
-                                                                  .grey[300],
-                                                              child: const Icon(
-                                                                Icons.map,
-                                                                size: 40,
-                                                                color:
-                                                                    Colors.grey,
-                                                              ),
-                                                            );
-                                                          }
-                                                        },
-                                                  );
-                                                },
+                                              Text(
+                                                ruta.ruta_Descripcion ??
+                                                    'Sin descripción',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 16,
+                                                  color: Colors.white,
+                                                ),
                                               ),
-                                              Positioned(
-                                                right: 6,
-                                                bottom: 6,
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 3,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(
-                                                      0xCC141A2F,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          20,
-                                                        ),
-                                                    border: Border.all(
-                                                      color: const Color(
-                                                        0xFFD6B68A,
-                                                      ),
-                                                      width: 1,
-                                                    ),
-                                                  ),
-                                                  child: const Text(
-                                                    'Mapa',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Color(0xFFB5B5B5),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Color(0xFF9E9E9E),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              ruta.ruta_Descripcion ??
-                                                  'Sin descripción',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 16,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFFB5B5B5),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF9E9E9E),
-                                              ),
-                                            ),
-                                          ],
+                                      InkWell(
+                                        borderRadius: const BorderRadius.only(
+                                          topRight: Radius.circular(16),
+                                          bottomRight: Radius.circular(16),
                                         ),
-                                      ),
-                                    ),
-                                    InkWell(
-                                      borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(16),
-                                        bottomRight: Radius.circular(16),
-                                      ),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                RutasDetailsScreen(ruta: ruta),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  RutasDetailsScreen(
+                                                    ruta: ruta,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        child: const Padding(
+                                          padding: EdgeInsets.only(right: 12.0),
+                                          child: Icon(
+                                            Icons.chevron_right,
+                                            color: Color(0xFFD6B68A),
+                                            size: 30,
                                           ),
-                                        );
-                                      },
-                                      child: const Padding(
-                                        padding: EdgeInsets.only(right: 12.0),
-                                        child: Icon(
-                                          Icons.chevron_right,
-                                          color: Color(0xFFD6B68A),
-                                          size: 30,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          } else {
-                            // Si no hay imagen online ni offline, mostrar placeholder
+                              );
+                            }
+
+                            // Si no es local, puede ser un URL remoto. Mostrar online y cachear
+                            if (mapUrl.startsWith('http')) {
+                              print(
+                                'DEBUG mostrando imagen remota para ruta ${ruta.ruta_Id}',
+                              );
+                              // cachear en background
+                              guardarImagenDeMapaStatic(
+                                mapUrl,
+                                'map_static_${ruta.ruta_Id}',
+                              );
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                  vertical: 6.0,
+                                ),
+                                child: Card(
+                                  color: const Color(0xFF141A2F),
+                                  margin: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: const BorderSide(
+                                      color: Color(0xFFD6B68A),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  elevation: 4,
+                                  child: Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () async {
+                                          await verificarconexion();
+                                          if (isOnline) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => RutaMapScreen(
+                                                  rutaId: ruta.ruta_Id,
+                                                  descripcion:
+                                                      ruta.ruta_Descripcion,
+                                                  vendId: globalVendId,
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RutasOfflineMapScreen(
+                                                      rutaId: ruta.ruta_Id,
+                                                      descripcion:
+                                                          ruta.ruta_Descripcion,
+                                                    ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: Card(
+                                          color: const Color(0xFFF5F5F5),
+                                          margin: const EdgeInsets.only(
+                                            left: 8,
+                                            top: 8,
+                                            bottom: 8,
+                                          ),
+                                          elevation: 2,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(16),
+                                              bottomLeft: Radius.circular(16),
+                                            ),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topLeft: Radius.circular(16),
+                                                  bottomLeft: Radius.circular(
+                                                    16,
+                                                  ),
+                                                ),
+                                            child: Image.network(
+                                              mapUrl,
+                                              height: 120,
+                                              width: 140,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      height: 120,
+                                                      width: 140,
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.map,
+                                                        size: 40,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    );
+                                                  },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                ruta.ruta_Descripcion ??
+                                                    'Sin descripción',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 16,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Código: ${(ruta.ruta_Codigo ?? "-").toString()}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Color(0xFFB5B5B5),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Observaciones: ${(ruta.ruta_Observaciones ?? "-").toString()}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Color(0xFF9E9E9E),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      InkWell(
+                                        borderRadius: const BorderRadius.only(
+                                          topRight: Radius.circular(16),
+                                          bottomRight: Radius.circular(16),
+                                        ),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  RutasDetailsScreen(
+                                                    ruta: ruta,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        child: const Padding(
+                                          padding: EdgeInsets.only(right: 12.0),
+                                          child: Icon(
+                                            Icons.chevron_right,
+                                            color: Color(0xFFD6B68A),
+                                            size: 30,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            // Si llegamos aquí, mostrar placeholder
                             return Container(
                               height: 120,
-                              width: 140,
+                              width: double.infinity,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                                vertical: 6.0,
+                              ),
                               color: Colors.grey[300],
                               child: const Icon(
                                 Icons.map,
@@ -652,6 +843,21 @@ class _RutasScreenState extends State<RutasScreen> {
                               ),
                             );
                           }
+                          // fallback (no deberia llegar aquí)
+                          return Container(
+                            height: 120,
+                            width: double.infinity,
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 6.0,
+                            ),
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.map,
+                              size: 40,
+                              color: Colors.grey,
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -659,6 +865,18 @@ class _RutasScreenState extends State<RutasScreen> {
                   ],
                 ),
               ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF141A2F),
+        foregroundColor: const Color(0xFFD6B68A),
+        tooltip: 'Descargas - Mapas Offline',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RutasDescargasScreen()),
+          );
+        },
+        child: const Icon(Icons.download),
       ),
     );
   }

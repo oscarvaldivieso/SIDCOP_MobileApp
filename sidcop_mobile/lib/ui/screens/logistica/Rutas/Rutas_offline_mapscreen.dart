@@ -1,10 +1,18 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
+import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 
+/// Offline map viewer that serves tiles from a local .mbtiles file via a
+/// loopback HTTP server and uses flutter_map to render them.
 class RutasOfflineMapScreen extends StatefulWidget {
   final int rutaId;
   final String? descripcion;
@@ -20,80 +28,1316 @@ class RutasOfflineMapScreen extends StatefulWidget {
 }
 
 class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
-  String? localMapPath;
-  bool loading = true;
-  bool? isOnline;
+  Database? _mbtilesDb;
+  HttpServer? _server;
+  int? _serverPort;
+  bool _starting = true;
+  bool _hasMbtiles = false;
+  // Controller for programmatic map movements
+  final MapController _mapController = MapController();
+
+  // Palette copied from Rutas_mapscreen (dark theme)
+  static const Color _darkBg = Color(0xFF141A2F);
+  static const Color _gold = Color(0xFFD6B68A);
+  static const Color _body = Color(0xFFE6E8EC);
+  static const Color _bodyDim = Color(0xFFB5B8BF);
+
+  // Simple LRU cache for tiles (key = z/x/y)
+  final Map<String, Uint8List> _tileCache = {};
+  final List<String> _cacheOrder = [];
+  final int _cacheMaxEntries = 200;
+
+  // Clientes / direcciones cargadas desde almacenamiento offline
+  List<Map<String, dynamic>> _clientesFiltradosOffline = [];
+  List<Map<String, dynamic>> _direccionesFiltradasOffline = [];
+  List<Marker> _clientMarkers = [];
+  // Quick lookup by cliente id (string)
+  Map<String, Map<String, dynamic>> _clientesById = {};
+  // Orden de paradas para el drawer (versión offline)
+  List<Map<String, dynamic>> _ordenParadasOffline = [];
+  // scaffold key to open endDrawer from AppBar (parity with online screen)
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  // Track visited addresses (store dicl_id as string)
+  final Set<String> _direccionesVisitadasOffline = {};
+  // (visit-tracking will be sourced from visitas_historial.json; do not persist a separate order)
+
+  // Device-based center (may be null until obtained). Fallback coords are
+  // initialized to a sensible default but will be updated from the device
+  // (last known position or current) when available.
+  double? _centerLat;
+  double? _centerLng;
+  double _fallbackLat = 15.505456;
+  double _fallbackLng = -88.025102;
 
   @override
   void initState() {
     super.initState();
-    _loadLocalMap();
-    verificarConexion();
+    // Start obtaining device location and initialize server in parallel.
+    _setInitialPositionFromDevice();
+    _initMbtilesServer();
+    // Also load offline clients immediately so markers appear even without MBTiles
+    _loadClientesOffline();
   }
 
-  Future<void> verificarConexion() async {
+  // Note: do not persist a separate visited_direcciones.json; visited state is
+  // derived from `visitas_historial.json` (local visitas) which is managed by
+  // the Visitas offline service. The copying/merging from visitas_historial.json
+  // into `_direccionesVisitadasOffline` happens in `_loadClientesOffline()`.
+
+  Future<void> _setInitialPositionFromDevice() async {
     try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
+      // Try to seed fallback with last known position to center quicker
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) {
+          _fallbackLat = last.latitude;
+          _fallbackLng = last.longitude;
+        }
+      } catch (_) {}
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        // no permission, keep fallback
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       setState(() {
-        isOnline = response.statusCode == 200;
+        _centerLat = pos.latitude;
+        _centerLng = pos.longitude;
+        // update fallbacks so other parts of the UI use the device coords
+        _fallbackLat = pos.latitude;
+        _fallbackLng = pos.longitude;
       });
     } catch (e) {
+      // ignore and fallback to defaults
+    }
+  }
+
+  Future<void> _recenterToDevice() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permiso de ubicación denegado')),
+        );
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final lat = pos.latitude;
+      final lng = pos.longitude;
       setState(() {
-        isOnline = false;
+        _centerLat = lat;
+        _centerLng = lng;
+      });
+      try {
+        _mapController.move(LatLng(lat, lng), 15.0);
+      } catch (_) {}
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo obtener la ubicación')),
+      );
+    }
+  }
+
+  // ...existing code...
+
+  Future<void> _initMbtilesServer() async {
+    try {
+      final mbtilesFile = await _findFirstMbtilesFile();
+      if (mbtilesFile == null) {
+        setState(() {
+          _starting = false;
+          _hasMbtiles = false;
+        });
+        return;
+      }
+
+      // Open the MBTiles database read-only
+      _mbtilesDb = await openDatabase(mbtilesFile.path, readOnly: true);
+
+      // Start a loopback HTTP server to serve tiles
+      _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      _serverPort = _server!.port;
+      print(
+        'MBTiles HTTP server started on port $_serverPort, file=${mbtilesFile.path}',
+      );
+
+      _server!.listen((HttpRequest request) async {
+        try {
+          final path = request.uri.path; // e.g. /{z}/{x}/{y}.png
+          print('MBTiles server request: $path');
+          final parts = path.split('/').where((s) => s.isNotEmpty).toList();
+          if (parts.length >= 3) {
+            final z = int.tryParse(parts[0]);
+            final x = int.tryParse(parts[1]);
+            var yStr = parts[2];
+            // strip possible extension
+            if (yStr.contains('.')) yStr = yStr.split('.').first;
+            final y = int.tryParse(yStr);
+
+            if (z != null && x != null && y != null) {
+              final bytes = await _getTileBytes(z, x, y);
+              if (bytes != null) {
+                final mime = _detectMime(bytes) ?? 'application/octet-stream';
+                request.response.headers.set('Content-Type', mime);
+                request.response.add(bytes);
+                await request.response.close();
+                print('Served tile $z/$x/$y (${bytes.length} bytes)');
+                return;
+              } else {
+                print('Tile not found in MBTiles: $z/$x/$y');
+              }
+            }
+          }
+
+          // Not found
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+        } catch (_) {
+          try {
+            request.response.statusCode = HttpStatus.internalServerError;
+            await request.response.close();
+          } catch (_) {}
+        }
+      });
+
+      setState(() {
+        _starting = false;
+        _hasMbtiles = true;
+      });
+      // Cargar clientes/direcciones offline para mostrar marcadores
+      try {
+        await _loadClientesOffline();
+      } catch (_) {}
+    } catch (e) {
+      // If anything fails, fall back to no-mbtiles UI
+      setState(() {
+        _starting = false;
+        _hasMbtiles = false;
       });
     }
   }
 
-  Future<void> _loadLocalMap() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/map_static_${widget.rutaId}.png';
-    final file = File(filePath);
-    if (await file.exists()) {
-      setState(() {
-        localMapPath = filePath;
-        loading = false;
-      });
-    } else {
-      setState(() {
-        localMapPath = null;
-        loading = false;
+  // Carga clientes y direcciones desde RutasScreenOffline y genera marcadores.
+  Future<void> _loadClientesOffline() async {
+    try {
+      final clientes = await RutasScreenOffline.obtenerClientesLocal();
+      final direcciones = await RutasScreenOffline.obtenerDireccionesLocal();
+      print(
+        'OFFLINE: obtenerClientesLocal returned ${clientes.length} entries',
+      );
+      print(
+        'OFFLINE: obtenerDireccionesLocal returned ${direcciones.length} entries',
+      );
+
+      // Filtrar clientes que pertenezcan a esta ruta (soporte para varias variantes de nombre)
+      _clientesFiltradosOffline = clientes
+          .where(
+            (c) =>
+                ((c['ruta_Id'] ?? c['rutaId'] ?? c['ruta_id'] ?? c['ruta']) ==
+                widget.rutaId),
+          )
+          .map<Map<String, dynamic>>((c) => Map<String, dynamic>.from(c))
+          .toList();
+
+      // Normalizar cliente IDs a String para evitar mismatches por tipo
+      final clienteIds = _clientesFiltradosOffline
+          .map(
+            (c) => (c['clie_Id'] ?? c['clieId'] ?? c['clie_id'] ?? c['clie'])
+                ?.toString(),
+          )
+          .where((id) => id != null && id.isNotEmpty)
+          .map((s) => s!)
+          .toSet();
+
+      // Build lookup map for quick access when creating marker tap handlers
+      _clientesById = Map.fromEntries(
+        _clientesFiltradosOffline.map((c) {
+          final id = (c['clie_Id'] ?? c['clieId'] ?? c['clie_id'] ?? c['clie'])
+              ?.toString();
+          return MapEntry(id ?? '', Map<String, dynamic>.from(c));
+        }),
+      );
+
+      // Normalizar claves de direcciones a lowercase para manejar variaciones
+      final normDirecciones = direcciones.map<Map<String, dynamic>>((d) {
+        final m = Map<String, dynamic>.from(d);
+        final norm = <String, dynamic>{};
+        m.forEach((k, v) {
+          try {
+            norm[k.toString().toLowerCase()] = v;
+          } catch (_) {
+            norm[k.toLowerCase()] = v;
+          }
+        });
+        return norm;
+      }).toList();
+
+      _direccionesFiltradasOffline = normDirecciones
+          .where((d) {
+            final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+            final clIdStr = rawClId == null ? null : rawClId.toString();
+            return clIdStr != null && clienteIds.contains(clIdStr);
+          })
+          .map<Map<String, dynamic>>((d) => Map<String, dynamic>.from(d))
+          .toList();
+
+      print(
+        'OFFLINE: filtered clientes=${_clientesFiltradosOffline.length} direcciones=${_direccionesFiltradasOffline.length}',
+      );
+
+      // Crear marcadores simples para cada dirección con coordenadas (soporta varias claves)
+      // Intentar parsear coordenadas con mayor tolerancia y recopilar fallos
+      final failures = <Map<String, dynamic>>[];
+      List<Marker> markers = [];
+      for (final d in _direccionesFiltradasOffline) {
+        dynamic latRaw =
+            d['dicl_latitud'] ??
+            d['lat'] ??
+            d['latitude'] ??
+            d['latitud'] ??
+            d['latitudd'];
+        dynamic lngRaw =
+            d['dicl_longitud'] ??
+            d['lon'] ??
+            d['lng'] ??
+            d['longitude'] ??
+            d['longitud'] ??
+            d['longitudd'];
+
+        // Some APIs store coordinates in a single string like 'lat,lon'
+        if ((latRaw == null || lngRaw == null) &&
+            d.containsKey('coordenadas')) {
+          final combo = d['coordenadas'];
+          if (combo is String && combo.contains(',')) {
+            final parts = combo.split(',');
+            if (parts.length >= 2) {
+              latRaw = latRaw ?? parts[0];
+              lngRaw = lngRaw ?? parts[1];
+            }
+          }
+        }
+
+        double? lat;
+        double? lng;
+
+        double? tryParseCoord(dynamic raw) {
+          if (raw == null) return null;
+          if (raw is num) return raw.toDouble();
+          if (raw is String) {
+            final cleaned = raw
+                .replaceAll(' ', '')
+                .replaceAll('\u00A0', '')
+                .replaceAll(',', '.');
+            return double.tryParse(cleaned);
+          }
+          return null;
+        }
+
+        lat = tryParseCoord(latRaw);
+        lng = tryParseCoord(lngRaw);
+
+        if (lat == null || lng == null) {
+          // store small sample for debugging
+          if (failures.length < 10) {
+            failures.add({'direccion': d, 'latRaw': latRaw, 'lngRaw': lngRaw});
+          }
+          continue;
+        }
+
+        // Find corresponding cliente for this direccion (if available)
+        final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+        final clIdStr = rawClId == null ? null : rawClId.toString();
+        final clienteMap = clIdStr != null && clIdStr.isNotEmpty
+            ? _clientesById[clIdStr]
+            : null;
+
+        markers.add(
+          Marker(
+            point: LatLng(lat, lng),
+            width: 40,
+            height: 40,
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  final clIdRaw = rawClId;
+                  final clIdStrLog = clIdRaw == null
+                      ? 'unknown'
+                      : clIdRaw.toString();
+                  print('OFFLINE: marker tapped clId=$clIdStrLog');
+                  _showClienteDetails(clienteMap, d);
+                },
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Image.asset(
+                    'assets/marker_cliente.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback a círculo azul si el asset no está disponible
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      _clientMarkers = markers;
+      // Build a simple orden de paradas for the endDrawer (no proximity sorting)
+      List<Map<String, dynamic>> orden = [];
+      if (_centerLat != null && _centerLng != null) {
+        orden.add({
+          'tipo': 'origen',
+          'nombre': 'Tu ubicación',
+          'direccion': '',
+          'latlng': LatLng(_centerLat!, _centerLng!),
+        });
+      }
+      for (var d in _direccionesFiltradasOffline) {
+        final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+        final clIdStr = rawClId == null ? null : rawClId.toString();
+        final cliente = clIdStr != null && clIdStr.isNotEmpty
+            ? _clientesById[clIdStr]
+            : null;
+        // try to capture a reliable direccion id for visit-tracking
+        final diclIdRaw =
+            d['dicl_id'] ??
+            d['diCl_Id'] ??
+            d['diClId'] ??
+            d['di_cl_id'] ??
+            d['id'];
+        final diclIdStr = diclIdRaw == null ? '' : diclIdRaw.toString();
+
+        orden.add({
+          'tipo': 'parada',
+          'nombre': cliente == null
+              ? (d['nombre'] ?? d['clie_nombre'] ?? 'Sin nombre').toString()
+              : ((cliente['clie_Nombres'] ?? '').toString() +
+                        ' ' +
+                        (cliente['clie_Apellidos'] ?? '').toString())
+                    .trim(),
+          'cliente': cliente,
+          'direccion':
+              (d['dirdescripcion'] ??
+                      d['direccion'] ??
+                      d['direccion_general'] ??
+                      '')
+                  .toString(),
+          // keep the original exact direccion value separately for display
+          'direccion_exacta':
+              (d['dicl_direccionexacta'] ??
+                      d['diCl_DireccionExacta'] ??
+                      d['dicl_direccion'] ??
+                      '')
+                  .toString(),
+          'dicl_id': diclIdStr,
+          'latlng': (() {
+            final lat = (d['dicl_latitud'] ?? d['lat'] ?? d['latitude']);
+            final lng =
+                (d['dicl_longitud'] ?? d['lon'] ?? d['lng'] ?? d['longitude']);
+            try {
+              final la = double.parse(lat.toString());
+              final ln = double.parse(lng.toString());
+              return LatLng(la, ln);
+            } catch (_) {
+              return null;
+            }
+          })(),
+        });
+      }
+      _ordenParadasOffline = orden;
+      // Additionally, mark as visited any direcciones that already appear in the
+      // local visitas_historial.json. We only add those direcciones that belong
+      // to the current route (present in ordenParadasOffline) to avoid polluting
+      // other routes' visit state.
+      try {
+        final visitasLocal =
+            await RutasScreenOffline.obtenerVisitasHistorialLocal();
+        final diclIdsInOrden = _ordenParadasOffline
+            .map((e) => (e['dicl_id'] ?? '').toString())
+            .where((s) => s.isNotEmpty)
+            .toSet();
+        final nuevos = <String>{};
+        for (final v in visitasLocal) {
+          try {
+            if (v is Map) {
+              final possibleKeys = [
+                'diCl_Id',
+                'diClId',
+                'dicl_id',
+                'di_cl_id',
+                'di_clid',
+                'di_cl',
+                'diclId',
+                'di_cl_id',
+              ];
+              String? found;
+              for (final k in possibleKeys) {
+                if (v.containsKey(k) && v[k] != null) {
+                  found = v[k].toString();
+                  break;
+                }
+              }
+              if (found != null && found.isNotEmpty) {
+                // Only mark if the direccion id belongs to this route
+                if (diclIdsInOrden.contains(found)) {
+                  nuevos.add(found);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        if (nuevos.isNotEmpty) {
+          setState(() {
+            _direccionesVisitadasOffline.addAll(nuevos);
+          });
+          // Don't persist a separate visited file; visited state is sourced from visitas_historial.json
+        }
+      } catch (e) {
+        // ignore
+      }
+      if (failures.isNotEmpty) {
+        print(
+          'OFFLINE: marker parse failures=${failures.length}, examples=${failures.length <= 10 ? failures : failures.sublist(0, 10)}',
+        );
+      }
+
+      print('OFFLINE: created markers=${_clientMarkers.length}');
+      setState(() {});
+    } catch (e, st) {
+      print('OFFLINE: error loading clientes offline: $e\n$st');
+    }
+  }
+
+  // Show a bottom sheet with cliente photo, business name and cliente full name
+  void _showClienteDetails(
+    Map<String, dynamic>? cliente,
+    Map<String, dynamic> direccion,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: _darkBg,
+      builder: (context) {
+        final imageUrl = cliente == null
+            ? null
+            : (cliente['clie_ImagenDelNegocio'] ??
+                      cliente['clieImagenDelNegocio'] ??
+                      cliente['imagen'] ??
+                      '')
+                  .toString();
+        final nombreNegocio = cliente == null
+            ? ''
+            : (cliente['clie_NombreNegocio'] ??
+                      cliente['clieNombreNegocio'] ??
+                      cliente['nombre_negocio'] ??
+                      '')
+                  .toString();
+        final nombreCliente = cliente == null
+            ? ''
+            : ((cliente['clie_Nombres'] ?? cliente['nombres'] ?? '')
+                          .toString() +
+                      ' ' +
+                      (cliente['clie_Apellidos'] ?? cliente['apellidos'] ?? '')
+                          .toString())
+                  .trim();
+
+        // Tolerant lookup for common keys used in different APIs
+        final rtn = cliente == null
+            ? ''
+            : (cliente['clie_RTN'] ??
+                      cliente['clie_rtn'] ??
+                      cliente['rtn'] ??
+                      cliente['rtn_numero'] ??
+                      cliente['identificacionfiscal'] ??
+                      cliente['clie_identificacion'] ??
+                      '')
+                  .toString();
+        final dni = cliente == null
+            ? ''
+            : (cliente['clie_DNI'] ??
+                      cliente['clie_dni'] ??
+                      cliente['dni'] ??
+                      cliente['identificacion'] ??
+                      '')
+                  .toString();
+        final telefono = cliente == null
+            ? ''
+            : (cliente['clie_Telefono'] ??
+                      cliente['clie_telefono'] ??
+                      cliente['telefono'] ??
+                      '')
+                  .toString();
+
+        final direccionGeneral =
+            (direccion['dirdescripcion'] ??
+                    direccion['direccion'] ??
+                    direccion['direccion_general'] ??
+                    direccion['direccion'] ??
+                    '')
+                .toString();
+
+        final direccionExacta =
+            (direccion['dicl_direccionexacta'] ??
+                    direccion['diCl_DireccionExacta'] ??
+                    direccion['dicl_direccion'] ??
+                    direccion['direccion_exacta'] ??
+                    '')
+                .toString();
+
+        final observaciones =
+            (direccion['dicl_observaciones'] ??
+                    direccion['observaciones'] ??
+                    direccion['obs'] ??
+                    '')
+                .toString();
+
+        // Combine direccion general + direccion exacta for single display
+        final combinedDireccion = [
+          direccionGeneral,
+          direccionExacta,
+        ].where((s) => s.trim().isNotEmpty).join('\n');
+
+        return Container(
+          decoration: BoxDecoration(
+            color: _darkBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: FutureBuilder<String?>(
+                      future: () async {
+                        if (cliente == null) return null;
+                        final id =
+                            (cliente['clie_Id'] ??
+                                    cliente['clieId'] ??
+                                    cliente['id'])
+                                ?.toString();
+                        if (id == null) return null;
+                        return await RutasScreenOffline.rutaFotoNegocioLocal(
+                          id,
+                        );
+                      }(),
+                      builder: (context, snap) {
+                        final localPath = snap.data;
+                        if (localPath != null && localPath.isNotEmpty) {
+                          return Image.file(
+                            File(localPath),
+                            width: 200,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 200,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.store, size: 56),
+                              );
+                            },
+                          );
+                        }
+
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return Image.network(
+                            imageUrl,
+                            width: 200,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 200,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.store, size: 56),
+                              );
+                            },
+                          );
+                        }
+
+                        return Container(
+                          width: 200,
+                          height: 120,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.store, size: 56),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    nombreNegocio,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _gold,
+                      fontFamily: 'Satoshi',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (nombreCliente.isNotEmpty)
+                  Center(
+                    child: Text(
+                      nombreCliente,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: _body,
+                        fontFamily: 'Satoshi',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+
+                if (rtn.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'RTN',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(rtn, style: const TextStyle(color: _body)),
+                  ),
+
+                if (dni.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'DNI',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(dni, style: const TextStyle(color: _body)),
+                  ),
+
+                if (telefono.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Teléfono',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      telefono,
+                      style: const TextStyle(color: _body),
+                    ),
+                  ),
+
+                if (combinedDireccion.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Dirección',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      combinedDireccion,
+                      style: const TextStyle(color: _body),
+                    ),
+                  ),
+
+                if (observaciones.isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Observaciones',
+                      style: TextStyle(color: _gold, fontFamily: 'Satoshi'),
+                    ),
+                    subtitle: Text(
+                      observaciones,
+                      style: const TextStyle(color: _body),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // _showVisitasList removed — we use the endDrawer as canonical visitas UI
+
+  Future<File?> _findFirstMbtilesFile() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final mapsDir = Directory(p.join(docs.path, 'maps'));
+    if (!await mapsDir.exists()) return null;
+    final files = mapsDir.listSync();
+    for (final f in files) {
+      if (f is File && p.extension(f.path).toLowerCase() == '.mbtiles') {
+        return f;
+      }
+    }
+    return null;
+  }
+
+  // Build the order list directly from offline addresses loaded into
+  // `_direccionesFiltradasOffline`. This ensures the drawer checkboxes are
+  // driven by the offline address data.
+  List<Map<String, dynamic>> _construirOrdenDesdeOffline() {
+    final orden = <Map<String, dynamic>>[];
+    if (_centerLat != null && _centerLng != null) {
+      orden.add({
+        'tipo': 'origen',
+        'nombre': 'Tu ubicación',
+        'direccion': '',
+        'latlng': LatLng(_centerLat!, _centerLng!),
       });
     }
+
+    for (final d in _direccionesFiltradasOffline) {
+      final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
+      final clIdStr = rawClId == null ? null : rawClId.toString();
+      final cliente = clIdStr != null && clIdStr.isNotEmpty
+          ? _clientesById[clIdStr]
+          : null;
+
+      final diclIdRaw =
+          d['dicl_id'] ??
+          d['diCl_Id'] ??
+          d['diClId'] ??
+          d['di_cl_id'] ??
+          d['id'];
+      final diclIdStr = diclIdRaw == null ? '' : diclIdRaw.toString();
+
+      final direccionDisplay =
+          (d['dirdescripcion'] ??
+                  d['direccion'] ??
+                  d['direccion_general'] ??
+                  '')
+              .toString();
+
+      orden.add({
+        'tipo': 'parada',
+        'nombre': cliente == null
+            ? (d['nombre'] ?? d['clie_nombre'] ?? 'Sin nombre').toString()
+            : (((cliente['clie_Nombres'] ?? '').toString() +
+                      ' ' +
+                      (cliente['clie_Apellidos'] ?? '').toString())
+                  .trim()),
+        'cliente': cliente,
+        'direccion': direccionDisplay,
+        'direccion_exacta':
+            (d['dicl_direccionexacta'] ??
+                    d['diCl_DireccionExacta'] ??
+                    d['dicl_direccion'] ??
+                    '')
+                .toString(),
+        'dicl_id': diclIdStr,
+        'latlng': (() {
+          final lat = (d['dicl_latitud'] ?? d['lat'] ?? d['latitude']);
+          final lng =
+              (d['dicl_longitud'] ?? d['lon'] ?? d['lng'] ?? d['longitude']);
+          try {
+            final la = double.parse(lat.toString());
+            final ln = double.parse(lng.toString());
+            return LatLng(la, ln);
+          } catch (_) {
+            return null;
+          }
+        })(),
+      });
+    }
+
+    return orden;
+  }
+
+  Future<Uint8List?> _getTileBytes(int z, int x, int y) async {
+    // build a real key string from numbers
+    final keyStr = '\$z/\$x/\$y'
+        .replaceAll('\\', '')
+        .replaceAll('\$z', z.toString())
+        .replaceAll('\$x', x.toString())
+        .replaceAll('\$y', y.toString());
+    // LRU cache check using concrete key
+    final cached = _tileCache[keyStr];
+    if (cached != null) {
+      // promote
+      _cacheOrder.remove(keyStr);
+      _cacheOrder.add(keyStr);
+      return cached;
+    }
+
+    if (_mbtilesDb == null) return null;
+
+    // Try direct y, then TMS-flipped y
+    Uint8List? data;
+    try {
+      final res = await _mbtilesDb!.query(
+        'tiles',
+        columns: ['tile_data'],
+        where: 'zoom_level = ? AND tile_column = ? AND tile_row = ?',
+        whereArgs: [z, x, y],
+        limit: 1,
+      );
+      if (res.isNotEmpty) {
+        data = res.first['tile_data'] as Uint8List?;
+      }
+    } catch (_) {}
+
+    if (data == null) {
+      try {
+        final flippedY = ((1 << z) - 1) - y;
+        final res2 = await _mbtilesDb!.query(
+          'tiles',
+          columns: ['tile_data'],
+          where: 'zoom_level = ? AND tile_column = ? AND tile_row = ?',
+          whereArgs: [z, x, flippedY],
+          limit: 1,
+        );
+        if (res2.isNotEmpty) {
+          data = res2.first['tile_data'] as Uint8List?;
+        }
+      } catch (_) {}
+    }
+
+    if (data != null) {
+      _addToCache(keyStr, data);
+    }
+    return data;
+  }
+
+  void _addToCache(String key, Uint8List bytes) {
+    _tileCache[key] = bytes;
+    _cacheOrder.add(key);
+    if (_cacheOrder.length > _cacheMaxEntries) {
+      final oldest = _cacheOrder.removeAt(0);
+      _tileCache.remove(oldest);
+    }
+  }
+
+  String? _detectMime(Uint8List bytes) {
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'image/png';
+    }
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+    return null;
+  }
+
+  @override
+  void dispose() {
+    try {
+      _server?.close(force: true);
+    } catch (_) {}
+    try {
+      _mbtilesDb?.close();
+    } catch (_) {}
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ejemplo de datos, debes obtenerlos dinámicamente según la ruta:
-    final double centerLat = 15.525585;
-    final double centerLng = -88.013512;
-    final List<LatLng> markers = [LatLng(15.525585, -88.013512)];
-    final String tilePath = 'assets/tiles'; // Cambia esto según tu estructura
+    final double centerLat = _centerLat ?? _fallbackLat;
+    final double centerLng = _centerLng ?? _fallbackLng;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.descripcion ?? 'Mapa Offline'),
-      ),
-      body: FlutterMap(
-        options: MapOptions(
-          center: LatLng(centerLat, centerLng),
-          zoom: 13.0,
+    Widget map;
+    if (_starting) {
+      map = Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(_gold),
         ),
+      );
+    } else if (_hasMbtiles && _serverPort != null) {
+      final urlTemplate = 'http://127.0.0.1:$_serverPort/{z}/{x}/{y}.png';
+      print('Using tile url template: $urlTemplate');
+      // Always show device location marker along with client markers.
+      final deviceMarker = Marker(
+        point: LatLng(centerLat, centerLng),
+        width: 15,
+        height: 15,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.blue,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [BoxShadow(color: Colors.blue, blurRadius: 18)],
+          ),
+        ),
+      );
+
+      final List<Marker> combinedMarkers = [];
+      combinedMarkers.add(deviceMarker);
+      combinedMarkers.addAll(_clientMarkers);
+
+      map = FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(center: LatLng(centerLat, centerLng), zoom: 15.0),
         children: [
           TileLayer(
-            tileProvider: AssetTileProvider(),
-            urlTemplate: tilePath + '/{z}/{x}/{y}.png',
+            urlTemplate: urlTemplate,
+            tileProvider: NetworkTileProvider(),
           ),
-          MarkerLayer(
-            markers: markers
-                .map((latlng) => Marker(
-                      point: latlng,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(Icons.location_on, color: Colors.red, size: 32),
-                    ))
-                .toList(),
+          MarkerLayer(markers: combinedMarkers),
+        ],
+      );
+    } else {
+      // Fallback: try to detect MBTiles again and offer a retry
+      map = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.info_outline, size: 48, color: _body),
+            const SizedBox(height: 8),
+            Text(
+              'No se detectó Mapa Descargado.',
+              style: TextStyle(color: _bodyDim),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: _darkBg,
+              ),
+              onPressed: () async {
+                setState(() => _starting = true);
+                // attempt to init again
+                await _initMbtilesServer();
+              },
+              child: const Text('Reintentar detectar mapa'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: _darkBg,
+      appBar: AppBar(
+        backgroundColor: _darkBg,
+        iconTheme: const IconThemeData(color: _gold),
+        title: Text(
+          widget.descripcion ?? 'Mapa Offline',
+          style: const TextStyle(
+            fontFamily: 'Satoshi',
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: _gold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt, color: _gold),
+            tooltip: 'Ver orden de paradas',
+            onPressed: () {
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
           ),
         ],
+      ),
+      endDrawer: Drawer(
+        backgroundColor: _darkBg,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Orden de visitas',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Satoshi',
+                    color: _gold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _construirOrdenDesdeOffline().isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No hay orden disponible',
+                          style: TextStyle(
+                            color: _bodyDim,
+                            fontFamily: 'Satoshi',
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _construirOrdenDesdeOffline().length,
+                        itemBuilder: (context, idx) {
+                          final parada = _construirOrdenDesdeOffline()[idx];
+                          if (parada['tipo'] == 'origen') {
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: _darkBg,
+                                child: Icon(
+                                  Icons.person_pin_circle,
+                                  color: _gold,
+                                ),
+                              ),
+                              title: const Text(
+                                'Tu ubicación',
+                                style: TextStyle(
+                                  color: _body,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                if (_centerLat != null) {
+                                  try {
+                                    _mapController.move(
+                                      LatLng(_centerLat!, _centerLng!),
+                                      16.0,
+                                    );
+                                  } catch (_) {}
+                                }
+                              },
+                            );
+                          }
+
+                          final cliente =
+                              parada['cliente'] as Map<String, dynamic>?;
+                          // Title: use cliente full name (nombre + apellidos) when available
+                          final titulo = cliente != null
+                              ? (((cliente['clie_Nombres'] ??
+                                                cliente['nombres'] ??
+                                                '')
+                                            .toString() +
+                                        ' ' +
+                                        (cliente['clie_Apellidos'] ??
+                                                cliente['apellidos'] ??
+                                                '')
+                                            .toString())
+                                    .trim())
+                              : (parada['nombre'] ?? '').toString();
+
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              dividerColor: Colors.transparent,
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                            ),
+                            child: ExpansionTile(
+                              collapsedIconColor: _gold,
+                              iconColor: _gold,
+                              leading: CircleAvatar(
+                                backgroundColor: _darkBg,
+                                child: Text(
+                                  '${idx + 1}',
+                                  style: const TextStyle(
+                                    color: _gold,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Satoshi',
+                                  ),
+                                ),
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          titulo,
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            color: _body,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Mostrar la dirección como campo informativo debajo del nombre
+                                        if (parada['direccion'] != null &&
+                                            (parada['direccion'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
+                                          Text(
+                                            parada['direccion'].toString(),
+                                            style: const TextStyle(
+                                              fontFamily: 'Satoshi',
+                                              color: _bodyDim,
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Checkbox for marking visita (parity with online)
+                                  Builder(
+                                    builder: (ctx) {
+                                      final diclId = (parada['dicl_id'] ?? '')
+                                          .toString();
+                                      final visited =
+                                          diclId.isNotEmpty &&
+                                          _direccionesVisitadasOffline.contains(
+                                            diclId,
+                                          );
+                                      return Checkbox(
+                                        activeColor: _gold,
+                                        value: visited,
+                                        onChanged: (v) async {
+                                          if (diclId.isEmpty) return;
+                                          // Open visit create screen with preselected cliente & diclId
+                                          final clienteMap =
+                                              parada['cliente']
+                                                  as Map<String, dynamic>?;
+                                          final args = <String, dynamic>{
+                                            'clienteId': clienteMap != null
+                                                ? (clienteMap['clie_Id'] ??
+                                                      clienteMap['clieId'])
+                                                : null,
+                                            'diclId': int.tryParse(diclId),
+                                            'rutaId': widget.rutaId,
+                                          };
+                                          final result = await Navigator.of(ctx)
+                                              .push<bool>(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      const VisitaCreateScreen(),
+                                                  settings: RouteSettings(
+                                                    arguments: args,
+                                                  ),
+                                                ),
+                                              );
+                                          if (result == true) {
+                                            setState(() {
+                                              _direccionesVisitadasOffline.add(
+                                                diclId,
+                                              );
+                                            });
+                                            // refresh visited state from local visitas_historial
+                                            await _loadClientesOffline();
+                                          } else if (v == false) {
+                                            // allow unchecking manually (if UI ever allows)
+                                            setState(() {
+                                              _direccionesVisitadasOffline
+                                                  .remove(diclId);
+                                            });
+                                            // refresh visited state from local visitas_historial
+                                            await _loadClientesOffline();
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                              children: [
+                                // Mostrar Negocio y Teléfono (si existen)
+                                if (cliente != null &&
+                                    (cliente['clie_NombreNegocio'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                  ListTile(
+                                    title: const Text(
+                                      'Negocio',
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        color: _gold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      cliente['clie_NombreNegocio'].toString(),
+                                      style: const TextStyle(color: _body),
+                                    ),
+                                  ),
+
+                                if (cliente != null &&
+                                    (cliente['clie_Telefono'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                  ListTile(
+                                    title: const Text(
+                                      'Teléfono',
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        color: _gold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      cliente['clie_Telefono'].toString(),
+                                      style: const TextStyle(color: _body),
+                                    ),
+                                  ),
+                                // Dirección (general)
+                                if (parada['direccion'] != null &&
+                                    (parada['direccion'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                  ListTile(
+                                    title: const Text(
+                                      'Dirección',
+                                      style: TextStyle(
+                                        color: _gold,
+                                        fontFamily: 'Satoshi',
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      parada['direccion'].toString(),
+                                      style: const TextStyle(color: _body),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: map,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: _darkBg,
+        foregroundColor: _gold,
+        child: const Icon(Icons.my_location),
+        onPressed: _recenterToDevice,
+        tooltip: 'Ir a ubicación',
       ),
     );
   }

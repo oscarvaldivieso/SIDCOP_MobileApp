@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../utils/numero_en_letras.dart';
+import '../models/PedidosViewModel.Dart';
 
 class PrinterService {
   List<BluetoothDevice> _devices = [];
@@ -30,21 +30,6 @@ class PrinterService {
       "38eb4a80-c570-11e3-9507-0002a5d5c51b";
   // CAMBIO PRINCIPAL: Usar la característica que SÍ es escribible
   static const String ZEBRA_WRITE_UUID = "38eb4a82-c570-11e3-9507-0002a5d5c51b";
-
-  // Helper method to identify potential printer devices
-  bool _isPotentialPrinter(String deviceName) {
-    String name = deviceName.toLowerCase();
-    return name.contains('zebra') ||
-        name.contains('zq') ||
-        name.contains('printer') ||
-        name.contains('print') ||
-        name.contains('thermal') ||
-        name.contains('pos') ||
-        name.contains('receipt') ||
-        name.contains('label') ||
-        name.contains('mobile') ||
-        name.contains('portable');
-  }
 
   // Check and request Bluetooth permissions
   Future<bool> _checkPermissions() async {
@@ -446,6 +431,123 @@ class PrinterService {
   }
 }
 
+  Future<bool> printPedido(PedidosViewModel pedido) async {
+    try {
+      if (!_isConnected) {
+        throw Exception('Impresora no conectada');
+      }
+
+      final zplContent = _generatePedidoZPL(pedido);
+      return await printZPL(zplContent);
+    } catch (e) {
+      debugPrint('Error printing pedido: $e');
+      rethrow;
+    }
+  }
+
+  String _generatePedidoZPL(PedidosViewModel pedido) {
+    final empresaNombre = pedido.coFaNombreEmpresa ?? 'Nombre de Empresa no disponible';
+    final now = DateTime.now();
+    final fecha = _formatDate(now.toString());
+    final direccion = pedido.coFaDireccionEmpresa ?? 'Dirección no disponible';
+    final telefono = pedido.coFaTelefono1 ?? 'N/A';
+    final correo = pedido.coFaCorreo ?? 'N/A';
+
+    final pedidoCodigo = pedido.pedi_Codigo ?? 'N/A';
+    final clienteNombre = pedido.clieNombreNegocio ?? '${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}';
+    final clienteRTN = pedido.prodDescripcion ?? 'N/A';
+    final vendedorNombre = '${pedido.vendNombres ?? ''} ${pedido.vendApellidos ?? ''}';
+    final fechaPedido = _formatDate(pedido.pediFechaPedido.toString());
+
+    final detalles = jsonDecode(pedido.detallesJson ?? '[]') as List<dynamic>;
+    String productosZPL = '';
+    int yPosition = 620;
+    double totalPedido = 0;
+
+        for (var detalle in detalles) {
+      final producto = detalle['descripcion']?.toString() ?? 'Sin producto';
+      final cantidad = _getIntValue(detalle, 'cantidad');
+      final precio = _getDoubleValue(detalle, 'precio');
+      final totalItem = cantidad * precio;
+      totalPedido += totalItem;
+
+      final productoLimpio = _cleanSpecialCharacters(producto);
+      final precioStr = 'L.' + precio.toStringAsFixed(2);
+      final totalItemStr = 'L.' + totalItem.toStringAsFixed(2);
+
+      productosZPL += '^FO0,${yPosition}^FB170,3,0,L,0^FD$productoLimpio^FS\n';
+      productosZPL += '^FO175,${yPosition}^FB35,1,0,R,0^FD$cantidad^FS\n';
+      productosZPL += '^FO215,${yPosition}^FB80,1,0,R,0^FD$precioStr^FS\n';
+      productosZPL += '^FO300,${yPosition}^FB85,1,0,R,0^FD$totalItemStr^FS\n';
+
+      // Adjusted for a font width of ~14 chars per line with FB width of 170
+      int lineasProducto = (productoLimpio.length / 14).ceil();
+      if (lineasProducto < 1) lineasProducto = 1;
+      yPosition += (lineasProducto * 25) + 20;
+    }
+
+    final totalPedidoStr = totalPedido.toStringAsFixed(2);
+
+    final alturaTotal = yPosition + 350;
+
+    const String logoZPL = ''''^FX ===== LOGO CENTRADO =====
+^FO130,60
+^GFA,1950,1666,17,
+,::::::M07U018O0M0EU01EO0L01EV0FO00000807EV0F802L00001807CV0FC06L00001C0FCV07E07L00003C1FCV07E07L00003C1F8V03F0FL00003E3FW03F0F8K00003E3F0001F8Q01F8F8K00003E3E00071CR0F8F8K00007E3C000E0CR078F8K00007E21801E0CQ0318F8K00003E07001ES03C0F8K00003E0F003ES01E0F8K00003E3F003ES01F0F8K00043C3E007CS01F8F0800000061C7E007CT0FC70C000000618FE007CT0FE21C000000F00FC007CT07E01C000000F81F80078T07E03C000000F81F80078T03F03C000000F81F000F8T01F07C000000FC1E000FV0F07C000000FC12000FV0907C0000007C06000EV0C0FC0000007C0E001EV0E0FC0000007C1E001C0000FFFF8M0F0F80000003C3C00380007F7FFEM0F8F80000003C7C0070001E03C1FM0FC7K0001CFC00FE003807C078L07C7040000608FC01FFC06007C078L07E60C0000701F80787E0C0078078L07E01C0000781F80F01F180078078L03F03C00007C1F00E00F980078078L03F07C00007E1F004007F000F00FM01F0F800007E1E200003F060F01EL010F1F800003F1C6K0F8F0F03CL01871F800003F00EK079F0FFF8L01C13F000001F80EK03FE1EFEM01E03F000001F81EL0FC1E3CM01F03E000000F83EN01C3CM01F07E000000783EN03C1EM01F87C000000383EN03C1EM01F83K01C087EN0381EN0F82070000F007EN0780FN0FC03E0000FC07CN0780FN0FC0FE00007F07CN0700F8M07C1FC00007F8784M0F0078L047C3F800003FC78CM0E0078L063C7F800001FE71CM0E003CL071CFF000000FE43CM0C003EL0708FE0000007E03CP01EL0F81F80000001F03CP01FL0F81FK0K07CQ0F8K0F81L0070007C2P07800C10FC003C00003F007C3P03C00C18FC01F800003FC07C7P01E00C187C0FF000001FF0FC7Q0F81C3C7C1FF000000FF87C78P07E383C7C3FE0000007FC78F8P01FE03C7C7FC0000003FC78F8T03E3CFFK0000FE70F88R043E18FEK00003E20F8CR047E08F8K0M0F8ER0E7EO0M0F8FQ01E7EO0000FE00F8FQ03E3E01FEK0000FFC0F8F8P03E3E0FFCK00007FF0F0F8P07E3C1FF8K00003FF870FCP07E1C3FFL00000FFC60FCP07C087FEL000003FC007C6M01CFC00FF8L0K0FC007C7CL0F8FC00FEM0O07E3FK03F8F8Q0L03C03C3FC00007F0F80F8N0K0FFF83C1FE0001FE0F07FFCM0K07FFE1C0FF0003FE060FFFCM0K03FFF0C07F8003FC041FFF8M0L0FFF0003F8007F8001FFEN0L01FC0000FC007E00007FO0P0E003C007801ER0O0FFCN07FEQ0N03FFE00038000FFF8P0N0FFFC00078000FFFEP0M01FFF80F0781E03FFFP0N07FE0FFC38FFC0FF8P0Q03FFE00FFFT0Q0FFFC007FFCS0P01FFF0003FFFS0Q07FC0000FFCS0,
+^FS''';
+
+    return ''''^XA
+^LL$alturaTotal
+^LH0,0
+^CI28
+
+$logoZPL
+
+^FO0,190^FB384,1,0,C,0^CF0,28^FD$empresaNombre^FS
+^FO0,225^FB384,3,0,C,0^CF0,22^FD$direccion^FS
+^FO0,285^FB384,1,0,C,0^CF0,22^FDTel: $telefono^FS
+^FO0,310^FB384,1,0,C,0^CF0,22^FD$correo^FS
+
+^FO0,350^CF0,22^FDCAI: 35ABDF-AB7210-9748E0-63BE03-090965^FS
+^FO0,375^CF0,22^FDNo. Factura: $pedidoCodigo^FS
+^FO0,400^CF0,22^FDFecha Emision: $fechaPedido^FS
+^FO0,425^CF0,22^FDTipo Venta: CONTADO^FS
+
+^FO0,450^CF0,22^FDCliente: $clienteNombre^FS
+^FO0,475^CF0,22^FDRTN cliente: $clienteRTN^FS
+^FO0,500^CF0,22^FDVendedor: $vendedorNombre^FS
+
+^FX --- Column Headers ---
+^FX Producto: x=0, Cant: x=175, Precio: x=215, Monto: x=300
+^FO0,600^CF0,22^FDProd^FS
+^FO175,600^CF0,22^FDCant^FS
+^FO215,600^CF0,22^FDPrecio^FS
+^FO300,600^CF0,22^FDMonto^FS
+^FO0,620^GB384,1,1^FS
+
+$productosZPL
+
+^FO0,${yPosition}^GB384,2,2^FS
+
+^FO0,${yPosition + 20}^CF0,22^FDSubtotal: L. $totalPedidoStr^FS
+^FO0,${yPosition + 45}^CF0,22^FDTotalDescuento: L. 0.00^FS
+^FO0,${yPosition + 70}^CF0,22^FDImporte Exento: L. 0.00^FS
+^FO0,${yPosition + 95}^CF0,22^FDImporte Exonerado: L. 0.00^FS
+^FO0,${yPosition + 120}^CF0,22^FDImporte Gravado 15%: L. 0.00^FS
+^FO0,${yPosition + 145}^CF0,22^FDImporte Gravado 18%: L. 0.00^FS
+^FO0,${yPosition + 170}^CF0,22^FDTotal Impuesto 15%: L. 0.00^FS
+^FO0,${yPosition + 195}^CF0,22^FDTotal Impuesto 18%: L. 0.00^FS
+^FO0,${yPosition + 220}^GB384,1,1^FS
+^FO0,${yPosition + 235}^CF0,25^FDTotal: L. $totalPedidoStr^FS
+
+^FO0,${yPosition + 270}^CF0,22^FDVendedor: $vendedorNombre^FS
+^FO0,${yPosition + 300}^FB384,1,0,C,0^CF0,22^FDGracias por su compra^FS
+^FO0,${yPosition + 325}^FB384,1,0,C,0^CF0,22^FDSIDCOP - Sistema POS^FS
+^FO0,${yPosition + 350}^FB384,1,0,C,0^CF0,22^FD$fecha^FS
+
+^XZ''';
+  }
+
 String _generateInventoryZPL(Map<String, dynamic> inventoryData) {
   // Extraer información del header
   final header = inventoryData['header'] as Map<String, dynamic>? ?? {};
@@ -523,6 +625,7 @@ $logoZPL
 ^FO0,190^FB360,1,0,C,0^FD$empresaLimpia^FS
 
 ^FO0,230^GB360,2,2^FS
+
 
 ^FX ===== INFORMACION =====
 ^CF0,20,22
@@ -605,13 +708,13 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
 }
 
   // Print invoice optimizado
-  Future<bool> printInvoice(Map<String, dynamic> invoiceData) async {
+  Future<bool> printInvoice(Map<String, dynamic> invoiceData, {bool isOriginal = true}) async {
     try {
       if (!_isConnected) {
         throw Exception('Impresora no conectada');
       }
 
-      final zplContent = _generateInvoiceZPL(invoiceData);
+      final zplContent = _generateInvoiceZPL(invoiceData, isOriginal: isOriginal);
       return await printZPL(zplContent);
     } catch (e) {
       debugPrint('Error printing invoice: $e');
@@ -619,17 +722,20 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     }
   }
 
-  String _generateInvoiceZPL(Map<String, dynamic> invoiceData) {
+  String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true}) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
-    final empresaDireccion =
-        invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
+    final empresaDireccion = invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
     final empresaRTN = invoiceData['coFa_RTN'] ?? '08019987654321';
     final empresaTelefono = invoiceData['coFa_Telefono1'] ?? '2234-5678';
     final empresaCorreo = invoiceData['coFa_Correo'] ?? 'info@sidcop.com';
+    final empresaLogo = invoiceData['coFa_Logo'] ?? 'info@sidcop.com';
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
+  
+    // Texto ORIGINAL o COPIA
+    final tipoCopia = isOriginal ? 'ORIGINAL' : 'COPIA';
     final factTipoRaw = invoiceData['fact_TipoVenta'] ?? 'EFECTIVO';
     final factTipo = factTipoRaw == 'CO' ? 'CONTADO' : (factTipoRaw == 'CR' ? 'CREDITO' : factTipoRaw);
     final factFecha = _formatDate(invoiceData['fact_FechaEmision']);
@@ -647,6 +753,7 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
     final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
     final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
+    final anulada = invoiceData['fact_Anulado'] == true || invoiceData['fact_Anulado'] == 1;
 
     // Información del vendedor y sucursal
     final vendedorNombre = invoiceData['vendedor'] ?? 'Vendedor';
@@ -681,38 +788,44 @@ int yPosition = 870; // Posición inicial de productos
 for (var detalle in detalles) {
   final producto = detalle['prod_Descripcion'] ?? 'Producto';
   final codigoProducto = detalle['prod_CodigoBarra'] ?? '';
+  final pagaImpuesto = detalle['prod_PagaImpuesto'] ?? 'NO';
   final cantidad = detalle['faDe_Cantidad']?.toString() ?? '1';
+  final descuentoProducto = double.tryParse(detalle['faDe_Descuento']?.toString() ?? '0') ?? 0.0;
   final precioUnitario = (detalle['faDe_PrecioUnitario'] ?? 0).toStringAsFixed(2);
   final totalItem = (detalle['faDe_Subtotal'] ?? 0).toStringAsFixed(2);
 
+  // Agregar asterisco si el producto no paga impuesto (pagaImpuesto == 'N')
+  final asterisco = pagaImpuesto == 'N' ? ' *' : '';
+  final productoConAsterisco = '$asterisco$producto';
+
   // Producto con múltiples líneas (máximo 5 líneas, ancho 160 dots para dejar espacio a las otras columnas)
   // Usando CF0,22,24 como el resto de la información de factura
-  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$producto^FS\n';
+  productosZPL += '^FO0,$yPosition^CF0,22,24^FB160,5,0,L,0^FD$productoConAsterisco^FS\n';
   
   // Cantidad, Precio y Monto alineados a la primera línea del producto
   productosZPL += '^FO165,$yPosition^CF0,22,24^FD$cantidad^FS\n';
   productosZPL += '^FO210,$yPosition^CF0,22,24^FDL$precioUnitario^FS\n';
   productosZPL += '^FO295,$yPosition^CF0,22,24^FDL$totalItem^FS\n';
 
-  // Extraer campos adicionales para el footer
-    
-
   // Calcular espacio necesario para el producto (más preciso para ancho menor)
-  int lineasProducto = (producto.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
+  int lineasProducto = (productoConAsterisco.length / 18).ceil(); // ~18 caracteres por línea con ancho 160 dots
   if (lineasProducto > 5) lineasProducto = 5; // Máximo 5 líneas
   if (lineasProducto < 1) lineasProducto = 1; // Mínimo 1 línea
   
   yPosition += (lineasProducto * 24); // 24 dots por línea para fuente 22,24
 
-  // Código de producto (mismo tamaño de fuente, debajo del producto)
-  if (codigoProducto.isNotEmpty) {
-    yPosition += 6; // Pequeño espacio antes del código
-    productosZPL += '^FO0,$yPosition^CF0,22,24^FDCod: $codigoProducto^FS\n';
-    yPosition += 24; // Espacio del código
+  
+
+  // Mostrar descuento del producto si es mayor a cero
+  if (descuentoProducto > 0) {
+    yPosition += 6; // Pequeño espacio antes del descuento
+    final descuentoFormateado = descuentoProducto.toStringAsFixed(2);
+    productosZPL += '^FO10,$yPosition^FB350,1,0,R^CF0,22,24^FDDescuento: L$descuentoFormateado^FS\n';
+    yPosition += 24; // Espacio del descuento
   }
 
   // Más espacio entre productos para mejor legibilidad
-  yPosition += 25;
+  yPosition += 50;
 }
 
     // Calcular posición para totales dinámicamente
@@ -769,23 +882,28 @@ totalY += 10;
 
 // Total final alineado a la derecha y destacado
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal: L$total^FS\n';
-totalY += 25;
+totalY += 50;
 
 // Total en letras (convertir el total a número, quitar el signo de L si existe)
 final totalNum = double.tryParse(total.replaceAll('L', '')) ?? 0.0;
 final totalEnLetras = ' ${NumeroEnLetras.convertir(totalNum)}';
 totalesZPL += '^FO0,$totalY^FB$anchoEtiqueta,3,0,C,0^CF0,22,24^FD$totalEnLetras^FS\n';
-totalY += 50; // Espacio adicional para el total en letras
+totalY += 10; // Espacio adicional para el total en letras
 
     // Footer con posiciones dinámicas
     final footerY = totalY + 50; // Espacio antes del footer
 
     // Generar footer ZPL
     String footerZPL = '';
-    int currentFooterY = footerY + 15; // Posición inicial dentro del footer
+    int currentFooterY = footerY + 15;
+    
+     // Posición inicial dentro del footer
+
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FD$tipoCopia^FS\n';
+    currentFooterY += 45;
 
     // 1. FechaLimite Emision (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFechaLimite Emision: $fechaLimiteEmision^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDFecha limite de emision: $fechaLimiteEmision^FS\n';
     currentFooterY += 45;
 
     // 2. Rango Autorizado (1 línea, centrado)
@@ -814,11 +932,41 @@ totalY += 50; // Espacio adicional para el total en letras
     footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,2,0,C,0^CF0,22,24^FDLA FACTURA ES BENEFICIO DE TODOS, ¡"EXIJALA"!^FS\n';
     currentFooterY += 50; // Espacio para 2 líneas
 
-    // 9. Espacio adicional antes del identificador de copia
-    currentFooterY += 10;
+    // ===== NUEVA SECCIÓN: MARCA DE ANULADA =====
+    if (anulada) {
+      currentFooterY += 20; // Espacio adicional antes de la marca ANULADA
 
-    // Calcular la altura total de la etiqueta
-    final alturaTotal = footerY + 300; // 100px adicionales para el footer
+      // Definir dimensiones del recuadro
+      final int anchoRecuadro = 250; // Ancho del recuadro
+      final int altoRecuadro = 80;   // Alto del recuadro
+      final int xRecuadro = (anchoEtiqueta - anchoRecuadro) ~/ 2; // Centrar horizontalmente
+      final int yRecuadro = currentFooterY;
+
+      // 1. Recuadro exterior (línea gruesa)
+      footerZPL += '^FO$xRecuadro,$yRecuadro^GB$anchoRecuadro,$altoRecuadro,4^FS\n';
+
+      // 2. Recuadro interior (línea delgada, para efecto de doble borde)
+      final int xInterior = xRecuadro + 8;
+      final int yInterior = yRecuadro + 8;
+      final int anchoInterior = anchoRecuadro - 16;
+      final int altoInterior = altoRecuadro - 16;
+      footerZPL += '^FO$xInterior,$yInterior^GB$anchoInterior,$altoInterior,2^FS\n';
+
+      // 3. Texto "A N U L A D A" centrado en el recuadro
+      final int yTextoAnulada = yRecuadro + 25; // Centrar verticalmente en el recuadro
+      footerZPL += '^FO$xRecuadro,$yTextoAnulada^FB$anchoRecuadro,1,0,C,0^CF0,28,32^FDA N U L A D A^FS\n';
+
+      currentFooterY += altoRecuadro + 20; // Actualizar posición después del recuadro
+    }
+
+    // 9. Espacio adicional antes del identificador de copia
+    if (!anulada) {
+      currentFooterY += 10;
+    }
+
+  
+    final alturaTotal = currentFooterY + (anulada ? 100 : 50);
+
 
     // Logo GFA (formato correcto y completo)
     const String logoZPL = '''^FX ===== LOGO CENTRADO =====
@@ -876,16 +1024,11 @@ $logoZPL
 ^FX ===== PRODUCTOS =====
 $productosZPL
 
-
 ^FX ===== TOTALES =====
 ^FO0,$totalesY^GB360,2,2^FS
 $totalesZPL
 
-^FX ===== FOOTER =====
-^FO0,$footerY^GB360,2,2^FS
 $footerZPL
-
-
 ^XZ''';
   }
 
@@ -950,102 +1093,297 @@ $footerZPL
     BuildContext context,
   ) async {
     try {
+      // Mostrar diálogo de carga
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          title: Text('Buscando impresoras Zebra...'),
-          content: Column(
+        builder: (context) => Dialog(
+          backgroundColor: const Color(0xFF262B40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD5B58A)),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Buscando impresoras...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Asegúrate de que la impresora esté encendida y en modo visible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Escanear dispositivos
+      final devices = await startScan();
+      if (context.mounted) Navigator.of(context).pop();
+
+      if (devices.isEmpty) {
+        if (context.mounted) {
+          await showDialog(
+            context: context,
+            builder: (context) => Dialog(
+              backgroundColor: const Color(0xFF262B40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.print,
+                      size: 48,
+                      color: const Color(0xFFD5B58A),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No se encontraron impresoras',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Verifica que la impresora esté encendida y en modo visible.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD5B58A),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'ENTENDIDO',
+                          style: TextStyle(
+                            color: Color(0xFF262B40),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        return null;
+      }
+
+      return await showDialog<BluetoothDevice?>(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: const Color(0xFF262B40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Escaneando dispositivos Bluetooth'),
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E344B),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.print_rounded,
+                      color: const Color(0xFFD5B58A),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Seleccionar impresora',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Lista de dispositivos
+              Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).pop(device),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD5B58A).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.print_rounded,
+                                  color: const Color(0xFFD5B58A),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      device.name,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 15,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      device.id.id,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white38,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Botón de cancelar
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                      ),
+                    ),
+                    child: Text(
+                      'CANCELAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       );
+    } catch (e) {
+      if (context.mounted) {
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
 
-      final devices = await startScan();
-      Navigator.of(context).pop();
-
-      if (devices.isEmpty) {
+        // Mostrar error con diseño mejorado
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se encontraron dispositivos Bluetooth.'),
-            backgroundColor: Colors.orange,
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Error al buscar impresoras: ${e.toString()}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
-        return null;
       }
-
-      return await showDialog<BluetoothDevice>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Seleccionar Impresora Zebra'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView.builder(
-              itemCount: devices.length,
-              itemBuilder: (context, index) {
-                final device = devices[index];
-                final isPrinter = _isPotentialPrinter(device.platformName);
-
-                return Card(
-                  color: isPrinter ? Colors.blue.shade50 : Colors.grey.shade100,
-                  child: ListTile(
-                    leading: Icon(
-                      isPrinter ? Icons.print : Icons.bluetooth,
-                      color: isPrinter ? Colors.blue : Colors.grey,
-                    ),
-                    title: Text(
-                      device.platformName.isNotEmpty
-                          ? device.platformName
-                          : 'Dispositivo sin nombre',
-                      style: TextStyle(
-                        fontWeight: isPrinter
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ID: ${device.remoteId}'),
-                        if (isPrinter)
-                          const Text(
-                            '✓ Posible impresora Zebra',
-                            style: TextStyle(color: Colors.green),
-                          ),
-                      ],
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).pop(device),
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
       return null;
     }
   }

@@ -57,4 +57,25 @@ class VendedoresPorRutaModel {
           : null,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'secuencia': secuencia,
+      'veRu_Id': veRu_Id,
+      'vend_Id': vend_Id,
+      'vendedorNombre': vendedorNombre,
+      'vendedorApellido': vendedorApellido,
+      'ruta_Id': ruta_Id,
+      'rutaCodigo': rutaCodigo,
+      'rutaDescripcion': rutaDescripcion,
+      'veRu_Dias': veRu_Dias,
+      'vend_Estado': vend_Estado,
+      'usua_Creacion': usua_Creacion,
+      'usuarioCreacion': usuarioCreacion,
+      'vend_FechaCreacion': vend_FechaCreacion.toIso8601String(),
+      'usua_Modificacion': usua_Modificacion,
+      'usuarioModificacion': usuarioModificacion,
+      'vend_FechaModificacion': vend_FechaModificacion?.toIso8601String(),
+    };
+  }
 }

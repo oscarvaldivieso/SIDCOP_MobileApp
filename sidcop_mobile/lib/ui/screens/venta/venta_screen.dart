@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:sidcop_mobile/ui/screens/general/clientes/client_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
@@ -224,6 +225,12 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
         widget.clienteId!,
         widget.vendedorId!,
       );
+      
+      // Sort products with prod_Impulsado first
+      _allProducts.sort((a, b) {
+        if (a.prod_Impulsado == b.prod_Impulsado) return 0;
+        return a.prod_Impulsado ? -1 : 1;
+      });
       
       _filteredProducts = List.from(_allProducts);
       
@@ -643,7 +650,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
                             child: OutlinedButton(
                               onPressed: () {
                                 Navigator.pop(context);
-                                _resetearFormulario();
+                                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => clientScreen()));
                               },
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(color: Color(0xFF141A2F)),
@@ -1158,7 +1165,7 @@ Widget paso1() {
             ),
           ),
           const SizedBox(height: 24),
-          _buildPaymentOption('Efectivo', Icons.money, 'EFECTIVO'),
+          _buildPaymentOption('Contado', Icons.money, 'EFECTIVO'),
           const SizedBox(height: 16),
           Opacity(
             opacity: _tieneCredito ? 1.0 : 0.6,
@@ -1472,6 +1479,7 @@ Widget paso1() {
     final currentQuantity = _selectedProducts[product.prodId] ?? 0;
     final isSelected = currentQuantity > 0;
     final productoConDescuento = _productosConDescuento[product.prodId];
+    final isImpulsado = product.prod_Impulsado ?? false;
     
     // Obtener el mejor descuento disponible
     double? mejorDescuento;
@@ -1514,6 +1522,41 @@ Widget paso1() {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
+            if (isImpulsado)
+              Positioned(
+                right: 16,
+                top: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color.fromARGB(171, 75, 212, 86),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.local_offer, size: 14, color: Colors.black87),
+                      SizedBox(width: 4),
+                      Text(
+                        '¡IMPULSADO!',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -1625,6 +1668,51 @@ Widget paso1() {
                               ],
                             ),
                             const SizedBox(height: 4),
+                            // Stock disponible
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: product.cantidadDisponible > 0 
+                                    ? const Color(0xFFE8F5E9) 
+                                    : const Color(0xFFFFEBEE),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: product.cantidadDisponible > 0 
+                                      ? const Color(0xFF98BF4A).withOpacity(0.3) 
+                                      : const Color(0xFFEF5350).withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    product.cantidadDisponible > 0 
+                                        ? Icons.inventory_2_outlined 
+                                        : Icons.error_outline,
+                                    size: 14,
+                                    color: product.cantidadDisponible > 0 
+                                        ? const Color(0xFF2E7D32) 
+                                        : const Color(0xFFD32F2F),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    product.cantidadDisponible > 0 
+                                        ? '${product.cantidadDisponible.toInt()} disponibles' 
+                                        : 'Sin existencias',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: product.cantidadDisponible > 0 
+                                          ? const Color(0xFF2E7D32) 
+                                          : const Color(0xFFD32F2F),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             Row(
                               children: [
                                 if (mejorDescuento != null && mejorDescuento > 0) ...[
@@ -2045,7 +2133,6 @@ Widget paso1() {
   }
 
   // Widget para cada item del carrito
-  // Widget para cada item del carrito
 Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   final precio = product.prodPrecioUnitario;
   final subtotal = precio * cantidad;
@@ -2065,7 +2152,8 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   }
   
   final subtotalConDescuento = subtotal - descuento;
-  final impuesto = subtotalConDescuento * 0.15; // 15% ISV
+  // Calcular impuesto solo si el producto paga impuesto (prodPagaImpuesto == 'S')
+  final impuesto = product.prodPagaImpuesto == 'S' ? subtotalConDescuento * 0.15 : 0.0; // 15% ISV solo si paga impuesto
   final totalProducto = subtotalConDescuento + impuesto;
 
   return Container(
@@ -2477,18 +2565,28 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   // Calcular el total del carrito
   double _calculateTotal() {
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
+    
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
+      
+      // Calcular impuesto solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
     
     final descuentosInfo = _calculateDiscounts();
     final double descuentos = descuentosInfo['total'];
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15;
+    
+    // Aplicar impuesto solo a los productos que pagan impuesto
+    final double impuestos = subtotalConImpuesto * 0.15;
     
     return subtotalConDescuento + impuestos;
   }
@@ -2496,6 +2594,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   // Widget para el resumen del carrito
   Widget _buildCartSummary() {
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
@@ -2503,8 +2602,14 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
+      
+      // Calcular subtotal solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
 
     // Calcular descuentos reales
@@ -2513,7 +2618,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final List<Map<String, dynamic>> detalleDescuentos = descuentosInfo['detalles'];
     
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    
+    // Calcular impuesto solo sobre los productos que pagan impuesto
+    final double porcentajeImpuesto = 0.15; // 15% ISV
+    final double baseImponible = subtotalConImpuesto > 0 ? 
+        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
+    final double impuestos = baseImponible * porcentajeImpuesto;
+    
     final double total = subtotalConDescuento + impuestos;
 
     return Container(
@@ -2734,6 +2845,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   Widget paso4() {
     // Calcular totales para mostrar en la confirmación
     double subtotal = 0.0;
+    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     
     _selectedProducts.forEach((prodId, cantidad) {
@@ -2741,8 +2853,14 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
         (p) => p.prodId == prodId,
       );
       final precio = product.prodPrecioUnitario;
-      subtotal += precio * cantidad;
+      final subtotalProducto = precio * cantidad;
+      subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
+      
+      // Calcular subtotal solo para productos que pagan impuesto
+      if (product.prodPagaImpuesto == 'S') {
+        subtotalConImpuesto += subtotalProducto;
+      }
     });
 
     // Calcular descuentos para la confirmación
@@ -2750,7 +2868,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double descuentos = descuentosInfo['total'];
     
     final double subtotalConDescuento = subtotal - descuentos;
-    final double impuestos = subtotalConDescuento * 0.15; // ISV 15% sobre subtotal con descuento
+    
+    // Calcular impuesto solo sobre los productos que pagan impuesto
+    final double porcentajeImpuesto = 0.15; // 15% ISV
+    final double baseImponible = subtotalConImpuesto > 0 ? 
+        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
+    final double impuestos = baseImponible * porcentajeImpuesto;
+    
     final double total = subtotalConDescuento + impuestos;
 
     return Padding(
