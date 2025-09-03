@@ -57,5 +57,31 @@ class FacturaService {
       throw Exception('Error al conectar con el servidor: $e');
     }
   }
+
+  Future<Map<String, dynamic>> insertarFactura(Map<String, dynamic> facturaData) async {
+    final url = Uri.parse('$_apiServer/Facturas/Insertar');
+    
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'X-Api-Key': _apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode(facturaData),
+      );
+
+      final data = json.decode(response.body);
+      
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Error al insertar factura: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al conectar con el servidor: $e');
+    }
+  }
 }
 

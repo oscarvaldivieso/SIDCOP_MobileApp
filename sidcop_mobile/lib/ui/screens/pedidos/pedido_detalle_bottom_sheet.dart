@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
+import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
@@ -12,6 +13,8 @@ class PedidoDetalleBottomSheet extends StatefulWidget {
 }
 
 class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
+  final FacturaService _facturaService = FacturaService();
+  bool _isInsertingInvoice = false;
 
   Color get _primaryColor => const Color(0xFF141A2F);
   Color get _goldColor => const Color(0xFFE0C7A0);
@@ -52,18 +55,31 @@ Widget build(BuildContext context) {
                     ),
                   ),
                 ),
-                  IconButton(
-                    icon: const Icon(Icons.print_outlined, color: Colors.black54),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+                  _isInsertingInvoice
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
                         ),
-                      );
-                    },
-                    tooltip: 'Ver Factura',
-                  ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.print_outlined, color: Colors.black54),
+                        onPressed: () async {
+                          // Insertar la factura y luego navegar a la pantalla de vista previa
+                          await _insertarFactura();
+                          if (mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+                              ),
+                            );
+                          }
+                        },
+                        tooltip: 'Ver Factura',
+                      ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.black54),
@@ -227,5 +243,64 @@ Widget build(BuildContext context) {
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
     return "${f.day} de ${meses[f.month]} del ${f.year}";
+  }
+
+  Future<void> _insertarFactura() async {
+    if (_isInsertingInvoice) return;
+
+    setState(() {
+      _isInsertingInvoice = true;
+    });
+
+    try {
+      // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
+      final double latitud = 0.0; // Idealmente obtener la ubicación actual
+      final double longitud = 0.0; // Idealmente obtener la ubicación actual
+
+      // Preparar los datos de la factura
+      final Map<String, dynamic> facturaData = {
+        'fact_Numero': widget.pedido.pedi_Codigo,
+        'fact_TipoDeDocumento': 'FAC', // Factura
+        'regC_Id': 1, // Valor predeterminado o obtener del sistema
+        'diCl_Id': widget.pedido.diClId,
+        'vend_Id': widget.pedido.vendId,
+        'fact_TipoVenta': 'CO', // Contado
+        'fact_FechaEmision': DateTime.now().toIso8601String(),
+        'fact_Latitud': latitud,
+        'fact_Longitud': longitud,
+        'fact_Referencia': 'Pedido generado desde app móvil',
+        'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
+        'usua_Creacion': widget.pedido.usuaCreacion,
+        'fact_EsPedido': true, // Marcar como pedido
+        'pedi_Id': widget.pedido.pediId, // ID del pedido actual
+      };
+
+      // Llamar al servicio para insertar la factura
+      await _facturaService.insertarFactura(facturaData);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Factura registrada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al registrar la factura: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInsertingInvoice = false;
+        });
+      }
+    }
   }
 }
