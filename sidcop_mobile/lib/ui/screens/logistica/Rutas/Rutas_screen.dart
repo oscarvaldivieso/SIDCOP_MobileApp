@@ -19,6 +19,7 @@ import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -27,19 +28,12 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
-  bool isOnline = true;
+  bool isOnline =
+      false; // Variable de clase para almacenar el estado de conexión
 
-  Future<void> verificarConexion() async {
-    try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
-      if (response.statusCode == 200) {
-        isOnline = true;
-      } else {
-        isOnline = false;
-      }
-    } catch (e) {
-      isOnline = false;
-    }
+  Future<void> verificarconexion() async {
+    isOnline = await VerificarService.verificarConexion();
+    setState(() {}); // Actualiza la UI si es necesario
   }
 
   // mapas static locales cache handled via archivos en getApplicationDocumentsDirectory()
@@ -88,8 +82,42 @@ class _RutasScreenState extends State<RutasScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRutas();
     _searchController.addListener(_applySearch);
+    // On entering the Rutas screen we must persist all remote data locally
+    // (rutas, clientes, direcciones, vendedores, visitas_historial, etc).
+    // Run startup sync then load rutas. Use a microtask to avoid making
+    // initState async and to keep UI responsive while we perform the
+    // necessary persistence operations.
+    Future.microtask(() async {
+      try {
+        await _syncAllOnEntry();
+      } catch (e) {
+        print('SYNC: startup full sync failed: $e');
+      }
+      // After attempting to persist all data, load rutas for the UI.
+      await _fetchRutas();
+    });
+  }
+
+  Future<void> _syncAllOnEntry() async {
+    try {
+      print('SYNC: starting full startup sync...');
+
+      await RutasScreenOffline.sincronizarRutas_Todo();
+
+      await RutasScreenOffline.sincronizarVisitasHistorial();
+
+      await RutasScreenOffline.sincronizarVendedoresPorRutas();
+
+      // Limpiar detalles obsoletos antes de regenerar
+      await RutasScreenOffline.limpiarTodosLosDetalles();
+
+      await RutasScreenOffline.guardarDetallesTodasRutas();
+      print('SYNC: full startup sync completed');
+    } catch (e) {
+      print('SYNC: _syncAllOnEntry encountered error: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -100,7 +128,7 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   Future<void> _fetchRutas() async {
-    try {
+    if (isOnline) {
       // 1. Obtener rutas asignadas al vendedor (si existe variable global)
       await _cargarRutasAsignadasVendedor();
 
@@ -142,7 +170,7 @@ class _RutasScreenState extends State<RutasScreen> {
           print('SYNC: guardarDetallesTodasRutas failed: $e');
         }
       });
-    } catch (e) {
+    } else {
       // Si falla, intentar leer rutas offline
       final rutasOffline = await _leerRutasOffline();
       if (mounted) {
@@ -152,11 +180,7 @@ class _RutasScreenState extends State<RutasScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error al cargar las rutas. Mostrando rutas precargadas.',
-            ),
-          ),
+          SnackBar(content: Text('Mostrando rutas sin conexión a Internet.')),
         );
       }
     }
@@ -340,7 +364,7 @@ class _RutasScreenState extends State<RutasScreen> {
         return 'file://$filePath';
       }
       // No hay imagen local: comprobar conectividad antes de generar URL remota
-      await verificarConexion();
+      await verificarconexion();
       if (!isOnline) {
         print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
         return '';
@@ -498,7 +522,7 @@ class _RutasScreenState extends State<RutasScreen> {
                                     children: [
                                       GestureDetector(
                                         onTap: () async {
-                                          await verificarConexion();
+                                          await verificarconexion();
                                           if (isOnline) {
                                             Navigator.push(
                                               context,
@@ -666,7 +690,7 @@ class _RutasScreenState extends State<RutasScreen> {
                                     children: [
                                       GestureDetector(
                                         onTap: () async {
-                                          await verificarConexion();
+                                          await verificarconexion();
                                           if (isOnline) {
                                             Navigator.push(
                                               context,

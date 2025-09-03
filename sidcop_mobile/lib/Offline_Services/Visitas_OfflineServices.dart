@@ -468,15 +468,68 @@ class VisitasOffline {
 
           // Intentar crear la visita remoto usando el mismo flujo que la UI
           final insertResult = await servicio.insertarVisita(visitaPayload);
-          final createdId =
-              int.tryParse('${insertResult['clVi_Id'] ?? 0}') ?? 0;
+
+          // Try to obtain the created visit id using the same sequence the online UI uses:
+          // 1) insertarVisita
+          // 2) obtenerUltimaVisita
+          int createdId = 0;
+          try {
+            final ultima = await servicio.obtenerUltimaVisita();
+            if (ultima != null && ultima['clVi_Id'] != null) {
+              createdId = int.tryParse('${ultima['clVi_Id']}') ?? 0;
+            }
+          } catch (_) {}
+
+          // Fallback to any clVi_Id returned directly by insertarVisita
+          if (createdId == 0) {
+            createdId = int.tryParse('${insertResult['clVi_Id'] ?? 0}') ?? 0;
+          }
 
           if (createdId > 0) {
             print(
               'SYNC: visita creada en remoto clVi_Id=$createdId local_signature=$sig',
             );
 
-            // Subir y asociar imágenes (si existen)
+            // Determine the usuarioId to use when associating images: prefer the
+            // user id that was sent (usua_Creacion) or fallback to globalVendId.
+            int usuarioParaAsociar = 0;
+            try {
+              usuarioParaAsociar =
+                  int.tryParse('${visitaPayload['usua_Creacion'] ?? ''}') ?? 0;
+            } catch (_) {
+              usuarioParaAsociar = 0;
+            }
+            if (usuarioParaAsociar <= 0) usuarioParaAsociar = globalVendId ?? 0;
+
+            // Helper to extract an URL from upload response body in a tolerant way
+            String _extractUrlFromUploadResponse(String body) {
+              try {
+                final parsed = jsonDecode(body);
+                if (parsed is Map<String, dynamic>) {
+                  // Common keys used by different backends
+                  for (final candidate in ['ruta', 'url', 'data', 'result']) {
+                    if (parsed.containsKey(candidate)) {
+                      final val = parsed[candidate];
+                      if (val is String && val.isNotEmpty) return val;
+                      if (val is Map<String, dynamic>) {
+                        // nested value
+                        if (val['ruta'] != null) return val['ruta'].toString();
+                        if (val['url'] != null) return val['url'].toString();
+                      }
+                    }
+                  }
+                } else if (parsed is String) {
+                  return parsed;
+                }
+              } catch (_) {
+                // not JSON, maybe plain text URL
+                final trimmed = body.trim();
+                if (trimmed.startsWith('http')) return trimmed;
+              }
+              return '';
+            }
+
+            // Subir y asociar im e1genes (si existen)
             int uploadedCount = 0;
             for (var i = 0; i < imagenesBase64.length; i++) {
               final base64str = imagenesBase64[i];
@@ -500,19 +553,17 @@ class VisitasOffline {
                 final respBody = await streamedResp.stream.bytesToString();
                 if (streamedResp.statusCode == 200) {
                   try {
-                    final uploadData =
-                        jsonDecode(respBody) as Map<String, dynamic>;
-                    final rutaImagen = uploadData['ruta']?.toString() ?? '';
+                    final rutaImagen = _extractUrlFromUploadResponse(respBody);
                     if (rutaImagen.isNotEmpty) {
                       final asociado = await servicio.asociarImagenAVisita(
                         visitaId: createdId,
                         imagenUrl: rutaImagen,
-                        usuarioId: globalVendId ?? 0,
+                        usuarioId: usuarioParaAsociar,
                       );
                       if (asociado) uploadedCount++;
                     } else {
                       print(
-                        'SYNC ERROR: upload returned empty ruta for visita $createdId',
+                        'SYNC ERROR: upload returned no image URL for visita $createdId body=$respBody',
                       );
                     }
                   } catch (e) {
@@ -533,7 +584,7 @@ class VisitasOffline {
               }
             }
 
-            // Considerar sincronizada aunque algunas imágenes hayan fallado en asociar
+            // Considerar sincronizada aunque algunas im e1genes hayan fallado en asociar
             try {
               remaining.removeWhere((item) {
                 try {
@@ -547,11 +598,11 @@ class VisitasOffline {
 
             sincronizadas++;
             print(
-              'SYNC: visita sincronizada y procesadas imágenes=$uploadedCount local_signature=$sig',
+              'SYNC: visita sincronizada y procesadas im e1genes=$uploadedCount local_signature=$sig',
             );
           } else {
             print(
-              'SYNC ERROR: insertarVisita no devolvió clVi_Id para local_signature=$sig response=$insertResult',
+              'SYNC ERROR: insertarVisita no devolvi\u00f3 clVi_Id para local_signature=$sig response=$insertResult',
             );
           }
         } catch (e, st) {
