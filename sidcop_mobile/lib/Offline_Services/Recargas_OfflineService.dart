@@ -707,4 +707,33 @@ class RecargasScreenOffline {
   static Future<List<dynamic>> leerVendedores() async {
     return await RecargasScreenOffline.leerVendedores();
   }
+
+  /// Sincroniza las recargas pendientes desde el almacenamiento local
+  /// (recargas_pendientes.json) e intenta enviarlas al servidor.
+  /// Devuelve la cantidad de recargas sincronizadas exitosamente.
+  static Future<int> sincronizarPendientes() async {
+    final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+    if (raw == null) return 0;
+    List<dynamic> pendientes = List.from(raw as List);
+    if (pendientes.isEmpty) return 0;
+    final recargaService = RecargasService();
+    int sincronizadas = 0;
+    List<dynamic> restantes = List.from(pendientes);
+    for (final recarga in pendientes) {
+      try {
+        final detalles = recarga['detalles'] ?? [];
+        final usuaId = recarga['usua_Id'] ?? 0;
+        final ok = await recargaService.insertarRecarga(
+          usuaCreacion: usuaId,
+          detalles: detalles,
+        );
+        if (ok) {
+          restantes.remove(recarga);
+          sincronizadas++;
+        }
+      } catch (_) {}
+    }
+    await RecargasScreenOffline.guardarJson('recargas_pendientes.json', restantes);
+    return sincronizadas;
+  }
 }
