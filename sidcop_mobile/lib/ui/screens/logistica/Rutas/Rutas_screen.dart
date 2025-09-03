@@ -33,26 +33,19 @@ class _RutasScreenState extends State<RutasScreen> {
 
   Future<bool> verificarconexion() async {
     try {
-      // Implementación directa como sugeriste
-      final response = await http
-          .get(
-            Uri.parse('https://www.google.com'),
-            headers: {'Connection': 'close'},
-          )
-          .timeout(const Duration(seconds: 5));
+      // Usar VerificarService.verificarConexion() en lugar de implementación directa
+      isOnline = await VerificarService.verificarConexion();
 
-      if (response.statusCode == 200) {
-        isOnline = true;
-        print('DEBUG: verificarconexion - ONLINE (${response.statusCode})');
+      // Añadir logs para depuración
+      if (isOnline) {
+        print('DEBUG: verificarconexion - ONLINE (usando VerificarService)');
       } else {
-        isOnline = false;
-        print(
-          'DEBUG: verificarconexion - OFFLINE (Status: ${response.statusCode})',
-        );
+        print('DEBUG: verificarconexion - OFFLINE (usando VerificarService)');
       }
+
       return isOnline;
     } catch (e) {
-      print('DEBUG: verificarconexion - OFFLINE (Error: $e)');
+      print('DEBUG: verificarconexion - Error usando VerificarService: $e');
       isOnline = false;
       return false;
     }
@@ -407,52 +400,49 @@ class _RutasScreenState extends State<RutasScreen> {
       final file = File(filePath);
       final hasLocalImage = await file.exists();
 
-      // Asumir que estamos online e intentar generar imagen remota directamente
-      try {
-        // IMPORTANTE: No verificar conexión aquí para evitar falsos negativos
-        // Intentar obtener la URL del mapa directamente
-        final remote = await _getStaticMapMarkers(ruta);
-        print(
-          'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
-        );
+      // Verificar conexión usando VerificarService
+      isOnline = await verificarconexion();
+      print('DEBUG: Estado de conexión para ruta ${ruta.ruta_Id}: $isOnline');
 
-        // Si llegamos aquí, estamos online. Guardar para uso offline futuro
-        guardarImagenDeMapaStatic(remote, 'map_static_${ruta.ruta_Id}');
+      // Si estamos online, generar nueva imagen remota
+      if (isOnline) {
+        try {
+          final remote = await _getStaticMapMarkers(ruta);
+          print(
+            'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
+          );
 
-        // Actualizar el estado online
-        isOnline = true;
+          // Guardar para uso offline futuro
+          guardarImagenDeMapaStatic(remote, 'map_static_${ruta.ruta_Id}');
 
-        return remote;
-      } catch (remoteError) {
-        print('ERROR obteniendo imagen remota: $remoteError');
+          return remote;
+        } catch (remoteError) {
+          print('ERROR obteniendo imagen remota: $remoteError');
 
-        // Error al obtener imagen remota, probablemente offline
-        isOnline = false;
-
-        // Si tenemos imagen local, usarla como fallback
+          // Si hay error obteniendo imagen remota pero tenemos local, usar local
+          if (hasLocalImage) {
+            print(
+              'DEBUG: Error con imagen remota, usando local para ruta ${ruta.ruta_Id}',
+            );
+            return 'file://$filePath';
+          }
+          // No hay imagen local y falló la generación remota
+          throw 'No se pudo generar imagen remota y no hay local disponible';
+        }
+      } else {
+        // Estamos offline, verificar si hay imagen local disponible
         if (hasLocalImage) {
           print(
-            'DEBUG: Error con imagen remota, usando local para ruta ${ruta.ruta_Id}',
+            'DEBUG: Offline, usando imagen local para ruta ${ruta.ruta_Id}',
           );
           return 'file://$filePath';
         }
+        print('DEBUG: Offline y sin imagen local para ruta ${ruta.ruta_Id}');
+        throw 'Offline y sin imagen local disponible';
       }
-
-      // Si estamos offline pero tenemos imagen local
-      if (hasLocalImage) {
-        print(
-          'DEBUG: offline - usando imagen local para ruta ${ruta.ruta_Id} -> $filePath',
-        );
-        return 'file://$filePath';
-      }
-
-      // Sin conexión y sin imagen local: retornar placeholder
-      print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
-      return 'placeholder';
     } catch (e) {
-      print(
-        'DEBUG: Error general obteniendo mapa para ruta ${ruta.ruta_Id}: $e',
-      );
+      print('ERROR general en _getMapUrlPreferLocal: $e');
+      // Retornar 'placeholder' en caso de error
       return 'placeholder';
     }
   }
