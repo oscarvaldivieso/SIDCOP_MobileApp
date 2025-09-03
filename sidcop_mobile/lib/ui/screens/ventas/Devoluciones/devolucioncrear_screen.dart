@@ -199,7 +199,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _filteredFacturas = direccion != null
           ? _facturas
                 .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
-                .where((factura) => factura['vend_Id'] == usuaIdPersona)
+                .where((factura) => usuaIdPersona == null || factura['vend_Id'] == usuaIdPersona)
                 .toList()
           : [];
       // Actualizar el texto del controlador para reflejar la selección
