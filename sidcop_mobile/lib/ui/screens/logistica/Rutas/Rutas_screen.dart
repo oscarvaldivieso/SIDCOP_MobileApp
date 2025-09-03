@@ -134,7 +134,7 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   Future<void> _fetchRutas() async {
-    try {
+    if (isOnline) {
       // 1. Obtener rutas asignadas al vendedor (si existe variable global)
       await _cargarRutasAsignadasVendedor();
 
@@ -176,7 +176,7 @@ class _RutasScreenState extends State<RutasScreen> {
           print('SYNC: guardarDetallesTodasRutas failed: $e');
         }
       });
-    } catch (e) {
+    } else {
       // Si falla, intentar leer rutas offline
       final rutasOffline = await _leerRutasOffline();
       if (mounted) {
