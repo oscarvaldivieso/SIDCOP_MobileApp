@@ -56,6 +56,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   int? _selectedClienteId;
   int? _selectedFacturaId;
   int? usuaIdPersona;
+  bool? esAdmin;
+  int? usuaId;
 
   // Services are already declared above
 
@@ -80,7 +82,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   @override
   void initState() {
     super.initState();
-    _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _fechaController.text = DateFormat('yyyy-MM-dd-HH:mm:ss').format(DateTime.now());
     _loadData();
     _loadAllClientData();
   }
@@ -119,27 +121,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     );
   }
 
-  Future<void> _loadData() async {
-    try {
-      final direccionesData = await _direccionClienteService
-          .getDireccionesPorCliente();
-      final facturasData = await _facturaService.getFacturasDevolucionesLimite();
 
-      if (!mounted) return;
-
-      setState(() {
-        _direcciones = direccionesData;
-        _facturas = List<Map<String, dynamic>>.from(facturasData);
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Error al cargar los datos: $e';
-        _isLoading = false;
-      });
-    }
-  }
 
   
    Future<void> _loadAllClientData() async {
@@ -155,7 +137,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
-    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+    esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+    usuaId = userData?['usua_Id'] as int?;
 
     // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
     List<dynamic> clientes = [];
@@ -164,15 +147,6 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       print(
         'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
       );
-    } else if (esAdmin) {
-      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
-      try {
-        clientes = await SyncService.getClients();
-        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
-      } catch (e) {
-        print('DEBUG: Error obteniendo clientes para admin: $e');
-        clientes = [];
-      }
     } else if (esVendedor && usuaIdPersona == null) {
       print(
         'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
@@ -199,7 +173,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _filteredFacturas = direccion != null
           ? _facturas
                 .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
-                .where((factura) => usuaIdPersona == null || factura['vend_Id'] == usuaIdPersona)
+                .where((factura) => esAdmin == true || factura['vend_Id'] == usuaIdPersona)
                 .toList()
           : [];
       // Actualizar el texto del controlador para reflejar la selección
@@ -210,6 +184,28 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         _clienteController.clear();
       }
     });
+  }
+
+    Future<void> _loadData() async {
+    try {
+      final direccionesData = await _direccionClienteService
+          .getDireccionesPorCliente();
+      final facturasData = await _facturaService.getFacturasDevolucionesLimite();
+
+      if (!mounted) return;
+
+      setState(() {
+        _direcciones = direccionesData.where((direccion)  => esAdmin == true || direccion.usua_creacion == usuaId).toList();
+        _facturas = List<Map<String, dynamic>>.from(facturasData);
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Error al cargar los datos: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _onFacturaChanged(int? facturaId) async {
@@ -326,7 +322,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
               factId: _selectedFacturaId!,
               devoMotivo: _motivoController.text,
               usuaCreacion:
-                  1, // TODO: Reemplazar con el ID del usuario autenticado
+                  usuaId!, // TODO: Reemplazar con el ID del usuario autenticado
               detalles: productosADevolver,
               devoFecha: DateTime.tryParse(_fechaController.text),
               crearNuevaFactura: true,
