@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
@@ -53,6 +55,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   // Form values
   int? _selectedClienteId;
   int? _selectedFacturaId;
+  int? usuaIdPersona;
 
   // Services are already declared above
 
@@ -79,6 +82,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     super.initState();
     _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadData();
+    _loadAllClientData();
   }
 
   Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
@@ -137,6 +141,53 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     }
   }
 
+  
+   Future<void> _loadAllClientData() async {
+
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+    
+    // Extraer rutasDelDiaJson y Ruta_Id
+
+    usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    List<dynamic> clientes = [];
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+    } else if (esAdmin) {
+      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
+      try {
+        clientes = await SyncService.getClients();
+        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+      } catch (e) {
+        print('DEBUG: Error obteniendo clientes para admin: $e');
+        clientes = [];
+      }
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      clientes = await SyncService.getClients();
+      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
+    }
+    }
+    
   void _onClienteChanged(DireccionCliente? direccion) {
     // Dismiss the keyboard when a client is selected
     FocusManager.instance.primaryFocus?.unfocus();
@@ -148,6 +199,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _filteredFacturas = direccion != null
           ? _facturas
                 .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
+                .where((factura) => factura['vend_Id'] == usuaIdPersona)
                 .toList()
           : [];
       // Actualizar el texto del controlador para reflejar la selección
