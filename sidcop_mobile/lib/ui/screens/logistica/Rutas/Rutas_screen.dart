@@ -19,6 +19,7 @@ import 'Rutas_mapscreen.dart';
 import 'Rutas_offline_mapscreen.dart';
 import 'Rutas_descargas_screen.dart';
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 
 class RutasScreen extends StatefulWidget {
   const RutasScreen({super.key});
@@ -27,19 +28,12 @@ class RutasScreen extends StatefulWidget {
 }
 
 class _RutasScreenState extends State<RutasScreen> {
-  bool isOnline = true;
+  bool isOnline =
+      false; // Variable de clase para almacenar el estado de conexión
 
-  Future<void> verificarConexion() async {
-    try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
-      if (response.statusCode == 200) {
-        isOnline = true;
-      } else {
-        isOnline = false;
-      }
-    } catch (e) {
-      isOnline = false;
-    }
+  Future<void> verificarconexion() async {
+    isOnline = await VerificarService.verificarConexion();
+    setState(() {}); // Actualiza la UI si es necesario
   }
 
   // mapas static locales cache handled via archivos en getApplicationDocumentsDirectory()
@@ -370,7 +364,7 @@ class _RutasScreenState extends State<RutasScreen> {
         return 'file://$filePath';
       }
       // No hay imagen local: comprobar conectividad antes de generar URL remota
-      await verificarConexion();
+      await verificarconexion();
       if (!isOnline) {
         print('DEBUG: offline y sin imagen local para ruta ${ruta.ruta_Id}');
         return '';
@@ -528,7 +522,7 @@ class _RutasScreenState extends State<RutasScreen> {
                                     children: [
                                       GestureDetector(
                                         onTap: () async {
-                                          await verificarConexion();
+                                          await verificarconexion();
                                           if (isOnline) {
                                             Navigator.push(
                                               context,
@@ -696,7 +690,7 @@ class _RutasScreenState extends State<RutasScreen> {
                                     children: [
                                       GestureDetector(
                                         onTap: () async {
-                                          await verificarConexion();
+                                          await verificarconexion();
                                           if (isOnline) {
                                             Navigator.push(
                                               context,
