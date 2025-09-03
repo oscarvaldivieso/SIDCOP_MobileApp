@@ -9,6 +9,7 @@ import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.
 import 'package:flutter/services.dart';
 import 'package:sidcop_mobile/Offline_Services/Recargas_OfflineService.dart';
 import 'dart:convert';
+import 'dart:io';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -641,19 +642,55 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Future<void> _fetchProductos() async {
+    bool online = true;
     try {
-      final productos = await _productosService.getProductos();
+      final result = await InternetAddress.lookup('google.com');
+      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      online = false;
+    }
+    if (online) {
+      try {
+        final productos = await _productosService.getProductos();
+        setState(() {
+          _productos = productos;
+          _isLoading = false;
+          if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
+            _preFillEditData();
+          }
+        });
+        // Guardar productos offline
+        try {
+          final jsonList = productos.map((p) => p.toJson()).toList();
+          await RecargasScreenOffline.guardarJson('productos.json', jsonList);
+        } catch (_) {}
+      } catch (e) {
+        // Si falla online, intentar cargar productos offline
+        await _loadProductosOffline();
+      }
+    } else {
+      await _loadProductosOffline();
+    }
+  }
+
+  Future<void> _loadProductosOffline() async {
+    try {
+      final raw = await RecargasScreenOffline.leerJson('productos.json');
+      if (raw != null) {
+        final lista = List.from(raw as List);
+        setState(() {
+          _productos = lista.map((json) => Productos.fromJson(json)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _productos = [];
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
       setState(() {
-        _productos = productos;
-        _isLoading = false;
-        
-        // Si estamos en modo edición, pre-llenar las cantidades
-        if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
-          _preFillEditData();
-        }
-      });
-    } catch (e) {
-      setState(() {
+        _productos = [];
         _isLoading = false;
       });
     }
