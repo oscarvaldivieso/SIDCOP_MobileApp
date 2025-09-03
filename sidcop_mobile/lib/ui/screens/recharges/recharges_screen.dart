@@ -877,45 +877,104 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     return;
                   }
 
-                  // 3. Llamar a RecargasService
-                  final recargaService = RecargasService();
-                  bool ok;
-                  
-                  if (widget.isEditMode && widget.recaId != null) {
-                    // Modo edición - actualizar recarga existente
-                    ok = await recargaService.updateRecarga(
-                      recaId: widget.recaId!,
-                      usuaModificacion: usuaId,
-                      detalles: detalles,
-                    );
-                  } else {
-                    // Modo creación - insertar nueva recarga
+                  // 3. Verificar conectividad
+                  bool online = true;
+                  try {
+                    final result = await InternetAddress.lookup('google.com');
+                    online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+                  } catch (_) {
+                    online = false;
+                  }
+                  bool ok = false;
+                  if (online) {
+                    // 4. Llamar a RecargasService
+                    final recargaService = RecargasService();
                     ok = await recargaService.insertarRecarga(
                       usuaCreacion: usuaId,
                       detalles: detalles,
                     );
+                  } else {
+                    // Guardar recarga offline para sincronizar después
+                    final recargaOffline = {
+                      'usua_Id': usuaId,
+                      'detalles': detalles,
+                      'fecha': DateTime.now().toIso8601String(),
+                      'offline': true,
+                    };
+                    try {
+                      final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+                      List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+                      pendientes.add(recargaOffline);
+                      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientes);
+                      ok = true;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Recarga guardada en modo offline'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      ok = false;
+                    }
                   }
-                  
+
+                  // 4. Intentar sincronizar pendientes si hay conexión
+                  if (online) {
+                    try {
+                      final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+                      if (raw != null) {
+                        List<dynamic> pendientes = List.from(raw as List);
+                        if (pendientes.isNotEmpty) {
+                          final recargaService = RecargasService();
+                          List<dynamic> enviados = [];
+                          for (final recarga in pendientes) {
+                            try {
+                              final detallesPend = recarga['detalles'] ?? [];
+                              final usuaIdPend = recarga['usua_Id'] ?? 0;
+                              final okPend = await recargaService.insertarRecarga(
+                                usuaCreacion: usuaIdPend,
+                                detalles: detallesPend,
+                              );
+                              if (okPend) enviados.add(recarga);
+                            } catch (_) {}
+                          }
+                          if (enviados.isNotEmpty) {
+                            pendientes.removeWhere((r) => enviados.contains(r));
+                            await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientes);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${enviados.length} recarga(s) sincronizada(s) con éxito'),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      }
+                    } catch (_) {}
+                  }
+
                   if (mounted) {
                     if (ok) {
-                      print('🔍 DEBUG: Operación exitosa - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(widget.isEditMode 
-                              ? "Recarga actualizada correctamente" 
-                              : "Recarga enviada correctamente"),
-                          backgroundColor: Colors.green,
+                          content: Text(online
+                              ? "Recarga enviada correctamente"
+                              : "Recarga guardada en modo offline. Se enviará cuando haya conexión."),
+                          backgroundColor: online ? Colors.green : Colors.orange,
                         ),
                       );
-                      print('🔍 DEBUG: Cerrando modal con resultado: true');
                       Navigator.of(context).pop(true);
                     } else {
-                      print('🔍 DEBUG: Operación fallida - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(widget.isEditMode 
-                              ? "Error al actualizar la recarga" 
-                              : "Error al enviar la recarga"),
+                          content: Text(online
+                              ? "Error al enviar la recarga"
+                              : "Error al guardar la recarga offline"),
                           backgroundColor: Colors.red,
                         ),
                       );
