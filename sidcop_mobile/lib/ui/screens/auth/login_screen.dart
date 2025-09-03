@@ -274,8 +274,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.remove('remember_me');
       await prefs.remove('saved_email');
       await prefs.remove('saved_password');
-      // Si se desactiva "Remember me", también limpiar credenciales offline
-      await OfflineAuthService.clearOfflineCredentials();
+      // NO limpiar credenciales offline aquí - solo limpiar "Remember me"
+      // Las credenciales offline deben persistir para permitir login offline
     }
   }
 
@@ -333,7 +333,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           
           if (result != null && result['error'] != true) {
-            // Login online exitoso - guardar credenciales offline
+            // Login online exitoso - SIEMPRE guardar credenciales offline
             await OfflineAuthService.saveOfflineCredentials(
               username: _emailController.text.trim(),
               password: _passwordController.text,
@@ -365,6 +365,16 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result != null && result['error'] != true) {
         // Login exitoso (online u offline)
         await _perfilUsuarioService.guardarDatosUsuario(result);
+        
+        // Si fue login online exitoso, asegurar que se guarden credenciales offline
+        if (!isOfflineLogin) {
+          await OfflineAuthService.saveOfflineCredentials(
+            username: _emailController.text.trim(),
+            password: _passwordController.text,
+            userData: result,
+          );
+          await OfflineAuthService.updateLastOnlineLogin();
+        }
         
         // Guardar credenciales si "Remember me" está activado
         await _saveCredentials();
