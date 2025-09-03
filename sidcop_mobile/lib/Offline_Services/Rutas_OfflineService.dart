@@ -70,10 +70,30 @@ class RutasScreenOffline {
     Uint8List bytes,
   ) async {
     try {
-      // Guardar bytes en secure storage como base64
+      // Guardar bytes en secure storage como base64 (fallback) y también
+      // escribir un archivo en disco dentro de la carpeta 'offline' para
+      // que consumidores que esperan ruta/archivo local funcionen offline.
       final key = 'bin:$nombreArchivo';
       final encoded = base64Encode(bytes);
       await _secureStorage.write(key: key, value: encoded);
+
+      // Escribir a disco de forma atómica: escribir en un temporal y renombrar.
+      try {
+        final ruta = await _rutaArchivo(nombreArchivo);
+        final targetFile = File(ruta);
+        final tempPath = '$ruta.tmp';
+        final tempFile = File(tempPath);
+        // Asegurar que el directorio padre existe ( _rutaArchivo ya lo crea )
+        await tempFile.writeAsBytes(bytes, flush: true);
+        if (await targetFile.exists()) {
+          await targetFile.delete();
+        }
+        await tempFile.rename(ruta);
+      } catch (e) {
+        // No abortar todo el proceso si la escritura a disco falla; ya tenemos
+        // la copia en secure storage. Loguear para diagnóstico.
+        print('WARN: guardarBytes fallo al escribir en disco: $e');
+      }
     } catch (e) {
       rethrow;
     }
@@ -82,21 +102,38 @@ class RutasScreenOffline {
   /// Lee bytes desde un archivo. Devuelve null si no existe.
   static Future<Uint8List?> leerBytes(String nombreArchivo) async {
     try {
-      // Intentar leer desde secure storage primero
+      // Intentar leer desde disco primero (mejor rendimiento y compatibilidad
+      // con consumidores que esperan archivos locales). Si no existe en disco,
+      // intentar leer desde secure storage.
+      final ruta = await _rutaArchivo(nombreArchivo);
+      try {
+        final archivo = File(ruta);
+        if (await archivo.exists()) {
+          final bytes = await archivo.readAsBytes();
+          return Uint8List.fromList(bytes);
+        }
+      } catch (_) {
+        // si fallo leyendo disco, seguir con secure storage
+      }
+
+      // Fallback: leer desde secure storage
       final key = 'bin:$nombreArchivo';
       try {
         final s = await _secureStorage.read(key: key);
         if (s != null) {
           final decoded = base64Decode(s);
+          // Escribir una copia en disco para futuros accesos rápidos
+          try {
+            final rutaSave = await _rutaArchivo(nombreArchivo);
+            final archivoSave = File(rutaSave);
+            if (!await archivoSave.exists()) {
+              await archivoSave.writeAsBytes(decoded, flush: true);
+            }
+          } catch (_) {}
           return Uint8List.fromList(decoded);
         }
       } catch (_) {}
-      // Fallback: leer desde disco
-      final ruta = await _rutaArchivo(nombreArchivo);
-      final archivo = File(ruta);
-      if (!await archivo.exists()) return null;
-      final bytes = await archivo.readAsBytes();
-      return Uint8List.fromList(bytes);
+      return null;
     } catch (e) {
       rethrow;
     }
@@ -220,33 +257,254 @@ class RutasScreenOffline {
   // Helpers específicos para 'details' de ruta
   // -----------------------------
   /// Guarda los detalles de una ruta en secure storage bajo la clave 'details_ruta_<id>'
+  // Detalles de ruta: funcionalidad removida intencionalmente.
+  // Se conserva la firma como stub para evitar romper llamadas externas.
   static Future<void> guardarDetallesRuta(
     int rutaId,
     Map<String, dynamic> detalles,
   ) async {
-    final key = 'details_ruta_$rutaId';
-    await guardarJsonSeguro(key, detalles);
+    try {
+      final key = 'details_ruta_$rutaId';
+      await guardarJsonSeguro(key, detalles);
+    } catch (e) {
+      // No interrumpir el flujo de sincronización si falla el guardado local
+      print('WARN: guardarDetallesRuta failed for ruta $rutaId: $e');
+    }
   }
 
   /// Lee los detalles de una ruta desde secure storage; devuelve null si no existe
   static Future<Map<String, dynamic>?> leerDetallesRuta(int rutaId) async {
-    final key = 'details_ruta_$rutaId';
-    final raw = await leerJsonSeguro(key);
-    if (raw == null) return null;
     try {
-      return Map<String, dynamic>.from(raw as Map);
-    } catch (_) {
+      // Primero intentar leer detalles específicos por ruta (si fueron guardados antes)
+      final key = 'details_ruta_$rutaId';
+      final detallesRaw = await leerJsonSeguro(key);
+
+      List<Map<String, dynamic>> clientesJson = [];
+      List<Map<String, dynamic>> direccionesJson = [];
+      String? staticMapUrl;
+      String? staticMapLocalPath;
+
+      if (detallesRaw != null) {
+        // Aceptar estructuras flexibles
+        try {
+          clientesJson = List<Map<String, dynamic>>.from(
+            detallesRaw['clientes'] as List? ?? [],
+          );
+        } catch (_) {
+          clientesJson = [];
+        }
+        try {
+          direccionesJson = List<Map<String, dynamic>>.from(
+            detallesRaw['direcciones'] as List? ?? [],
+          );
+        } catch (_) {
+          direccionesJson = [];
+        }
+
+        // Si los datos guardados tienen 0 direcciones, borrarlos y usar fallback
+        if (direccionesJson.isEmpty) {
+          print(
+            'DEBUG: leerDetallesRuta - stored details have 0 direcciones, deleting and using fallback',
+          );
+          await borrarDetallesRuta(rutaId);
+          // Usar fallback inmediatamente
+          clientesJson = await cargarClientes();
+          final rawDirs = await obtenerDireccionesLocal();
+          print(
+            'DEBUG: leerDetallesRuta - fallback after delete: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
+          );
+          try {
+            direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
+          } catch (_) {
+            direccionesJson = [];
+          }
+        }
+
+        staticMapUrl = detallesRaw['staticMapUrl']?.toString();
+        staticMapLocalPath = detallesRaw['staticMapLocalPath']?.toString();
+      } else {
+        print(
+          'DEBUG: leerDetallesRuta - no stored details, using fallback JSONs for ruta $rutaId',
+        );
+        // Fallback: usar los JSON locales sincronizados (clientes.json / direcciones.json)
+        clientesJson = await cargarClientes();
+        final rawDirs = await obtenerDireccionesLocal();
+        print(
+          'DEBUG: leerDetallesRuta - fallback: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
+        );
+        try {
+          direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
+        } catch (_) {
+          // Si no se puede convertir, dejar vacío
+          direccionesJson = [];
+        }
+        // si existe imagen local para la ruta, devolver su path
+        try {
+          final localPath = await rutaEnDocuments('map_static_$rutaId.png');
+          final f = File(localPath);
+          if (await f.exists()) staticMapLocalPath = localPath;
+        } catch (_) {}
+      }
+
+      // Aplicar filtrado: clientes por ruta_Id, direcciones por clie_id
+      final clientesFiltrados = clientesJson
+          .where((c) => (c['ruta_Id'] ?? c['rutaId']) == rutaId)
+          .toList();
+
+      final clienteIds = clientesFiltrados
+          .map((c) => c['clie_Id'] ?? c['clieId'] ?? c['id'])
+          .where((id) => id != null)
+          .toSet();
+
+      final direccionesFiltradas = direccionesJson
+          .where(
+            (d) => clienteIds.contains(
+              d['clie_id'] ??
+                  d['clieId'] ??
+                  d['clie_Id'] ??
+                  d['clieId'] ??
+                  d['clieId'],
+            ),
+          )
+          .toList();
+
+      // Normalizar claves para asegurar compatibilidad con fromJson de los modelos
+      List<Map<String, dynamic>> clientesNorm = clientesFiltrados.map((c) {
+        final map = Map<String, dynamic>.from(c as Map);
+        return {
+          'clie_Id': map['clie_Id'] ?? map['clieId'] ?? map['id'],
+          'clie_Codigo':
+              map['clie_Codigo'] ?? map['clieCodigo'] ?? map['codigo'],
+          'clie_Nombres':
+              map['clie_Nombres'] ?? map['nombre'] ?? map['clieNombres'],
+          'clie_Apellidos':
+              map['clie_Apellidos'] ?? map['apellidos'] ?? map['clieApellidos'],
+          'clie_NombreNegocio':
+              map['clie_NombreNegocio'] ??
+              map['nombreNegocio'] ??
+              map['negocio'],
+          'clie_ImagenDelNegocio':
+              map['clie_ImagenDelNegocio'] ?? map['imagen'] ?? map['foto'],
+          'clie_DireccionExacta':
+              map['clie_DireccionExacta'] ??
+              map['direccionExacta'] ??
+              map['direccion'],
+          'ruta_Id': map['ruta_Id'] ?? map['rutaId'] ?? map['ruta'],
+          // Passthrough: incluir cualquier key adicional para que fromJson pueda usarla
+          ...map,
+        };
+      }).toList();
+
+      List<Map<String, dynamic>> direccionesNorm = direccionesFiltradas.map((
+        d,
+      ) {
+        final map = Map<String, dynamic>.from(d as Map);
+        // Helper para obtener valor original (convirtiendo tipos simples a lo esperado)
+        dynamic get(List<String> keys) {
+          for (final k in keys) {
+            if (map.containsKey(k) && map[k] != null) return map[k];
+          }
+          return null;
+        }
+
+        return {
+          'diCl_Id': get(['diCl_Id', 'diClId', 'dicl_id', 'diclId', 'id']),
+          'clie_Id': get(['clie_Id', 'clieId', 'clie_id']),
+          'colo_Id': get(['colo_Id', 'coloId']),
+          'diCl_DireccionExacta': get([
+            'diCl_DireccionExacta',
+            'diCl_Direccion',
+            'dicl_direccionexacta',
+            'direccion',
+          ]),
+          'diCl_Observaciones': get([
+            'diCl_Observaciones',
+            'dicl_observaciones',
+            'observaciones',
+          ]),
+          'diCl_Latitud': get([
+            'diCl_Latitud',
+            'dicl_latitud',
+            'latitud',
+            'diclLatitud',
+          ]),
+          'diCl_Longitud': get([
+            'diCl_Longitud',
+            'dicl_longitud',
+            'longitud',
+            'diclLongitud',
+          ]),
+          'muni_Descripcion': get([
+            'muni_Descripcion',
+            'muni_descripcion',
+            'muniDescripcion',
+          ]),
+          'depa_Descripcion': get([
+            'depa_Descripcion',
+            'depa_descripcion',
+            'depaDescripcion',
+          ]),
+          'usua_Creacion': get(['usua_Creacion', 'usua_creacion']),
+          'diCl_FechaCreacion': get([
+            'diCl_FechaCreacion',
+            'diCl_Fecha',
+            'dicl_fechacreacion',
+          ]),
+          'usua_Modificacion': get(['usua_Modificacion', 'usua_modificacion']),
+          'diCl_FechaModificacion': get([
+            'diCl_FechaModificacion',
+            'diCl_FechaMod',
+            'dicl_fechamodificacion',
+          ]),
+          // copiar campos del cliente si están presentes
+          'clie_Nombres': get(['clie_Nombres', 'clieNombres', 'nombre']),
+          'clie_Apellidos': get(['clie_Apellidos', 'apellido', 'apellidos']),
+          'clie_NombreNegocio': get([
+            'clie_NombreNegocio',
+            'negocio',
+            'nombreNegocio',
+          ]),
+          'clie_Codigo': get(['clie_Codigo', 'clieCodigo', 'codigo']),
+          // Passthrough de resto
+          ...map,
+        };
+      }).toList();
+
+      return {
+        'clientes': clientesNorm,
+        'direcciones': direccionesNorm,
+        'staticMapUrl': staticMapUrl,
+        'staticMapLocalPath': staticMapLocalPath,
+      };
+    } catch (e) {
+      // en caso de fallo, devolver null para que el llamador tome la ruta online
       return null;
     }
   }
 
   /// Borra los detalles de una ruta de secure storage (si existen)
   static Future<void> borrarDetallesRuta(int rutaId) async {
-    final key = 'details_ruta_$rutaId';
     try {
+      final key = 'details_ruta_$rutaId';
       await _secureStorage.delete(key: key);
     } catch (e) {
-      rethrow;
+      print('WARN: borrarDetallesRuta failed for ruta $rutaId: $e');
+    }
+  }
+
+  /// Borra todos los detalles de rutas guardados para forzar regeneración
+  static Future<void> limpiarTodosLosDetalles() async {
+    try {
+      final allKeys = await _secureStorage.readAll();
+      for (final key in allKeys.keys) {
+        if (key.startsWith('details_ruta_')) {
+          await _secureStorage.delete(key: key);
+          print('DEBUG: deleted obsolete key: $key');
+        }
+      }
+      print('DEBUG: limpiarTodosLosDetalles completed');
+    } catch (e) {
+      print('WARN: limpiarTodosLosDetalles failed: $e');
     }
   }
 
@@ -267,17 +525,9 @@ class RutasScreenOffline {
     String imageUrl,
     String nombreArchivo,
   ) async {
-    try {
-      final resp = await http.get(Uri.parse(imageUrl));
-      if (resp.statusCode == 200) {
-        final ruta = await rutaEnDocuments('$nombreArchivo.png');
-        final file = File(ruta);
-        await file.writeAsBytes(resp.bodyBytes);
-        return ruta;
-      }
-    } catch (e) {
-      // fallthrough
-    }
+    // Per requirement: offline service must not download or call remote static
+    // map endpoints. Image caching must be handled by the UI while online.
+    // Keep a placeholder implementation for legacy callers.
     return null;
   }
 
@@ -319,6 +569,47 @@ class RutasScreenOffline {
         print('SYNC: sincronizarClientes fetched (unknown count)');
       }
       await guardarJson(_archivoClientes, data);
+      // After saving clients JSON, attempt to download and cache business images
+      try {
+        for (final c in data) {
+          try {
+            if (c is! Map) continue;
+            final id = (c['clie_Id'] ?? c['clieId'] ?? c['id'])?.toString();
+            if (id == null || id.isEmpty) continue;
+            // Support several possible image keys
+            final imageUrl =
+                (c['clie_ImagenDelNegocio'] ??
+                        c['clieImagenDelNegocio'] ??
+                        c['imagen'] ??
+                        c['foto'] ??
+                        '')
+                    ?.toString() ??
+                '';
+            if (imageUrl.isEmpty) continue;
+            final filename = 'foto_negocio_${id}.jpg';
+            final exists = await existe(filename);
+            if (exists) continue; // skip if already stored
+            try {
+              final resp = await http
+                  .get(Uri.parse(imageUrl))
+                  .timeout(const Duration(seconds: 8));
+              if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+                await guardarBytes(
+                  filename,
+                  Uint8List.fromList(resp.bodyBytes),
+                );
+                print('SYNC: saved negocio image for cliente $id -> $filename');
+              } else {
+                // ignore non-200
+              }
+            } catch (_) {
+              // Ignore download failures per-client to avoid aborting sync
+            }
+          } catch (_) {
+            continue;
+          }
+        }
+      } catch (_) {}
       // Intentar convertir a lista de mapas
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
@@ -326,20 +617,71 @@ class RutasScreenOffline {
     }
   }
 
+  /// Guarda la foto de negocio de un cliente (nombre: 'foto_negocio_<clienteId>.jpg').
+  static Future<void> guardarFotoNegocio(
+    String clienteId,
+    Uint8List bytes,
+  ) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    await guardarBytes(filename, bytes);
+  }
+
+  /// Lee la foto de negocio de un cliente si existe.
+  static Future<Uint8List?> leerFotoNegocio(String clienteId) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    return await leerBytes(filename);
+  }
+
+  /// Devuelve la ruta absoluta en disco del archivo de foto del negocio si
+  /// existe, o null si no está disponible en disco. Esto es útil para
+  /// widgets que prefieren `Image.file(File(path))`.
+  static Future<String?> rutaFotoNegocioLocal(String clienteId) async {
+    final filename = 'foto_negocio_${clienteId}.jpg';
+    try {
+      final ruta = await _rutaArchivo(filename);
+      final archivo = File(ruta);
+      if (await archivo.exists()) return ruta;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.
   static Future<List<dynamic>> sincronizarDirecciones() async {
     try {
+      print('DEBUG: sincronizarDirecciones - starting...');
       final servicio = DireccionClienteService();
       final data = await servicio.getDireccionesPorCliente();
+      print(
+        'DEBUG: sincronizarDirecciones - received data type: ${data.runtimeType}',
+      );
       try {
         final lista = List.from(data);
         print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
+        if (lista.isNotEmpty) {
+          print(
+            'DEBUG: sincronizarDirecciones - sample direccion: ${lista.first}',
+          );
+        }
       } catch (_) {
         print('SYNC: sincronizarDirecciones fetched (unknown count)');
       }
-      await guardarJson('direcciones.json', data);
-      return data as List<dynamic>;
+
+      // Convertir objetos DireccionCliente a JSON maps antes de guardar
+      List<Map<String, dynamic>> direccionesJson = [];
+      for (final item in data) {
+        direccionesJson.add(item.toJson());
+      }
+
+      print(
+        'DEBUG: sincronizarDirecciones - converted to ${direccionesJson.length} JSON maps',
+      );
+      await guardarJson('direcciones.json', direccionesJson);
+      print('DEBUG: sincronizarDirecciones - saved to direcciones.json');
+      return direccionesJson;
     } catch (e) {
+      print('ERROR: sincronizarDirecciones failed: $e');
       rethrow;
     }
   }
@@ -395,8 +737,18 @@ class RutasScreenOffline {
       } catch (_) {
         print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
       }
-      await guardarJson('vendedores_por_rutas.json', data);
-      return data as List<dynamic>;
+
+      // Convertir objetos VendedoresPorRutaModel a JSON
+      final vendedoresJson = <Map<String, dynamic>>[];
+      for (final item in data) {
+        vendedoresJson.add(item.toJson());
+      }
+      print(
+        'SYNC: sincronizarVendedoresPorRutas converted ${vendedoresJson.length} objects to JSON',
+      );
+
+      await guardarJson('vendedores_por_rutas.json', vendedoresJson);
+      return vendedoresJson;
     } catch (e) {
       rethrow;
     }
@@ -480,20 +832,16 @@ class RutasScreenOffline {
         rutas = await sincronizarRutas();
       }
 
-      // Traer clientes y direcciones una sola vez
-      final List<dynamic> clientesRaw = await ClientesService().getClientes();
-      final List<dynamic> direccionesRaw = await DireccionClienteService()
-          .getDireccionesPorCliente();
-
-      const iconUrl =
-          'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+      // Traer (y sincronizar) clientes y direcciones una sola vez.
+      // Usar las funciones sincronizar* para asegurar que las imágenes de negocio
+      // se descarguen y guarden en el offline store.
+      final List<dynamic> clientesRaw = await sincronizarClientes();
+      final List<dynamic> direccionesRaw = await sincronizarDirecciones();
 
       for (final r in rutas) {
         try {
           // soportar objetos Map o formatos ya convertidos
-          final rutaId = (r is Map)
-              ? r['ruta_Id'] ?? r['rutaId']
-              : (r is Map ? r['ruta_Id'] : null);
+          final rutaId = (r is Map) ? r['ruta_Id'] ?? r['rutaId'] : null;
           if (rutaId == null) continue;
 
           // filtrar clientes por ruta
@@ -510,33 +858,36 @@ class RutasScreenOffline {
               .where((d) => clienteIds.contains(d is Map ? d['clie_id'] : null))
               .toList();
 
-          final markers = direccionesFiltradas
+          // Construir lista de puntos visibles por si se necesita la URL
+          final visiblePoints = direccionesFiltradas
               .where(
                 (d) =>
                     (d is Map ? d['dicl_latitud'] : null) != null &&
                     (d is Map ? d['dicl_longitud'] : null) != null,
               )
-              .map(
-                (d) =>
-                    'markers=icon:$iconUrl%7C${d['dicl_latitud']},${d['dicl_longitud']}',
-              )
-              .join('&');
+              .map((d) => '${d['dicl_latitud']},${d['dicl_longitud']}')
+              .join('|');
 
-          final center =
-              (direccionesFiltradas.isNotEmpty &&
-                  (direccionesFiltradas.first is Map) &&
-                  direccionesFiltradas.first['dicl_latitud'] != null &&
-                  direccionesFiltradas.first['dicl_longitud'] != null)
-              ? '${direccionesFiltradas.first['dicl_latitud']},${direccionesFiltradas.first['dicl_longitud']}'
-              : '15.525585,-88.013512';
-
+          // Construir una URL informativa (no la usaremos para descargar)
           final staticUrl =
-              'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
+              'https://maps.googleapis.com/maps/api/staticmap?size=400x150&visible=$visiblePoints&key=$mapApikey';
 
-          // Guardar imagen estática en Documents
-          await guardarImagenDeMapaStatic(staticUrl, 'map_static_$rutaId');
+          // NO descargar desde Google Static Maps aquí. Usar la imagen que
+          // ya fue generada por `Rutas_screen` y guardada en Documents.
+          final localPath = await rutaEnDocuments('map_static_$rutaId.png');
+          final localFile = File(localPath);
+          final hasLocal = await localFile.exists();
+          if (hasLocal) {
+            print(
+              'DEBUG: usar imagen local existente para ruta $rutaId -> $localPath',
+            );
+          } else {
+            print(
+              'DEBUG: no se encontró imagen local para ruta $rutaId; no se descargará aquí',
+            );
+          }
 
-          // Construir detalles y guardarlos
+          // Construir detalles y guardarlos (incluye referencia local si existe)
           final detalles = {
             'clientes': clientesFiltrados
                 .map((c) => c is Map ? c : {})
@@ -545,6 +896,7 @@ class RutasScreenOffline {
                 .map((d) => d is Map ? d : {})
                 .toList(),
             'staticMapUrl': staticUrl,
+            'staticMapLocalPath': hasLocal ? localPath : null,
           };
           await guardarDetallesRuta(rutaId, detalles);
         } catch (_) {

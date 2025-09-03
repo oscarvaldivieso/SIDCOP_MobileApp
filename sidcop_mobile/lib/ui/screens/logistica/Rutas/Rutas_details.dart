@@ -6,9 +6,11 @@ import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'Rutas_mapscreen.dart'; // contiene RutaMapScreen
+import 'Rutas_offline_mapscreen.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'dart:io';
-import 'package:sidcop_mobile/services/OfflineService.dart';
+import 'package:http/http.dart' as http;
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 // Limpio y reconstruido: detalles de ruta con sección desplegable única "Clientes".
 
@@ -28,6 +30,35 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     final file = File(filePath);
     if (await file.exists()) return filePath;
     return null;
+  }
+
+  /// Descarga la imagen desde `url` y la guarda en Documents como map_static_<rutaId>.png
+  Future<void> _guardarImagenDesdeUrlSiEsPosible(String url, int rutaId) async {
+    if (url.isEmpty) return;
+    try {
+      final uri = Uri.parse(url);
+      final resp = await http.get(uri);
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        final path = await RutasScreenOffline.rutaEnDocuments(
+          'map_static_$rutaId.png',
+        );
+        final file = File(path);
+        await file.writeAsBytes(resp.bodyBytes);
+        // metadata
+        try {
+          final metaPath = await RutasScreenOffline.rutaEnDocuments(
+            'map_static_$rutaId.url.txt',
+          );
+          final metaFile = File(metaPath);
+          await metaFile.writeAsString(
+            'url:$url\nbytes:${resp.bodyBytes.length}',
+          );
+        } catch (_) {}
+        print('DEBUG: detalles - imagen guardada en $path');
+      }
+    } catch (e) {
+      print('DEBUG: no se pudo descargar imagen de detalles: $e');
+    }
   }
 
   // Usar el servicio centralizado para persistencia offline
@@ -70,7 +101,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       }
       // Usar el mismo icono marker que en Rutas_screen.dart
       const iconUrl =
-          'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1755185408/static_marker_cjmmpj.png';
+          'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
       final markers = direccionesFiltradas
           .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
           .map(
@@ -78,14 +109,13 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                 'markers=icon:$iconUrl%7C${d.dicl_latitud},${d.dicl_longitud}',
           )
           .join('&');
-      final center =
-          (direccionesFiltradas.isNotEmpty &&
-              direccionesFiltradas.first.dicl_latitud != null &&
-              direccionesFiltradas.first.dicl_longitud != null)
-          ? '${direccionesFiltradas.first.dicl_latitud},${direccionesFiltradas.first.dicl_longitud}'
-          : '15.525585,-88.013512';
+      final visiblePoints = direccionesFiltradas
+          .where((d) => d.dicl_latitud != null && d.dicl_longitud != null)
+          .map((d) => '${d.dicl_latitud},${d.dicl_longitud}')
+          .join('|');
+      // El parámetro visible fuerza a que todos los puntos estén en la imagen
       final staticUrl =
-          'https://maps.googleapis.com/maps/api/staticmap?center=$center&zoom=10&size=600x250&$markers&key=$mapApikey';
+          'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
       if (mounted) {
         setState(() {
           _clientes = clientesFiltrados;
@@ -94,17 +124,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           _loading = false;
         });
       }
-      // Guardar imagen estática offline usando el servicio central
-      await RutasScreenOffline.guardarImagenDeMapaStatic(
-        staticUrl,
-        'map_static_${widget.ruta.ruta_Id}',
-      );
-      // Guardar detalles encriptados offline usando el servicio central
-      await _guardarDetallesOffline(
-        clientesFiltrados,
-        direccionesFiltradas,
-        staticUrl,
-      );
+      // Intentar guardar la imagen static localmente (UI) y luego guardar detalles
+      await _guardarImagenDesdeUrlSiEsPosible(staticUrl, widget.ruta.ruta_Id);
     } catch (e) {
       // Si falla, intentar leer detalles offline
       final detallesOffline = await _leerDetallesOffline();
@@ -133,48 +154,73 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     }
   }
 
-  // Guarda los detalles encriptados offline por ruta usando RutasScreenOffline
-  Future<void> _guardarDetallesOffline(
-    List<Cliente> clientes,
-    List<DireccionCliente> direcciones,
-    String staticMapUrl,
-  ) async {
-    final detalles = {
-      'clientes': clientes.map((c) => c.toJson()).toList(),
-      'direcciones': direcciones.map((d) => d.toJson()).toList(),
-      'staticMapUrl': staticMapUrl,
-    };
-    await RutasScreenOffline.guardarJsonSeguro(
-      'details_ruta_${widget.ruta.ruta_Id}',
-      detalles,
-    );
-  }
+  // Nota: la pantalla ya no guarda detalles de ruta en almacenamiento.
 
   // Lee los detalles encriptados offline por ruta usando RutasScreenOffline
   Future<Map<String, dynamic>?> _leerDetallesOffline() async {
-    final detallesMap = await RutasScreenOffline.leerJsonSeguro(
-      'details_ruta_${widget.ruta.ruta_Id}',
+    final detalles = await RutasScreenOffline.leerDetallesRuta(
+      widget.ruta.ruta_Id,
     );
-    if (detallesMap == null) return null;
-    // Reconstruir objetos
+    if (detalles == null) {
+      print(
+        'DEBUG: _leerDetallesOffline - no hay detalles para ruta ${widget.ruta.ruta_Id}',
+      );
+      return null;
+    }
+
+    print('DEBUG: _leerDetallesOffline - detalles keys: ${detalles.keys}');
+    print(
+      'DEBUG: _leerDetallesOffline - clientes count: ${(detalles['clientes'] as List?)?.length ?? 0}',
+    );
+    print(
+      'DEBUG: _leerDetallesOffline - direcciones count: ${(detalles['direcciones'] as List?)?.length ?? 0}',
+    );
+
+    // convertir a objetos modelo para el UI
     final clientes =
-        (detallesMap['clientes'] as List?)
-            ?.map((j) => Cliente.fromJson(j))
-            .toList() ??
+        (detalles['clientes'] as List?)?.map((j) {
+          print(
+            'DEBUG: converting cliente JSON: ${j.toString().substring(0, 100)}...',
+          );
+          return Cliente.fromJson(j);
+        }).toList() ??
         [];
     final direcciones =
-        (detallesMap['direcciones'] as List?)
-            ?.map((j) => DireccionCliente.fromJson(j))
-            .toList() ??
+        (detalles['direcciones'] as List?)?.map((j) {
+          print(
+            'DEBUG: converting direccion JSON: ${j.toString().substring(0, 100)}...',
+          );
+          return DireccionCliente.fromJson(j);
+        }).toList() ??
         [];
+
+    print(
+      'DEBUG: _leerDetallesOffline - converted clientes: ${clientes.length}',
+    );
+    print(
+      'DEBUG: _leerDetallesOffline - converted direcciones: ${direcciones.length}',
+    );
+
     final mapDirecciones = <int, List<DireccionCliente>>{};
     for (final d in direcciones) {
+      print(
+        'DEBUG: direccion clie_id=${d.clie_id}, dicl_direccionexacta=${d.dicl_direccionexacta}',
+      );
       mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
     }
+
+    for (final c in clientes) {
+      final dirs = mapDirecciones[c.clie_Id ?? -1] ?? [];
+      print(
+        'DEBUG: cliente ${c.clie_NombreNegocio} (id=${c.clie_Id}) tiene ${dirs.length} direcciones',
+      );
+    }
+
     return {
       'clientes': clientes,
       'direccionesPorCliente': mapDirecciones,
-      'staticMapUrl': detallesMap['staticMapUrl'],
+      'staticMapUrl':
+          detalles['staticMapUrl'] ?? detalles['staticMapLocalPath'],
     };
   }
 
@@ -366,16 +412,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
                     const SizedBox(height: 16),
                     _staticMapUrl != null
                         ? GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => RutaMapScreen(
-                                    rutaId: widget.ruta.ruta_Id,
-                                    descripcion: widget.ruta.ruta_Descripcion,
-                                    vendId: globalVendId,
-                                  ),
-                                ),
-                              );
+                            onTap: () async {
+                              await _abrirMapaSegunConexion();
                             },
                             child: Stack(
                               children: [
@@ -664,5 +702,46 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
               ),
             ),
     );
+  }
+
+  Future<void> _abrirMapaSegunConexion() async {
+    try {
+      // Quick connectivity probe
+      final resp = await http
+          .get(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 5));
+      final online = resp.statusCode == 200;
+      if (online) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RutaMapScreen(
+              rutaId: widget.ruta.ruta_Id,
+              descripcion: widget.ruta.ruta_Descripcion,
+              vendId: globalVendId,
+            ),
+          ),
+        );
+      } else {
+        // fallback to offline map
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RutasOfflineMapScreen(
+              rutaId: widget.ruta.ruta_Id,
+              descripcion: widget.ruta.ruta_Descripcion,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // On timeout or any network error, open offline map
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RutasOfflineMapScreen(
+            rutaId: widget.ruta.ruta_Id,
+            descripcion: widget.ruta.ruta_Descripcion,
+          ),
+        ),
+      );
+    }
   }
 }

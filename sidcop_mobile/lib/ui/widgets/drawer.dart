@@ -15,6 +15,7 @@ import 'package:sidcop_mobile/ui/screens/inventory/inventory_screen.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import '../../services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/auth/login_screen.dart';
+import '../../../services/OfflineAuthService.dart';
 import 'package:sidcop_mobile/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:sidcop_mobile/ui/screens/logistica/Rutas/Rutas_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_screen.dart';
@@ -185,6 +186,10 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
+                        // Limpiar credenciales guardadas de "Remember me"
+                        await LoginScreen.clearSavedCredentials();
+                        // Limpiar credenciales offline
+                        await OfflineAuthService.clearOfflineCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
