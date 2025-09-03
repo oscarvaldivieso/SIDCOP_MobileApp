@@ -215,9 +215,54 @@ class ClientesVisitaHistorialService {
         headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
+      developer.log('obtenerEstadosVisita status: ${response.statusCode}');
+      developer.log('obtenerEstadosVisita body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        final parsed = jsonDecode(response.body);
+
+        // Helper: try to extract a List from common wrapper shapes
+        List<dynamic>? extractList(dynamic node) {
+          if (node == null) return null;
+          if (node is List) return node;
+          if (node is Map<String, dynamic>) {
+            // Common keys where a list may be placed
+            for (final k in ['data', 'result', 'items', 'lista', 'estado']) {
+              if (node.containsKey(k)) {
+                final candidate = node[k];
+                if (candidate is List) return candidate;
+                // if nested map with a list inside, try deeper
+                if (candidate is Map<String, dynamic>) {
+                  // try common nested keys
+                  for (final nk in ['data', 'items', 'lista']) {
+                    if (candidate.containsKey(nk) && candidate[nk] is List) {
+                      return candidate[nk] as List<dynamic>;
+                    }
+                  }
+                }
+              }
+            }
+            // As a last-resort, scan values for the first list
+            for (final v in node.values) {
+              if (v is List) return v;
+            }
+          }
+          return null;
+        }
+
+        final extracted = extractList(parsed) ?? [];
+        try {
+          return List<Map<String, dynamic>>.from(extracted);
+        } catch (e) {
+          developer.log('Error casteando estados de visita a List<Map>: $e');
+          // If cast fails, attempt to coerce each element
+          final coerced = <Map<String, dynamic>>[];
+          for (final item in extracted) {
+            if (item is Map<String, dynamic>) coerced.add(item);
+            else if (item is Map) coerced.add(Map<String, dynamic>.from(item));
+          }
+          return coerced;
+        }
       } else {
         throw Exception(
           'Error al obtener estados de visita: Código ${response.statusCode}, Respuesta: ${response.body}',
