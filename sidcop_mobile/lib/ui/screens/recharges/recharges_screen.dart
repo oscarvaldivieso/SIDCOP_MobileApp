@@ -25,6 +25,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
   bool _isLoading = true;
   List<dynamic> permisos = [];
   String _errorMessage = '';
+  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
 
   @override
   void initState() {
@@ -32,7 +33,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     _loadPermisos();
     _loadRecargas();
     Connectivity().onConnectivityChanged.listen((result) async {
-      if (result != ConnectivityResult.none) {
+      if (result != ConnectivityResult.none && !_isSyncing) {
         await _sincronizarRecargasPendientes();
       }
     });
@@ -146,20 +147,31 @@ class _RechargesScreenState extends State<RechargesScreen> {
   }
 
   Future<void> _sincronizarRecargasPendientes() async {
+    if (_isSyncing) return; // Salir si ya se está ejecutando
+    _isSyncing = true;
+
     final connectivityResult = await Connectivity().checkConnectivity();
     final online = connectivityResult != ConnectivityResult.none;
-    if (!online) return;
+    if (!online) {
+      _isSyncing = false;
+      return;
+    }
 
     try {
       // Leer recargas pendientes desde el almacenamiento local
       final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
-      if (pendientesRaw == null || pendientesRaw.isEmpty) return;
+      if (pendientesRaw == null || pendientesRaw.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
 
       final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
       final recargaService = RecargasService();
 
       int sincronizadas = 0;
-      final pendientesRestantes = <Map<String, dynamic>>[];
+
+      // Crear una nueva lista para almacenar las recargas no sincronizadas
+      final recargasNoSincronizadas = <Map<String, dynamic>>[];
 
       // Procesar recargas pendientes en orden
       for (final recarga in pendientes) {
@@ -176,18 +188,18 @@ class _RechargesScreenState extends State<RechargesScreen> {
           if (success) {
             sincronizadas++;
           } else {
-            // Si falla, mantener la recarga en pendientes
-            pendientesRestantes.add(recarga);
+            // Si no se sincroniza, agregar a la lista de no sincronizadas
+            recargasNoSincronizadas.add(recarga);
           }
         } catch (e) {
-          // Si falla una recarga, mantenerla en pendientes
+          // Si falla una recarga, agregarla a la lista de no sincronizadas
+          recargasNoSincronizadas.add(recarga);
           debugPrint('Error al sincronizar recarga: $e');
-          pendientesRestantes.add(recarga);
         }
       }
 
-      // Actualizar el archivo local con las recargas que no se pudieron sincronizar
-      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
+      // Actualizar el archivo local con las recargas no sincronizadas
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
 
       if (mounted && sincronizadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -200,6 +212,8 @@ class _RechargesScreenState extends State<RechargesScreen> {
       }
     } catch (e) {
       debugPrint('Error al sincronizar recargas pendientes: $e');
+    } finally {
+      _isSyncing = false; // Liberar el bloqueo al finalizar
     }
   }
 
@@ -701,14 +715,17 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
   String search = '';
   bool _isLoading = true;
+  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
 
   @override
   void initState() {
     super.initState();
     _fetchProductos();
-    _sincronizarRecargasPendientes();
+    if (!_isSyncing) {
+      _sincronizarRecargasPendientes();
+    }
     Connectivity().onConnectivityChanged.listen((result) async {
-      if (result != ConnectivityResult.none) {
+      if (result != ConnectivityResult.none && !_isSyncing) {
         await _sincronizarRecargasPendientes();
       }
     });
@@ -728,7 +745,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       final recargaService = RecargasService();
 
       int sincronizadas = 0;
-      final pendientesRestantes = <Map<String, dynamic>>[];
+
+      // Crear una nueva lista para almacenar las recargas no sincronizadas
+      final recargasNoSincronizadas = <Map<String, dynamic>>[];
 
       // Procesar recargas pendientes en orden
       for (final recarga in pendientes) {
@@ -745,18 +764,18 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           if (success) {
             sincronizadas++;
           } else {
-            // Si falla, mantener la recarga en pendientes
-            pendientesRestantes.add(recarga);
+            // Si no se sincroniza, agregar a la lista de no sincronizadas
+            recargasNoSincronizadas.add(recarga);
           }
         } catch (e) {
-          // Si falla una recarga, mantenerla en pendientes
+          // Si falla una recarga, agregarla a la lista de no sincronizadas
+          recargasNoSincronizadas.add(recarga);
           debugPrint('Error al sincronizar recarga: $e');
-          pendientesRestantes.add(recarga);
         }
       }
 
-      // Actualizar el archivo local con las recargas que no se pudieron sincronizar
-      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
+      // Actualizar el archivo local con las recargas no sincronizadas
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
 
       if (mounted && sincronizadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(

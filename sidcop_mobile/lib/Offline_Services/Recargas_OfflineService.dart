@@ -737,7 +737,7 @@ class RecargasScreenOffline {
     return sincronizadas;
   }
 
-  /// Sincroniza las recargas pendientes almacenadas localmente.
+  /// Consolidación de sincronización de recargas pendientes
   static Future<void> sincronizarRecargasPendientes() async {
     const String archivoPendientes = 'recargas_pendientes.json';
     try {
@@ -748,22 +748,66 @@ class RecargasScreenOffline {
         return;
       }
 
-      // Intentar enviar las recargas pendientes
-      final recargasService = RecargasService();
-      try {
-        await recargasService.insertarRecarga(
-          usuaCreacion: 1, // Ajustar según el usuario actual
-          detalles: pendientes.cast<Map<String, dynamic>>(),
-        );
-        print('Recargas sincronizadas exitosamente.');
+      final recargaService = RecargasService();
+      final noSincronizadas = <Map<String, dynamic>>[];
 
-        // Eliminar recargas pendientes locales si se sincronizan
-        await borrar(archivoPendientes);
-      } catch (e) {
-        print('Error al sincronizar recargas: $e');
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (!success) {
+            noSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          noSincronizadas.add(recarga);
+          print('Error al sincronizar recarga: $e');
+        }
       }
+
+      // Guardar las recargas no sincronizadas
+      await guardarJson(archivoPendientes, noSincronizadas);
+      print('Sincronización completada.');
     } catch (e) {
       print('Error durante la sincronización de recargas pendientes: $e');
+    }
+  }
+
+  /// Sincroniza las recargas pendientes y las guarda en 'recargas_pendientes.json'.
+  static Future<void> sincronizarRecargasPendientesOffline() async {
+    try {
+      final pendientes = await leerJson('recargas_pendientes.json') ?? [];
+      final recargaService = RecargasService();
+
+      final noSincronizadas = <Map<String, dynamic>>[];
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (!success) {
+            noSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          noSincronizadas.add(recarga);
+          print('Error al sincronizar recarga: $e');
+        }
+      }
+
+      await guardarJson('recargas_pendientes.json', noSincronizadas);
+    } catch (e) {
+      print('Error al sincronizar recargas pendientes: $e');
     }
   }
 }
