@@ -67,6 +67,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final List<DireccionCliente> _direcciones = [];
   int? usuaIdPersona;
   int? rutaId;
+  bool? esAdmin;
+  int? usuaId;
+
 
 
 
@@ -137,7 +140,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
     final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
-
+    usuaId = userData?['usua_Id'] as int?;
     // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
     List<dynamic> clientes = [];
 
@@ -315,7 +318,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Observaciones': 'Cliente creado desde la app móvil',
         'clie_ObservacionRetiro': 'Ninguna',
         'clie_Confirmacion': false,
-        'usua_Creacion': usuaIdPersona,
+        'usua_Creacion': usuaId,
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
         // Removed 'tras_Id' and 'clie_Estado' as they're not in the stored procedure
       };
