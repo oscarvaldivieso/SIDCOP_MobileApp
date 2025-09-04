@@ -585,9 +585,15 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                           children: [
                                             Expanded(
                                               child: OutlinedButton.icon(
-                                                icon: const Icon(Icons.map),
+                                                icon: const Icon(
+                                                  Icons.map,
+                                                  color: _gold,
+                                                ),
                                                 label: const Text(
                                                   'Google Maps',
+                                                  style: TextStyle(
+                                                    color: _gold,
+                                                  ),
                                                 ),
                                                 onPressed: () {
                                                   Navigator.of(context).pop();
@@ -625,8 +631,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                               child: OutlinedButton.icon(
                                                 icon: const Icon(
                                                   Icons.navigation,
+                                                  color: _gold,
                                                 ),
-                                                label: const Text('Waze'),
+                                                label: const Text(
+                                                  'Waze',
+                                                  style: TextStyle(
+                                                    color: _gold,
+                                                  ),
+                                                ),
                                                 onPressed: () {
                                                   Navigator.of(context).pop();
                                                   DireccionCliente? direccion;

@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Offline map viewer that serves tiles from a local .mbtiles file via a
 /// loopback HTTP server and uses flutter_map to render them.
@@ -81,6 +82,64 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       // Depurar estado de las direcciones después de cargar
       _depurarEstadoDirecciones();
     });
+  }
+
+  // Para abrir navegación en Google Maps
+  Future<void> _openExternalDirections(LatLng destino) async {
+    if (_centerLat == null || _centerLng == null) return;
+
+    final origin = '$_centerLat,$_centerLng';
+    final dest = '${destino.latitude},${destino.longitude}';
+
+    // Prefer Google Maps app scheme
+    final googleMapsUri = Uri.parse(
+      'google.navigation:q=${destino.latitude},${destino.longitude}&mode=d',
+    );
+
+    // Fallback to web directions
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving',
+    );
+
+    try {
+      if (await canLaunchUrl(googleMapsUri)) {
+        await launchUrl(googleMapsUri);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print('Error abriendo Google Maps: $e');
+    }
+  }
+
+  // Para abrir navegación en Waze
+  Future<void> _openExternalWaze(LatLng destino) async {
+    final lat = destino.latitude;
+    final lon = destino.longitude;
+    final wazeUri = Uri.parse('waze://?ll=$lat,$lon&navigate=yes');
+    final webUri = Uri.parse(
+      'https://www.waze.com/ul?ll=$lat,$lon&navigate=yes',
+    );
+
+    try {
+      if (await canLaunchUrl(wazeUri)) {
+        await launchUrl(wazeUri);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print('Error abriendo Waze: $e');
+    }
   }
 
   // Método para depurar el estado de las direcciones
@@ -877,66 +936,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     );
   }
 
-  // _showVisitasList removed — we use the endDrawer as canonical visitas UI
-
-  // Método para forzar la sincronización de visitas y actualizar la UI
-  Future<void> _forzarSincronizacionVisitas() async {
-    // Mostrar indicador de progreso
-    final snackBar = ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              strokeWidth: 2,
-            ),
-            SizedBox(width: 16),
-            Text('Sincronizando visitas...'),
-          ],
-        ),
-        duration: Duration(
-          seconds: 30,
-        ), // Tiempo largo para mostrar durante la sincronización
-      ),
-    );
-
-    try {
-      print('OFFLINE: Forzando sincronización de visitas historial...');
-      // Llamar al método de sincronización
-      final visitas = await RutasScreenOffline.sincronizarVisitasHistorial();
-      print(
-        'OFFLINE: Sincronización completada. ${visitas.length} visitas obtenidas',
-      );
-
-      // Recargar los clientes para actualizar los estados de visita
-      await _loadClientesOffline();
-
-      // Actualizar el mensaje para el usuario
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Sincronización completada!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      print('OFFLINE: Error en sincronización forzada: $e');
-      // Mostrar mensaje de error
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al sincronizar: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    } finally {
-      // Asegurarse de que el SnackBar original se cierre si aún está visible
-      snackBar.close();
-    }
-  }
-
   Future<File?> _findFirstMbtilesFile() async {
     final docs = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(docs.path, 'maps'));
@@ -1479,6 +1478,137 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                     style: const TextStyle(color: _body),
                                   ),
                                 ),
+
+                              // Añadir botones de ubicación y navegación
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _darkBg,
+                                    foregroundColor: _gold,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontFamily: 'Satoshi',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.location_on, size: 18),
+                                  label: const Text('Ubicación'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    final paradaLatLng =
+                                        parada['latlng'] as LatLng?;
+                                    if (paradaLatLng != null) {
+                                      try {
+                                        _mapController.move(paradaLatLng, 16.0);
+                                      } catch (_) {}
+                                    }
+                                  },
+                                ),
+                              ),
+
+                              // Abrir en... expandible
+                              Theme(
+                                data: Theme.of(
+                                  context,
+                                ).copyWith(dividerColor: Colors.transparent),
+                                child: ExpansionTile(
+                                  collapsedIconColor: _gold,
+                                  iconColor: _gold,
+                                  tilePadding: EdgeInsets.zero,
+                                  title: const Text(
+                                    'Abrir en...',
+                                    style: TextStyle(
+                                      color: _body,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16.0,
+                                        vertical: 6.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.map,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Google Maps'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalDirections(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.navigation,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Waze'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalWaze(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         );
