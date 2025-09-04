@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -16,14 +18,15 @@ class VendedorVisitasScreen extends StatefulWidget {
 }
 
 class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
-  final ClientesVisitaHistorialService _service = ClientesVisitaHistorialService();
+  final ClientesVisitaHistorialService _service =
+      ClientesVisitaHistorialService();
   List<VisitasViewModel> _visitas = [];
   List<VisitasViewModel> _filteredVisitas = [];
   bool _isLoading = true;
   bool _isLoadingEstados = false;
   String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
-  
+
   // Estados para el filtro
   List<Map<String, dynamic>> _estadosVisita = [];
   Set<String> _selectedStatuses = {};
@@ -55,9 +58,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       await VisitasOffline.sincronizarDirecciones();
     } catch (_) {}
 
-    // Intentar enviar visitas pendientes guardadas en modo offline.
+    // Intentar enviar visitas pendientes guardadas en modo offline usando SincronizacionService
     try {
-      final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
+      final pendientesEnviadas = await _syncPendingVisitas();
       if (mounted && pendientesEnviadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -136,12 +139,46 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       try {
         final raw = await VisitasOffline.obtenerVisitasHistorialLocal();
         if (raw.isNotEmpty) {
+          // Obtener la fecha actual para filtrar solo visitas de hoy
+          final now = DateTime.now();
+          final hoy = DateTime(now.year, now.month, now.day);
+
           final localVisitas = raw
               .map((m) => VisitasViewModel.fromJson(m as Map<String, dynamic>))
               .toList();
+
+          // Filtrar solo las visitas de hoy (mismo filtro que en modo online)
+          final visitasHoy = localVisitas.where((visita) {
+            try {
+              if (visita.clVi_Fecha == null) return false;
+
+              final fechaVisitaSinHora = DateTime(
+                visita.clVi_Fecha!.year,
+                visita.clVi_Fecha!.month,
+                visita.clVi_Fecha!.day,
+              );
+
+              return fechaVisitaSinHora.isAtSameMomentAs(hoy);
+            } catch (e) {
+              print('Error al procesar fecha de visita offline: $e');
+              return false;
+            }
+          }).toList();
+
+          // Ordenar por fecha de creación (más reciente primero)
+          visitasHoy.sort((a, b) {
+            try {
+              final fechaA = a.clVi_FechaCreacion ?? DateTime(1900);
+              final fechaB = b.clVi_FechaCreacion ?? DateTime(1900);
+              return fechaB.compareTo(fechaA); // Orden descendente
+            } catch (e) {
+              return 0;
+            }
+          });
+
           setState(() {
-            _visitas = localVisitas;
-            _filteredVisitas = List.from(localVisitas);
+            _visitas = visitasHoy;
+            _filteredVisitas = List.from(visitasHoy);
             _isLoading = false;
             _errorMessage = '';
           });
@@ -158,7 +195,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
   Future<void> _loadEstadosVisita() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoadingEstados = true;
     });
@@ -166,7 +203,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     try {
       final estados = await _service.obtenerEstadosVisita();
       if (!mounted) return;
-      
+
       setState(() {
         _estadosVisita = estados;
       });
@@ -183,6 +220,70 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           _isLoadingEstados = false;
         });
       }
+    }
+  }
+
+  /// Sincroniza las visitas pendientes utilizando SincronizacionService
+  Future<int> _syncPendingVisitas() async {
+    try {
+      // Verificar cuántas visitas pendientes hay antes de sincronizar
+      final pendientes = await SincronizacionService.contarVisitasPendientes();
+      developer.log(
+        '🔍 [VISITAS_SCREEN] Detectadas $pendientes visitas pendientes de sincronización',
+      );
+
+      if (pendientes > 0) {
+        // Mostrar detalle de las visitas pendientes
+        try {
+          final visitasHistorial =
+              await VisitasOffline.obtenerVisitasHistorialLocal();
+          final visitasPendientes = visitasHistorial.where((v) {
+            try {
+              return v is Map && v['offline'] == true;
+            } catch (_) {
+              return false;
+            }
+          }).toList();
+
+          // Mostrar detalles de cada visita pendiente
+          developer.log('📋 [VISITAS_SCREEN] Detalle de visitas pendientes:');
+          for (int i = 0; i < visitasPendientes.length; i++) {
+            try {
+              final v = visitasPendientes[i] as Map;
+              final cliente =
+                  v['clie_Nombres'] ?? v['clie_NombreNegocio'] ?? 'Sin nombre';
+              final fecha = v['clVi_Fecha'] ?? 'Sin fecha';
+              final id = v['clVi_Id'] ?? 'Sin ID';
+              final signature = v['local_signature'] ?? 'Sin firma';
+
+              developer.log(
+                '  📝 [VISITA $i] ID: $id | Cliente: $cliente | Fecha: $fecha | Signature: $signature',
+              );
+            } catch (e) {
+              developer.log('  ❌ [VISITA $i] Error al leer detalles: $e');
+            }
+          }
+        } catch (e) {
+          developer.log(
+            '❌ [VISITAS_SCREEN] Error obteniendo detalles de visitas pendientes: $e',
+          );
+        }
+      }
+
+      // Utilizar directamente el método de SincronizacionService que devuelve el conteo
+      final sincronizadas =
+          await SincronizacionService.sincronizarVisitasPendientes();
+
+      developer.log(
+        '✅ [VISITAS_SCREEN] Sincronizadas $sincronizadas de $pendientes visitas pendientes',
+      );
+      return sincronizadas;
+    } catch (e) {
+      developer.log(
+        '❌ [VISITAS_SCREEN] Error al llamar sincronización de visitas: $e',
+      );
+      // No interrumpir el flujo de la app si falla la sincronización
+      return 0;
     }
   }
 
@@ -218,20 +319,28 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
     setState(() {
       _filteredVisitas = _visitas.where((visita) {
-        final clienteNombre = normalizeAndClean('${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}');
+        final clienteNombre = normalizeAndClean(
+          '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}',
+        );
         final negocio = normalizeAndClean(visita.clie_NombreNegocio ?? '');
-        final observaciones = normalizeAndClean(visita.clVi_Observaciones ?? '');
+        final observaciones = normalizeAndClean(
+          visita.clVi_Observaciones ?? '',
+        );
         final estado = normalizeAndClean(visita.esVi_Descripcion ?? '');
-        
-        final matchesSearch = searchTerm.isEmpty ||
+
+        final matchesSearch =
+            searchTerm.isEmpty ||
             clienteNombre.contains(searchTerm) ||
             negocio.contains(searchTerm) ||
             observaciones.contains(searchTerm) ||
             estado.contains(searchTerm);
-        
-        final matchesStatus = _selectedStatuses.isEmpty || 
-            _selectedStatuses.any((status) => normalizeAndClean(status) == estado);
-        
+
+        final matchesStatus =
+            _selectedStatuses.isEmpty ||
+            _selectedStatuses.any(
+              (status) => normalizeAndClean(status) == estado,
+            );
+
         return matchesSearch && matchesStatus;
       }).toList();
     });
@@ -336,7 +445,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         const SizedBox(height: 12),
         _buildFilterAndCount(),
         const SizedBox(height: 16),
-        
+
         // Visitas List
         _filteredVisitas.isEmpty
             ? _buildEmptyWidget()
@@ -492,11 +601,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: Colors.white,
-              ),
+              Icon(icon, size: 20, color: Colors.white),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -516,16 +621,16 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             runSpacing: 4,
             children: items.map((item) {
               final description = item['esVi_Descripcion'] as String;
-              final isSelected = selectedValues.contains(description.toLowerCase());
+              final isSelected = selectedValues.contains(
+                description.toLowerCase(),
+              );
 
               return ChoiceChip(
                 label: Text(
                   description,
                   style: TextStyle(
                     fontFamily: 'Satoshi',
-                    color: isSelected
-                        ? const Color(0xFF141A2F)
-                        : Colors.white,
+                    color: isSelected ? const Color(0xFF141A2F) : Colors.white,
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     letterSpacing: -0.1,
@@ -537,9 +642,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected
-                        ? Colors.white
-                        : const Color(0xFFD6B68A),
+                    color: isSelected ? Colors.white : const Color(0xFFD6B68A),
                   ),
                 ),
                 onSelected: (selected) {
@@ -677,17 +780,23 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                         _applyFilters();
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF141A2F),
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
                                         side: const BorderSide(
                                           color: Color(0xFFD6B68A),
                                         ),
                                         elevation: 0,
-                                        foregroundColor: const Color(0xFFD6B68A),
+                                        foregroundColor: const Color(
+                                          0xFFD6B68A,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 16,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                         ),
                                       ),
                                       child: const Text(
@@ -700,7 +809,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                     ),
                                   ),
                                   SizedBox(
-                                    height: MediaQuery.of(context).viewInsets.bottom + 16,
+                                    height:
+                                        MediaQuery.of(
+                                          context,
+                                        ).viewInsets.bottom +
+                                        16,
                                   ),
                                 ],
                               ),

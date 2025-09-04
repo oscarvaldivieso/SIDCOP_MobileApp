@@ -691,7 +691,7 @@ class RutasScreenOffline {
   static Future<List<dynamic>> sincronizarVisitasHistorial() async {
     try {
       final servicio = ClientesVisitaHistorialService();
-      final data = await servicio.listar();
+      final data = await servicio.listarPorVendedor();
       try {
         final lista = List.from(data);
         print(
@@ -797,6 +797,7 @@ class RutasScreenOffline {
         sincronizarRutas(),
         sincronizarClientes(),
         sincronizarDirecciones(),
+        sincronizarVisitasHistorial(),
         sincronizarVendedores(),
       ]);
       try {

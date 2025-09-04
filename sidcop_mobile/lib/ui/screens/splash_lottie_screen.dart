@@ -7,6 +7,7 @@ import 'package:sidcop_mobile/services/EncryptedCsvStorageService.dart';
 import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 import 'dart:developer' as developer;
 import 'dart:isolate';
 import 'dart:async';
@@ -33,7 +34,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
         _navigateToNextScreen();
       }
     });
-    
+
     // Iniciar sincronización offline en segundo plano
     _initializeOfflineSync();
   }
@@ -42,69 +43,78 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
   Future<void> _initializeOfflineSync() async {
     try {
       developer.log('🚀 Iniciando sincronización offline...');
-      
+
       // Verificar si hay datos existentes (operación ligera)
       final hasExistingData = await _checkExistingData();
-      
+
       if (hasExistingData) {
-        developer.log('📊 Datos existentes encontrados, iniciando sincronización...');
-        
+        developer.log(
+          '📊 Datos existentes encontrados, iniciando sincronización...',
+        );
+
         // Verificar conexión (operación ligera)
         final hasConnection = await SyncService.hasInternetConnection();
-        
+
         if (hasConnection) {
-          developer.log('🌐 Conexión disponible, sincronizando datos en background...');
-          
+          developer.log(
+            '🌐 Conexión disponible, sincronizando datos en background...',
+          );
+
           // Ejecutar sincronización en un isolate separado para no bloquear UI
           _runSyncInBackground();
         } else {
           developer.log('📱 Sin conexión, usando datos offline existentes');
         }
       } else {
-        developer.log('📝 No hay datos existentes, se requerirá conexión inicial');
+        developer.log(
+          '📝 No hay datos existentes, se requerirá conexión inicial',
+        );
       }
-      
     } catch (e) {
       developer.log('❌ Error en sincronización inicial: $e');
     }
   }
-  
+
   /// Ejecuta la sincronización en un isolate separado para evitar bloquear el hilo principal
   void _runSyncInBackground() {
     // Crear un puerto de recepción para comunicación con el isolate
     final receivePort = ReceivePort();
-    
+
     // Lanzar isolate para trabajo pesado
     Isolate.spawn<SendPort>(_isolateSyncFunction, receivePort.sendPort)
-      .then((isolate) {
-        // Escuchar mensajes del isolate
-        receivePort.listen((message) {
-          if (message is bool) {
-            // Resultado de la sincronización
-            if (message) {
-              developer.log('✅ Sincronización en background completada exitosamente');
-            } else {
-              developer.log('⚠️ Sincronización en background parcial o con errores');
+        .then((isolate) {
+          // Escuchar mensajes del isolate
+          receivePort.listen((message) {
+            if (message is bool) {
+              // Resultado de la sincronización
+              if (message) {
+                developer.log(
+                  '✅ Sincronización en background completada exitosamente',
+                );
+              } else {
+                developer.log(
+                  '⚠️ Sincronización en background parcial o con errores',
+                );
+              }
+
+              // Cerrar el isolate y el puerto cuando termine
+              receivePort.close();
+              isolate.kill(priority: Isolate.immediate);
             }
-            
-            // Cerrar el isolate y el puerto cuando termine
-            receivePort.close();
-            isolate.kill(priority: Isolate.immediate);
-          }
+          });
+        })
+        .catchError((e) {
+          developer.log('❌ Error creando isolate para sincronización: $e');
+          receivePort.close();
         });
-      })
-      .catchError((e) {
-        developer.log('❌ Error creando isolate para sincronización: $e');
-        receivePort.close();
-      });
   }
-  
+
   /// Función que se ejecuta en el isolate separado
   static void _isolateSyncFunction(SendPort sendPort) async {
     try {
       // Ejecutar sincronización
       final result = await SyncService.syncAllData();
-      
+
       // Enviar resultado de vuelta al hilo principal
       sendPort.send(result);
     } catch (e) {
@@ -112,7 +122,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
       sendPort.send(false);
     }
   }
-  
+
   /// Verifica si existen datos offline previamente guardados
   Future<bool> _checkExistingData() async {
     try {
@@ -124,7 +134,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
       return false;
     }
   }
-  
+
   /// Navega a la siguiente pantalla después de completar la inicialización
   Future<void> _navigateToNextScreen() async {
     // Verificar si hay credenciales guardadas para auto-login
@@ -132,19 +142,22 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
     final rememberMe = prefs.getBool('remember_me') ?? false;
     final savedEmail = prefs.getString('saved_email') ?? '';
     final savedPassword = prefs.getString('saved_password') ?? '';
-    
+
     if (rememberMe && savedEmail.isNotEmpty && savedPassword.isNotEmpty) {
       // Intentar auto-login
       try {
         final usuarioService = UsuarioService();
         final perfilUsuarioService = PerfilUsuarioService();
-        
-        final result = await usuarioService.iniciarSesion(savedEmail, savedPassword);
-        
+
+        final result = await usuarioService.iniciarSesion(
+          savedEmail,
+          savedPassword,
+        );
+
         if (result != null && result['error'] != true) {
           // Login exitoso - guardar datos del usuario
           await perfilUsuarioService.guardarDatosUsuario(result);
-          
+
           // Sincronización rápida
           await SyncService.syncAfterLogin(
             immediate: false,
@@ -152,7 +165,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
               developer.log('Auto-login sync: $status');
             },
           );
-          
+
           // Navegar directamente al HomeScreen
           if (mounted) {
             Navigator.pushReplacement(
@@ -175,7 +188,7 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
         await prefs.remove('saved_password');
       }
     }
-    
+
     // Si no hay credenciales o el auto-login falló, ir al onboarding
     if (mounted) {
       Navigator.pushReplacement(
