@@ -40,6 +40,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String? _imagenUsuario;
   String? _imagenVendedor;
   int? _usuaIdPersona; 
+  int? _usuaCreacion;
   bool _isLoading = true;
   List<dynamic> permisos = [];
 
@@ -79,6 +80,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
       print("userData drawer para inve: $userData");
       final usuaIdPersona = userData?['usua_IdPersona'] as int?;
       final imagenVendedor = userData?['imagen'] as String?;
+      final usuaCreacion = userData?['usua_Id'] as int?;
 
       if (mounted) {
         setState(() {
@@ -87,6 +89,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _imagenUsuario = imagenUsuario;
           _usuaIdPersona = usuaIdPersona;
           _imagenVendedor = imagenVendedor;
+          _usuaCreacion = usuaCreacion;
           _isLoading = false;
         });
       }
@@ -461,7 +464,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                          InventoryScreen(usuaIdPersona: _usuaIdPersona!, usuaCreacion: _usuaCreacion!),
                     ),
                     (route) => false,
                   );

@@ -8,7 +8,6 @@ import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
-import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
@@ -829,13 +828,33 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   }
 
   // Calculate subtotal from selected products
+  // Obtiene el precio basado en la cantidad y las listas de precios
+  double _getPrecioPorCantidad(ProductoConDescuento product, double cantidad, {bool isCredito = false}) {
+    // Si no hay listas de precios, retornar el precio unitario
+    if (product.listasPrecio.isEmpty) {
+      return product.prodPrecioUnitario;
+    }
+    
+    // Buscar la lista de precios que aplique a la cantidad
+    for (var lista in product.listasPrecio) {
+      if (cantidad >= lista.prePInicioEscala && 
+          cantidad <= lista.prePFinEscala) {
+        return isCredito ? lista.prePPrecioCredito : lista.prePPrecioContado;
+      }
+    }
+    
+    // Si no se encuentra en ninguna escala, retornar el precio unitario
+    return product.prodPrecioUnitario;
+  }
+
   double _calculateSubtotal() {
     return _ventaModel.detallesFacturaInput.fold(
       0.0, 
       (sum, detalle) {
         final producto = _productosConDescuento[detalle.prodId];
         if (producto != null) {
-          return sum + (detalle.faDeCantidad * producto.prodPrecioUnitario);
+          final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
+          return sum + (detalle.faDeCantidad * _getPrecioPorCantidad(producto, detalle.faDeCantidad, isCredito: isCredito));
         }
         return sum;
       },
@@ -1715,7 +1734,9 @@ Widget paso1() {
                             const SizedBox(height: 6),
                             Row(
                               children: [
+                                // Mostrar precio con descuento si aplica
                                 if (mejorDescuento != null && mejorDescuento > 0) ...[
+                                  // Precio tachado (precio base)
                                   Text(
                                     'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
                                     style: const TextStyle(
@@ -1729,6 +1750,7 @@ Widget paso1() {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
+                                  // Precio con descuento aplicado
                                   Text(
                                     'L. ${(product.prodPrecioUnitario * (1 - (mejorDescuento / 100))).toStringAsFixed(2)}',
                                     style: const TextStyle(
@@ -1738,16 +1760,57 @@ Widget paso1() {
                                       color: Color(0xFF141A2F),
                                     ),
                                   ),
-                                ] else
-                                  Text(
-                                    'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontFamily: 'Satoshi',
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF141A2F),
-                                    ),
+                                ] else ...[
+                                  // Mostrar precio según la cantidad seleccionada (si hay cantidad)
+                                  Builder(
+                                    builder: (context) {
+                                      final cantidad = _selectedProducts[product.prodId] ?? 1.0;
+                                      final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
+                                      final precio = _getPrecioPorCantidad(product, cantidad, isCredito: isCredito);
+                                      
+                                      // Si el precio es diferente al precio unitario, mostramos ambos
+                                      if (precio != product.prodPrecioUnitario) {
+                                        return Row(
+                                          children: [
+                                            Text(
+                                              'L. ${product.prodPrecioUnitario.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Satoshi',
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF6B7280),
+                                                decoration: TextDecoration.lineThrough,
+                                                decorationColor: Color(0xFF6B7280),
+                                                decorationThickness: 1.0,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'L. ${precio.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Satoshi',
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF141A2F),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }
+                                      
+                                      // Si el precio es igual al unitario, mostramos solo uno
+                                      return Text(
+                                        'L. ${precio.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF141A2F),
+                                        ),
+                                      );
+                                    },
                                   ),
+                                ]
                               ],
                             ),
                           ],
@@ -2134,7 +2197,9 @@ Widget paso1() {
 
   // Widget para cada item del carrito
 Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
-  final precio = product.prodPrecioUnitario;
+  // Obtener el precio según la cantidad y tipo de venta (crédito/contado)
+  final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
+  final precio = _getPrecioPorCantidad(product, cantidad, isCredito: isCredito);
   final subtotal = precio * cantidad;
   
   // Calcular descuentos para este producto
@@ -2566,12 +2631,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   double _calculateTotal() {
     double subtotal = 0.0;
     double subtotalConImpuesto = 0.0;
+    final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
         (p) => p.prodId == prodId,
       );
-      final precio = product.prodPrecioUnitario;
+      final precio = _getPrecioPorCantidad(product, cantidad, isCredito: isCredito);
       final subtotalProducto = precio * cantidad;
       subtotal += subtotalProducto;
       
@@ -2596,12 +2662,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     double subtotal = 0.0;
     double subtotalConImpuesto = 0.0;
     int totalItems = 0;
+    final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
         (p) => p.prodId == prodId,
       );
-      final precio = product.prodPrecioUnitario;
+      final precio = _getPrecioPorCantidad(product, cantidad, isCredito: isCredito);
       final subtotalProducto = precio * cantidad;
       subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
@@ -2847,12 +2914,13 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     double subtotal = 0.0;
     double subtotalConImpuesto = 0.0;
     int totalItems = 0;
+    final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
         (p) => p.prodId == prodId,
       );
-      final precio = product.prodPrecioUnitario;
+      final precio = _getPrecioPorCantidad(product, cantidad, isCredito: isCredito);
       final subtotalProducto = precio * cantidad;
       subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
