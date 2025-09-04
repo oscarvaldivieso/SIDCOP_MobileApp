@@ -2,6 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 
+// Clase personalizada para manejar errores de inventario insuficiente
+class InventarioInsuficienteException implements Exception {
+  final String message;
+  
+  InventarioInsuficienteException(this.message);
+  
+  @override
+  String toString() => message;
+}
+
 class FacturaService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
@@ -84,11 +94,25 @@ class FacturaService {
         return data;
       } else {
         print('ERROR EN LA RESPUESTA: ${data['message'] ?? 'Sin mensaje de error'}');
+        
+        // Verificar si es un error de inventario insuficiente
+        String errorMessage = data['message'] ?? '';
+        if (data['data'] != null && data['data']['message_Status'] != null) {
+          String statusMessage = data['data']['message_Status'];
+          if (statusMessage.contains('Inventario insuficiente para:')) {
+            print('ERROR DE INVENTARIO INSUFICIENTE: $statusMessage');
+            throw InventarioInsuficienteException(statusMessage);
+          }
+        }
+        
         print('DETALLES DEL ERROR: ${data['errors'] ?? 'Sin detalles adicionales'}');
-        throw Exception(data['message'] ?? 'Error al insertar factura: ${response.statusCode}');
+        throw Exception(errorMessage.isNotEmpty ? errorMessage : 'Error al insertar factura: ${response.statusCode}');
       }
     } catch (e) {
       print('EXCEPCIÓN AL INSERTAR FACTURA: $e');
+      if (e is InventarioInsuficienteException) {
+        rethrow;
+      }
       throw Exception('Error al conectar con el servidor: $e');
     }
   }

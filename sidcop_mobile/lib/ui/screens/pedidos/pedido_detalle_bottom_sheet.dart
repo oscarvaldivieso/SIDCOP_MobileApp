@@ -65,18 +65,10 @@ Widget build(BuildContext context) {
                         ),
                       )
                     : IconButton(
-                        icon: const Icon(Icons.print_outlined, color: Colors.black54),
+                        icon: const Icon(Icons.shopping_cart, color: Colors.black54),
                         onPressed: () async {
-                          // Insertar la factura y luego navegar a la pantalla de vista previa
+                          // Insertar la factura (la navegación se maneja dentro del método)
                           await _insertarFactura();
-                          if (mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
-                              ),
-                            );
-                          }
                         },
                         tooltip: 'Ver Factura',
                       ),
@@ -327,15 +319,53 @@ Widget build(BuildContext context) {
             backgroundColor: Colors.green,
           ),
         );
+        
+        // Si la inserción fue exitosa, navegar a la pantalla de vista previa
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al registrar la factura: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // Verificar si es un error de inventario insuficiente
+        if (e is InventarioInsuficienteException) {
+          // Mostrar un diálogo con el mensaje de error de inventario insuficiente
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Inventario Insuficiente', 
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                ),
+                content: SingleChildScrollView(
+                  child: Text(
+                    e.toString(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    child: const Text('Entendido'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        } else {
+          // Mostrar un SnackBar para otros tipos de errores
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al registrar la factura: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
