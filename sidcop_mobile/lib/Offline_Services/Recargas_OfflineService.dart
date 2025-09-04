@@ -728,7 +728,8 @@ class RecargasScreenOffline {
           detalles: detalles,
         );
         if (ok) {
-          restantes.remove(recarga);
+          // Eliminar por id único
+          restantes.removeWhere((r) => r['id'] == recarga['id']);
           sincronizadas++;
         }
       } catch (_) {}
