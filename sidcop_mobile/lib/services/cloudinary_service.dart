@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'GlobalService.dart';
 
 class ImageUploadService {
-  static const String _baseUrl = 'http://200.59.27.115:8091';
+  final String _apiServer = apiServer;
+  final String _apiKey = apikey;
+  static const String _baseUrl = apiServer;
   static const String _uploadEndpoint = '/Imagen/Subir';
-  static const String _apiKey = 'bdccf3f3-d486-4e1e-ab44-74081aefcdbc';
 
   /// Returns the complete URL for displaying images
   static String getImageUrl(String imagePath) {
