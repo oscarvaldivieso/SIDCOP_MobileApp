@@ -157,7 +157,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     try {
       final servicio = ClientesVisitaHistorialService();
       // Usar el endpoint general y filtrar localmente por vendedor global
-      final historial = await servicio.listar();
+      final historial = await servicio.listarPorVendedor();
       // Filtrar historial por los clientes que pertenecen a la ruta
       // y por el vendedor actual (globalVendId)
       final visitasFiltradasModel = historial
