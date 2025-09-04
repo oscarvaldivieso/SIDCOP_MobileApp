@@ -1031,7 +1031,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       size: 36,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 12), //ward samuel
                   const Text(
                     '¡Devolución Exitosa!',
                     style: TextStyle(
@@ -1298,7 +1298,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       padding: const EdgeInsets.only(
                         // horizontal: 16.0,
                         // vertical: 12.0,
-                        bottom: 100,
+                        bottom: 150,
                         top: 12,
                         left: 16,
                         right: 16,
@@ -1477,7 +1477,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
                                         children: [
-                                          const Text(
+                                          const Text( //ward samuel
                                             'Cantidad a devolver:',
                                             style: TextStyle(
                                               fontSize: 13,
@@ -1486,7 +1486,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                           ),
                                           Container(
                                             width: 120,
-                                            child: TextFormField(
+                                            child: TextFormField( //ward samuel
                                               controller: TextEditingController(
                                                 text:
                                                     (_productosFactura[index]['cantidadDevolver'] ??
@@ -1543,7 +1543,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                                       ),
                                                     ),
                                                 hintText: '0',
-                                                isDense: true,
+                                                isDense: false,
                                                 suffix: Text(
                                                   'de $cantidadVendida',
                                                   style: TextStyle(
@@ -1662,7 +1662,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       child: ElevatedButton(
                         onPressed: () async {
                           Navigator.pop(context); // Cerrar el modal
-                          await _submitForm(); // Procesar el formulario
+                          //await _submitForm(); // Procesar el formulario
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
