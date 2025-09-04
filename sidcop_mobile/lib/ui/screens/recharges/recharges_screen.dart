@@ -24,22 +24,13 @@ class _RechargesScreenState extends State<RechargesScreen> {
   List<RecargasViewModel> _recargas = [];
   bool _isLoading = true;
   List<dynamic> permisos = [];
-  bool _mostrandoOffline = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
     _loadPermisos();
-    _fetchRecargas();
-    // Sincronización en background de clientes/direcciones
-    Future.microtask(() async {
-      try {
-        await RecargasScreenOffline.sincronizarClientes();
-        await RecargasScreenOffline.sincronizarDirecciones();
-      } catch (e) {
-        print('SYNC: warning - sincronizar clientes/direcciones failed: $e');
-      }
-    });
+    _loadRecargas();
     Connectivity().onConnectivityChanged.listen((result) async {
       if (result != ConnectivityResult.none) {
         await _sincronizarRecargasPendientes();
@@ -64,84 +55,79 @@ class _RechargesScreenState extends State<RechargesScreen> {
     setState(() {});
   }
 
-  Future<void> _fetchRecargas() async {
+  Future<void> _loadRecargas() async {
     setState(() {
       _isLoading = true;
-      _mostrandoOffline = false;
+      _errorMessage = '';
     });
-    bool online = true;
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      online = false;
-    }
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-    final personaId =
-        userData?['personaId'] ??
-        userData?['usua_IdPersona'] ??
-        userData?['idPersona'];
-    if (personaId == null) {
-      setState(() {
-        _isLoading = false;
-      });
-      return;
-    }
-    if (online) {
-      try {
-        final recargasOnline = await RecargasService().getRecargas(
-          personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
-        );
-        setState(() {
-          _recargas = recargasOnline;
-          _isLoading = false;
-        });
-        // Guardar offline
-        try {
-          final jsonList = recargasOnline.map((r) => r.toJson()).toList();
-          await RecargasScreenOffline.guardarJson('recargas.json', jsonList);
-        } catch (e) {
-          print('Error guardando recargas offline: $e');
-        }
-      } catch (e) {
-        // Si falla online, intentar leer offline
-        await _loadRecargasOffline();
-      }
-    } else {
-      await _loadRecargasOffline();
-    }
-  }
 
-  Future<void> _loadRecargasOffline() async {
     try {
-      final raw = await RecargasScreenOffline.leerJson('recargas.json');
-      if (raw != null) {
-        final lista = List.from(raw as List);
-        setState(() {
-          _recargas = lista.map((json) => RecargasViewModel.fromJson(json)).toList();
-          _isLoading = false;
-          _mostrandoOffline = true;
-        });
-        if (mounted) {
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final online = connectivityResult != ConnectivityResult.none;
+
+      if (online) {
+        // Sincronizar datos maestros
+        await RecargasScreenOffline.sincronizarClientes();
+        await RecargasScreenOffline.sincronizarDirecciones();
+
+        // Intentar enviar recargas pendientes
+        final pendientesEnviadas = await RecargasScreenOffline.sincronizarPendientes();
+        if (mounted && pendientesEnviadas > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Mostrando recargas precargadas (offline).'),
+              content: Text('$pendientesEnviadas recarga(s) sincronizada(s) con éxito'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
-      } else {
+
+        // Cargar recargas remotas
+        final perfilService = PerfilUsuarioService();
+        final userData = await perfilService.obtenerDatosUsuario();
+        final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
+        if (personaId == null) throw Exception('Persona ID no encontrado');
+
+        final recargas = await RecargasService().getRecargas(
+          personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
+        );
+        final recargasJson = recargas.map((r) => r.toJson()).toList();
+
+        // Fusionar con recargas locales pendientes
+        final localRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+        final pendientes = localRaw?.where((e) => e['offline'] == true).toList() ?? [];
+
+        for (final p in pendientes) {
+          if (!recargasJson.any((r) => r['local_signature'] == p['local_signature'])) {
+            recargasJson.add(p);
+          }
+        }
+
+        await RecargasScreenOffline.guardarJson('recargas.json', recargasJson);
+
         setState(() {
-          _recargas = [];
+          _recargas = recargasJson.map((r) => RecargasViewModel.fromJson(r)).toList();
           _isLoading = false;
-          _mostrandoOffline = true;
         });
+      } else {
+        // Cargar recargas locales en modo offline
+        final raw = await RecargasScreenOffline.leerJson('recargas.json');
+        if (raw != null) {
+          setState(() {
+            _recargas = List<Map<String, dynamic>>.from(raw)
+                .map((r) => RecargasViewModel.fromJson(r))
+                .toList();
+            _isLoading = false;
+          });
+        } else {
+          throw Exception('No se encontraron datos locales');
+        }
       }
     } catch (e) {
       setState(() {
-        _recargas = [];
+        _errorMessage = 'Error al cargar las recargas: ${e.toString()}';
         _isLoading = false;
-        _mostrandoOffline = true;
       });
     }
   }
@@ -160,24 +146,59 @@ class _RechargesScreenState extends State<RechargesScreen> {
   }
 
   Future<void> _sincronizarRecargasPendientes() async {
-    bool online = true;
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      online = false;
-    }
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final online = connectivityResult != ConnectivityResult.none;
     if (!online) return;
-    final sincronizadas = await RecargasScreenOffline.sincronizarPendientes();
-    if (mounted && sincronizadas > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      // await _fetchRecargas(); // Refresca historial tras sincronización
+
+    try {
+      // Leer recargas pendientes desde el almacenamiento local
+      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) return;
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final recargaService = RecargasService();
+
+      int sincronizadas = 0;
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          // Intentar enviar la recarga al servidor
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (success) {
+            sincronizadas++;
+          } else {
+            throw Exception('Error al sincronizar recarga');
+          }
+        } catch (e) {
+          // Si falla una recarga, continuar con las demás
+          debugPrint('Error al sincronizar recarga: $e');
+        }
+      }
+
+      // Actualizar el archivo local eliminando las recargas sincronizadas
+      if (sincronizadas > 0) {
+        final pendientesRestantes = pendientes.skip(sincronizadas).toList();
+        await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
+      }
+
+      if (mounted && sincronizadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar recargas pendientes: $e');
     }
   }
 
@@ -205,7 +226,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      fontFamily: 'Satoshi',
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -251,7 +271,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                             else
                               Column(
                                 children: itemsToShow.map((entry) {
-                                  final recaId = entry.key;
                                   final recargasGrupo = entry.value;
                                   final recarga = recargasGrupo.first;
                                   final totalCantidad = recargasGrupo.fold<int>(0, (
@@ -282,7 +301,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 18,
-                                fontFamily: 'Satoshi',
                               ),
                             ),
                             const SizedBox(height: 15),
@@ -323,6 +341,21 @@ class _RechargesScreenState extends State<RechargesScreen> {
                         );
                       },
                     ),
+              if (_errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    _errorMessage,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                      fontFamily: 'Satoshi',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -649,13 +682,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
   final bool isEditMode;
-  final int? recaId;
   
   const RecargaBottomSheet({
     super.key,
     this.recargasGrupoParaEditar,
     this.isEditMode = false,
-    this.recaId,
   });
 
   @override
@@ -683,23 +714,59 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Future<void> _sincronizarRecargasPendientes() async {
-    bool online = true;
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      online = false;
-    }
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final online = connectivityResult != ConnectivityResult.none;
     if (!online) return;
-    final sincronizadas = await RecargasScreenOffline.sincronizarPendientes();
-    if (mounted && sincronizadas > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+
+    try {
+      // Leer recargas pendientes desde el almacenamiento local
+      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) return;
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final recargaService = RecargasService();
+
+      int sincronizadas = 0;
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          // Intentar enviar la recarga al servidor
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (success) {
+            sincronizadas++;
+          } else {
+            throw Exception('Error al sincronizar recarga');
+          }
+        } catch (e) {
+          // Si falla una recarga, continuar con las demás
+          debugPrint('Error al sincronizar recarga: $e');
+        }
+      }
+
+      // Actualizar el archivo local eliminando las recargas sincronizadas
+      if (sincronizadas > 0) {
+        final pendientesRestantes = pendientes.skip(sincronizadas).toList();
+        await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
+      }
+
+      if (mounted && sincronizadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar recargas pendientes: $e');
     }
   }
 

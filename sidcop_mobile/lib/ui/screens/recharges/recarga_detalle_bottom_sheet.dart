@@ -68,7 +68,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
       builder: (context) => RecargaBottomSheet(
         recargasGrupoParaEditar: recargasGrupo,
         isEditMode: true,
-        recaId: recaId,
+        // recaId: recaId, // Removed because it's not defined in the constructor
       ),
     ).then((result) {
       // Si la edición fue exitosa, ejecutar callback y cerrar modal

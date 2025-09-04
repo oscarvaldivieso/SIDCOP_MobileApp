@@ -736,4 +736,34 @@ class RecargasScreenOffline {
     await RecargasScreenOffline.guardarJson('recargas_pendientes.json', restantes);
     return sincronizadas;
   }
+
+  /// Sincroniza las recargas pendientes almacenadas localmente.
+  static Future<void> sincronizarRecargasPendientes() async {
+    const String archivoPendientes = 'recargas_pendientes.json';
+    try {
+      // Leer recargas pendientes
+      final pendientes = await leerJson(archivoPendientes) as List<dynamic>?;
+      if (pendientes == null || pendientes.isEmpty) {
+        print('No hay recargas pendientes para sincronizar.');
+        return;
+      }
+
+      // Intentar enviar las recargas pendientes
+      final recargasService = RecargasService();
+      try {
+        await recargasService.insertarRecarga(
+          usuaCreacion: 1, // Ajustar según el usuario actual
+          detalles: pendientes.cast<Map<String, dynamic>>(),
+        );
+        print('Recargas sincronizadas exitosamente.');
+
+        // Eliminar recargas pendientes locales si se sincronizan
+        await borrar(archivoPendientes);
+      } catch (e) {
+        print('Error al sincronizar recargas: $e');
+      }
+    } catch (e) {
+      print('Error durante la sincronización de recargas pendientes: $e');
+    }
+  }
 }
