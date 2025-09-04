@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -108,6 +109,7 @@ class UsuarioService {
         
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
+        await SincronizacionService.sincronizarTodoOffline();
 
         return data;
       } else {

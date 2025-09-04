@@ -630,4 +630,16 @@ class VisitasOffline {
     await guardarVisitasHistorial(remaining);
     return sincronizadas;
   }
+  
+  /// Sincroniza toda la información relevante de visitas offline.
+  static Future<void> sincronizarTodo() async {
+    final visitas = await sincronizarVisitasHistorial();
+    await guardarVisitasHistorial(visitas);
+    final estados = await sincronizarEstadosVisita();
+    await guardarJson(_archivoEstadosVisita, estados);
+    final clientes = await sincronizarClientes();
+    await guardarClientes(clientes);
+    final direcciones = await sincronizarDirecciones();
+    await guardarDirecciones(direcciones);
+  }
 }
