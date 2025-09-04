@@ -121,18 +121,21 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   Widget _buildCompanyHeader() {
     return Column(
       children: [
-        // Company Logo Placeholder
+        // Company Logo
         Container(
-          width: 80,
-          height: 80,
+          width: 120,
+          height: 120,
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            Icons.business,
-            size: 40,
-            color: _goldColor,
+          child: Image.network(
+            'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1756909874/f304f918-0cb3-40c1-850c-daddb307955c_removalai_preview_vuxa2d.png',
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Icon(
+              Icons.business,
+              size: 40,
+              color: _goldColor,
+            ),
           ),
         ),
         const SizedBox(height: 16),
