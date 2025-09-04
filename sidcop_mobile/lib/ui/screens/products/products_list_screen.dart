@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart'; // Agregar import
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/RecargasService.dart';
@@ -46,6 +47,54 @@ class _ProductScreenState extends State<ProductScreen> {
 
   Future<void> _loadFilters() async {
     try {
+      // Primero intentar cargar desde cache offline
+      final results = await Future.wait([
+        ProductosOffline.leerCategorias(),
+        ProductosOffline.leerSubcategorias(), 
+        ProductosOffline.leerMarcas(),
+      ]);
+
+      setState(() {
+        _categorias = results[0];
+        _subcategorias = results[1];
+        _marcas = results[2];
+        _filtersLoaded = true;
+      });
+
+      // Si no hay datos en cache, intentar sincronizar
+      if (_categorias.isEmpty || _subcategorias.isEmpty || _marcas.isEmpty) {
+        debugPrint('Cache de filtros vacío, sincronizando...');
+        await _sincronizarFiltros();
+      }
+    } catch (e) {
+      debugPrint('Error cargando filtros: $e');
+      // Fallback: intentar cargar directamente del servicio
+      await _loadFiltersFromService();
+    }
+  }
+
+  Future<void> _sincronizarFiltros() async {
+    try {
+      final results = await Future.wait([
+        ProductosOffline.sincronizarCategorias(),
+        ProductosOffline.sincronizarSubcategorias(),
+        ProductosOffline.sincronizarMarcas(),
+      ]);
+
+      setState(() {
+        _categorias = results[0];
+        _subcategorias = results[1]; 
+        _marcas = results[2];
+        _filtersLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('Error sincronizando filtros: $e');
+      await _loadFiltersFromService();
+    }
+  }
+
+  Future<void> _loadFiltersFromService() async {
+    try {
       final results = await Future.wait([
         _productosService.getCategorias(),
         _productosService.getSubcategorias(),
@@ -59,7 +108,7 @@ class _ProductScreenState extends State<ProductScreen> {
         _filtersLoaded = true;
       });
     } catch (e) {
-      debugPrint('Error cargando filtros: $e');
+      debugPrint('Error cargando filtros desde servicio: $e');
       setState(() {
         _filtersLoaded = true;
       });
@@ -69,19 +118,43 @@ class _ProductScreenState extends State<ProductScreen> {
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
     try {
-      // Usar el servicio de precarga en lugar de ProductosService directamente
-      _allProducts = await _preloadService.getPreloadedProducts();
-      _filteredProducts = List.from(_allProducts);
+      // 1. Primero intentar cargar desde cache offline
+      _allProducts = await ProductosOffline.obtenerProductosLocal();
       
-      // Si no hay productos precargados o la lista está vacía, intentar cargar directamente
-      if (_allProducts.isEmpty) {
-        debugPrint('No hay productos precargados, intentando cargar directamente');
-        _allProducts = await _productosService.getProductos();
-        _filteredProducts = List.from(_allProducts);
+      if (_allProducts.isNotEmpty) {
+        debugPrint('Productos cargados desde cache offline: ${_allProducts.length}');
+        setState(() {
+          _filteredProducts = List.from(_allProducts);
+          _isLoading = false;
+        });
+        
+        // Sincronizar en background para próxima vez
+        _sincronizarProductosEnBackground();
+        return;
       }
+
+      // 2. Si no hay cache, intentar usar precarga
+      _allProducts = await _preloadService.getPreloadedProducts();
+      
+      if (_allProducts.isNotEmpty) {
+        debugPrint('Productos cargados desde precarga: ${_allProducts.length}');
+        // Guardar en cache offline para próxima vez
+        await ProductosOffline.guardarProductos(_allProducts);
+      } else {
+        // 3. Fallback: cargar directamente del servicio
+        debugPrint('Cargando productos directamente del servicio...');
+        _allProducts = await _productosService.getProductos();
+        
+        if (_allProducts.isNotEmpty) {
+          // Guardar en cache offline
+          await ProductosOffline.guardarProductos(_allProducts);
+        }
+      }
+      
+      _filteredProducts = List.from(_allProducts);
     } catch (e) {
       debugPrint('Error cargando productos: $e');
-      // Intentar fallback al método tradicional si falla la precarga
+      // Último fallback: intentar cargar solo del servicio
       try {
         _allProducts = await _productosService.getProductos();
         _filteredProducts = List.from(_allProducts);
@@ -92,6 +165,56 @@ class _ProductScreenState extends State<ProductScreen> {
       setState(() => _isLoading = false);
     }
   }
+
+  /// Sincroniza productos en background sin bloquear la UI
+  Future<void> _sincronizarProductosEnBackground() async {
+    try {
+      debugPrint('Sincronizando productos en background...');
+      final nuevosProductos = await ProductosOffline.sincronizarProductos();
+      
+      if (nuevosProductos.isNotEmpty && mounted) {
+        setState(() {
+          _allProducts = nuevosProductos;
+          _applyFilters(); // Reaplicar filtros con nuevos datos
+        });
+        debugPrint('Productos actualizados en background: ${nuevosProductos.length}');
+      }
+    } catch (e) {
+      debugPrint('Error en sincronización background: $e');
+    }
+  }
+
+  /// Método para refresh manual que fuerza sincronización
+ // ...existing code...
+Future<void> _refreshData() async {
+  try {
+    setState(() => _isLoading = true);
+
+    // Sincronizar todo desde servicios remotos
+    final futures = await Future.wait([
+      ProductosOffline.sincronizarProductos(),
+      ProductosOffline.sincronizarCategorias(),
+      ProductosOffline.sincronizarSubcategorias(),
+      ProductosOffline.sincronizarMarcas(),
+    ]);
+
+    setState(() {
+      _allProducts = futures[0] as List<Productos>;
+      _categorias = futures[1] as List<Map<String, dynamic>>;
+      _subcategorias = futures[2] as List<Map<String, dynamic>>;
+      _marcas = futures[3] as List<Map<String, dynamic>>;
+      // Aplica los filtros y búsqueda actuales después de actualizar los datos
+      _applyFilters();
+      _isLoading = false;
+    });
+
+    debugPrint('Datos actualizados desde servicios remotos');
+  } catch (e) {
+    debugPrint('Error en refresh: $e');
+    setState(() => _isLoading = false);
+  }
+}
+// ...existing code...
 
   void _applyFilters() {
     final searchTerm = _searchController.text.toLowerCase();
@@ -161,13 +284,10 @@ class _ProductScreenState extends State<ProductScreen> {
       body: AppBackground(
         title: 'Productos',
         icon: Icons.inventory_2,
-        // permisos: permisos,
-        onRefresh: () async {
-          await _loadProducts();
-        },
+        onRefresh: _refreshData, // Usar método que fuerza sincronización
         child: Column(
           children: [
-            _buildSearchBar(), // Ahora incluye el ícono de filtrar
+            _buildSearchBar(),
             _buildResultsCount(),
             _buildProductList(),
           ],
