@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_sc
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart' show showModalBottomSheet;
 
@@ -42,6 +43,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   final _formKey = GlobalKey<FormState>();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
+  final ClientesService _clienteService = ClientesService();
+  final perfilService = PerfilUsuarioService();
+  
 
   // Services
   final FacturaService _facturaService = FacturaService();
@@ -85,7 +89,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     _fechaController.text = DateFormat('yyyy-MM-dd-HH:mm:ss').format(DateTime.now());
     _loadData();
     _loadAllClientData();
-  }
+    }
 
   Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
     return Container(
@@ -190,13 +194,20 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     try {
       final direccionesData = await _direccionClienteService
           .getDireccionesPorCliente();
+      final clientesData = await _clienteService.getClientesPorRuta(usuaIdPersona??0);
       final facturasData = await _facturaService.getFacturasDevolucionesLimite();
+      print('DEBUG: Clientes obtenidos por ruta para vendedor: ${clientesData[0]}');
+      print('DEBUG: Facturas obtenidas: ${facturasData}');
+      print('DEBUG: Direcciones obtenidas: ${direccionesData[0].toJson()}');
 
       if (!mounted) return;
 
       setState(() {
-        _direcciones = direccionesData.where((direccion)  => esAdmin == true || direccion.usua_creacion == usuaId).toList();
-        _facturas = List<Map<String, dynamic>>.from(facturasData);
+        
+        _direcciones = direccionesData.where(
+          (direccion)  => clientesData.any((cliente) => cliente['clie_Id'] == direccion.clie_id) ).toList();
+          
+        _facturas = List<Map<String, dynamic>>.from(facturasData); //ward samuel
         _isLoading = false;
       });
     } catch (e) {
@@ -468,6 +479,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                         if (textEditingValue.text.isEmpty) {
                           final sortedDirecciones = List<DireccionCliente>.from(
                             _direcciones,
+                            //ward samuel
                           );
                           sortedDirecciones.sort(
                             (a, b) => b.dicl_fechacreacion.compareTo(
@@ -620,6 +632,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          'Factura *',
+                          style: _labelStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
@@ -740,74 +759,74 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     const SizedBox(height: 16),
 
                     // Fecha
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Fecha *',
-                          style: _labelStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.white,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 0,
-                          ),
-                          constraints: const BoxConstraints(minHeight: 56),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _fechaController,
-                                  style: _labelStyle,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Seleccione una fecha',
-                                    hintStyle: TextStyle(color: Colors.grey),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                  ),
-                                  readOnly: true,
-                                  onTap: () async {
-                                    final DateTime? picked =
-                                        await showDatePicker(
-                                          context: context,
-                                          initialDate: DateTime.now(),
-                                          firstDate: DateTime(2000),
-                                          lastDate: DateTime(2100),
-                                        );
-                                    if (picked != null) {
-                                      setState(() {
-                                        _fechaController.text = DateFormat(
-                                          'yyyy-MM-dd',
-                                        ).format(picked);
-                                      });
-                                    }
-                                  },
-                                  validator: (value) => value?.isEmpty ?? true
-                                      ? 'Ingrese una fecha'
-                                      : null,
-                                ),
-                              ),
-                              const Icon(
-                                Icons.calendar_today,
-                                color: Colors.grey,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Column(
+                    //   crossAxisAlignment: CrossAxisAlignment.start,
+                    //   children: [
+                    //     Text(
+                    //       'Fecha *',
+                    //       style: _labelStyle.copyWith(
+                    //         fontWeight: FontWeight.bold,
+                    //       ),
+                    //     ),
+                    //     const SizedBox(height: 8),
+                    //     Container(
+                    //       decoration: BoxDecoration(
+                    //         border: Border.all(color: Colors.grey.shade400),
+                    //         borderRadius: BorderRadius.circular(8),
+                    //         color: Colors.white,
+                    //       ),
+                    //       padding: const EdgeInsets.symmetric(
+                    //         horizontal: 12,
+                    //         vertical: 0,
+                    //       ),
+                    //       constraints: const BoxConstraints(minHeight: 56),
+                    //       child: Row(
+                    //         children: [
+                    //           Expanded(
+                    //             child: TextFormField(
+                    //               controller: _fechaController,
+                    //               style: _labelStyle,
+                    //               decoration: const InputDecoration(
+                    //                 hintText: 'Seleccione una fecha',
+                    //                 hintStyle: TextStyle(color: Colors.grey),
+                    //                 border: InputBorder.none,
+                    //                 isDense: true,
+                    //                 contentPadding: EdgeInsets.symmetric(
+                    //                   vertical: 16,
+                    //                 ),
+                    //               ),
+                    //               readOnly: true,
+                    //               onTap: () async {
+                    //                 final DateTime? picked =
+                    //                     await showDatePicker(
+                    //                       context: context,
+                    //                       initialDate: DateTime.now(),
+                    //                       firstDate: DateTime(2000),
+                    //                       lastDate: DateTime(2100),
+                    //                     );
+                    //                 if (picked != null) {
+                    //                   setState(() {
+                    //                     _fechaController.text = DateFormat(
+                    //                       'yyyy-MM-dd',
+                    //                     ).format(picked);
+                    //                   });
+                    //                 }
+                    //               },
+                    //               validator: (value) => value?.isEmpty ?? true
+                    //                   ? 'Ingrese una fecha'
+                    //                   : null,
+                    //             ),
+                    //           ),
+                    //           const Icon(
+                    //             Icons.calendar_today,
+                    //             color: Colors.grey,
+                    //             size: 20,
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
 
                     const SizedBox(height: 16),
 
@@ -1219,6 +1238,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Header with drag handle and title
             Container(
@@ -1275,9 +1295,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                   ? const Center(child: Text('No hay productos disponibles'))
                   : ListView.builder(
                       key: const PageStorageKey('productos-list'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 12.0,
+                      padding: const EdgeInsets.only(
+                        // horizontal: 16.0,
+                        // vertical: 12.0,
+                        bottom: 100,
+                        top: 12,
+                        left: 16,
+                        right: 16,
                       ),
                       itemCount: _productosFactura.length,
                       itemBuilder: (context, index) {
@@ -1320,6 +1344,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
+
                               children: [
                                 // Product info row
                                 Row(
@@ -1580,8 +1605,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                                 ),
 
                                 // Total to return
-                                const SizedBox(height: 8),
-                              ],
+                                const SizedBox(height: 5),
+                              ], 
                             ),
                           ),
                         );
@@ -1589,7 +1614,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     ),
             ),
 
-            // Bottom action buttons
+            // Bottom action buttons ward samuel
             Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
@@ -1613,7 +1638,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                       child: OutlinedButton(
                         onPressed: () async {
                           Navigator.pop(context); // Cerrar el modal
-                          await _submitForm(); // Procesar el formulario
+                          //await _submitForm(); // Procesar el formulario
                         },
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1661,6 +1686,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 ),
               ),
             ),
+            SizedBox(height: 20.0),
           ],
         ),
       ),

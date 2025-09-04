@@ -79,7 +79,7 @@ class _clientScreenState extends State<clientScreen> {
       print(
         'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
       );
-      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona);
+      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona); //ward temporal
       print(
         'DEBUG: Clientes obtenidos por ruta para vendedor: ${clientes.length}',
       );
