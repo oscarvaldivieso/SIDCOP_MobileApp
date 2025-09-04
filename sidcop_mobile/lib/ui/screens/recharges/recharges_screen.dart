@@ -159,7 +159,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
       final recargaService = RecargasService();
 
       int sincronizadas = 0;
+      final pendientesRestantes = <Map<String, dynamic>>[];
 
+      // Procesar recargas pendientes en orden
       for (final recarga in pendientes) {
         try {
           final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
@@ -174,19 +176,18 @@ class _RechargesScreenState extends State<RechargesScreen> {
           if (success) {
             sincronizadas++;
           } else {
-            throw Exception('Error al sincronizar recarga');
+            // Si falla, mantener la recarga en pendientes
+            pendientesRestantes.add(recarga);
           }
         } catch (e) {
-          // Si falla una recarga, continuar con las demás
+          // Si falla una recarga, mantenerla en pendientes
           debugPrint('Error al sincronizar recarga: $e');
+          pendientesRestantes.add(recarga);
         }
       }
 
-      // Actualizar el archivo local eliminando las recargas sincronizadas
-      if (sincronizadas > 0) {
-        final pendientesRestantes = pendientes.skip(sincronizadas).toList();
-        await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
-      }
+      // Actualizar el archivo local con las recargas que no se pudieron sincronizar
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
 
       if (mounted && sincronizadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -727,7 +728,9 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       final recargaService = RecargasService();
 
       int sincronizadas = 0;
+      final pendientesRestantes = <Map<String, dynamic>>[];
 
+      // Procesar recargas pendientes en orden
       for (final recarga in pendientes) {
         try {
           final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
@@ -742,19 +745,18 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           if (success) {
             sincronizadas++;
           } else {
-            throw Exception('Error al sincronizar recarga');
+            // Si falla, mantener la recarga en pendientes
+            pendientesRestantes.add(recarga);
           }
         } catch (e) {
-          // Si falla una recarga, continuar con las demás
+          // Si falla una recarga, mantenerla en pendientes
           debugPrint('Error al sincronizar recarga: $e');
+          pendientesRestantes.add(recarga);
         }
       }
 
-      // Actualizar el archivo local eliminando las recargas sincronizadas
-      if (sincronizadas > 0) {
-        final pendientesRestantes = pendientes.skip(sincronizadas).toList();
-        await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
-      }
+      // Actualizar el archivo local con las recargas que no se pudieron sincronizar
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientesRestantes);
 
       if (mounted && sincronizadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -893,7 +895,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   const SizedBox(width: 8),
                   Text(
                     widget.isEditMode ? 'Editar recarga' : 'Solicitud de recarga',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
