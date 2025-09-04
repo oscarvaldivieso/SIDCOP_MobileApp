@@ -87,12 +87,15 @@ class OnboardingScreen extends StatelessWidget {
                     width: MediaQuery.of(context).size.width * 0.8,
                     child: ElevatedButton(
                       onPressed: () {
-                        // Navigate to full-screen login instead of showing bottom sheet
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled:
+                              true, // ← importante para altura completa
+                          backgroundColor:
+                              Colors.transparent, // Para bordes redondeados
+                          builder: (context) {
+                            return const _LoginBottomSheet(); // Creamos este widget abajo
+                          },
                         );
                       },
                       style: ElevatedButton.styleFrom(
