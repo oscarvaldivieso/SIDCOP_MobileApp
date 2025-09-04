@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
+import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
@@ -12,6 +13,8 @@ class PedidoDetalleBottomSheet extends StatefulWidget {
 }
 
 class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
+  final FacturaService _facturaService = FacturaService();
+  bool _isInsertingInvoice = false;
 
   Color get _primaryColor => const Color(0xFF141A2F);
   Color get _goldColor => const Color(0xFFE0C7A0);
@@ -52,18 +55,23 @@ Widget build(BuildContext context) {
                     ),
                   ),
                 ),
-                  IconButton(
-                    icon: const Icon(Icons.print_outlined, color: Colors.black54),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+                  _isInsertingInvoice
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
                         ),
-                      );
-                    },
-                    tooltip: 'Ver Factura',
-                  ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.shopping_cart, color: Colors.black54),
+                        onPressed: () async {
+                          // Insertar la factura (la navegación se maneja dentro del método)
+                          await _insertarFactura();
+                        },
+                        tooltip: 'Ver Factura',
+                      ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.black54),
@@ -227,5 +235,144 @@ Widget build(BuildContext context) {
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
     return "${f.day} de ${meses[f.month]} del ${f.year}";
+  }
+
+  Future<void> _insertarFactura() async {
+    if (_isInsertingInvoice) return;
+
+    setState(() {
+      _isInsertingInvoice = true;
+    });
+
+    try {
+      // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
+      final double latitud = 0.0; // Idealmente obtener la ubicación actual
+      final double longitud = 0.0; // Idealmente obtener la ubicación actual
+
+      // Parsear los detalles del pedido para obtener los productos
+      final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
+      
+      // Log para ver el contenido de detallesJson
+      print('DETALLES JSON: ${widget.pedido.detallesJson}');
+      print('DETALLES PARSEADOS: $detalles');
+      
+      // Crear la lista de detallesFacturaInput
+      final List<Map<String, dynamic>> detallesFactura = [];
+      
+      // Recorrer los productos y añadirlos al formato requerido
+      for (var item in detalles) {
+        // Log para ver cada item
+        print('ITEM: $item');
+        print('KEYS EN ITEM: ${item.keys.toList()}');
+        
+        // Extraer el ID del producto y la cantidad
+        final int prodId = item['id'] is int
+            ? item['id']
+            : int.tryParse(item['id']?.toString() ?? '') ?? 0;
+            
+        final int cantidad = item['cantidad'] is int
+            ? item['cantidad']
+            : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
+        
+        print('PROD_ID: $prodId, CANTIDAD: $cantidad');
+        
+        // Solo añadir productos con ID y cantidad válidos
+        if (prodId > 0 && cantidad > 0) {
+          detallesFactura.add({
+            'prod_Id': prodId,
+            'faDe_Cantidad': cantidad
+          });
+        }
+      }
+      
+      print('DETALLES FACTURA FINAL: $detallesFactura');
+
+      // Preparar los datos de la factura
+      final Map<String, dynamic> facturaData = {
+        'fact_Numero': widget.pedido.pedi_Codigo,
+        'fact_TipoDeDocumento': 'FAC', // Factura
+        'regC_Id': 21, // Cambiado de 1 a 21 para encontrar un rango CAI válido
+        'diCl_Id': widget.pedido.diClId,
+        'vend_Id': widget.pedido.vendId,
+        'fact_TipoVenta': 'CO', // Contado
+        'fact_FechaEmision': DateTime.now().toIso8601String(),
+        'fact_Latitud': latitud,
+        'fact_Longitud': longitud,
+        'fact_Referencia': 'Pedido generado desde app móvil',
+        'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
+        'usua_Creacion': widget.pedido.usuaCreacion,
+        'fact_EsPedido': true, // Marcar como pedido
+        'pedi_Id': widget.pedido.pediId, // ID del pedido actual
+        'detallesFacturaInput': detallesFactura, // Añadir los productos
+      };
+
+      // Log para mostrar el objeto completo que se envía a la API
+      print('OBJETO COMPLETO A ENVIAR: ${jsonEncode(facturaData)}');
+      
+      // Llamar al servicio para insertar la factura
+      await _facturaService.insertarFactura(facturaData);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Factura registrada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Si la inserción fue exitosa, navegar a la pantalla de vista previa
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        // Verificar si es un error de inventario insuficiente
+        if (e is InventarioInsuficienteException) {
+          // Mostrar un diálogo con el mensaje de error de inventario insuficiente
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Inventario Insuficiente', 
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                ),
+                content: SingleChildScrollView(
+                  child: Text(
+                    e.toString(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    child: const Text('Entendido'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        } else {
+          // Mostrar un SnackBar para otros tipos de errores
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al registrar la factura: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInsertingInvoice = false;
+        });
+      }
+    }
   }
 }
