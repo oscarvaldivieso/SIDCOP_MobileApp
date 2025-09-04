@@ -43,63 +43,16 @@ class SincronizacionService {
       final visitas = await VisitasOffline.obtenerVisitasHistorialLocal();
       int pendientes = 0;
 
-      developer.log(
-        '🔍 [DEBUG] Total de visitas en almacenamiento local: ${visitas.length}',
-      );
-
-      int index = 0;
       for (var visita in visitas) {
         try {
-          // Verificar si la visita tiene el campo 'offline'
-          final hasOfflineField =
-              visita is Map && visita.containsKey('offline');
-          final offlineValue = visita is Map ? visita['offline'] : null;
-
-          // Mostrar información detallada de cada visita
-          if (visita is Map) {
-            final clienteNombre =
-                visita['clie_Nombres'] ??
-                visita['clie_NombreNegocio'] ??
-                'Sin nombre';
-            final fecha = visita['clVi_Fecha'] ?? 'Sin fecha';
-            developer.log(
-              '🔍 [DEBUG] Visita[$index]: Cliente=$clienteNombre, Fecha=$fecha, ' +
-                  'tiene campo offline=${hasOfflineField}, offline=${offlineValue}',
-            );
-
-            if (visita.containsKey('local_signature')) {
-              developer.log(
-                '🔍 [DEBUG] Visita[$index]: local_signature=${visita['local_signature']}',
-              );
-            }
-
-            if (visita.containsKey('imagenesBase64')) {
-              final imagenes = visita['imagenesBase64'];
-              if (imagenes is List) {
-                developer.log(
-                  '🔍 [DEBUG] Visita[$index]: tiene ${imagenes.length} imágenes en base64',
-                );
-              }
-            }
-          }
-
           if (visita is Map && visita['offline'] == true) {
             pendientes++;
-            developer.log('✅ [DEBUG] Visita[$index]: MARCADA COMO PENDIENTE');
           }
-
-          index++;
-        } catch (e) {
-          developer.log('❌ [DEBUG] Error procesando visita[$index]: $e');
-        }
+        } catch (_) {}
       }
 
-      developer.log(
-        '📊 [DEBUG] Total de visitas pendientes detectadas: $pendientes',
-      );
       return pendientes;
-    } catch (e) {
-      developer.log('❌ [DEBUG] Error contando visitas pendientes: $e');
+    } catch (_) {
       return 0;
     }
   }

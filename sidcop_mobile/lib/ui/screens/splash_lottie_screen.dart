@@ -60,6 +60,9 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
             '🌐 Conexión disponible, sincronizando datos en background...',
           );
 
+          // Sincronizar visitas pendientes (offline → online)
+          _syncPendingVisitas();
+
           // Ejecutar sincronización en un isolate separado para no bloquear UI
           _runSyncInBackground();
         } else {
@@ -72,6 +75,19 @@ class _SplashLottieScreenState extends State<SplashLottieScreen>
       }
     } catch (e) {
       developer.log('❌ Error en sincronización inicial: $e');
+    }
+  }
+
+  Future<void> _syncPendingVisitas() async {
+    try {
+      // Utilizar el método syncPendingVisitas del SincronizacionService para sincronizar visitas
+      await SincronizacionService.syncVisitas();
+
+      // Nota: No necesitas manejar el conteo de visitas sincronizadas aquí
+      // ya que eso ya lo hace el método syncPendingVisitas internamente
+    } catch (e) {
+      developer.log('❌ Error al llamar sincronización de visitas: $e');
+      // No interrumpir el flujo de la app si falla la sincronización
     }
   }
 
