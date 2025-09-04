@@ -88,7 +88,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
   String _formatDate(String dateString) {
     try {
       final date = DateTime.parse(dateString);
-      return DateFormat('dd MMM yyyy', 'es_ES').format(date);
+      // Formato: "dd 'de' MMMM 'del' yyyy" (ejemplo: "04 de septiembre del 2023")
+      return DateFormat("dd 'de' MMMM 'del' yyyy", 'es_ES').format(date);
     } catch (e) {
       return dateString;
     }
