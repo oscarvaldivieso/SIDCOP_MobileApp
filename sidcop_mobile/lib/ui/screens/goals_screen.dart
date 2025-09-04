@@ -52,7 +52,18 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       debugPrint('[_loadGoals] Respuesta recibida: ${goals?.length ?? 0} metas');
       
       if (goals != null) {
-        debugPrint('[_loadGoals] Datos de metas: $goals');
+        debugPrint('[_loadGoals] Número de metas recibidas: ${goals.length}');
+        if (goals.isNotEmpty) {
+          debugPrint('[_loadGoals] Ejemplo de meta:');
+          debugPrint('  Meta_Tipo: ${goals.first['Meta_Tipo']}');
+          debugPrint('  Meta_Descripcion: ${goals.first['Meta_Descripcion']}');
+          debugPrint('  Meta_FechaInicio: ${goals.first['Meta_FechaInicio']}');
+          debugPrint('  Meta_FechaFin: ${goals.first['Meta_FechaFin']}');
+          debugPrint('  Meta_Ingresos: ${goals.first['Meta_Ingresos']}');
+          debugPrint('  ProgresoIngresos: ${goals.first['ProgresoIngresos']}');
+        } else {
+          debugPrint('[_loadGoals] La lista de metas está vacía');
+        }
       } else {
         debugPrint('[_loadGoals] La respuesta de metas es nula');
       }
@@ -85,15 +96,66 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     }
   }
 
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      // Formato: "dd 'de' MMMM 'del' yyyy" (ejemplo: "04 de septiembre del 2023")
-      return DateFormat("dd 'de' MMMM 'del' yyyy", 'es_ES').format(date);
-    } catch (e) {
-      return dateString;
+  String _formatDate(dynamic dateValue) {
+  if (dateValue == null || dateValue.toString().isEmpty) return '';
+  
+  String dateString = dateValue.toString().trim();
+  debugPrint('Formateando fecha: $dateString');
+  
+  try {
+    DateTime date;
+    
+    // Manejar el formato específico del endpoint: 2025-09-04T00:00:00
+    if (dateString.contains('T')) {
+      // Extraer solo la parte de la fecha antes de 'T'
+      final datePart = dateString.split('T')[0];
+      final parts = datePart.split('-');
+      
+      if (parts.length == 3) {
+        date = DateTime(
+          int.parse(parts[0]), // año
+          int.parse(parts[1]), // mes
+          int.parse(parts[2]), // día
+        );
+      } else {
+        // Si no se puede parsear manualmente, usar DateTime.parse
+        date = DateTime.parse(dateString);
+      }
+    } 
+    // Manejar formato solo fecha: 2025-09-04
+    else if (dateString.contains('-') && dateString.split('-').length == 3) {
+      final parts = dateString.split('-');
+      date = DateTime(
+        int.parse(parts[0]), // año
+        int.parse(parts[1]), // mes
+        int.parse(parts[2]), // día
+      );
     }
+    // Cualquier otro formato, intentar parsearlo directamente
+    else {
+      date = DateTime.parse(dateString);
+    }
+    
+    // Formatear la fecha en español: "Miércoles 4 de septiembre del 2025"
+    final format = DateFormat('EEEE d \'de\' MMMM \'del\' yyyy', 'es_ES');
+    String formattedDate = format.format(date);
+    
+    // Capitalizar la primera letra del día de la semana
+    if (formattedDate.isNotEmpty) {
+      formattedDate = formattedDate[0].toUpperCase() + formattedDate.substring(1);
+    }
+    
+    debugPrint('Fecha formateada: $formattedDate');
+    return formattedDate;
+  } catch (e) {
+    debugPrint('Error al formatear fecha "$dateString": $e');
+    // En caso de error, devolver la fecha sin la hora
+    if (dateString.contains('T')) {
+      return dateString.split('T')[0];
+    }
+    return dateString;
   }
+}
 
   String _getGoalTypeName(String type) {
     switch (type) {
@@ -207,7 +269,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -322,7 +384,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_formatDate(goal['Meta_FechaInicio'] ?? '')} - ${_formatDate(goal['Meta_FechaFin'] ?? '')}',
+                    'Limite hasta el: ${_formatDate(goal['Meta_FechaFin'] ?? '')}',
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey[600],
@@ -372,7 +434,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     final overallProgress = totalGoals > 0 ? completedGoals / totalGoals : 0.0;
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -380,7 +442,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
@@ -547,23 +609,21 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
               ? _buildErrorWidget()
               : _goals.isEmpty
                   ? _buildEmptyState()
-                  : SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          _buildSummaryCard(),
-                          const SizedBox(height: 16),
+                  : Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        _buildSummaryCard(),
+                        const SizedBox(height: 16),
+                        // Generar las tarjetas directamente en el Column
                         ...List.generate(
                           _goals.length,
                           (index) => Padding(
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: _buildGoalCard(_goals[index]),
                           ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                     ),
     );
   }

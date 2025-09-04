@@ -2104,7 +2104,7 @@ Widget paso1() {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            'Resumen del pedido',
+                            'Resumen de la venta',
                             style: TextStyle(
                               fontFamily: 'Satoshi',
                               fontSize: 16,
@@ -2713,7 +2713,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Resumen del Pedido',
+                'Resumen',
                 style: TextStyle(
                   fontFamily: 'Satoshi',
                   fontSize: 18,
