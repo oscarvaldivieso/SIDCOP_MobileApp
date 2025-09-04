@@ -72,7 +72,6 @@ class DropdownDataService {
   Future<Map<String, dynamic>> insertCliente(Map<String, dynamic> clienteData) async {
     try {
       // Set default values
-      clienteData['usua_Creacion'] = 1;
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
       // clie_ImagenDelNegocio will be set by the client creation form
       
