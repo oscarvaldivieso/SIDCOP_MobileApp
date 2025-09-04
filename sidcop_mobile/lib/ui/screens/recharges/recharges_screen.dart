@@ -7,8 +7,10 @@ import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recarga_detalle_bottom_sheet.dart';
 import 'package:flutter/services.dart';
-
+import 'package:sidcop_mobile/Offline_Services/Recargas_OfflineService.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -19,27 +21,22 @@ class RechargesScreen extends StatefulWidget {
 
 class _RechargesScreenState extends State<RechargesScreen> {
   bool _verTodasLasRecargas = false;
-  Future<List<RecargasViewModel>> _getRecargasConPersonaId() async {
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-    final personaId =
-        userData?['personaId'] ??
-        userData?['usua_IdPersona'] ??
-        userData?['idPersona'];
-    if (personaId == null) {
-      throw Exception('No se encontró personaId en los datos de usuario');
-    }
-    return RecargasService().getRecargas(
-      personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
-    );
-  }
-
+  List<RecargasViewModel> _recargas = [];
+  bool _isLoading = true;
   List<dynamic> permisos = [];
+  String _errorMessage = '';
+  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
 
   @override
   void initState() {
     super.initState();
     _loadPermisos();
+    _loadRecargas();
+    Connectivity().onConnectivityChanged.listen((result) async {
+      if (result != ConnectivityResult.none && !_isSyncing) {
+        await _sincronizarRecargasPendientes();
+      }
+    });
   }
 
   Future<void> _loadPermisos() async {
@@ -59,6 +56,83 @@ class _RechargesScreenState extends State<RechargesScreen> {
     setState(() {});
   }
 
+  Future<void> _loadRecargas() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final online = connectivityResult != ConnectivityResult.none;
+
+      if (online) {
+        // Sincronizar datos maestros
+        await RecargasScreenOffline.sincronizarClientes();
+        await RecargasScreenOffline.sincronizarDirecciones();
+
+        // Intentar enviar recargas pendientes
+        final pendientesEnviadas = await RecargasScreenOffline.sincronizarPendientes();
+        if (mounted && pendientesEnviadas > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$pendientesEnviadas recarga(s) sincronizada(s) con éxito'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Cargar recargas remotas
+        final perfilService = PerfilUsuarioService();
+        final userData = await perfilService.obtenerDatosUsuario();
+        final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
+        if (personaId == null) throw Exception('Persona ID no encontrado');
+
+        final recargas = await RecargasService().getRecargas(
+          personaId is int ? personaId : int.tryParse(personaId.toString()) ?? 0,
+        );
+        final recargasJson = recargas.map((r) => r.toJson()).toList();
+
+        // Fusionar con recargas locales pendientes
+        final localRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+        final pendientes = localRaw?.where((e) => e['offline'] == true).toList() ?? [];
+
+        for (final p in pendientes) {
+          if (!recargasJson.any((r) => r['local_signature'] == p['local_signature'])) {
+            recargasJson.add(p);
+          }
+        }
+
+        await RecargasScreenOffline.guardarJson('recargas.json', recargasJson);
+
+        setState(() {
+          _recargas = recargasJson.map((r) => RecargasViewModel.fromJson(r)).toList();
+          _isLoading = false;
+        });
+      } else {
+        // Cargar recargas locales en modo offline
+        final raw = await RecargasScreenOffline.leerJson('recargas.json');
+        if (raw != null) {
+          setState(() {
+            _recargas = List<Map<String, dynamic>>.from(raw)
+                .map((r) => RecargasViewModel.fromJson(r))
+                .toList();
+            _isLoading = false;
+          });
+        } else {
+          throw Exception('No se encontraron datos locales');
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error al cargar las recargas: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _openRecargaModal() {
     showModalBottomSheet(
       context: context,
@@ -70,6 +144,77 @@ class _RechargesScreenState extends State<RechargesScreen> {
         setState(() {}); // Refresca la lista de recargas
       }
     });
+  }
+
+  Future<void> _sincronizarRecargasPendientes() async {
+    if (_isSyncing) return; // Salir si ya se está ejecutando
+    _isSyncing = true;
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final online = connectivityResult != ConnectivityResult.none;
+    if (!online) {
+      _isSyncing = false;
+      return;
+    }
+
+    try {
+      // Leer recargas pendientes desde el almacenamiento local
+      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final recargaService = RecargasService();
+
+      int sincronizadas = 0;
+
+      // Crear una nueva lista para almacenar las recargas no sincronizadas
+      final recargasNoSincronizadas = <Map<String, dynamic>>[];
+
+      // Procesar recargas pendientes en orden
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          // Intentar enviar la recarga al servidor
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (success) {
+            sincronizadas++;
+          } else {
+            // Si no se sincroniza, agregar a la lista de no sincronizadas
+            recargasNoSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          // Si falla una recarga, agregarla a la lista de no sincronizadas
+          recargasNoSincronizadas.add(recarga);
+          debugPrint('Error al sincronizar recarga: $e');
+        }
+      }
+
+      // Actualizar el archivo local con las recargas no sincronizadas
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
+
+      if (mounted && sincronizadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar recargas pendientes: $e');
+    } finally {
+      _isSyncing = false; // Liberar el bloqueo al finalizar
+    }
   }
 
   @override
@@ -96,7 +241,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      fontFamily: 'Satoshi',
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -118,109 +262,115 @@ class _RechargesScreenState extends State<RechargesScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              FutureBuilder<List<RecargasViewModel>>(
-                future: _getRecargasConPersonaId(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-                  final recargas = snapshot.data ?? [];
-                  final Map<int, List<RecargasViewModel>> agrupadas = {};
-                  for (final r in recargas) {
-                    if (r.reca_Id != null) {
-                      agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
-                    }
-                  }
-                  final entriesList = agrupadas.entries.toList();
-                  final mostrarTodas = _verTodasLasRecargas;
-                  final itemsToShow = mostrarTodas
-                      ? entriesList
-                      : entriesList.take(3).toList();
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Builder(
+                      builder: (context) {
+                        final Map<int, List<RecargasViewModel>> agrupadas = {};
+                        for (final r in _recargas) {
+                          if (r.reca_Id != null) {
+                            agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
+                          }
+                        }
+                        final entriesList = agrupadas.entries.toList();
+                        final mostrarTodas = _verTodasLasRecargas;
+                        final itemsToShow = mostrarTodas
+                            ? entriesList
+                            : entriesList.take(3).toList();
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (agrupadas.isEmpty)
-                        const Center(child: Text('No hay recargas.'))
-                      else
-                        Column(
-                          children: itemsToShow.map((entry) {
-                            final recaId = entry.key;
-                            final recargasGrupo = entry.value;
-                            final recarga = recargasGrupo.first;
-                            final totalCantidad = recargasGrupo.fold<int>(0, (
-                              sum,
-                              r,
-                            ) {
-                              if (r.reDe_Cantidad == null) return sum;
-                              if (r.reDe_Cantidad is int)
-                                return sum + (r.reDe_Cantidad as int);
-                              return sum +
-                                  (int.tryParse(r.reDe_Cantidad.toString()) ??
-                                      0);
-                            });
-                            return _buildHistorialCard(
-                              _mapEstadoFromApi(recarga.reca_Confirmacion),
-                              recarga.reca_Fecha != null
-                                  ? _formatFechaFromApi(
-                                      recarga.reca_Fecha!.toIso8601String(),
-                                    )
-                                  : '-',
-                              totalCantidad,
-                              recargasGrupo: recargasGrupo,
-                            );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Solicitar recarga',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 18,
-                          fontFamily: 'Satoshi',
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      GestureDetector(
-                        onTap: _openRecargaModal,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF141A2F),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Abrir recarga',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 16,
-                                    fontFamily: 'Satoshi',
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (agrupadas.isEmpty)
+                              const Center(child: Text('No hay recargas.'))
+                            else
+                              Column(
+                                children: itemsToShow.map((entry) {
+                                  final recargasGrupo = entry.value;
+                                  final recarga = recargasGrupo.first;
+                                  final totalCantidad = recargasGrupo.fold<int>(0, (
+                                    sum,
+                                    r,
+                                  ) {
+                                    if (r.reDe_Cantidad == null) return sum;
+                                    if (r.reDe_Cantidad is int)
+                                      return sum + (r.reDe_Cantidad as int);
+                                    return sum +
+                                        (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
+                                  });
+                                  return _buildHistorialCard(
+                                    _mapEstadoFromApi(recarga.reca_Confirmacion),
+                                    recarga.reca_Fecha != null
+                                        ? _formatFechaFromApi(
+                                            recarga.reca_Fecha!.toIso8601String(),
+                                          )
+                                        : '-',
+                                    totalCantidad,
+                                    recargasGrupo: recargasGrupo,
+                                  );
+                                }).toList(),
+                              ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Solicitar recarga',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 15),
+                            GestureDetector(
+                              onTap: _openRecargaModal,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141A2F),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Abrir recarga',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 16,
+                                          fontFamily: 'Satoshi',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Icon(
+                                        Icons.add_shopping_cart_rounded,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                const Icon(
-                                  Icons.add_shopping_cart_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                          ],
+                        );
+                      },
+                    ),
+              if (_errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    _errorMessage,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                      fontFamily: 'Satoshi',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -547,13 +697,11 @@ class _RechargesScreenState extends State<RechargesScreen> {
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
   final bool isEditMode;
-  final int? recaId;
   
   const RecargaBottomSheet({
     super.key,
     this.recargasGrupoParaEditar,
     this.isEditMode = false,
-    this.recaId,
   });
 
   @override
@@ -567,11 +715,80 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
   String search = '';
   bool _isLoading = true;
+  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
 
   @override
   void initState() {
     super.initState();
     _fetchProductos();
+    if (!_isSyncing) {
+      _sincronizarRecargasPendientes();
+    }
+    Connectivity().onConnectivityChanged.listen((result) async {
+      if (result != ConnectivityResult.none && !_isSyncing) {
+        await _sincronizarRecargasPendientes();
+      }
+    });
+  }
+
+  Future<void> _sincronizarRecargasPendientes() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final online = connectivityResult != ConnectivityResult.none;
+    if (!online) return;
+
+    try {
+      // Leer recargas pendientes desde el almacenamiento local
+      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) return;
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final recargaService = RecargasService();
+
+      int sincronizadas = 0;
+
+      // Crear una nueva lista para almacenar las recargas no sincronizadas
+      final recargasNoSincronizadas = <Map<String, dynamic>>[];
+
+      // Procesar recargas pendientes en orden
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          // Intentar enviar la recarga al servidor
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (success) {
+            sincronizadas++;
+          } else {
+            // Si no se sincroniza, agregar a la lista de no sincronizadas
+            recargasNoSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          // Si falla una recarga, agregarla a la lista de no sincronizadas
+          recargasNoSincronizadas.add(recarga);
+          debugPrint('Error al sincronizar recarga: $e');
+        }
+      }
+
+      // Actualizar el archivo local con las recargas no sincronizadas
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
+
+      if (mounted && sincronizadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar recargas pendientes: $e');
+    }
   }
 
   @override
@@ -583,19 +800,55 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Future<void> _fetchProductos() async {
+    bool online = true;
     try {
-      final productos = await _productosService.getProductos();
+      final result = await InternetAddress.lookup('google.com');
+      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      online = false;
+    }
+    if (online) {
+      try {
+        final productos = await _productosService.getProductos();
+        setState(() {
+          _productos = productos;
+          _isLoading = false;
+          if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
+            _preFillEditData();
+          }
+        });
+        // Guardar productos offline
+        try {
+          final jsonList = productos.map((p) => p.toJson()).toList();
+          await RecargasScreenOffline.guardarJson('productos.json', jsonList);
+        } catch (_) {}
+      } catch (e) {
+        // Si falla online, intentar cargar productos offline
+        await _loadProductosOffline();
+      }
+    } else {
+      await _loadProductosOffline();
+    }
+  }
+
+  Future<void> _loadProductosOffline() async {
+    try {
+      final raw = await RecargasScreenOffline.leerJson('productos.json');
+      if (raw != null) {
+        final lista = List.from(raw as List);
+        setState(() {
+          _productos = lista.map((json) => Productos.fromJson(json)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _productos = [];
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
       setState(() {
-        _productos = productos;
-        _isLoading = false;
-        
-        // Si estamos en modo edición, pre-llenar las cantidades
-        if (widget.isEditMode && widget.recargasGrupoParaEditar != null) {
-          _preFillEditData();
-        }
-      });
-    } catch (e) {
-      setState(() {
+        _productos = [];
         _isLoading = false;
       });
     }
@@ -661,7 +914,10 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   const SizedBox(width: 8),
                   Text(
                     widget.isEditMode ? 'Editar recarga' : 'Solicitud de recarga',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
@@ -782,45 +1038,69 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     return;
                   }
 
-                  // 3. Llamar a RecargasService
-                  final recargaService = RecargasService();
-                  bool ok;
-                  
-                  if (widget.isEditMode && widget.recaId != null) {
-                    // Modo edición - actualizar recarga existente
-                    ok = await recargaService.updateRecarga(
-                      recaId: widget.recaId!,
-                      usuaModificacion: usuaId,
-                      detalles: detalles,
-                    );
-                  } else {
-                    // Modo creación - insertar nueva recarga
+                  // 3. Verificar conectividad
+                  bool online = true;
+                  try {
+                    final result = await InternetAddress.lookup('google.com');
+                    online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+                  } catch (_) {
+                    online = false;
+                  }
+                  bool ok = false;
+                  if (online) {
+                    // 4. Llamar a RecargasService
+                    final recargaService = RecargasService();
                     ok = await recargaService.insertarRecarga(
                       usuaCreacion: usuaId,
                       detalles: detalles,
                     );
+                  } else {
+                    // Guardar recarga offline para sincronizar después
+                    final recargaOffline = {
+                      'usua_Id': usuaId,
+                      'detalles': detalles,
+                      'fecha': DateTime.now().toIso8601String(),
+                      'offline': true,
+                    };
+                    try {
+                      final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+                      List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+                      pendientes.add(recargaOffline);
+                      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientes);
+                      ok = true;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Recarga guardada en modo offline'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      ok = false;
+                    }
                   }
-                  
+
+                  // 4. Intentar sincronizar pendientes si hay conexión
+                  await _sincronizarRecargasPendientes();
+
                   if (mounted) {
                     if (ok) {
-                      print('🔍 DEBUG: Operación exitosa - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(widget.isEditMode 
-                              ? "Recarga actualizada correctamente" 
-                              : "Recarga enviada correctamente"),
-                          backgroundColor: Colors.green,
+                          content: Text(online
+                              ? "Recarga enviada correctamente"
+                              : "Recarga guardada en modo offline. Se enviará cuando haya conexión."),
+                          backgroundColor: online ? Colors.green : Colors.orange,
                         ),
                       );
-                      print('🔍 DEBUG: Cerrando modal con resultado: true');
                       Navigator.of(context).pop(true);
                     } else {
-                      print('🔍 DEBUG: Operación fallida - isEditMode: ${widget.isEditMode}');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(widget.isEditMode 
-                              ? "Error al actualizar la recarga" 
-                              : "Error al enviar la recarga"),
+                          content: Text(online
+                              ? "Error al enviar la recarga"
+                              : "Error al guardar la recarga offline"),
                           backgroundColor: Colors.red,
                         ),
                       );
