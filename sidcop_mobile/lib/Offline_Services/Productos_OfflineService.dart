@@ -4,20 +4,19 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 
-/// Servicio offline para operaciones relacionadas con productos.
+/// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//PRODUCTOS SCREEN Y PRODUCTOS DETAILS
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ProductosOffline {
   // Carpeta raíz dentro de documents para los archivos offline
   static const String _carpetaOffline = 'offline';
-
-  // Instancia de secure storage para valores pequeños/medianos
-  static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
-
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
     return await getApplicationDocumentsDirectory();
@@ -34,8 +33,8 @@ class ProductosOffline {
     return ruta;
   }
 
-  /// Guarda cualquier objeto JSON-serializable en `nombreArchivo`.
-  /// Escritura atómica: se guarda el JSON como string en secure storage bajo la clave 'json:<nombreArchivo>'.
+  /// Guarda cualquier objeto JSON-serializable en `nombreArchivo` (por ejemplo: 'productos.json').
+  /// La escritura es atómica: escribe en un temporal y renombra.
   static Future<void> guardarJson(String nombreArchivo, Object objeto) async {
     try {
       final key = 'json:$nombreArchivo';
@@ -60,7 +59,7 @@ class ProductosOffline {
     }
   }
 
-  /// Guarda bytes en secure storage como base64 bajo la clave 'bin:<nombreArchivo>'.
+  /// Guarda bytes en un archivo (por ejemplo imágenes, mbtiles). Escritura atómica.
   static Future<void> guardarBytes(
     String nombreArchivo,
     Uint8List bytes,
@@ -75,23 +74,20 @@ class ProductosOffline {
     }
   }
 
-  /// Lee bytes desde secure storage (preferido) o desde disco si existe.
-  /// Devuelve null si no existe.
+  /// Lee bytes desde un archivo. Devuelve null si no existe.
   static Future<Uint8List?> leerBytes(String nombreArchivo) async {
     try {
       final key = 'bin:$nombreArchivo';
       final encoded = await _secureStorage.read(key: key);
       if (encoded != null) {
-        final bytes = base64Decode(encoded);
-        return Uint8List.fromList(bytes);
+        return base64Decode(encoded);
       }
       
       // Fallback: intentar leer desde disco
       final ruta = await _rutaArchivo(nombreArchivo);
       final archivo = File(ruta);
       if (await archivo.exists()) {
-        final bytes = await archivo.readAsBytes();
-        return Uint8List.fromList(bytes);
+        return await archivo.readAsBytes();
       }
       
       return null;
@@ -101,24 +97,23 @@ class ProductosOffline {
     }
   }
 
-  /// Comprueba si un archivo existe en secure storage o en disco.
+  /// Comprueba si un archivo existe en la carpeta offline.
   static Future<bool> existe(String nombreArchivo) async {
+    // Comprobar secure storage (json o bin) y disco
     if (nombreArchivo.toLowerCase().endsWith('.json')) {
       final key = 'json:$nombreArchivo';
       final s = await _secureStorage.read(key: key);
       if (s != null) return true;
-    } else {
-      final binKey = 'bin:$nombreArchivo';
-      final b = await _secureStorage.read(key: binKey);
-      if (b != null) return true;
     }
-
+    final binKey = 'bin:$nombreArchivo';
+    final b = await _secureStorage.read(key: binKey);
+    if (b != null) return true;
     final ruta = await _rutaArchivo(nombreArchivo);
     final archivo = File(ruta);
     return archivo.exists();
   }
 
-  /// Borra un archivo (json o bin) si existe.
+  /// Borra un archivo si existe.
   static Future<void> borrar(String nombreArchivo) async {
     try {
       // Borrar de secure storage
@@ -139,12 +134,10 @@ class ProductosOffline {
     }
   }
 
-  /// Lista los nombres de archivos dentro de la carpeta offline (no recursivo)
-  /// y añade keys guardadas en secure storage.
+  /// Lista los nombres de archivos dentro de la carpeta offline (no recursivo).
   static Future<List<String>> listarArchivos() async {
+    // Listar archivos en carpeta offline + JSON almacenados en secure storage
     final archivos = <String>[];
-    
-    // Archivos en disco
     final docs = await _directorioDocuments();
     final carpeta = Directory(p.join(docs.path, _carpetaOffline));
     if (await carpeta.exists()) {
@@ -155,24 +148,50 @@ class ProductosOffline {
         }
       }
     }
-    
-    // Archivos en secure storage
+    // Añadir keys guardadas en secure storage (prefijo 'json:' y 'bin:')
     try {
       final allKeys = await _secureStorage.readAll();
       for (final key in allKeys.keys) {
-        if (key.startsWith('json:') || key.startsWith('bin:')) {
-          final fileName = key.substring(4); // Remove 'json:' or 'bin:'
-          if (!archivos.contains(fileName)) {
-            archivos.add(fileName);
-          }
+        if (key.startsWith('json:')) {
+          final filename = key.substring(5);
+          if (!archivos.contains(filename)) archivos.add(filename);
+        } else if (key.startsWith('bin:')) {
+          final filename = key.substring(4);
+          if (!archivos.contains(filename)) archivos.add(filename);
         }
       }
-    } catch (_) {}
-    
+    } catch (_) {
+      // Ignorar errores de secure storage
+    }
     return archivos;
   }
 
-  /// Guarda un JSON en secure storage bajo la clave `key`.
+  // Funciones de conveniencia para productos (json en 'productos.json')
+  static const String _archivoProductos = 'productos.json';
+
+  static Future<void> guardarProductos(
+    List<Productos> productos,
+  ) async {
+    await guardarJson(_archivoProductos, productos.map((p) => p.toJson()).toList());
+  }
+
+  static Future<List<Productos>> cargarProductos() async {
+    final raw = await leerJson(_archivoProductos);
+    if (raw == null) return [];
+    try {
+      final List<dynamic> lista = List.from(raw as List);
+      return lista.map((json) => Productos.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('Error parseando productos: $e');
+      return [];
+    }
+  }
+
+  // Instancia de secure storage para valores sensibles (pequeños/medianos)
+  static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  /// Guarda un objeto JSON (serializable) en el almacenamiento seguro bajo la clave `key`.
+  /// Nota: secure storage está pensado para strings pequeños/medianos. No usar para archivos muy grandes.
   static Future<void> guardarJsonSeguro(String key, Object objeto) async {
     try {
       final contenido = jsonEncode(objeto);
@@ -196,19 +215,74 @@ class ProductosOffline {
   }
 
   // -----------------------------
-  // Helpers específicos para Productos
+  // Helpers específicos para 'details' de productos
   // -----------------------------
-  static const String _archivoProductos = 'productos.json';
-  static const String _archivoCategorias = 'categorias.json';
-  static const String _archivoMarcas = 'marcas.json';
-  static const String _archivoSubcategorias = 'subcategorias.json';
+  /// Guarda los detalles de un producto en secure storage bajo la clave 'details_producto_<id>'
+  static Future<void> guardarDetallesProducto(
+    int productoId,
+    Map<String, dynamic> detalles,
+  ) async {
+    final key = 'details_producto_$productoId';
+    await guardarJsonSeguro(key, detalles);
+  }
 
-  /// Sincroniza la lista de productos desde el servicio remoto y guarda localmente.
+  /// Lee los detalles de un producto desde secure storage; devuelve null si no existe
+  static Future<Map<String, dynamic>?> leerDetallesProducto(int productoId) async {
+    final key = 'details_producto_$productoId';
+    final raw = await leerJsonSeguro(key);
+    if (raw == null) return null;
+    try {
+      return Map<String, dynamic>.from(raw as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Borra los detalles de un producto de secure storage (si existen)
+  static Future<void> borrarDetallesProducto(int productoId) async {
+    final key = 'details_producto_$productoId';
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (e) {
+      print('Error borrando detalles producto $productoId: $e');
+    }
+  }
+
+  /// Devuelve la ruta absoluta en Documents para un nombre de archivo simple
+  /// (no usa la carpeta 'offline'). Esto replica el comportamiento de
+  /// `guardarImagenDeMapaStatic` en `Rutas_mapscreen.dart` que guarda en
+  /// Documents directamente.
+  static Future<String> rutaEnDocuments(String nombreArchivo) async {
+    final docs = await _directorioDocuments();
+    return p.join(docs.path, nombreArchivo);
+  }
+
+  /// Descarga una imagen desde `imageUrl` y la guarda en Documents con el
+  /// nombre `nombreArchivo.png`. Devuelve la ruta del archivo guardado o
+  /// null si ocurrió un error. Replica el comportamiento de
+  /// `guardarImagenDeMapaStatic` en `Rutas_mapscreen.dart`.
+  static Future<String?> guardarImagenDeProductoStatic(
+    String imageUrl,
+    String nombreArchivo,
+  ) async {
+    // Per requirement: offline service must not download or call remote static
+    // map endpoints. Image caching must be handled by the UI while online.
+    // Keep a placeholder implementation for legacy callers.
+    return null;
+  }
+
+  // -----------------------------
+  // Métodos de sincronización con los endpoints usados en pantalla 'Productos'
+  // Estos métodos consultan los servicios remotos y almacenan la copia
+  // local utilizando las funciones anteriores (guardarJson).
+  // -----------------------------
+
+  /// Sincroniza los productos desde el endpoint y los guarda en 'productos.json'.
   static Future<List<Productos>> sincronizarProductos() async {
     try {
       final service = ProductosService();
       final data = await service.getProductos();
-      await guardarJson(_archivoProductos, data.map((p) => p.toJson()).toList());
+      await guardarProductos(data);
       return data;
     } catch (e) {
       print('Error sincronizando productos: $e');
@@ -216,36 +290,12 @@ class ProductosOffline {
     }
   }
 
-  /// Guarda manualmente una lista de productos en el almacenamiento local.
-  static Future<void> guardarProductos(List<Productos> productos) async {
-    await guardarJson(_archivoProductos, productos.map((p) => p.toJson()).toList());
-  }
-
-  /// Lee la lista de productos almacenada localmente o devuelve lista vacía.
-  static Future<List<Productos>> obtenerProductosLocal() async {
-    final raw = await leerJson(_archivoProductos);
-    if (raw == null) return [];
-    
-    try {
-      final List<dynamic> list = List.from(raw as List);
-      return list.map((json) => Productos.fromJson(json as Map<String, dynamic>)).toList();
-    } catch (e) {
-      print('Error parseando productos locales: $e');
-      return [];
-    }
-  }
-
-  /// Wrapper que fuerza lectura/sincronización remota para productos (si se necesita).
-  static Future<List<Productos>> leerProductos() async {
-    return await sincronizarProductos();
-  }
-
-  /// Sincroniza las categorías desde el servicio remoto y guarda localmente.
+  /// Sincroniza las categorías desde el endpoint y las guarda en 'categorias.json'.
   static Future<List<Map<String, dynamic>>> sincronizarCategorias() async {
     try {
       final service = ProductosService();
       final data = await service.getCategorias();
-      await guardarJson(_archivoCategorias, data);
+      await guardarJson('categorias.json', data);
       return data;
     } catch (e) {
       print('Error sincronizando categorías: $e');
@@ -253,65 +303,12 @@ class ProductosOffline {
     }
   }
 
-  /// Guarda manualmente una lista de categorías en el almacenamiento local.
-  static Future<void> guardarCategorias(List<Map<String, dynamic>> categorias) async {
-    await guardarJson(_archivoCategorias, categorias);
-  }
-
-  /// Lee categorías locales o devuelve lista vacía.
-  static Future<List<Map<String, dynamic>>> obtenerCategoriasLocal() async {
-    final raw = await leerJson(_archivoCategorias);
-    if (raw == null) return [];
-    return List<Map<String, dynamic>>.from(raw as List);
-  }
-
-  /// Lee las categorías preferiendo el cache local. Si no hay datos
-  /// locales, intenta sincronizar desde el servicio remoto y los guarda.
-  static Future<List<Map<String, dynamic>>> leerCategorias() async {
-    final local = await obtenerCategoriasLocal();
-    if (local.isNotEmpty) return local;
-    return await sincronizarCategorias();
-  }
-
-  /// Sincroniza las marcas desde el servicio remoto y guarda localmente.
-  static Future<List<Map<String, dynamic>>> sincronizarMarcas() async {
-    try {
-      final service = ProductosService();
-      final data = await service.getMarcas();
-      await guardarJson(_archivoMarcas, data);
-      return data;
-    } catch (e) {
-      print('Error sincronizando marcas: $e');
-      return [];
-    }
-  }
-
-  /// Guarda manualmente una lista de marcas en el almacenamiento local.
-  static Future<void> guardarMarcas(List<Map<String, dynamic>> marcas) async {
-    await guardarJson(_archivoMarcas, marcas);
-  }
-
-  /// Lee marcas locales o devuelve lista vacía.
-  static Future<List<Map<String, dynamic>>> obtenerMarcasLocal() async {
-    final raw = await leerJson(_archivoMarcas);
-    if (raw == null) return [];
-    return List<Map<String, dynamic>>.from(raw as List);
-  }
-
-  /// Lee las marcas preferiendo el cache local. Si no hay datos
-  /// locales, intenta sincronizar desde el servicio remoto y los guarda.
-  static Future<List<Map<String, dynamic>>> leerMarcas() async {
-    final local = await obtenerMarcasLocal();
-    if (local.isNotEmpty) return local;
-    return await sincronizarMarcas();
-  }
-
-  /// Sincroniza las subcategorías desde el servicio remoto y guarda localmente.
+  /// Sincroniza las subcategorías desde el endpoint y las guarda en 'subcategorias.json'.
   static Future<List<Map<String, dynamic>>> sincronizarSubcategorias() async {
     try {
       final service = ProductosService();
       final data = await service.getSubcategorias();
-      await guardarJson(_archivoSubcategorias, data);
+      await guardarJson('subcategorias.json', data);
       return data;
     } catch (e) {
       print('Error sincronizando subcategorías: $e');
@@ -319,29 +316,201 @@ class ProductosOffline {
     }
   }
 
-  /// Guarda manualmente una lista de subcategorías en el almacenamiento local.
-  static Future<void> guardarSubcategorias(List<Map<String, dynamic>> subcategorias) async {
-    await guardarJson(_archivoSubcategorias, subcategorias);
+  /// Sincroniza las marcas desde el endpoint y las guarda en 'marcas.json'.
+  static Future<List<Map<String, dynamic>>> sincronizarMarcas() async {
+    try {
+      final service = ProductosService();
+      final data = await service.getMarcas();
+      await guardarJson('marcas.json', data);
+      return data;
+    } catch (e) {
+      print('Error sincronizando marcas: $e');
+      return [];
+    }
   }
 
-  /// Lee subcategorías locales o devuelve lista vacía.
-  static Future<List<Map<String, dynamic>>> obtenerSubcategoriasLocal() async {
-    final raw = await leerJson(_archivoSubcategorias);
+  /// Guarda la imagen de un producto (nombre: 'imagen_producto_<productoId>.jpg').
+  static Future<void> guardarImagenProducto(
+    String productoId,
+    Uint8List bytes,
+  ) async {
+    final filename = 'imagen_producto_${productoId}.jpg';
+    await guardarBytes(filename, bytes);
+  }
+
+  /// Lee la imagen de un producto si existe.
+  static Future<Uint8List?> leerImagenProducto(String productoId) async {
+    final filename = 'imagen_producto_${productoId}.jpg';
+    return await leerBytes(filename);
+  }
+
+  /// Devuelve la ruta absoluta en disco del archivo de imagen del producto si
+  /// existe, o null si no está disponible en disco. Esto es útil para
+  /// widgets que prefieren `Image.file(File(path))`.
+  static Future<String?> rutaImagenProductoLocal(String productoId) async {
+    final filename = 'imagen_producto_${productoId}.jpg';
+    try {
+      final ruta = await _rutaArchivo(filename);
+      final archivo = File(ruta);
+      if (await archivo.exists()) {
+        return ruta;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sincroniza Productos, Categorías, Subcategorías y Marcas en paralelo y devuelve
+  /// un mapa con los resultados. Si alguna falla, la excepción se propaga.
+  static Future<Map<String, dynamic>> sincronizarProductos_Todo() async {
+    try {
+      final resultados = await Future.wait([
+        sincronizarProductos(),
+        sincronizarCategorias(),
+        sincronizarSubcategorias(),
+        sincronizarMarcas(),
+      ]);
+
+      return {
+        'productos': resultados[0],
+        'categorias': resultados[1],
+        'subcategorias': resultados[2],
+        'marcas': resultados[3],
+      };
+    } catch (e) {
+      print('Error en sincronización completa de productos: $e');
+      rethrow;
+    }
+  }
+
+  /// Genera y guarda los detalles para todos los productos disponibles.
+  /// Usa datos locales si existen, o sincroniza los productos remotos si no hay datos locales.
+  static Future<void> guardarDetallesTodosProductos({bool forzar = false}) async {
+    try {
+      List<Productos> productos;
+      
+      if (forzar) {
+        productos = await sincronizarProductos();
+      } else {
+        productos = await obtenerProductosLocal();
+        if (productos.isEmpty) {
+          productos = await sincronizarProductos();
+        }
+      }
+
+      // Generar detalles para cada producto
+      for (final producto in productos) {
+        final detalles = {
+          'id': producto.prod_Id,
+          'descripcion': producto.prod_Descripcion,
+          'codigo': producto.prod_Codigo,
+          'precio': producto.prod_PrecioUnitario,
+          'marca': producto.marc_Descripcion,
+          'categoria': producto.cate_Descripcion,
+          'proveedor': producto.prov_NombreEmpresa,
+          'descripcionCorta': producto.prod_DescripcionCorta,
+          'fechaActualizacion': DateTime.now().toIso8601String(),
+        };
+        
+        await guardarDetallesProducto(producto.prod_Id, detalles);
+      }
+      
+      print('Detalles guardados para ${productos.length} productos');
+    } catch (e) {
+      print('Error guardando detalles de productos: $e');
+      rethrow;
+    }
+  }
+
+  // -----------------------------
+  // Métodos de lectura con los archivos de Productos
+  // -----------------------------
+  /// Devuelve los productos almacenados localmente (productos.json) o lista vacía.
+  static Future<List<Productos>> obtenerProductosLocal() async {
+    final raw = await leerJson('productos.json');
     if (raw == null) return [];
-    return List<Map<String, dynamic>>.from(raw as List);
+    try {
+      final List<dynamic> lista = List.from(raw as List);
+      return lista.map((json) => Productos.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('Error parseando productos locales: $e');
+      return [];
+    }
   }
 
-  /// Lee las subcategorías preferiendo el cache local. Si no hay datos
-  /// locales, intenta sincronizar desde el servicio remoto y los guarda.
+  /// Fuerza sincronización remota y devuelve los datos.
+  static Future<List<Productos>> leerProductos() async {
+    return await sincronizarProductos();
+  }
+
+  /// Categorías locales (categorias.json) - VERSIÓN CORREGIDA
+  static Future<List<Map<String, dynamic>>> obtenerCategoriasLocal() async {
+    final raw = await leerJson('categorias.json');
+    if (raw == null) return [];
+    try {
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error parseando categorías locales: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> leerCategorias() async {
+    // Primero intentar obtener datos locales
+    final local = await obtenerCategoriasLocal();
+    if (local.isNotEmpty) {
+      return local;
+    }
+    // Solo sincronizar si no hay datos locales
+    return await sincronizarCategorias();
+  }
+
+  /// Subcategorías locales - VERSIÓN CORREGIDA
+  static Future<List<Map<String, dynamic>>> obtenerSubcategoriasLocal() async {
+    final raw = await leerJson('subcategorias.json');
+    if (raw == null) return [];
+    try {
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error parseando subcategorías locales: $e');
+      return [];
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> leerSubcategorias() async {
+    // Primero intentar obtener datos locales
     final local = await obtenerSubcategoriasLocal();
-    if (local.isNotEmpty) return local;
+    if (local.isNotEmpty) {
+      return local;
+    }
+    // Solo sincronizar si no hay datos locales
     return await sincronizarSubcategorias();
   }
 
+  /// Marcas locales - VERSIÓN CORREGIDA
+  static Future<List<Map<String, dynamic>>> obtenerMarcasLocal() async {
+    final raw = await leerJson('marcas.json');
+    if (raw == null) return [];
+    try {
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error parseando marcas locales: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> leerMarcas() async {
+    // Primero intentar obtener datos locales
+    final local = await obtenerMarcasLocal();
+    if (local.isNotEmpty) {
+      return local;
+    }
+    // Solo sincronizar si no hay datos locales
+    return await sincronizarMarcas();
+  }
+
   /// Sincroniza productos con descuento para un cliente y vendedor específicos.
-  /// Nota: Esta función requiere parámetros específicos, por lo que no se puede 
-  /// cachear de manera genérica. Se recomienda usar directamente el servicio.
   static Future<List<ProductoConDescuento>> sincronizarProductosConDescuento(
     int clienteId, 
     int vendedorId
@@ -350,7 +519,7 @@ class ProductosOffline {
       final service = ProductosService();
       final data = await service.getProductosConDescuentoPorClienteVendedor(clienteId, vendedorId);
       
-      // Opcionalmente cachear por cliente-vendedor específico
+      // Cachear por cliente-vendedor específico
       final cacheKey = 'productos_descuento_${clienteId}_$vendedorId.json';
       await guardarJson(cacheKey, data.map((p) => p.toJson()).toList());
       
@@ -391,83 +560,24 @@ class ProductosOffline {
     }
   }
 
-  /// Sincroniza todos los datos de productos (productos, categorías, marcas, subcategorías)
-  /// en paralelo y devuelve un mapa con los resultados.
-  static Future<Map<String, dynamic>> sincronizarTodo() async {
-    try {
-      final futures = await Future.wait([
-        sincronizarProductos(),
-        sincronizarCategorias(),
-        sincronizarMarcas(),
-        sincronizarSubcategorias(),
-      ]);
-
-      return {
-        'productos': futures[0],
-        'categorias': futures[1],
-        'marcas': futures[2],
-        'subcategorias': futures[3],
-      };
-    } catch (e) {
-      print('Error en sincronización completa de productos: $e');
-      rethrow;
-    }
-  }
-
-  /// Devuelve la ruta absoluta en Documents para un nombre de archivo simple.
-  static Future<String> rutaEnDocuments(String nombreArchivo) async {
-    final docs = await _directorioDocuments();
-    return p.join(docs.path, nombreArchivo);
-  }
-
-  /// Descarga y guarda un archivo (por ejemplo imagen de producto) en Documents.
-  static Future<String?> guardarArchivoDesdeUrl(
-    String url,
-    String nombreArchivo,
-  ) async {
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final ruta = await rutaEnDocuments(nombreArchivo);
-        final archivo = File(ruta);
-        await archivo.writeAsBytes(response.bodyBytes);
-        return ruta;
-      }
-    } catch (e) {
-      print('Error descargando archivo desde URL $url: $e');
-    }
-    return null;
-  }
-
   /// Limpia todo el cache de productos (útil para forzar resincronización).
   static Future<void> limpiarCache() async {
     await Future.wait([
-      borrar(_archivoProductos),
-      borrar(_archivoCategorias),
-      borrar(_archivoMarcas),
-      borrar(_archivoSubcategorias),
+      borrar('productos.json'),
+      borrar('categorias.json'),
+      borrar('subcategorias.json'),
+      borrar('marcas.json'),
     ]);
   }
 
-  /// Obtiene el tamaño total aproximado del cache de productos en secure storage.
-  static Future<int> obtenerTamanoCache() async {
-    int totalSize = 0;
-    
+  /// Consolidación de sincronización de productos
+  static Future<void> sincronizarTodo() async {
     try {
-      final allKeys = await _secureStorage.readAll();
-      for (final entry in allKeys.entries) {
-        if (entry.key.startsWith('json:productos') || 
-            entry.key.startsWith('json:categorias') ||
-            entry.key.startsWith('json:marcas') ||
-            entry.key.startsWith('json:subcategorias') ||
-            entry.key.startsWith('bin:producto_')) {
-          totalSize += entry.value.length;
-        }
-      }
+      await sincronizarProductos_Todo();
+      print('Sincronización completa de productos finalizada');
     } catch (e) {
-      print('Error calculando tamaño del cache: $e');
+      print('Error en sincronización completa: $e');
+      rethrow;
     }
-    
-    return totalSize;
   }
 }
