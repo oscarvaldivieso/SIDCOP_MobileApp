@@ -6,14 +6,24 @@ import '../../../services/printer_service.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
+  final int usuaCreacion;
 
-  const InventoryScreen({super.key, required this.usuaIdPersona});
+  const InventoryScreen({super.key, required this.usuaIdPersona, required this.usuaCreacion});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
+
+  bool _hasActiveJornada = false;
+  Map<String, dynamic>? _activeJornadaData;
+  bool _isCheckingJornada = true;
+
+  int? _usuaIdPersona;
+  int? _usuaCreacion;
+
+  
   final PrinterService _printerService = PrinterService();
   final InventoryService _inventoryService = InventoryService();
   Map<String, dynamic>? _facturaData;
@@ -27,13 +37,75 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadInventoryData();
-    _loadSellerName();
+    print('usuaIdPersona en InventoryScreen: ${widget.usuaIdPersona}'); 
+    print('usuaCreacion en InventoryScreen: ${widget.usuaCreacion}'); 
+    
+    _usuaIdPersona = widget.usuaIdPersona;
+    _usuaCreacion = widget.usuaCreacion;
+    
+    // Cargar datos iniciales
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+      await Future.wait([
+        _checkActiveJornada(),
+        _loadInventoryData(),
+        _loadSellerName(),
+      ]);
+    }
+
+    Future<void> _checkActiveJornada() async {
+      try {
+        print('_checkActiveJornada called with usuaIdPersona: ${widget.usuaIdPersona}');
+        
+        setState(() {
+          _isCheckingJornada = true;
+        });
+
+        print('Calling getJornadaActiva with usuaIdPersona: ${widget.usuaIdPersona}');
+        final jornadaResponse = await _inventoryService.getJornadaActiva(widget.usuaIdPersona);
+        
+        print('Response from getJornadaActiva: $jornadaResponse');
+        
+        setState(() {
+          _hasActiveJornada = jornadaResponse['data'] != null;
+          _activeJornadaData = jornadaResponse['data'];
+          _isCheckingJornada = false;
+        });
+
+        print('Estado de jornada: ${_hasActiveJornada ? "ACTIVA" : "CERRADA"}');
+        if (_activeJornadaData != null) {
+          print('Jornada ID: ${_activeJornadaData!['jorV_Id']}');
+        }
+
+    } catch (e) {
+      setState(() {
+        _hasActiveJornada = false;
+        _activeJornadaData = null;
+        _isCheckingJornada = false;
+      });
+      
+      print('Error al verificar jornada activa: $e');
+      // No mostrar error al usuario aquí, solo en caso de operaciones específicas
+    }
   }
 
   Future<void> _handleStartJornada() async {
+    // Verificar estado actual antes de iniciar
+    await _checkActiveJornada();
+    
+    if (_hasActiveJornada) {
+      _showInfoDialog(
+        title: 'Jornada Ya Activa',
+        message: 'Ya tienes una jornada iniciada. No es necesario iniciar una nueva.',
+        icon: Icons.info_outline,
+        iconColor: Colors.blue,
+      );
+      return;
+    }
+
     try {
-      // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -42,13 +114,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
         ),
       );
 
-      // Call the startJornada method
-      final result = await _inventoryService.startJornada(widget.usuaIdPersona);
+      if (widget.usuaIdPersona <= 0) {
+        throw Exception('ID de usuario no válido para iniciar jornada');
+      }
+      
+      final result = await _inventoryService.startJornada(_usuaCreacion!, _usuaIdPersona!);
 
-      // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -57,14 +130,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         );
         
-        // Refresh the inventory data
-        _loadInventoryData();
+        // Recargar datos después de iniciar jornada
+        await _loadInitialData();
       }
     } catch (e) {
-      // Close loading dialog if still mounted
       if (mounted) Navigator.of(context).pop();
       
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -77,6 +148,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _handleCloseJornada() async {
+
+    await _checkActiveJornada();
+
+    if (!_hasActiveJornada) {
+      _showInfoDialog(
+        title: 'Sin Jornada Activa',
+        message: 'No tienes ninguna jornada iniciada para cerrar. Primero debes iniciar una jornada.',
+        icon: Icons.warning_outlined,
+        iconColor: Colors.orange,
+      );
+      return;
+    }
+
+    // Mostrar confirmación antes de cerrar
+    final shouldClose = await _showCloseConfirmationDialog();
+    if (!shouldClose) return;
+  
   try {
     // Show modern loading dialog
     showDialog(
@@ -152,6 +240,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     if (result != null) {
       // Show modern success dialog with workday summary
+
+      await _loadInitialData();
+
       if (mounted) {
         showDialog(
           context: context,
@@ -381,68 +472,102 @@ class _InventoryScreenState extends State<InventoryScreen> {
     // Close loading dialog if still mounted
     if (mounted) Navigator.of(context).pop();
     
-    // Show modern error message
     if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 30,
-                  offset: const Offset(0, 15),
-                ),
-              ],
+      _showInfoDialog(
+        title: 'Error',
+        message: 'Error al cerrar jornada: $e',
+        icon: Icons.error_outline,
+        iconColor: Colors.red,
+      );
+    }
+  }
+}
+
+Future<bool> _showCloseConfirmationDialog() async {
+  return await showDialog<bool>(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 30,
+              offset: const Offset(0, 15),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Icon(
+                Icons.help_outline,
+                color: Colors.orange.shade600,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Confirmar Cierre',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '¿Estás seguro de que deseas cerrar la jornada actual? Esta acción no se puede deshacer.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
               children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Icon(
-                    Icons.error_outline,
-                    color: Colors.red.shade600,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Error',
-                  style: TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Error al cerrar jornada: $e',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
+                Expanded(
                   child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.shade100,
+                      foregroundColor: Colors.black87,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.shade600,
                       foregroundColor: Colors.white,
@@ -453,7 +578,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                     ),
                     child: const Text(
-                      'Cerrar',
+                      'Cerrar Jornada',
                       style: TextStyle(
                         fontFamily: 'Satoshi',
                         fontSize: 16,
@@ -464,12 +589,106 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ],
             ),
-          ),
+          ],
         ),
-      );
-    }
-  }
+      ),
+    ),
+  ) ?? false;
 }
+
+// Método auxiliar para mostrar diálogos informativos
+void _showInfoDialog({
+  required String title,
+  required String message,
+  required IconData icon,
+  required Color iconColor,
+}) {
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 30,
+              offset: const Offset(0, 15),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: iconColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Entendido',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 
 // Helper widget for summary items
 Widget _buildSummaryItem(String label, String value, Color color) {
@@ -1909,30 +2128,56 @@ Widget _buildSummaryItem(String label, String value, Color color) {
   }
 
   Widget _buildStartJornadaButton() {
-    return ElevatedButton.icon(
-      onPressed: _handleStartJornada,
-      icon: const Icon(Icons.lock_open, color: Colors.white),
-      label: const Text('Iniciar Jornada', style: TextStyle(fontFamily: 'Satoshi', fontSize: 13, fontWeight: FontWeight.w500)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF10B981), // Green color
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      ),
-    );
-  }
+  final bool canStart = !_hasActiveJornada && !_isCheckingJornada;
+  
+  return ElevatedButton.icon(
+    onPressed: canStart ? _handleStartJornada : null,
+    icon: Icon(
+      _hasActiveJornada ? Icons.check_circle : Icons.lock_open, 
+      color: Colors.white
+    ),
+    label: Text(
+      _hasActiveJornada ? 'Jornada Activa' : 'Iniciar Jornada',
+      style: const TextStyle(
+        fontFamily: 'Satoshi', 
+        fontSize: 13, 
+        fontWeight: FontWeight.w500
+      )
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: _hasActiveJornada ? Colors.grey : const Color(0xFF10B981),
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
+  );
+}
 
   Widget _buildCloseJornadaButton() {
-    return ElevatedButton.icon(
-      onPressed: _handleCloseJornada,
-      icon: const Icon(Icons.lock_clock, color: Colors.white),
-      label: const Text('Cerrar Jornada', style: TextStyle(fontFamily: 'Satoshi', fontSize: 13, fontWeight: FontWeight.w500)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromARGB(255, 148, 18, 8),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      ),
-    );
-  }
+  final bool canClose = _hasActiveJornada && !_isCheckingJornada;
+  
+  return ElevatedButton.icon(
+    onPressed: canClose ? _handleCloseJornada : null,
+    icon: Icon(
+      _hasActiveJornada ? Icons.lock_clock : Icons.lock, 
+      color: Colors.white
+    ),
+    label: Text(
+      !_hasActiveJornada ? 'Sin Jornada' : 'Cerrar Jornada',
+      style: const TextStyle(
+        fontFamily: 'Satoshi', 
+        fontSize: 13, 
+        fontWeight: FontWeight.w500
+      )
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: _hasActiveJornada 
+        ? const Color.fromARGB(255, 148, 18, 8) 
+        : Colors.grey,
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
+  );
+}
 
 
   Widget _buildPrintInventoryButton() {

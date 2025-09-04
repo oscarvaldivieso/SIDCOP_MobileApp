@@ -55,6 +55,23 @@ class ProductoConDescuento {
           : <DescuentoEscala>[],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'prod_Id': prodId,
+      'prod_DescripcionCorta': prodDescripcionCorta,
+      'prod_Imagen': prodImagen,
+      'impu_Id': impuId,
+      'impu_Valor': impuValor,
+      'prod_PrecioUnitario': prodPrecioUnitario,
+      'prod_CostoTotal': prodCostoTotal,
+      'prod_PagaImpuesto': prodPagaImpuesto,
+      'prod_Impulsado': prod_Impulsado,
+      'cantidadDisponible': cantidadDisponible,
+      'listasPrecio_JSON': jsonEncode(listasPrecio.map((x) => x.toJson()).toList()),
+      'descuentosEscala_JSON': jsonEncode(descuentosEscala.map((x) => x.toJson()).toList()),
+    };
+  }
 }
 
 class ListaPrecio {
@@ -81,6 +98,16 @@ class ListaPrecio {
       prePFinEscala: json['PreP_FinEscala'] as int,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'PreP_ListaPrecios': prePListaPrecios,
+      'PreP_PrecioContado': prePPrecioContado,
+      'PreP_PrecioCredito': prePPrecioCredito,
+      'PreP_InicioEscala': prePInicioEscala,
+      'PreP_FinEscala': prePFinEscala,
+    };
+  }
 }
 
 class DescuentoEscala {
@@ -100,5 +127,13 @@ class DescuentoEscala {
       deEsFinEscala: json['DeEs_FinEscala'] as int,
       deEsValor: (json['DeEs_Valor'] as num).toDouble(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'DeEs_InicioEscala': deEsInicioEscala,
+      'DeEs_FinEscala': deEsFinEscala,
+      'DeEs_Valor': deEsValor,
+    };
   }
 }

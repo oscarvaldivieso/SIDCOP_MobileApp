@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/goals_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
@@ -40,6 +41,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String? _imagenUsuario;
   String? _imagenVendedor;
   int? _usuaIdPersona; 
+  int? _usuaCreacion;
   bool _isLoading = true;
   List<dynamic> permisos = [];
 
@@ -79,6 +81,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
       print("userData drawer para inve: $userData");
       final usuaIdPersona = userData?['usua_IdPersona'] as int?;
       final imagenVendedor = userData?['imagen'] as String?;
+      final usuaCreacion = userData?['usua_Id'] as int?;
 
       if (mounted) {
         setState(() {
@@ -87,6 +90,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _imagenUsuario = imagenUsuario;
           _usuaIdPersona = usuaIdPersona;
           _imagenVendedor = imagenVendedor;
+          _usuaCreacion = usuaCreacion;
           _isLoading = false;
         });
       }
@@ -276,7 +280,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              // Navegar a MMetas
+              // Navegar a Metas
+                Navigator.pop(context);
+                if (_usuaIdPersona != null) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          GoalsScreen(usuaIdPersona: _usuaIdPersona!),
+                    ),
+                    (route) => false,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo obtener el id del vendedor para Metas.',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
             },
           ),
           if (tienePermiso(57)) // MVentas
@@ -461,7 +485,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          InventoryScreen(usuaIdPersona: _usuaIdPersona!),
+                          InventoryScreen(usuaIdPersona: _usuaIdPersona!, usuaCreacion: _usuaCreacion!),
                     ),
                     (route) => false,
                   );

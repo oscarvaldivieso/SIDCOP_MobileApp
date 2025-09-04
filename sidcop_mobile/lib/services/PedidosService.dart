@@ -78,6 +78,13 @@ class PedidosService {
     final url = Uri.parse('$_apiServer/Pedido/Insertar');
     
     final body = {
+      "coFa_NombreEmpresa": "", 
+      "coFa_DireccionEmpresa": "",          
+      "coFa_RTN": "",                      
+      "coFa_Correo": "",         
+      "coFa_Telefono1": "",                      
+      "coFa_Telefono2": "",                              
+      "coFa_Logo": "",
       "secuencia": 0,
       "pedi_Id": 0,
       "pedi_Codigo": pediCodigo,
@@ -136,7 +143,7 @@ class PedidosService {
         return {
           'success': false,
           'error': 'Error del servidor: ${response.statusCode}',
-          'message': 'No se pudo crear el pedido'
+          'message': 'No se pudo crear el pedido ${response.body}'
         };
       }
     } catch (e) {
