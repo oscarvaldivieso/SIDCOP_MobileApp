@@ -181,14 +181,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     print('==========================================');
   }
 
-  // Note: do not persist a separate visited_direcciones.json; visited state is
-  // derived from `visitas_historial.json` (local visitas) which is managed by
-  // the Visitas offline service. The copying/merging from visitas_historial.json
-  // into `_direccionesVisitadasOffline` happens in `_loadClientesOffline()`.
-
   Future<void> _setInitialPositionFromDevice() async {
     try {
-      // Try to seed fallback with last known position to center quicker
       try {
         final last = await Geolocator.getLastKnownPosition();
         if (last != null) {
@@ -211,13 +205,11 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       setState(() {
         _centerLat = pos.latitude;
         _centerLng = pos.longitude;
-        // update fallbacks so other parts of the UI use the device coords
+
         _fallbackLat = pos.latitude;
         _fallbackLng = pos.longitude;
       });
-    } catch (e) {
-      // ignore and fallback to defaults
-    }
+    } catch (e) {}
   }
 
   Future<void> _recenterToDevice() async {
@@ -251,8 +243,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       );
     }
   }
-
-  // ...existing code...
 
   Future<void> _initMbtilesServer() async {
     try {
