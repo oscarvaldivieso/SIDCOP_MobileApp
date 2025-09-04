@@ -72,7 +72,7 @@ class FacturaTicketScreen extends StatelessWidget {
                         codigoCliente: codigoCliente,
                         direccion: direccion,
                         rtn: rtn,
-                        logo: empresa?[0].coFa_Logo,
+                        logo: 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1756909874/f304f918-0cb3-40c1-850c-daddb307955c_removalai_preview_vuxa2d.png',
                         nombreEmpresa: empresa?[0].coFa_NombreEmpresa,
                         direccionEmpresa:
                             '${empresa?[0].coFa_DireccionEmpresa ?? ''}, ${empresa?[0].muni_Descripcion ?? ''}, ${empresa?[0].depa_Descripcion ?? ''}',
@@ -137,7 +137,7 @@ class FacturaTicketScreen extends StatelessWidget {
                         codigoCliente: codigoCliente,
                         direccion: direccion,
                         rtn: rtn,
-                        logo: empresa?[0].coFa_Logo,
+                        logo: 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1756909874/f304f918-0cb3-40c1-850c-daddb307955c_removalai_preview_vuxa2d.png',
                         nombreEmpresa: empresa?[0].coFa_NombreEmpresa,
                         direccionEmpresa:
                             '${empresa?[0].coFa_DireccionEmpresa ?? ''}, ${empresa?[0].muni_Descripcion ?? ''}, ${empresa?[0].depa_Descripcion ?? ''}',
@@ -223,7 +223,7 @@ class FacturaTicketScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Image.network(
-                    '${empresa[0].coFa_Logo}',
+                    'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1756909874/f304f918-0cb3-40c1-850c-daddb307955c_removalai_preview_vuxa2d.png',
                     width: 180,
                     height: 180,
                     fit: BoxFit.contain,

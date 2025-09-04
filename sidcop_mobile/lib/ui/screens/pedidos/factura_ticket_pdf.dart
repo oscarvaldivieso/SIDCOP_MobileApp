@@ -28,10 +28,9 @@ Future<Uint8List> generarFacturaPdf({
   print('DEBUG PDF: numeroFactura recibido en generarFacturaPdf: $numeroFactura');
   final pdf = pw.Document();
 
-  // Cargar el logo
-  // final logoBytes = await rootBundle.load('$logo');
-  // final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
-  final netImage = await networkImage('$logo');
+  // Cargar el logo con URL fija en lugar de usar el parámetro
+  final logoUrl = 'https://res.cloudinary.com/dbt7mxrwk/image/upload/v1756909874/f304f918-0cb3-40c1-850c-daddb307955c_removalai_preview_vuxa2d.png';
+  final netImage = await networkImage(logoUrl);
 
   pdf.addPage(
     pw.Page(
