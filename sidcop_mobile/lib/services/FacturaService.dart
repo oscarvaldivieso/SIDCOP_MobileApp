@@ -62,6 +62,8 @@ class FacturaService {
     final url = Uri.parse('$_apiServer/Facturas/Insertar');
     
     try {
+      print('ENVIANDO PETICIÓN A: $url');
+      
       final response = await http.post(
         url,
         headers: {
@@ -72,14 +74,21 @@ class FacturaService {
         body: json.encode(facturaData),
       );
 
+      print('CÓDIGO DE RESPUESTA: ${response.statusCode}');
+      print('CUERPO DE RESPUESTA: ${response.body}');
+      
       final data = json.decode(response.body);
       
       if (response.statusCode == 200 && data['success'] == true) {
+        print('INSERCIÓN EXITOSA: ${data['message']}');
         return data;
       } else {
+        print('ERROR EN LA RESPUESTA: ${data['message'] ?? 'Sin mensaje de error'}');
+        print('DETALLES DEL ERROR: ${data['errors'] ?? 'Sin detalles adicionales'}');
         throw Exception(data['message'] ?? 'Error al insertar factura: ${response.statusCode}');
       }
     } catch (e) {
+      print('EXCEPCIÓN AL INSERTAR FACTURA: $e');
       throw Exception('Error al conectar con el servidor: $e');
     }
   }

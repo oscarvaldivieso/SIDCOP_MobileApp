@@ -257,11 +257,49 @@ Widget build(BuildContext context) {
       final double latitud = 0.0; // Idealmente obtener la ubicación actual
       final double longitud = 0.0; // Idealmente obtener la ubicación actual
 
+      // Parsear los detalles del pedido para obtener los productos
+      final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
+      
+      // Log para ver el contenido de detallesJson
+      print('DETALLES JSON: ${widget.pedido.detallesJson}');
+      print('DETALLES PARSEADOS: $detalles');
+      
+      // Crear la lista de detallesFacturaInput
+      final List<Map<String, dynamic>> detallesFactura = [];
+      
+      // Recorrer los productos y añadirlos al formato requerido
+      for (var item in detalles) {
+        // Log para ver cada item
+        print('ITEM: $item');
+        print('KEYS EN ITEM: ${item.keys.toList()}');
+        
+        // Extraer el ID del producto y la cantidad
+        final int prodId = item['id'] is int
+            ? item['id']
+            : int.tryParse(item['id']?.toString() ?? '') ?? 0;
+            
+        final int cantidad = item['cantidad'] is int
+            ? item['cantidad']
+            : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
+        
+        print('PROD_ID: $prodId, CANTIDAD: $cantidad');
+        
+        // Solo añadir productos con ID y cantidad válidos
+        if (prodId > 0 && cantidad > 0) {
+          detallesFactura.add({
+            'prod_Id': prodId,
+            'faDe_Cantidad': cantidad
+          });
+        }
+      }
+      
+      print('DETALLES FACTURA FINAL: $detallesFactura');
+
       // Preparar los datos de la factura
       final Map<String, dynamic> facturaData = {
         'fact_Numero': widget.pedido.pedi_Codigo,
         'fact_TipoDeDocumento': 'FAC', // Factura
-        'regC_Id': 1, // Valor predeterminado o obtener del sistema
+        'regC_Id': 21, // Cambiado de 1 a 21 para encontrar un rango CAI válido
         'diCl_Id': widget.pedido.diClId,
         'vend_Id': widget.pedido.vendId,
         'fact_TipoVenta': 'CO', // Contado
@@ -273,8 +311,12 @@ Widget build(BuildContext context) {
         'usua_Creacion': widget.pedido.usuaCreacion,
         'fact_EsPedido': true, // Marcar como pedido
         'pedi_Id': widget.pedido.pediId, // ID del pedido actual
+        'detallesFacturaInput': detallesFactura, // Añadir los productos
       };
 
+      // Log para mostrar el objeto completo que se envía a la API
+      print('OBJETO COMPLETO A ENVIAR: ${jsonEncode(facturaData)}');
+      
       // Llamar al servicio para insertar la factura
       await _facturaService.insertarFactura(facturaData);
       
