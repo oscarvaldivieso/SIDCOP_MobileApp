@@ -11,6 +11,7 @@ import 'package:sidcop_mobile/Offline_Services/Recargas_OfflineService.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:math';
 
 class RechargesScreen extends StatefulWidget {
   const RechargesScreen({super.key});
@@ -1057,6 +1058,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   } else {
                     // Guardar recarga offline para sincronizar después
                     final recargaOffline = {
+                      'id': DateTime.now().microsecondsSinceEpoch,
                       'usua_Id': usuaId,
                       'detalles': detalles,
                       'fecha': DateTime.now().toIso8601String(),
