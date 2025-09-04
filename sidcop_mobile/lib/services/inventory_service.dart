@@ -63,8 +63,8 @@ class InventoryService {
   }
 
 
-    Future<Map<String, dynamic>?> startJornada(int vendorId) async {
-    final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId');
+    Future<Map<String, dynamic>?> startJornada(int vendorId, int usuaCreacion) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId&Usuario_Creacion=$usuaCreacion');
     try {
       final response = await http.get(
         url,
@@ -84,6 +84,33 @@ class InventoryService {
       return null;
     } catch (e) {
       debugPrint('Error starting jornada: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getJornadaActiva(int vendorId) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/JornadaActiva?Vend_Id=$vendorId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        if (responseData['success'] == true) {
+          return responseData; // Returns full response including data, code, success, and message
+        }
+        throw Exception(responseData['message'] ?? 'Error desconocido al obtener la jornada activa');
+      } else {
+        throw Exception('Error al obtener la jornada activa: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error en getJornadaActiva: $e');
       rethrow;
     }
   }
