@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -11,8 +13,28 @@ class UsuarioService {
 
   Future<Map<String, dynamic>?> iniciarSesion(
     String usuario,
-    String clave,
-  ) async {
+    String clave, {
+    bool isOffline = false,  // Nuevo parámetro para indicar si es un login offline
+  }) async {
+    if (isOffline) {
+      // Si es login offline, devolver los datos guardados
+      final prefs = await SharedPreferences.getInstance();
+      final userDataJson = prefs.getString('offline_user_data');
+      if (userDataJson != null) {
+        final userData = jsonDecode(userDataJson);
+        return {
+          'error': false,
+          'message': 'Sesión offline restaurada',
+          ...userData,
+          'offline_login': true,
+        };
+      }
+      return {
+        'error': true,
+        'message': 'No hay datos de usuario guardados para acceso offline',
+      };
+    }
+
     final url = Uri.parse('$_apiServer/Usuarios/IniciarSesion');
 
     developer.log('Iniciar Sesion Request URL: $url');
@@ -52,10 +74,10 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        
+
         // Obtener los datos del SP
         final data = responseData['data'];
-        
+
         // Verificar si los datos existen
         if (data == null) {
           return {
@@ -64,10 +86,18 @@ class UsuarioService {
             'details': responseData,
           };
         }
+
+        // Guardar los datos del usuario para acceso offline
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('offline_user_data', jsonEncode(data));
+          developer.log('Datos de usuario guardados para acceso offline');
+        } catch (e) {
+          developer.log('Error al guardar datos de usuario para acceso offline: $e');
+        }
         
-        // Verificar el code_Status del SP
         final codeStatus = data['code_Status'];
-        
+
         if (codeStatus == null || codeStatus != 1) {
           // Login falló - el SP devolvió error
           final errorMessage = data['message_Status'] ?? 'Error de autenticación';
