@@ -226,6 +226,13 @@ class VisitasOffline {
   static Future<bool> agregarVisitaLocal(Map<String, dynamic> visita) async {
     final lista = await obtenerVisitasHistorialLocal();
 
+    print('📥 [DEBUG] VisitasOffline.agregarVisitaLocal: Guardando visita');
+    print('📥 [DEBUG] Campos de la visita: ${visita.keys.join(', ')}');
+    print('📥 [DEBUG] ¿Tiene campo offline? ${visita.containsKey('offline')}');
+    if (visita.containsKey('offline')) {
+      print('📥 [DEBUG] Valor de offline: ${visita['offline']}');
+    }
+
     // Calcular firma a partir de campos clave que definen una visita
     final signatureSource = {
       'clie_Id': visita['clie_Id'] ?? visita['clieId'] ?? 0,
@@ -236,11 +243,16 @@ class VisitasOffline {
     };
     final signature = jsonEncode(signatureSource);
 
+    print('📥 [DEBUG] Signature generada: $signature');
+
     // Comprobar si ya existe la misma firma
     for (final item in lista) {
       try {
         if (item is Map && item['local_signature'] == signature) {
           // Ya existe una visita con la misma firma -> no duplicar
+          print(
+            '📥 [DEBUG] Ya existe una visita con la misma firma - no duplicando',
+          );
           return false;
         }
       } catch (_) {
@@ -253,8 +265,19 @@ class VisitasOffline {
     visitaToSave['local_signature'] = signature;
     visitaToSave['local_created_at'] = DateTime.now().toIso8601String();
 
+    // IMPORTANTE: Asegurarse de que el campo 'offline' está establecido a true
+    // Este es el campo que utilizamos para detectar visitas pendientes de sincronización
+    if (!visitaToSave.containsKey('offline')) {
+      print('⚠️ [DEBUG] La visita no tenía campo offline, agregándolo');
+      visitaToSave['offline'] = true;
+    }
+
     lista.add(visitaToSave);
     await guardarVisitasHistorial(lista);
+
+    print(
+      '✅ [DEBUG] Visita guardada correctamente con offline=${visitaToSave['offline']}',
+    );
     return true;
   }
 

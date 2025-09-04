@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -56,9 +58,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       await VisitasOffline.sincronizarDirecciones();
     } catch (_) {}
 
-    // Intentar enviar visitas pendientes guardadas en modo offline.
+    // Intentar enviar visitas pendientes guardadas en modo offline usando SincronizacionService
     try {
-      final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
+      final pendientesEnviadas = await _syncPendingVisitas();
       if (mounted && pendientesEnviadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -218,6 +220,70 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           _isLoadingEstados = false;
         });
       }
+    }
+  }
+
+  /// Sincroniza las visitas pendientes utilizando SincronizacionService
+  Future<int> _syncPendingVisitas() async {
+    try {
+      // Verificar cuántas visitas pendientes hay antes de sincronizar
+      final pendientes = await SincronizacionService.contarVisitasPendientes();
+      developer.log(
+        '🔍 [VISITAS_SCREEN] Detectadas $pendientes visitas pendientes de sincronización',
+      );
+
+      if (pendientes > 0) {
+        // Mostrar detalle de las visitas pendientes
+        try {
+          final visitasHistorial =
+              await VisitasOffline.obtenerVisitasHistorialLocal();
+          final visitasPendientes = visitasHistorial.where((v) {
+            try {
+              return v is Map && v['offline'] == true;
+            } catch (_) {
+              return false;
+            }
+          }).toList();
+
+          // Mostrar detalles de cada visita pendiente
+          developer.log('📋 [VISITAS_SCREEN] Detalle de visitas pendientes:');
+          for (int i = 0; i < visitasPendientes.length; i++) {
+            try {
+              final v = visitasPendientes[i] as Map;
+              final cliente =
+                  v['clie_Nombres'] ?? v['clie_NombreNegocio'] ?? 'Sin nombre';
+              final fecha = v['clVi_Fecha'] ?? 'Sin fecha';
+              final id = v['clVi_Id'] ?? 'Sin ID';
+              final signature = v['local_signature'] ?? 'Sin firma';
+
+              developer.log(
+                '  📝 [VISITA $i] ID: $id | Cliente: $cliente | Fecha: $fecha | Signature: $signature',
+              );
+            } catch (e) {
+              developer.log('  ❌ [VISITA $i] Error al leer detalles: $e');
+            }
+          }
+        } catch (e) {
+          developer.log(
+            '❌ [VISITAS_SCREEN] Error obteniendo detalles de visitas pendientes: $e',
+          );
+        }
+      }
+
+      // Utilizar directamente el método de SincronizacionService que devuelve el conteo
+      final sincronizadas =
+          await SincronizacionService.sincronizarVisitasPendientes();
+
+      developer.log(
+        '✅ [VISITAS_SCREEN] Sincronizadas $sincronizadas de $pendientes visitas pendientes',
+      );
+      return sincronizadas;
+    } catch (e) {
+      developer.log(
+        '❌ [VISITAS_SCREEN] Error al llamar sincronización de visitas: $e',
+      );
+      // No interrumpir el flujo de la app si falla la sincronización
+      return 0;
     }
   }
 
