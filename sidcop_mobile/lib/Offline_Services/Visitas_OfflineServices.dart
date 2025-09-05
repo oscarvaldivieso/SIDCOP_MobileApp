@@ -184,6 +184,7 @@ class VisitasOffline {
   // Helpers específicos para Visitas
   // -----------------------------
   static const String _archivoVisitas = 'visitas_historial.json';
+  static const String _archivoVisitasPendientes = 'visitas_pendientes.json';
   static const String _prefixImagenesVisita = 'imagenes_visita_';
 
   /// Sincroniza el historial de visitas desde el servicio remoto y guarda localmente.
@@ -199,7 +200,11 @@ class VisitasOffline {
       } catch (_) {
         print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
       }
+
+      // Guardar los datos remotos en el archivo de historial
+      // Importante: NO sobrescribir las visitas pendientes
       await guardarJson(_archivoVisitas, data);
+
       return data as List<dynamic>;
     } catch (e) {
       rethrow;
@@ -218,6 +223,40 @@ class VisitasOffline {
     return List.from(raw as List);
   }
 
+  /// Método que obtiene tanto las visitas históricas como las pendientes.
+  /// Util para presentar en la UI todas las visitas juntas.
+  static Future<List<dynamic>> obtenerTodasLasVisitas() async {
+    final historial = await obtenerVisitasHistorialLocal();
+    final pendientes = await obtenerVisitasPendientesLocal();
+
+    final resultado = List.from(historial);
+
+    // Agregar las pendientes que no estén ya en el historial
+    for (final p in pendientes) {
+      if (p is! Map) continue;
+
+      final signature = p['local_signature'];
+      if (signature == null) {
+        resultado.add(p);
+        continue;
+      }
+
+      // Verificar que no exista ya en el historial
+      final existe = historial.any(
+        (h) => h is Map && h['local_signature'] == signature,
+      );
+
+      if (!existe) {
+        resultado.add(p);
+      }
+    }
+
+    print(
+      'Total de visitas combinadas: ${resultado.length} (${historial.length} historial + ${pendientes.length} pendientes)',
+    );
+    return resultado;
+  }
+
   /// Wrapper que fuerza lectura/sincronización remota para visitas (si se necesita).
   static Future<List<dynamic>> leerVisitasHistorial() async {
     return await sincronizarVisitasHistorial();
@@ -226,6 +265,18 @@ class VisitasOffline {
   /// Agrega una visita localmente (carga, agrega y guarda).
   /// Evita duplicados calculando una "firma" basada en campos clave.
   /// Devuelve true si la visita fue añadida, false si ya existía.
+  /// Lee las visitas pendientes almacenadas localmente o devuelve lista vacía.
+  static Future<List<dynamic>> obtenerVisitasPendientesLocal() async {
+    final raw = await leerJson(_archivoVisitasPendientes);
+    if (raw == null) return [];
+    return List.from(raw as List);
+  }
+
+  /// Guarda las visitas pendientes en un archivo separado.
+  static Future<void> guardarVisitasPendientes(List<dynamic> visitas) async {
+    await guardarJson(_archivoVisitasPendientes, visitas);
+  }
+
   static Future<bool> agregarVisitaLocal(Map<String, dynamic> visita) async {
     // Registrar la estructura de la visita para depuración
     try {
@@ -235,7 +286,8 @@ class VisitasOffline {
       print('Error al imprimir estructura JSON: $e');
     }
 
-    final lista = await obtenerVisitasHistorialLocal();
+    // Obtener las visitas pendientes almacenadas
+    final lista = await obtenerVisitasPendientesLocal();
 
     // Calcular firma a partir de campos clave que definen una visita
     final signatureSource = {
@@ -272,9 +324,15 @@ class VisitasOffline {
     visitaToSave['usua_Creacion'] = 57;
 
     lista.add(visitaToSave);
-    await guardarVisitasHistorial(lista);
+    await guardarVisitasPendientes(lista);
 
     // Mostrar la visita guardada para verificar
+    print('\n===== VISITA OFFLINE GUARDADA CORRECTAMENTE =====');
+    print('Cliente ID: ${visitaToSave['clie_Id']}');
+    print('Dirección ID: ${visitaToSave['diCl_Id']}');
+    print('Estado ID: ${visitaToSave['esVi_Id']}');
+    print('Usuario Creación: ${visitaToSave['usua_Creacion']}');
+    print('Firma local: ${visitaToSave['local_signature']}');
     print('\nDEBUG - VISITA GUARDADA CORRECTAMENTE:');
     print(const JsonEncoder.withIndent('  ').convert(visitaToSave));
 
@@ -430,12 +488,7 @@ class VisitasOffline {
   /// remoto (crearVisitaConImagenes). Si la subida es exitosa, la visita se elimina
   /// del almacen local. Retorna la cantidad de visitas sincronizadas correctamente.
   static Future<int> sincronizarPendientes() async {
-    final lista = await obtenerVisitasHistorialLocal();
-    if (lista.isEmpty) return 0;
-
-    final pendientes = lista
-        .where((v) => v is Map && (v['offline'] == true))
-        .toList();
+    final pendientes = await obtenerVisitasPendientesLocal();
     if (pendientes.isEmpty) return 0;
 
     // Imprimir todas las visitas offline para depuración
@@ -453,7 +506,7 @@ class VisitasOffline {
     int sincronizadas = 0;
 
     // Copia de la lista para ir eliminando elementos sincronizados
-    final remaining = List.from(lista);
+    final remaining = List.from(pendientes);
 
     for (final p in pendientes) {
       try {
@@ -684,15 +737,32 @@ class VisitasOffline {
       }
     }
 
-    // Guardar la lista restante (las no sincronizadas)
-    await guardarVisitasHistorial(remaining);
+    // Guardar la lista restante (las no sincronizadas) en el archivo de pendientes
+    await guardarVisitasPendientes(remaining);
+
+    print(
+      'DEBUG - VISITAS PENDIENTES DESPUÉS DE SINCRONIZAR: ${remaining.length}',
+    );
     return sincronizadas;
   }
 
   /// Sincroniza toda la información relevante de visitas offline.
   static Future<void> sincronizarTodo() async {
+    // Primero obtener las visitas pendientes para no perderlas
+    final pendientes = await obtenerVisitasPendientesLocal();
+
+    // Sincronizar datos del servidor
     final visitas = await sincronizarVisitasHistorial();
     await guardarVisitasHistorial(visitas);
+
+    // Volver a guardar las pendientes para que no se pierdan
+    if (pendientes.isNotEmpty) {
+      print(
+        'Preservando ${pendientes.length} visitas pendientes durante sincronización',
+      );
+      await guardarVisitasPendientes(pendientes);
+    }
+
     final estados = await sincronizarEstadosVisita();
     await guardarJson(_archivoEstadosVisita, estados);
     final clientes = await sincronizarClientes();

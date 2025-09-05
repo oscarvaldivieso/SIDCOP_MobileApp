@@ -569,6 +569,8 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           'usua_Creacion': 57, // ID fijo según requerimiento del SP
         };
 
+        print('===== GUARDANDO VISITA OFFLINE CON USUARIO ID: 57 =====');
+
         final bool added = await VisitasOffline.agregarVisitaLocal(visitaLocal);
 
         if (mounted) {

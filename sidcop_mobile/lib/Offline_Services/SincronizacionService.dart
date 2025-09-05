@@ -41,18 +41,8 @@ class SincronizacionService {
   /// Cuenta las visitas pendientes de sincronización
   static Future<int> contarVisitasPendientes() async {
     try {
-      final visitas = await VisitasOffline.obtenerVisitasHistorialLocal();
-      int pendientes = 0;
-
-      for (var visita in visitas) {
-        try {
-          if (visita is Map && visita['offline'] == true) {
-            pendientes++;
-          }
-        } catch (_) {}
-      }
-
-      return pendientes;
+      final visitas = await VisitasOffline.obtenerVisitasPendientesLocal();
+      return visitas.length;
     } catch (_) {
       return 0;
     }

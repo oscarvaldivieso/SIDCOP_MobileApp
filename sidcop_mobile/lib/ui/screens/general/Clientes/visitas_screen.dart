@@ -57,6 +57,22 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       await VisitasOffline.sincronizarDirecciones();
     } catch (_) {}
 
+    // Verificar cuántas visitas pendientes hay al iniciar la pantalla
+    try {
+      final pendientes = await VisitasOffline.obtenerVisitasPendientesLocal();
+
+      print('===== VISITAS PENDIENTES AL INICIAR: ${pendientes.length} =====');
+      if (pendientes.isNotEmpty) {
+        for (int i = 0; i < pendientes.length; i++) {
+          print(
+            'Visita pendiente #${i + 1}: local_signature=${pendientes[i]['local_signature'] ?? 'sin firma'}',
+          );
+        }
+      }
+    } catch (e) {
+      print('Error al verificar visitas pendientes: $e');
+    }
+
     // Intentar enviar visitas pendientes guardadas en modo offline.
     try {
       final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
@@ -85,18 +101,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       try {
         final visitasJson = visitas.map((v) => v.toJson()).toList();
 
-        // Fusionar con visitas locales pendientes (offline == true) para no
-        // sobrescribir visitas guardadas en modo offline cuando la API
-        // devuelva una lista vacía o parcial.
+        // Fusionar con visitas pendientes para no sobrescribir visitas guardadas
+        // en modo offline cuando la API devuelva una lista vacía o parcial.
         try {
-          final localRaw = await VisitasOffline.obtenerVisitasHistorialLocal();
-          final pendientes = localRaw.where((e) {
-            try {
-              return e is Map && (e['offline'] == true);
-            } catch (_) {
-              return false;
-            }
-          }).toList();
+          final pendientes =
+              await VisitasOffline.obtenerVisitasPendientesLocal();
 
           if (pendientes.isNotEmpty) {
             // Evitar duplicados simples: si la entrada pendiente tiene
@@ -126,7 +135,21 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           }
         } catch (_) {}
 
+        // Guardar las visitas en el historial
         await VisitasOffline.guardarVisitasHistorial(visitasJson);
+
+        // Verificamos las visitas pendientes para no perderlas
+        try {
+          final pendientes =
+              await VisitasOffline.obtenerVisitasPendientesLocal();
+          if (pendientes.isNotEmpty) {
+            print(
+              'Preservando ${pendientes.length} visitas pendientes durante guardado de historial',
+            );
+          }
+        } catch (e) {
+          print('Error al verificar visitas pendientes: $e');
+        }
       } catch (_) {
         // Si falla el guardado local, no interrumpir la carga en pantalla
       }
@@ -139,7 +162,8 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     } catch (e) {
       // Si hay error al obtener remoto, intentar cargar la copia local
       try {
-        final raw = await VisitasOffline.obtenerVisitasHistorialLocal();
+        // Combinar datos históricos y pendientes
+        final raw = await VisitasOffline.obtenerTodasLasVisitas();
         if (raw.isNotEmpty) {
           // Obtener la fecha actual para filtrar solo visitas de hoy
           final now = DateTime.now();
