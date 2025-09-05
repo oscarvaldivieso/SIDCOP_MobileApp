@@ -1,38 +1,62 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 
 class PedidosService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
   Future<List<PedidosViewModel>> getPedidos() async {
-    final url = Uri.parse('$_apiServer/Pedido/Listar');
     try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
-      );
+      // Check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOnline = connectivityResult != ConnectivityResult.none;
+      
+      if (isOnline) {
+        // Try to get from server first
+        try {
+          final url = Uri.parse('$_apiServer/Pedido/Listar');
+          final response = await http.get(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Api-Key': _apiKey,
+            },
+          );
       print('Get Pedidos Response Status: \\${response.statusCode}');
       print('Get Pedidos Response Body: \\${response.body}');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => PedidosViewModel.fromJson(json)).toList();
-      } else {
-        return [];
+          if (response.statusCode == 200) 
+            final List<dynamic> data = json.decode(response.body);
+            final pedidos = data.map((json) => PedidosViewModel.fromJson(json)).toList();
+            
+            // Save to cache for offline use
+            await PedidosOfflineService.guardarPedidosEnCache(pedidos);
+            
+            // Get any pending offline pedidos and combine
+            final pedidosPendientes = await PedidosOfflineService.obtenerPedidosPendientes();
+            return [...pedidosPendientes, ...pedidos];
+          }
+        } catch (e) {
+          print('Error fetching pedidos from server: $e');
+          // Continue to return cached data if available
+        }
       }
+      
+      // If offline or error, return cached data
+      final pedidosCache = await PedidosOfflineService.obtenerPedidosDeCache();
+      final pedidosPendientes = await PedidosOfflineService.obtenerPedidosPendientes();
+      return [...pedidosPendientes, ...pedidosCache];
+      
     } catch (e) {
-      print('Error fetching pedidos: \\${e.toString()}');
+      print('Error in getPedidos: $e');
       return [];
     }
   }
-
 
   Future<List<ProductosPedidosViewModel>> getProductosConListaPrecio(int clienteId) async {
     print('Get Productos ListaPrecio clienteId: $clienteId');
@@ -64,6 +88,76 @@ class PedidosService {
     }
   }
 
+  Future<Map<String, dynamic>> crearPedido(PedidosViewModel pedido) async {
+    try {
+      // Check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOnline = connectivityResult != ConnectivityResult.none;
+
+      if (isOnline) {
+        // If online, try to create the order on the server
+        final url = Uri.parse('$_apiServer/Pedido/Insertar');
+        
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': _apiKey,
+          },
+          body: json.encode(pedido.toJson()),
+        );
+        
+        print('Insertar Pedido Response Status: ${response.statusCode}');
+        print('Insertar Pedido Response Body: ${response.body}');
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final responseData = json.decode(response.body);
+          return {
+            'success': true,
+            'data': responseData,
+            'message': 'Pedido creado exitosamente'
+          };
+        } else {
+          // If server error, save to offline
+          await PedidosOfflineService.guardarPedidoPendiente(pedido);
+          return {
+            'success': false,
+            'offline': true,
+            'message': 'Se guardó localmente para sincronizar más tarde',
+            'data': pedido.toJson()
+          };
+        }
+      } else {
+        // If offline, save to local storage
+        await PedidosOfflineService.guardarPedidoPendiente(pedido);
+        return {
+          'success': true,
+          'offline': true,
+          'message': 'Pedido guardado localmente para sincronizar cuando haya conexión',
+          'data': pedido.toJson()
+        };
+      }
+    } catch (e) {
+      // On any error, try to save offline
+      try {
+        await PedidosOfflineService.guardarPedidoPendiente(pedido);
+        return {
+          'success': true,
+          'offline': true,
+          'message': 'Error de conexión. Pedido guardado localmente: ${e.toString()}',
+          'data': pedido.toJson()
+        };
+      } catch (saveError) {
+        print('Error saving order offline: $saveError');
+        return {
+          'success': false,
+          'error': 'Error al guardar el pedido: ${e.toString()}',
+          'message': 'No se pudo guardar el pedido'
+        };
+      }
+    }
+  }
+
   Future<Map<String, dynamic>> insertarPedido({
     required int diClId,
     required int vendId,
@@ -75,85 +169,51 @@ class PedidosService {
     required List<Map<String, dynamic>> detalles,
   }) async {
     print('Insertando pedido - Cliente: $clieId, DiCl: $diClId, Vendedor: $vendId');
-    final url = Uri.parse('$_apiServer/Pedido/Insertar');
     
-    final body = {
-      "coFa_NombreEmpresa": "", 
-      "coFa_DireccionEmpresa": "",          
-      "coFa_RTN": "",                      
-      "coFa_Correo": "",         
-      "coFa_Telefono1": "",                      
-      "coFa_Telefono2": "",                              
-      "coFa_Logo": "",
-      "secuencia": 0,
-      "pedi_Id": 0,
-      "pedi_Codigo": pediCodigo,
-      "diCl_Id": diClId,
-      "vend_Id": vendId,
-      "pedi_FechaPedido": fechaPedido.toIso8601String(),
-      "pedi_FechaEntrega": fechaEntrega.toIso8601String(),
-      "usua_Creacion": usuaCreacion,
-      "pedi_FechaCreacion": DateTime.now().toIso8601String(),
-      "usua_Modificacion": 0,
-      "pedi_FechaModificacion": DateTime.now().toIso8601String(),
-      "pedi_Estado": true,
-      "clie_Codigo": "",
-      "clie_Id": clieId,
-      "clie_NombreNegocio": "",
-      "clie_Nombres": "",
-      "clie_Apellidos": "",
-      "colo_Descripcion": "",
-      "muni_Descripcion": "",
-      "depa_Descripcion": "",
-      "diCl_DireccionExacta": "",
-      "vend_Nombres": "",
-      "vend_Apellidos": "",
-      "usuarioCreacion": "",
-      "usuarioModificacion": "",
-      "prod_Codigo": "",
-      "prod_Descripcion": "",
-      "peDe_ProdPrecio": 0,
-      "peDe_Cantidad": 0,
-      "detalles": detalles,
-      "detallesJson": ""
-    };
+    // Create PedidosViewModel from parameters
+    final pedido = PedidosViewModel(
+      pedi_Id: 0, // Will be set by the server or offline service
+      pedi_Codigo: pediCodigo,
+      diCl_Id: diClId,
+      vend_Id: vendId,
+      pedi_FechaPedido: fechaPedido.toIso8601String(),
+      pedi_FechaEntrega: fechaEntrega.toIso8601String(),
+      usua_Creacion: usuaCreacion,
+      pedi_FechaCreacion: DateTime.now().toIso8601String(),
+      pedi_Estado: true,
+      clie_Id: clieId,
+      detalles: detalles,
+      detallesJson: jsonEncode(detalles),
+      // Other required fields with default values
+      coFa_NombreEmpresa: "",
+      coFa_DireccionEmpresa: "",
+      coFa_RTN: "",
+      coFa_Correo: "",
+      coFa_Telefono1: "",
+      coFa_Telefono2: "",
+      coFa_Logo: "",
+      secuencia: 0,
+      usua_Modificacion: 0,
+      pedi_FechaModificacion: "",
+      clie_Codigo: "",
+      clie_NombreNegocio: "",
+      clie_Nombres: "",
+      clie_Apellidos: "",
+      colo_Descripcion: "",
+      muni_Descripcion: "",
+      depa_Descripcion: "",
+      diCl_DireccionExacta: "",
+      vend_Nombres: "",
+      vend_Apellidos: "",
+      usuarioCreacion: "",
+      usuarioModificacion: "",
+      prod_Codigo: "",
+      prod_Descripcion: "",
+      peDe_ProdPrecio: 0,
+      peDe_Cantidad: 0,
+    );
 
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
-        body: json.encode(body),
-      );
-      
-      print('Insertar Pedido Response Status: ${response.statusCode}');
-      print('Insertar Pedido Response Body: ${response.body}');
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-        print('DEBUG API: Respuesta completa del servidor: $responseData');
-        return {
-          'success': true,
-          'data': responseData,
-          'message': 'Pedido creado exitosamente'
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Error del servidor: ${response.statusCode}',
-          'message': 'No se pudo crear el pedido ${response.body}'
-        };
-      }
-    } catch (e) {
-      print('Error insertando pedido: ${e.toString()}');
-      return {
-        'success': false,
-        'error': e.toString(),
-        'message': 'Error de conexión'
-      };
-    }
+    return await crearPedido(pedido);
   }
 
   // Método para obtener información de una ruta por ID
@@ -254,5 +314,10 @@ class PedidosService {
       print('Error generando código de pedido: ${e.toString()}');
       return '';
     }
+  }
+
+  // Sincronizar pedidos pendientes
+  Future<int> sincronizarPedidosPendientes() async {
+    return await PedidosOfflineService.sincronizarPedidosPendientes();
   }
 }
