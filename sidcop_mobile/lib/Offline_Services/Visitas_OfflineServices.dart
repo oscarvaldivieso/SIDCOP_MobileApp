@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 /// Servicio offline para operaciones relacionadas con el historial de visitas.
 class VisitasOffline {
@@ -320,11 +321,72 @@ class VisitasOffline {
     visitaToSave['clie_Id'] = int.tryParse('${visitaToSave['clie_Id']}') ?? 0;
     visitaToSave['diCl_Id'] = int.tryParse('${visitaToSave['diCl_Id']}') ?? 0;
     visitaToSave['esVi_Id'] = int.tryParse('${visitaToSave['esVi_Id']}') ?? 0;
+    visitaToSave['ruta_Id'] = int.tryParse('${visitaToSave['ruta_Id']}') ?? 0;
+
+    // Verificar que veRu_Id tenga un valor válido (mayor a cero)
+    // Si no lo tiene, intentar buscarlo usando clie_Id y ruta_Id
+    if ((visitaToSave['veRu_Id'] == null || visitaToSave['veRu_Id'] == 0) &&
+        visitaToSave['clie_Id'] != 0 &&
+        visitaToSave['ruta_Id'] != 0) {
+      final veRuId = await _buscarVendedorRutaId(
+        visitaToSave['clie_Id'],
+        visitaToSave['ruta_Id'],
+      );
+
+      if (veRuId > 0) {
+        visitaToSave['veRu_Id'] = veRuId;
+        print(
+          '🔄 Se encontró veRu_Id=$veRuId para cliente=${visitaToSave['clie_Id']} y ruta=${visitaToSave['ruta_Id']}',
+        );
+      } else {
+        print(
+          '⚠️ No se encontró veRu_Id para cliente=${visitaToSave['clie_Id']} y ruta=${visitaToSave['ruta_Id']}',
+        );
+
+        // Intentar buscar veRu_Id desde el cliente
+        final clientes = await obtenerClientesLocal();
+        final clienteMatch = clientes.firstWhere(
+          (c) => c['clie_Id'] == visitaToSave['clie_Id'],
+          orElse: () => <String, dynamic>{},
+        );
+
+        if (clienteMatch.isNotEmpty && clienteMatch['veRu_Id'] != null) {
+          visitaToSave['veRu_Id'] =
+              int.tryParse('${clienteMatch['veRu_Id']}') ?? 0;
+          print(
+            '🔄 Se encontró veRu_Id=${visitaToSave['veRu_Id']} desde datos del cliente',
+          );
+        }
+      }
+    } else {
+      visitaToSave['veRu_Id'] = int.tryParse('${visitaToSave['veRu_Id']}') ?? 0;
+    }
+
     // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
     visitaToSave['usua_Creacion'] = 57;
 
+    // Verificar si proviene del mapa y añadir metadata adicional si es necesario
+    if (visitaToSave['origen'] == 'mapa_offline') {
+      print('\n===== GUARDANDO VISITA DESDE MAPA OFFLINE =====');
+      print(
+        'Cliente ID: ${visitaToSave['clie_Id']} (${visitaToSave['clie_Id'].runtimeType})',
+      );
+      print(
+        'Dirección ID: ${visitaToSave['diCl_Id']} (${visitaToSave['diCl_Id'].runtimeType})',
+      );
+      print(
+        'Ruta ID: ${visitaToSave['ruta_Id']} (${visitaToSave['ruta_Id'].runtimeType})',
+      );
+    }
+
     lista.add(visitaToSave);
+    print('\n===== GUARDANDO VISITA OFFLINE EN visitas_pendientes.json =====');
+    print('Cliente ID: ${visitaToSave['clie_Id']}');
+    print('Dirección ID: ${visitaToSave['diCl_Id']}');
+    print('Usuario ID: ${visitaToSave['usua_Creacion']}');
+
     await guardarVisitasPendientes(lista);
+    print('Total de visitas pendientes: ${lista.length}');
 
     // Mostrar la visita guardada para verificar
     print('\n===== VISITA OFFLINE GUARDADA CORRECTAMENTE =====');
@@ -332,6 +394,9 @@ class VisitasOffline {
     print('Dirección ID: ${visitaToSave['diCl_Id']}');
     print('Estado ID: ${visitaToSave['esVi_Id']}');
     print('Usuario Creación: ${visitaToSave['usua_Creacion']}');
+    print(
+      'veRu_Id: ${visitaToSave['veRu_Id']}',
+    ); // Añadir veRu_Id para verificación
     print('Firma local: ${visitaToSave['local_signature']}');
     print('\nDEBUG - VISITA GUARDADA CORRECTAMENTE:');
     print(const JsonEncoder.withIndent('  ').convert(visitaToSave));
@@ -449,6 +514,78 @@ class VisitasOffline {
     }
   }
 
+  /// Busca el veRu_Id (ID de VendedorPorRuta) basado en el ID del cliente y la ruta
+  static Future<int> _buscarVendedorRutaId(int clienteId, int rutaId) async {
+    try {
+      // Intentar leer los vendedores por rutas desde el archivo local
+      final raw = await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
+      if (raw.isEmpty) {
+        print('❌ No hay datos de vendedores por rutas disponibles localmente');
+        return 0;
+      }
+
+      // Convertir a lista manipulable
+      final vendedoresPorRuta = List<Map<String, dynamic>>.from(
+        raw.map((e) => e is Map ? Map<String, dynamic>.from(e) : {}),
+      );
+
+      // Primero buscar coincidencia exacta por clienteId y rutaId
+      for (final vpr in vendedoresPorRuta) {
+        final veRuClieId =
+            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuRutaId =
+            int.tryParse('${vpr['ruta_Id'] ?? vpr['rutaId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuClieId == clienteId && veRuRutaId == rutaId && veRuId > 0) {
+          print(
+            '✅ Se encontró veRu_Id=$veRuId para cliente=$clienteId y ruta=$rutaId',
+          );
+          return veRuId;
+        }
+      }
+
+      // Si no hay coincidencia exacta, buscar solo por clienteId
+      for (final vpr in vendedoresPorRuta) {
+        final veRuClieId =
+            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuClieId == clienteId && veRuId > 0) {
+          print(
+            '⚠️ Se encontró veRu_Id=$veRuId para cliente=$clienteId (ignorando rutaId)',
+          );
+          return veRuId;
+        }
+      }
+
+      // Como último recurso, simplemente tomar el primer vendedor asociado a esta ruta
+      for (final vpr in vendedoresPorRuta) {
+        final veRuRutaId =
+            int.tryParse('${vpr['ruta_Id'] ?? vpr['rutaId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuRutaId == rutaId && veRuId > 0) {
+          print(
+            '⚠️ Se encontró veRu_Id=$veRuId para ruta=$rutaId (ignorando clienteId)',
+          );
+          return veRuId;
+        }
+      }
+
+      print(
+        '❌ No se encontró ningún veRu_Id para cliente=$clienteId y ruta=$rutaId',
+      );
+      return 0;
+    } catch (e) {
+      print('❌ Error buscando veRu_Id: $e');
+      return 0;
+    }
+  }
+
   /// Lee los estados de visita preferiendo el cache local. Si no hay datos
   /// locales, intenta sincronizar desde el servicio remoto y los guarda.
   /// Útil para poblar dropdowns: primero intenta usar lo ya descargado.
@@ -495,8 +632,36 @@ class VisitasOffline {
     print('DEBUG - VISITAS OFFLINE PENDIENTES: ${pendientes.length}');
     try {
       for (int i = 0; i < pendientes.length; i++) {
-        print('VISITA OFFLINE #${i + 1}:');
-        print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+        print('\n===== VISITA OFFLINE PENDIENTE #${i + 1} DETALLE =====');
+        try {
+          print('Cliente ID: ${pendientes[i]['clie_Id']}');
+          print('Dirección ID: ${pendientes[i]['diCl_Id']}');
+          print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
+          print('Fecha: ${pendientes[i]['clVi_Fecha']}');
+          print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
+          print('Offline: ${pendientes[i]['offline']}');
+          print('Observaciones: ${pendientes[i]['clVi_Observaciones']}');
+          print('Firma: ${pendientes[i]['local_signature']}');
+          print(
+            'Imágenes: ${(pendientes[i]['imagenesBase64'] as List?)?.length ?? 0}',
+          );
+          // Añadir validación para veRu_Id
+          print(
+            'veRu_Id: ${pendientes[i]['veRu_Id'] ?? "NO PRESENTE"}, Ruta ID: ${pendientes[i]['ruta_Id'] ?? "NO PRESENTE"}',
+          );
+
+          // Mostrar el origen si es de maps offline
+          if (pendientes[i]['origen'] != null) {
+            print('Origen: ${pendientes[i]['origen']}');
+          }
+
+          print('\nJSON COMPLETO:');
+          print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+        } catch (e) {
+          print('Error al imprimir detalle de visita offline #${i + 1}: $e');
+          print('Intentando imprimir JSON completo:');
+          print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+        }
       }
     } catch (e) {
       print('Error al imprimir visitas offline: $e');
@@ -520,10 +685,12 @@ class VisitasOffline {
 
         final diClId = int.tryParse('${visita['diCl_Id'] ?? 0}') ?? 0;
         final clieId = int.tryParse('${visita['clie_Id'] ?? 0}') ?? 0;
+        final veruId = int.tryParse('${visita['veRu_Id'] ?? 0}') ?? 0;
+        final rutaId = int.tryParse('${visita['ruta_Id'] ?? 0}') ?? 0;
 
         final sig = (visita['local_signature'] ?? 'no-signature').toString();
         print(
-          'SYNC: intentando subir visita local_signature=$sig clieId=$clieId diClId=$diClId imagenes=${imagenesBase64.length}',
+          'SYNC: intentando subir visita local_signature=$sig clieId=$clieId diClId=$diClId veruId=$veruId rutaId=$rutaId imagenes=${imagenesBase64.length}',
         );
 
         try {
@@ -562,16 +729,43 @@ class VisitasOffline {
 
           // Asegurar que todos los campos numéricos sean números y no cadenas
           // Conversión explícita de los campos clave
-          visitaPayload['clie_Id'] =
-              int.tryParse('${visitaPayload['clie_Id']}') ?? 0;
+          final clieId = int.tryParse('${visitaPayload['clie_Id']}') ?? 0;
+          visitaPayload['clie_Id'] = clieId;
           visitaPayload['diCl_Id'] =
               int.tryParse('${visitaPayload['diCl_Id']}') ?? 0;
           visitaPayload['esVi_Id'] =
               int.tryParse('${visitaPayload['esVi_Id']}') ?? 0;
 
+          // Verificar y asegurar que veRu_Id tenga un valor válido
+          int rutaId = int.tryParse('${visitaPayload['ruta_Id'] ?? 0}') ?? 0;
+          int veruId = int.tryParse('${visitaPayload['veRu_Id'] ?? 0}') ?? 0;
+
+          if (veruId == 0 && clieId > 0 && rutaId > 0) {
+            // Buscar veRu_Id si no está presente
+            veruId = await _buscarVendedorRutaId(clieId, rutaId);
+            if (veruId > 0) {
+              visitaPayload['veRu_Id'] = veruId;
+              print(
+                'SYNC: Se asignó veRu_Id=$veruId al sincronizar visita cliente=$clieId ruta=$rutaId',
+              );
+            } else {
+              print(
+                'SYNC: ⚠️ No se encontró veRu_Id para cliente=$clieId ruta=$rutaId',
+              );
+            }
+          } else if (veruId > 0) {
+            print('SYNC: Usando veRu_Id=$veruId existente en la visita');
+            visitaPayload['veRu_Id'] = veruId; // Asegurar que sea numérico
+          }
+
           // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
           visitaPayload['usua_Creacion'] = 57;
           print('SYNC: usando usua_Creacion = 57 según requerimiento del SP');
+
+          // Verificación final de veRu_Id
+          print(
+            '\nDEBUG - Verificación de veRu_Id: ${visitaPayload['veRu_Id']}',
+          );
 
           // Mostrar el payload final justo antes de enviarlo
           print('\nDEBUG - PAYLOAD FINAL ANTES DE ENVIAR:');

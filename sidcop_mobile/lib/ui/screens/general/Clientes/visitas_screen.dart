@@ -7,6 +7,8 @@ import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
 import 'dart:developer' as developer;
+import 'dart:convert';
+import 'dart:math';
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -61,12 +63,36 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     try {
       final pendientes = await VisitasOffline.obtenerVisitasPendientesLocal();
 
-      print('===== VISITAS PENDIENTES AL INICIAR: ${pendientes.length} =====');
+      print(
+        '\n===== VISITAS PENDIENTES AL INICIAR: ${pendientes.length} =====',
+      );
       if (pendientes.isNotEmpty) {
+        // Mostrar información detallada de cada visita pendiente
         for (int i = 0; i < pendientes.length; i++) {
-          print(
-            'Visita pendiente #${i + 1}: local_signature=${pendientes[i]['local_signature'] ?? 'sin firma'}',
-          );
+          print('\n----- VISITA PENDIENTE #${i + 1} -----');
+          try {
+            print('Cliente ID: ${pendientes[i]['clie_Id']}');
+            print('Dirección ID: ${pendientes[i]['diCl_Id']}');
+            print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
+            print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
+            print('Fecha: ${pendientes[i]['clVi_Fecha']}');
+            print('Firma: ${pendientes[i]['local_signature'] ?? 'sin firma'}');
+
+            // Si hay origen, mostrarlo (para las visitas de maps)
+            if (pendientes[i]['origen'] != null) {
+              print('Origen: ${pendientes[i]['origen']}');
+            }
+
+            // Mostrar estructura completa para la primera visita
+            if (i == 0) {
+              print(
+                '\nEstructura JSON completa de la primera visita pendiente:',
+              );
+              print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+            }
+          } catch (e) {
+            print('Error al mostrar detalles de visita pendiente: $e');
+          }
         }
       }
     } catch (e) {
@@ -146,6 +172,34 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             print(
               'Preservando ${pendientes.length} visitas pendientes durante guardado de historial',
             );
+
+            // Mostrar detalles de las visitas pendientes para diagnóstico
+            for (int i = 0; i < pendientes.length; i++) {
+              print('\n===== VISITA PENDIENTE #${i + 1} DETALLE =====');
+              try {
+                print('Cliente ID: ${pendientes[i]['clie_Id']}');
+                print('Dirección ID: ${pendientes[i]['diCl_Id']}');
+                print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
+                print('Fecha: ${pendientes[i]['clVi_Fecha']}');
+                print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
+                print('Offline: ${pendientes[i]['offline']}');
+                print('Observaciones: ${pendientes[i]['clVi_Observaciones']}');
+                print('Firma: ${pendientes[i]['local_signature']}');
+                print(
+                  'Imágenes: ${(pendientes[i]['imagenesBase64'] as List?)?.length ?? 0}',
+                );
+
+                // Mostrar el JSON completo para análisis
+                print('\nJSON COMPLETO:');
+                print(
+                  const JsonEncoder.withIndent('  ').convert(pendientes[i]),
+                );
+              } catch (e) {
+                print(
+                  'Error al imprimir detalles de visita pendiente #${i + 1}: $e',
+                );
+              }
+            }
           }
         } catch (e) {
           print('Error al verificar visitas pendientes: $e');
