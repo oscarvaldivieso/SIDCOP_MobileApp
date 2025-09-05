@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
@@ -24,6 +25,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
   List<Map<String, dynamic>> _imagenes = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isOfflineVisita = false;
 
   @override
   void initState() {
@@ -38,8 +40,35 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         _errorMessage = '';
       });
 
-      // Solo intentamos cargar las imágenes desde el almacenamiento local
-      // Ya que todas las imágenes deben haber sido sincronizadas en visitas_screen.dart
+      // Verificar si es una visita offline con imágenes Base64
+      if (widget.visitaData != null &&
+          widget.visitaData!['offline'] == true &&
+          widget.visitaData!['imagenesBase64'] != null) {
+        _isOfflineVisita = true;
+        final List<dynamic> imagenesBase64 =
+            widget.visitaData!['imagenesBase64'];
+
+        if (imagenesBase64.isNotEmpty) {
+          // Convertir las imágenes Base64 a un formato que la UI pueda usar
+          List<Map<String, dynamic>> imagenesFormateadas = [];
+
+          for (int i = 0; i < imagenesBase64.length; i++) {
+            imagenesFormateadas.add({
+              'imVi_Id': i, // ID interno para identificar la imagen
+              'base64_data': imagenesBase64[i], // Datos Base64 de la imagen
+              'es_offline': true,
+            });
+          }
+
+          setState(() {
+            _imagenes = imagenesFormateadas;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      // Si no es offline o no tiene imágenes Base64, cargar desde almacenamiento local
       final imagenes = await VisitasOffline.obtenerImagenesVisitaLocal(
         widget.visitaId,
       );
@@ -65,7 +94,12 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
     }
   }
 
-  void _showImageFullScreen(String imageUrl, String tag, {String? rutaLocal}) {
+  void _showImageFullScreen(
+    String imageUrl,
+    String tag, {
+    String? rutaLocal,
+    String? base64Data,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -81,7 +115,20 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
               maxScale: 4,
               child: Hero(
                 tag: tag,
-                child: rutaLocal != null
+                child: base64Data != null
+                    ? Image.memory(
+                        base64Decode(base64Data),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                            size: 60,
+                          ),
+                        ),
+                      )
+                    : rutaLocal != null
                     ? Image.file(
                         File(rutaLocal),
                         fit: BoxFit.contain,
@@ -159,7 +206,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
     );
   }
 
-  // Método que construye una imagen con fallback de red a local o viceversa
+  // Método que construye una imagen con fallback de red a local o viceversa, o Base64 para offline
   Widget _buildImageWithFallback(
     Map<String, dynamic> imagen,
     String baseUrl, {
@@ -169,8 +216,27 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
   }) {
     final rutaLocal = imagen['ruta_local'] as String?;
     final rutaRemota = imagen['imVi_Imagen'] as String?;
+    final base64Data = imagen['base64_data'] as String?;
+    final esOffline = imagen['es_offline'] == true;
 
-    if (rutaLocal != null) {
+    // Si tenemos datos Base64 (caso de visitas offline), usar esa imagen
+    if (base64Data != null && esOffline) {
+      try {
+        return Image.memory(
+          base64Decode(base64Data),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error al mostrar imagen Base64: $error');
+            return _buildDefaultImage();
+          },
+        );
+      } catch (e) {
+        print('Error al decodificar Base64: $e');
+        return _buildDefaultImage();
+      }
+    } else if (rutaLocal != null) {
       // Primero intentamos mostrar la imagen local
       return Image.file(
         File(rutaLocal),
@@ -341,10 +407,17 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                                   as String?
                                             : null;
 
+                                        // Verificar si hay datos Base64 disponibles
+                                        final base64Data = _imagenes.isNotEmpty
+                                            ? _imagenes.first['base64_data']
+                                                  as String?
+                                            : null;
+
                                         _showImageFullScreen(
                                           "$baseUrl$primeraImagen",
                                           'featured_image',
                                           rutaLocal: rutaLocal,
+                                          base64Data: base64Data,
                                         );
                                       },
                                       child: Hero(
@@ -406,8 +479,12 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                     imagen['imVi_Imagen'] as String?;
                                 final rutaLocal =
                                     imagen['ruta_local'] as String?;
+                                final base64Data =
+                                    imagen['base64_data'] as String?;
 
-                                if (imagePath == null && rutaLocal == null)
+                                if (imagePath == null &&
+                                    rutaLocal == null &&
+                                    base64Data == null)
                                   return const SizedBox.shrink();
 
                                 final imageUrl = imagePath != null
@@ -419,6 +496,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                     imageUrl,
                                     tag,
                                     rutaLocal: rutaLocal,
+                                    base64Data: base64Data,
                                   ),
                                   child: Container(
                                     decoration: BoxDecoration(

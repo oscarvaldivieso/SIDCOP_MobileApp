@@ -260,22 +260,10 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         final resultado =
             await SincronizacionService.sincronizarImagenesVisitas();
 
-        // Solo mostrar notificación si se descargaron imágenes y la pantalla sigue montada
-        if (mounted && resultado['imagenesDescargadas'] > 0) {
+        // Solo registrar en log, no mostrar notificación al usuario
+        if (resultado['imagenesDescargadas'] > 0) {
           developer.log(
-            '✅ Sincronización de imágenes completada: ${resultado['imagenesDescargadas']} imágenes descargadas',
-          );
-
-          // Mostrar notificación discreta en la parte inferior
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Imágenes de ${resultado['visitasConImagenes']} visitas guardadas para uso offline (${resultado['imagenesDescargadas']} imágenes)',
-              ),
-              backgroundColor: const Color(0xFF2E7D32),
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
+            '✅ Sincronización de imágenes completada: ${resultado['imagenesDescargadas']} imágenes de ${resultado['visitasConImagenes']} visitas descargadas',
           );
         } else {
           developer.log(
@@ -835,6 +823,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Widget _buildVisitaCard(VisitasViewModel visita) {
+    // Verificar si es una visita offline (aún no insertada)
+    final bool esVisitaOffline = visita.clVi_Id == null || visita.clVi_Id == 0;
+
     final clienteNombre =
         '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'.trim();
     final negocio = visita.clie_NombreNegocio ?? 'Negocio no disponible';
@@ -843,9 +834,14 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     final fecha =
         visita.clVi_Fecha?.toLocal().toString().split(' ')[0] ??
         'Fecha no disponible';
-    final vendedor =
-        '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
-    final ruta = visita.ruta_Descripcion ?? 'Ruta no disponible';
+
+    // Para visitas offline, no mostrar vendedor ni ruta
+    final vendedor = esVisitaOffline
+        ? 'No disponible - Visita pendiente'
+        : '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
+    final ruta = esVisitaOffline
+        ? 'No disponible - Visita pendiente'
+        : visita.ruta_Descripcion ?? 'Ruta no disponible';
 
     // COLORES Y ETIQUETA DE ESTADO
     Color primaryColor;
@@ -938,14 +934,31 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            clienteNombre,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                              fontFamily: 'Satoshi',
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                clienteNombre,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              // Indicador si es visita offline
+                              if (esVisitaOffline)
+                                Text(
+                                  'Sincronización pendiente',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    fontFamily: 'Satoshi',
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
@@ -961,10 +974,13 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                   children: [
                     _infoRow(Icons.storefront_rounded, 'Negocio', negocio),
                     const SizedBox(height: 16),
-                    _infoRow(Icons.person_rounded, 'Vendedor', vendedor),
-                    const SizedBox(height: 16),
-                    _infoRow(Icons.route, 'Ruta', ruta),
-                    const SizedBox(height: 16),
+                    // Mostrar vendedor y ruta solo si no es una visita offline
+                    if (!esVisitaOffline) ...[
+                      _infoRow(Icons.person_rounded, 'Vendedor', vendedor),
+                      const SizedBox(height: 16),
+                      _infoRow(Icons.route, 'Ruta', ruta),
+                      const SizedBox(height: 16),
+                    ],
                     _infoRow(
                       Icons.notes_rounded,
                       'Observaciones',
@@ -974,41 +990,42 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                     _infoRow(Icons.calendar_today_rounded, 'Fecha', fecha),
                     const SizedBox(height: 16),
 
-                    // Botón para ver imágenes
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => VisitaDetailsScreen(
-                                visitaId: visita.clVi_Id ?? 0,
-                                clienteNombre: clienteNombre,
+                    // Botón para ver imágenes - solo si no es una visita offline
+                    if (!esVisitaOffline)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VisitaDetailsScreen(
+                                  visitaId: visita.clVi_Id ?? 0,
+                                  clienteNombre: clienteNombre,
+                                ),
                               ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor.withOpacity(0.1),
+                            foregroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(color: primaryColor),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor.withOpacity(0.1),
-                          foregroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: primaryColor),
+                            elevation: 0,
                           ),
-                          elevation: 0,
-                        ),
-                        icon: const Icon(Icons.photo_library, size: 20),
-                        label: const Text(
-                          'Ver Imágenes',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontWeight: FontWeight.w600,
+                          icon: const Icon(Icons.photo_library, size: 20),
+                          label: const Text(
+                            'Ver Imágenes',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
