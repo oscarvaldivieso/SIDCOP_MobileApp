@@ -54,28 +54,55 @@ class PedidosScreenOffline {
   // Lee datos del almacenamiento seguro o del archivo
   static Future<dynamic> _leerDatos(String clave) async {
     try {
-      // Intentar leer de secure storage primero
-      var datos = await _storage.read(key: clave);
+      print('Leyendo datos para clave: $clave');
+      
+      // Primero intentar leer de secure storage
+      String? datos = await _storage.read(key: clave);
       
       // Si no hay datos en secure storage, intentar leer del archivo
       if (datos == null) {
+        print('No se encontraron datos en secure storage, buscando en archivo...');
         try {
           final ruta = await _rutaArchivo('$clave.json');
           final file = File(ruta);
+          
           if (await file.exists()) {
+            print('Leyendo archivo: ${file.path}');
             datos = await file.readAsString();
+            
             // Si se encontró en archivo, actualizar secure storage
-            if (datos != null) {
+            if (datos.isNotEmpty) {
+              print('Datos encontrados en archivo, actualizando secure storage...');
               await _storage.write(key: clave, value: datos);
+            } else {
+              print('Archivo vacío');
+              return null;
             }
+          } else {
+            print('Archivo no encontrado: ${file.path}');
+            return null;
           }
         } catch (e) {
           print('Error al leer archivo local: $e');
+          return null;
         }
       }
       
-      return datos != null ? jsonDecode(datos) : null;
+      if (datos != null && datos.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(datos);
+          print('Datos decodificados correctamente: ${decoded.runtimeType}');
+          return decoded;
+        } catch (e) {
+          print('Error al decodificar JSON: $e');
+          print('Datos crudos: $datos');
+          return null;
+        }
+      }
+      
+      return null;
     } catch (e) {
+      print('Error en _leerDatos: $e');
       rethrow;
     }
   }
@@ -196,6 +223,8 @@ class PedidosScreenOffline {
   /// Agrega un pedido a la lista de pendientes de sincronización
   static Future<void> agregarPedidoPendiente(PedidosViewModel pedido) async {
     try {
+      print('Iniciando agregarPedidoPendiente para pedido: ${pedido.pediId}');
+      
       // Crear un nuevo pedido con un ID si es necesario
       PedidosViewModel pedidoConId = pedido;
       if (pedido.pediId == 0) {
@@ -207,8 +236,8 @@ class PedidosScreenOffline {
           pediFechaEntrega: pedido.pediFechaEntrega,
           pedi_Codigo: pedido.pedi_Codigo,
           usuaCreacion: pedido.usuaCreacion,
-          pediFechaCreacion: pedido.pediFechaCreacion,
-          pediFechaModificacion: pedido.pediFechaModificacion,
+          pediFechaCreacion: pedido.pediFechaCreacion ?? DateTime.now(),
+          pediFechaModificacion: DateTime.now(),
           usuaModificacion: pedido.usuaModificacion,
           pediEstado: pedido.pediEstado,
           clieId: pedido.clieId,
@@ -229,7 +258,7 @@ class PedidosScreenOffline {
           peDeProdPrecio: pedido.peDeProdPrecio,
           peDeCantidad: pedido.peDeCantidad,
           detalles: pedido.detalles,
-          detallesJson: pedido.detallesJson,
+          detallesJson: pedido.detallesJson ?? jsonEncode(pedido.detalles),
           coFaNombreEmpresa: pedido.coFaNombreEmpresa,
           coFaDireccionEmpresa: pedido.coFaDireccionEmpresa,
           coFaRTN: pedido.coFaRTN,
@@ -242,22 +271,47 @@ class PedidosScreenOffline {
       }
       
       // Obtener pedidos pendientes existentes
-      final pedidosPendientes = await obtenerPedidosPendientes();
+      print('Obteniendo pedidos pendientes existentes...');
+      List<PedidosViewModel> pedidosPendientes = [];
       
-      // Eliminar si ya existe un pedido con el mismo ID
-      pedidosPendientes.removeWhere((p) => p.pediId == pedido.pediId);
+      try {
+        pedidosPendientes = await obtenerPedidosPendientes();
+        print('Pedidos pendientes actuales: ${pedidosPendientes.length}');
+      } catch (e) {
+        print('Error al obtener pedidos pendientes: $e');
+        pedidosPendientes = [];
+      }
       
-      // Agregar el nuevo pedido
-      pedidosPendientes.add(pedido);
+      // Verificar si el pedido ya existe en la lista
+      final index = pedidosPendientes.indexWhere((p) => p.pediId == pedidoConId.pediId);
       
-      // Guardar la lista actualizada usando _guardarDatos
-      await _guardarDatos(
-        _pedidosPendientesKey,
-        pedidosPendientes.map((p) => p.toMap()).toList(),
-      );
+      if (index != -1) {
+        // Actualizar pedido existente
+        print('Actualizando pedido existente con ID: ${pedidoConId.pediId}');
+        pedidosPendientes[index] = pedidoConId;
+      } else {
+        // Agregar nuevo pedido
+        print('Agregando nuevo pedido con ID: ${pedidoConId.pediId}');
+        pedidosPendientes.add(pedidoConId);
+      }
+      
+      // Convertir a lista de mapas
+      final listaParaGuardar = pedidosPendientes.map((p) => p.toMap()).toList();
+      print('Guardando ${listaParaGuardar.length} pedidos pendientes...');
+      
+      // Guardar la lista actualizada
+      await _guardarDatos(_pedidosPendientesKey, listaParaGuardar);
       
       // Asegurarse de que el pedido también esté en la lista principal
-      await guardarDetallePedido(pedido);
+      print('Guardando detalle del pedido ${pedidoConId.pediId}...');
+      await guardarDetallePedido(pedidoConId);
+      
+      // Verificar que se guardó correctamente
+      final pedidosGuardados = await _leerDatos(_pedidosPendientesKey);
+      final totalGuardado = pedidosGuardados is List ? pedidosGuardados.length : 0;
+      print('Verificación: Se guardaron $totalGuardado pedidos en total');
+      
+      print('Pedido ${pedidoConId.pediId} procesado correctamente. Total pendientes: ${pedidosPendientes.length}');
     } catch (e) {
       print('Error al agregar pedido pendiente: $e');
       rethrow;
@@ -267,27 +321,84 @@ class PedidosScreenOffline {
   /// Obtiene la lista de pedidos pendientes de sincronización
   static Future<List<PedidosViewModel>> obtenerPedidosPendientes() async {
     try {
+      print('=== INICIO obtenerPedidosPendientes ===');
       final data = await _leerDatos(_pedidosPendientesKey);
-      if (data == null) return [];
       
-      if (data is List) {
-        return data.map<PedidosViewModel?>((item) {
-          try {
-            if (item is Map<String, dynamic>) {
-              return PedidosViewModel.fromJson(item);
-            } else if (item is Map) {
-              return PedidosViewModel.fromJson(Map<String, dynamic>.from(item));
-            }
-            throw Exception('Formato de pedido no válido');
-          } catch (e) {
-            print('Error al convertir pedido: $e');
-            return null;
-          }
-        }).where((pedido) => pedido != null).map((pedido) => pedido!).toList();
+      if (data == null) {
+        print('No se encontraron datos de pedidos pendientes');
+        return [];
       }
+      
+      print('Tipo de datos recuperados: ${data.runtimeType}');
+      
+      // Si es una lista, procesar cada elemento
+      if (data is List) {
+        print('Procesando lista de ${data.length} pedidos...');
+        final pedidos = <PedidosViewModel>[];
+        
+        for (var i = 0; i < data.length; i++) {
+          try {
+            final item = data[i];
+            if (item is Map) {
+              final pedidoMap = item is Map<String, dynamic> 
+                  ? item 
+                  : Map<String, dynamic>.from(item);
+              
+              print('  - Procesando pedido #${i + 1}: ID=${pedidoMap['pediId']}');
+              
+              // Verificar campos requeridos
+              if (pedidoMap['pediId'] == null) {
+                print('  ⚠️  Pedido sin ID, se omitirá');
+                continue;
+              }
+              
+              final pedido = PedidosViewModel.fromJson(pedidoMap);
+              pedidos.add(pedido);
+              print('  ✓ Pedido ${pedido.pediId} agregado correctamente');
+            } else {
+              print('  ⚠️  Elemento en posición $i no es un mapa: $item');
+            }
+          } catch (e, stackTrace) {
+            print('  ❌ Error procesando pedido #$i: $e');
+            print('  Stack trace: $stackTrace');
+          }
+        }
+        
+        print('Total de pedidos procesados exitosamente: ${pedidos.length}');
+        print('=== FIN obtenerPedidosPendientes ===');
+        return pedidos;
+      } 
+      
+      // Si es un solo pedido (formato antiguo)
+      if (data is Map) {
+        print('⚠️  Formato antiguo detectado: un solo pedido');
+        try {
+          final pedidoMap = data is Map<String, dynamic> 
+              ? data 
+              : Map<String, dynamic>.from(data);
+          
+          if (pedidoMap['pediId'] == null) {
+            print('❌ Pedido sin ID, no se puede procesar');
+            return [];
+          }
+          
+          final pedido = PedidosViewModel.fromJson(pedidoMap);
+          print('✓ Pedido único ${pedido.pediId} procesado');
+          print('=== FIN obtenerPedidosPendientes ===');
+          return [pedido];
+        } catch (e) {
+          print('❌ Error al procesar pedido único: $e');
+          return [];
+        }
+      }
+      
+      print('❌ Formato de datos no soportado: ${data.runtimeType}');
       return [];
-    } catch (e) {
-      print('Error al obtener pedidos pendientes: $e');
+      
+    } catch (e, stackTrace) {
+      print('❌❌❌ ERROR CRÍTICO en obtenerPedidosPendientes ❌❌❌');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
       return [];
     }
   }
