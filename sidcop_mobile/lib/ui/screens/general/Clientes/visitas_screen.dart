@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
-import 'dart:convert';
+import 'dart:developer' as developer;
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -73,6 +74,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     } catch (_) {
       // No interrumpir la carga si falla la sincronización de pendientes
     }
+
+    // Iniciar sincronización de imágenes en segundo plano
+    _sincronizarImagenesEnSegundoPlano();
 
     try {
       final visitas = await _service.listarPorVendedor();
@@ -199,14 +203,35 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     });
 
     try {
-      final estados = await _service.obtenerEstadosVisita();
+      // Primero intentar cargar estados desde el almacenamiento local
+      List<Map<String, dynamic>> estados = [];
+
+      try {
+        // Intentar sincronizar estados desde el servidor
+        estados = await VisitasOffline.sincronizarEstadosVisita();
+        developer.log('✅ Estados de visita sincronizados correctamente');
+      } catch (syncError) {
+        developer.log(
+          '⚠️ Error sincronizando estados: $syncError. Intentando usar caché local...',
+        );
+
+        // Si falla la sincronización, intentar obtener del almacenamiento local
+        try {
+          estados = await VisitasOffline.obtenerEstadosVisitaLocal();
+        } catch (localError) {
+          developer.log('❌ Error obteniendo estados locales: $localError');
+          throw localError; // Propagar el error para usar valores por defecto
+        }
+      }
+
       if (!mounted) return;
 
       setState(() {
         _estadosVisita = estados;
       });
     } catch (e) {
-      // Si falla, usar estados por defecto
+      // Si fallan todos los intentos, usar estados por defecto
+      developer.log('❌ Usando estados por defecto debido a: $e');
       _estadosVisita = [
         {'esVi_Id': 1, 'esVi_Descripcion': 'Pendiente'},
         {'esVi_Id': 2, 'esVi_Descripcion': 'Venta realizada'},
@@ -219,6 +244,51 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         });
       }
     }
+  }
+
+  /// Método para sincronizar imágenes de todas las visitas en segundo plano
+  /// Esta función no bloquea la interfaz de usuario y muestra una notificación al finalizar
+  Future<void> _sincronizarImagenesEnSegundoPlano() async {
+    // Iniciar la sincronización en una tarea separada para no bloquear la UI
+    Future.microtask(() async {
+      try {
+        developer.log(
+          '🔄 Iniciando sincronización de imágenes en segundo plano',
+        );
+
+        // Usar el servicio de sincronización para descargar todas las imágenes
+        final resultado =
+            await SincronizacionService.sincronizarImagenesVisitas();
+
+        // Solo mostrar notificación si se descargaron imágenes y la pantalla sigue montada
+        if (mounted && resultado['imagenesDescargadas'] > 0) {
+          developer.log(
+            '✅ Sincronización de imágenes completada: ${resultado['imagenesDescargadas']} imágenes descargadas',
+          );
+
+          // Mostrar notificación discreta en la parte inferior
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Imágenes de ${resultado['visitasConImagenes']} visitas guardadas para uso offline (${resultado['imagenesDescargadas']} imágenes)',
+              ),
+              backgroundColor: const Color(0xFF2E7D32),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          developer.log(
+            'ℹ️ Sincronización de imágenes completada: no hay nuevas imágenes para descargar',
+          );
+        }
+      } catch (e) {
+        developer.log(
+          '❌ Error en sincronización de imágenes en segundo plano: $e',
+        );
+        // No mostrar error al usuario para no interrumpir su experiencia
+      }
+    });
   }
 
   String normalizeAndClean(String str) {
@@ -378,9 +448,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         _buildSearchBar(),
         const SizedBox(height: 12),
         _buildFilterAndCount(),
-        const SizedBox(height: 16),
-
-        // Visitas List
+        const SizedBox(height: 16), // Visitas List
         _filteredVisitas.isEmpty
             ? _buildEmptyWidget()
             : ListView.builder(

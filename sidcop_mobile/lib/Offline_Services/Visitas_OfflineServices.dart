@@ -9,6 +9,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 
 /// Servicio offline para operaciones relacionadas con el historial de visitas.
 class VisitasOffline {
@@ -182,6 +183,7 @@ class VisitasOffline {
   // Helpers específicos para Visitas
   // -----------------------------
   static const String _archivoVisitas = 'visitas_historial.json';
+  static const String _prefixImagenesVisita = 'imagenes_visita_';
 
   /// Sincroniza el historial de visitas desde el servicio remoto y guarda localmente.
   static Future<List<dynamic>> sincronizarVisitasHistorial() async {
@@ -270,13 +272,17 @@ class VisitasOffline {
     try {
       final servicio = ClientesVisitaHistorialService();
       final data = await servicio.obtenerEstadosVisita();
+
+      // Guardar los estados en almacenamiento local
+      await guardarJson(_archivoEstadosVisita, data);
+
       try {
         final lista = List.from(data);
         print('SYNC: sincronizarEstadosVisita fetched ${lista.length} items');
       } catch (_) {
         print('SYNC: sincronizarEstadosVisita fetched (unknown count)');
       }
-      await guardarJson(_archivoEstadosVisita, data);
+
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       rethrow;
@@ -630,7 +636,7 @@ class VisitasOffline {
     await guardarVisitasHistorial(remaining);
     return sincronizadas;
   }
-  
+
   /// Sincroniza toda la información relevante de visitas offline.
   static Future<void> sincronizarTodo() async {
     final visitas = await sincronizarVisitasHistorial();
@@ -641,5 +647,175 @@ class VisitasOffline {
     await guardarClientes(clientes);
     final direcciones = await sincronizarDirecciones();
     await guardarDirecciones(direcciones);
+  }
+
+  // ---------------------------------
+  // Manejo de imágenes de visitas
+  // ---------------------------------
+
+  /// Genera la clave para almacenar las imágenes de una visita específica
+  static String _claveImagenesVisita(int visitaId) {
+    return 'json:${_prefixImagenesVisita}$visitaId';
+  }
+
+  /// Guarda las imágenes de una visita localmente
+  /// @param visitaId ID de la visita
+  /// @param imagenes Lista de imágenes en formato Map (como las devuelve la API)
+  static Future<bool> guardarImagenesVisita(
+    int visitaId,
+    List<Map<String, dynamic>> imagenes,
+  ) async {
+    try {
+      final clave = _claveImagenesVisita(visitaId);
+      // Incluimos metadatos como la fecha de descarga
+      final datosGuardar = {
+        'visitaId': visitaId,
+        'descargadoEl': DateTime.now().toIso8601String(),
+        'imagenes': imagenes,
+      };
+      await _secureStorage.write(key: clave, value: jsonEncode(datosGuardar));
+      print('✅ Guardadas ${imagenes.length} imágenes para visita $visitaId');
+      return true;
+    } catch (e) {
+      print('❌ Error guardando imágenes para visita $visitaId: $e');
+      return false;
+    }
+  }
+
+  /// Obtiene las imágenes guardadas localmente para una visita
+  /// @param visitaId ID de la visita
+  /// @returns Lista de imágenes o null si no hay imágenes guardadas
+  static Future<List<Map<String, dynamic>>?> obtenerImagenesVisitaLocal(
+    int visitaId,
+  ) async {
+    try {
+      final clave = _claveImagenesVisita(visitaId);
+      final datosJson = await _secureStorage.read(key: clave);
+
+      if (datosJson == null) {
+        print('ℹ️ No hay imágenes guardadas para la visita $visitaId');
+        return null;
+      }
+
+      final datos = jsonDecode(datosJson) as Map<String, dynamic>;
+      final imagenes = List<Map<String, dynamic>>.from(
+        datos['imagenes'] as List,
+      );
+
+      print(
+        '✅ Recuperadas ${imagenes.length} imágenes locales para visita $visitaId',
+      );
+      return imagenes;
+    } catch (e) {
+      print('❌ Error recuperando imágenes para visita $visitaId: $e');
+      return null;
+    }
+  }
+
+  /// Descarga y guarda las imágenes de una visita desde el servidor
+  /// @param visitaId ID de la visita
+  /// @returns Lista de imágenes descargadas o null si hay error
+  static Future<List<Map<String, dynamic>>?> sincronizarImagenesVisita(
+    int visitaId,
+  ) async {
+    try {
+      print('🔄 Sincronizando imágenes para visita $visitaId...');
+      final servicio = ClientesVisitaHistorialService();
+      final imagenes = await servicio.listarImagenesPorVisita(visitaId);
+
+      if (imagenes.isNotEmpty) {
+        // Procesamos las URLs para guardar también las imágenes como archivos
+        // y así poder mostrarlas sin conexión
+        final baseUrl = 'http://200.59.27.115:8091'; // URL base del servidor
+        final imagenesConRutasLocales = <Map<String, dynamic>>[];
+
+        for (var i = 0; i < imagenes.length; i++) {
+          final imagen = Map<String, dynamic>.from(imagenes[i]);
+          final imagenUrl = imagen['imVi_Imagen'] as String?;
+
+          if (imagenUrl != null && imagenUrl.isNotEmpty) {
+            final urlCompleta = "$baseUrl$imagenUrl";
+            final nombreArchivo = 'visita_${visitaId}_img_$i.jpg';
+
+            try {
+              // Intentar descargar la imagen y guardarla localmente
+              final rutaLocal = await guardarArchivoDesdeUrl(
+                urlCompleta,
+                nombreArchivo,
+              );
+
+              if (rutaLocal != null) {
+                imagen['ruta_local'] = rutaLocal;
+                print('✅ Imagen $i guardada localmente en $rutaLocal');
+              }
+            } catch (e) {
+              print('⚠️ Error descargando imagen $i: $e');
+              // Continuar con las demás imágenes si falla una
+            }
+          }
+
+          imagenesConRutasLocales.add(imagen);
+        }
+
+        // Guardar los metadatos de las imágenes en secure storage
+        await guardarImagenesVisita(visitaId, imagenesConRutasLocales);
+
+        print(
+          '✅ Sincronizadas ${imagenesConRutasLocales.length} imágenes para visita $visitaId',
+        );
+        return imagenesConRutasLocales;
+      } else {
+        print('ℹ️ No hay imágenes para la visita $visitaId');
+        // Guardar un registro vacío para no tener que consultar de nuevo
+        await guardarImagenesVisita(visitaId, []);
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error sincronizando imágenes para visita $visitaId: $e');
+      return null;
+    }
+  }
+
+  /// Obtiene las imágenes de una visita, primero intenta local, luego remoto si hay conexión
+  /// @param visitaId ID de la visita
+  /// @param forzarSincronizacion Si es true, siempre intenta sincronizar desde el servidor
+  /// @returns Lista de imágenes o lista vacía si no hay imágenes
+  static Future<List<Map<String, dynamic>>> obtenerImagenesVisita(
+    int visitaId, {
+    bool forzarSincronizacion = false,
+  }) async {
+    // Primero intentamos obtener las imágenes guardadas localmente
+    final imagenesLocales = await obtenerImagenesVisitaLocal(visitaId);
+
+    // Si no hay imágenes locales o se fuerza la sincronización, intentamos obtener del servidor
+    if (imagenesLocales == null || forzarSincronizacion) {
+      try {
+        // Verificar conexión usando VerificarService
+        final isOnline = await VerificarService.verificarConexion();
+
+        if (isOnline) {
+          final imagenesRemoto = await sincronizarImagenesVisita(visitaId);
+          if (imagenesRemoto != null && imagenesRemoto.isNotEmpty) {
+            return imagenesRemoto;
+          }
+        } else if (imagenesLocales != null) {
+          // Si no hay conexión pero tenemos imágenes locales, las usamos
+          print(
+            'ℹ️ Sin conexión, usando imágenes locales para visita $visitaId',
+          );
+          return imagenesLocales;
+        }
+      } catch (e) {
+        print('⚠️ Error en obtenerImagenesVisita: $e');
+        // Si hay error y tenemos imágenes locales, las devolvemos
+        if (imagenesLocales != null) return imagenesLocales;
+      }
+    } else if (imagenesLocales.isNotEmpty) {
+      // Si hay imágenes locales y no se fuerza sincronización, las devolvemos
+      return imagenesLocales;
+    }
+
+    // Si llegamos aquí, no hay imágenes o hubo error
+    return [];
   }
 }

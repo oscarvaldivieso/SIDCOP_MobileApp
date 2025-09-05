@@ -1,5 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
@@ -20,8 +21,6 @@ class VisitaDetailsScreen extends StatefulWidget {
 }
 
 class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
-  final ClientesVisitaHistorialService _visitaService =
-      ClientesVisitaHistorialService();
   List<Map<String, dynamic>> _imagenes = [];
   bool _isLoading = true;
   String _errorMessage = '';
@@ -39,15 +38,26 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         _errorMessage = '';
       });
 
-      final imagenes = await _visitaService.listarImagenesPorVisita(
+      // Solo intentamos cargar las imágenes desde el almacenamiento local
+      // Ya que todas las imágenes deben haber sido sincronizadas en visitas_screen.dart
+      final imagenes = await VisitasOffline.obtenerImagenesVisitaLocal(
         widget.visitaId,
       );
 
-      setState(() {
-        _imagenes = imagenes;
-        _isLoading = false;
-      });
+      if (imagenes != null && imagenes.isNotEmpty) {
+        setState(() {
+          _imagenes = imagenes;
+          _isLoading = false;
+        });
+      } else {
+        // Si no hay imágenes guardadas localmente, mostrar un mensaje amigable
+        setState(() {
+          _errorMessage = 'No hay imágenes disponibles para esta visita';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
+      print('Error cargando imágenes: $e');
       setState(() {
         _errorMessage = 'Error al cargar las imágenes de la visita';
         _isLoading = false;
@@ -55,7 +65,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
     }
   }
 
-  void _showImageFullScreen(String imageUrl, String tag) {
+  void _showImageFullScreen(String imageUrl, String tag, {String? rutaLocal}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -71,18 +81,39 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
               maxScale: 4,
               child: Hero(
                 tag: tag,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey[300],
-                    child: const Icon(
-                      Icons.broken_image,
-                      color: Colors.grey,
-                      size: 60,
-                    ),
-                  ),
-                ),
+                child: rutaLocal != null
+                    ? Image.file(
+                        File(rutaLocal),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          // Si la imagen local falla, intenta cargar desde la red
+                          return Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                    size: 60,
+                                  ),
+                                ),
+                          );
+                        },
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                            size: 60,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -126,6 +157,55 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         child: Icon(Icons.photo_library, size: 80, color: Colors.grey),
       ),
     );
+  }
+
+  // Método que construye una imagen con fallback de red a local o viceversa
+  Widget _buildImageWithFallback(
+    Map<String, dynamic> imagen,
+    String baseUrl, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    final rutaLocal = imagen['ruta_local'] as String?;
+    final rutaRemota = imagen['imVi_Imagen'] as String?;
+
+    if (rutaLocal != null) {
+      // Primero intentamos mostrar la imagen local
+      return Image.file(
+        File(rutaLocal),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) {
+          // Si falla la imagen local, intentamos con la remota
+          if (rutaRemota != null) {
+            return Image.network(
+              "$baseUrl$rutaRemota",
+              width: width,
+              height: height,
+              fit: fit,
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildDefaultImage(),
+            );
+          } else {
+            return _buildDefaultImage();
+          }
+        },
+      );
+    } else if (rutaRemota != null) {
+      // Si no hay ruta local, intentamos con la remota directamente
+      return Image.network(
+        "$baseUrl$rutaRemota",
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+      );
+    } else {
+      // Si no hay ninguna ruta, mostramos la imagen por defecto
+      return _buildDefaultImage();
+    }
   }
 
   @override
@@ -254,24 +334,30 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                               borderRadius: BorderRadius.circular(14),
                               child: primeraImagen != null
                                   ? GestureDetector(
-                                      onTap: () => _showImageFullScreen(
-                                        "$baseUrl$primeraImagen",
-                                        'featured_image',
-                                      ),
+                                      onTap: () {
+                                        // Verificar si hay ruta local disponible
+                                        final rutaLocal = _imagenes.isNotEmpty
+                                            ? _imagenes.first['ruta_local']
+                                                  as String?
+                                            : null;
+
+                                        _showImageFullScreen(
+                                          "$baseUrl$primeraImagen",
+                                          'featured_image',
+                                          rutaLocal: rutaLocal,
+                                        );
+                                      },
                                       child: Hero(
                                         tag: 'featured_image',
-                                        child: Image.network(
-                                          "$baseUrl$primeraImagen",
+                                        child: _buildImageWithFallback(
+                                          _imagenes.first,
+                                          baseUrl,
                                           width:
                                               MediaQuery.of(
                                                 context,
                                               ).size.width -
                                               48,
                                           height: 200,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  _buildDefaultImage(),
                                         ),
                                       ),
                                     )
@@ -318,15 +404,22 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                     'gallery_image_${imagen['imVi_Id'] ?? index}';
                                 final imagePath =
                                     imagen['imVi_Imagen'] as String?;
+                                final rutaLocal =
+                                    imagen['ruta_local'] as String?;
 
-                                if (imagePath == null)
+                                if (imagePath == null && rutaLocal == null)
                                   return const SizedBox.shrink();
 
-                                final imageUrl = "$baseUrl$imagePath";
+                                final imageUrl = imagePath != null
+                                    ? "$baseUrl$imagePath"
+                                    : '';
 
                                 return GestureDetector(
-                                  onTap: () =>
-                                      _showImageFullScreen(imageUrl, tag),
+                                  onTap: () => _showImageFullScreen(
+                                    imageUrl,
+                                    tag,
+                                    rutaLocal: rutaLocal,
+                                  ),
                                   child: Container(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(12),
@@ -342,19 +435,10 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                       tag: tag,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
-                                        child: Image.network(
-                                          imageUrl,
+                                        child: _buildImageWithFallback(
+                                          imagen,
+                                          baseUrl,
                                           fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.broken_image,
-                                                      color: Colors.grey,
-                                                      size: 40,
-                                                    ),
-                                                  ),
                                         ),
                                       ),
                                     ),
@@ -364,14 +448,8 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                             ),
                           ),
 
-                        // Action Buttons Section (similar to ClientDetailsScreen)
-                        if (_imagenes.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24.0,
-                              vertical: 24.0,
-                            ),
-                          ),
+                        // Espacio adicional para separar la galería del final
+                        if (_imagenes.isNotEmpty) const SizedBox(height: 24),
 
                         // Empty state if no images
                         if (_imagenes.isEmpty &&
