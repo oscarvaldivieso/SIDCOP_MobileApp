@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
@@ -226,6 +227,14 @@ class VisitasOffline {
   /// Evita duplicados calculando una "firma" basada en campos clave.
   /// Devuelve true si la visita fue añadida, false si ya existía.
   static Future<bool> agregarVisitaLocal(Map<String, dynamic> visita) async {
+    // Registrar la estructura de la visita para depuración
+    try {
+      print('DEBUG - ESTRUCTURA DE VISITA OFFLINE A GUARDAR:');
+      print(const JsonEncoder.withIndent('  ').convert(visita));
+    } catch (e) {
+      print('Error al imprimir estructura JSON: $e');
+    }
+
     final lista = await obtenerVisitasHistorialLocal();
 
     // Calcular firma a partir de campos clave que definen una visita
@@ -255,8 +264,20 @@ class VisitasOffline {
     visitaToSave['local_signature'] = signature;
     visitaToSave['local_created_at'] = DateTime.now().toIso8601String();
 
+    // Asegurar que los campos críticos sean del tipo correcto
+    visitaToSave['clie_Id'] = int.tryParse('${visitaToSave['clie_Id']}') ?? 0;
+    visitaToSave['diCl_Id'] = int.tryParse('${visitaToSave['diCl_Id']}') ?? 0;
+    visitaToSave['esVi_Id'] = int.tryParse('${visitaToSave['esVi_Id']}') ?? 0;
+    // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
+    visitaToSave['usua_Creacion'] = 57;
+
     lista.add(visitaToSave);
     await guardarVisitasHistorial(lista);
+
+    // Mostrar la visita guardada para verificar
+    print('\nDEBUG - VISITA GUARDADA CORRECTAMENTE:');
+    print(const JsonEncoder.withIndent('  ').convert(visitaToSave));
+
     return true;
   }
 
@@ -417,6 +438,17 @@ class VisitasOffline {
         .toList();
     if (pendientes.isEmpty) return 0;
 
+    // Imprimir todas las visitas offline para depuración
+    print('DEBUG - VISITAS OFFLINE PENDIENTES: ${pendientes.length}');
+    try {
+      for (int i = 0; i < pendientes.length; i++) {
+        print('VISITA OFFLINE #${i + 1}:');
+        print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+      }
+    } catch (e) {
+      print('Error al imprimir visitas offline: $e');
+    }
+
     final servicio = ClientesVisitaHistorialService();
     int sincronizadas = 0;
 
@@ -444,33 +476,53 @@ class VisitasOffline {
         try {
           // Construir payload para insertar la visita (reutilizamos la estructura local)
           final visitaPayload = Map<String, dynamic>.from(visita);
+
+          // Verificar campos críticos antes de enviar
+          print('\nDEBUG - VALIDACIÓN DE CAMPOS CRÍTICOS:');
+          final camposCriticos = [
+            'clie_Id',
+            'diCl_Id',
+            'clVi_Fecha',
+            'esVi_Id',
+            'clVi_Observaciones',
+            'usua_Creacion',
+          ];
+
+          for (final campo in camposCriticos) {
+            print('$campo: ${visitaPayload[campo]}');
+          }
+
           // Limpiar campos locales/aux
           visitaPayload.remove('imagenesBase64');
           visitaPayload.remove('offline');
           visitaPayload.remove('local_signature');
           visitaPayload.remove('local_created_at');
-          // Asegurar usuario: preferir el valor guardado en la visita (cuando se guardó offline),
-          // si no existe usar el `globalVendId`. No sobrescribir por 0.
+
+          // Asegurar que tenemos un ID de usuario válido para la sincronización
+          // Primero intentar obtener el usuario guardado en la visita
           int? usuarioGuardado;
           try {
             usuarioGuardado = int.tryParse('${visita['usua_Creacion'] ?? ''}');
           } catch (_) {
             usuarioGuardado = null;
           }
-          if (usuarioGuardado != null && usuarioGuardado > 0) {
-            visitaPayload['usua_Creacion'] = usuarioGuardado;
-            print(
-              'SYNC: usando usua_Creacion desde visita guardada = $usuarioGuardado',
-            );
-          } else if ((globalVendId ?? 0) > 0) {
-            visitaPayload['usua_Creacion'] = globalVendId;
-            print(
-              'SYNC: usando usua_Creacion desde globalVendId = $globalVendId',
-            );
-          } else {
-            visitaPayload.remove('usua_Creacion');
-            print('SYNC: no hay usua_Creacion valido, se elimina del payload');
-          }
+
+          // Asegurar que todos los campos numéricos sean números y no cadenas
+          // Conversión explícita de los campos clave
+          visitaPayload['clie_Id'] =
+              int.tryParse('${visitaPayload['clie_Id']}') ?? 0;
+          visitaPayload['diCl_Id'] =
+              int.tryParse('${visitaPayload['diCl_Id']}') ?? 0;
+          visitaPayload['esVi_Id'] =
+              int.tryParse('${visitaPayload['esVi_Id']}') ?? 0;
+
+          // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
+          visitaPayload['usua_Creacion'] = 57;
+          print('SYNC: usando usua_Creacion = 57 según requerimiento del SP');
+
+          // Mostrar el payload final justo antes de enviarlo
+          print('\nDEBUG - PAYLOAD FINAL ANTES DE ENVIAR:');
+          print(const JsonEncoder.withIndent('  ').convert(visitaPayload));
 
           // Intentar crear la visita remoto usando el mismo flujo que la UI
           final insertResult = await servicio.insertarVisita(visitaPayload);

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
 // Removed unused imports: provider, ClientesVisitaHistorialModel, cloudinary_service
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
@@ -560,10 +561,12 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           } catch (_) {}
         }
 
+        // Siempre usar el ID 57 para el usuario según requerimientos del SP
         final visitaLocal = {
           ...visitaData,
           'imagenesBase64': imagenesBase64,
           'offline': true,
+          'usua_Creacion': 57, // ID fijo según requerimiento del SP
         };
 
         final bool added = await VisitasOffline.agregarVisitaLocal(visitaLocal);
@@ -682,6 +685,34 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   //     return null;
   //   }
   // }
+
+  /// Recupera el ID de usuario desde SharedPreferences si está disponible
+  Future<int?> _recuperarUsuarioId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataJson = prefs.getString('offline_user_data');
+
+      if (userDataJson != null) {
+        final userData = jsonDecode(userDataJson);
+
+        // Intentar obtener el ID de diferentes campos posibles
+        if (userData.containsKey('personaId')) {
+          final userId = userData['personaId'] is int
+              ? userData['personaId']
+              : int.tryParse(userData['personaId'].toString());
+          return userId;
+        } else if (userData.containsKey('usua_IdPersona')) {
+          final userId = userData['usua_IdPersona'] is int
+              ? userData['usua_IdPersona']
+              : int.tryParse(userData['usua_IdPersona'].toString());
+          return userId;
+        }
+      }
+    } catch (e) {
+      print('Error al recuperar ID de usuario: $e');
+    }
+    return null;
+  }
 
   void _mostrarError(String mensaje) {
     if (mounted) {
