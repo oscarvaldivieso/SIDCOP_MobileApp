@@ -5,6 +5,8 @@ import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedido_detalle_bottom_sheet.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/pedido_offline_helper.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class PedidosScreen extends StatefulWidget {
   const PedidosScreen({super.key});
@@ -22,14 +24,18 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
   Future<List<PedidosViewModel>> _getPedidosDelVendedor() async {
     try {
-      // Obtener todos los pedidos del endpoint original
-      final todosPedidos = await _service.getPedidos();
+      // Verificar conexión a internet
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOnline = connectivityResult != ConnectivityResult.none;
       
-      // Obtener datos del usuario actual
+      // Obtener datos del usuario actual para el filtrado
       final datosUsuario = await _perfilService.obtenerDatosUsuario();
       if (datosUsuario == null) {
         print('No se encontraron datos del usuario');
-        return todosPedidos; // Si no se puede obtener el vendedor, mostrar todos
+        // Si no hay datos de usuario, intentar obtener pedidos sin filtrar
+        return isOnline 
+            ? await _service.getPedidos() 
+            : await PedidoOfflineHelper.obtenerPedidos();
       }
 
       // Obtener el ID del vendedor (usuaIdPersona)
@@ -39,18 +45,36 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
       if (vendedorId == 0) {
         print('ID de vendedor no válido: $vendedorId');
-        return todosPedidos; // Si no se puede obtener el vendedor, mostrar todos
+        return isOnline 
+            ? await _service.getPedidos() 
+            : await PedidoOfflineHelper.obtenerPedidos();
       }
 
-      print('Filtrando pedidos para vendedor ID: $vendedorId');
-      // Filtrar los pedidos que pertenecen al vendedor actual
-      final pedidosFiltrados = todosPedidos.where((pedido) => pedido.vendId == vendedorId).toList();
-      print('Pedidos encontrados para el vendedor: ${pedidosFiltrados.length} de ${todosPedidos.length} totales');
+      print('${isOnline ? 'Online' : 'Offline'} - Filtrando pedidos para vendedor ID: $vendedorId');
+      
+      // Obtener pedidos según el modo (online/offline)
+      List<PedidosViewModel> pedidos = isOnline
+          ? await _service.getPedidos()
+          : await PedidoOfflineHelper.obtenerPedidos();
+      
+      // Si estamos en línea, actualizar la caché local
+      if (isOnline && pedidos.isNotEmpty) {
+        await PedidoOfflineHelper.guardarPedido(pedido: pedidos.first);
+      }
+      
+      // Filtrar por vendedor
+      final pedidosFiltrados = pedidos.where((pedido) => pedido.vendId == vendedorId).toList();
+      print('Pedidos encontrados para el vendedor: ${pedidosFiltrados.length} de ${pedidos.length} totales');
       
       return pedidosFiltrados;
     } catch (e) {
       print('Error obteniendo pedidos del vendedor: $e');
-      return [];
+      // En caso de error, intentar obtener datos locales
+      try {
+        return await PedidoOfflineHelper.obtenerPedidos();
+      } catch (e) {
+        return [];
+      }
     }
   }
 
@@ -60,6 +84,16 @@ class _PedidosScreenState extends State<PedidosScreen> {
       title: 'Pedidos',
       icon: Icons.assignment,
       onRefresh: () async {
+        // Forzar actualización de datos
+        final connectivityResult = await Connectivity().checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          // Si hay conexión, intentar sincronizar pendientes
+          try {
+            await PedidoOfflineHelper.sincronizarPedidosPendientes();
+          } catch (e) {
+            print('Error sincronizando pedidos pendientes: $e');
+          }
+        }
         setState(() {});
       },
       child: FutureBuilder<List<PedidosViewModel>>(
