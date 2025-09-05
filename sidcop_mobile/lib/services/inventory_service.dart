@@ -1,15 +1,78 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:connectivity_plus/connectivity.dart';
 import 'GlobalService.dart';
+import 'local_database/inventory_local_service.dart';
 
 class InventoryService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
+  final InventoryLocalService _localService = InventoryLocalService();
+
   Future<List<Map<String, dynamic>>> getInventoryByVendor(int vendorId) async {
-    final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
     try {
+      // Check internet connection
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      if (hasConnection) {
+        // If online, fetch from API and update local storage
+        final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
+        final response = await http.get(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Api-Key': _apiKey,
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final List<dynamic> jsonData = json.decode(response.body);
+          final inventory = List<Map<String, dynamic>>.from(jsonData);
+          
+          // Save to local database for offline access
+          await _localService.saveInventory(inventory, vendorId);
+          
+          return inventory;
+        } else {
+          // If API fails but we have local data, return that
+          final localData = await _localService.getInventory(vendorId);
+          if (localData.isNotEmpty) {
+            return localData;
+          }
+          throw Exception('Failed to load inventory: ${response.statusCode}');
+        }
+      } else {
+        // If offline, return local data
+        debugPrint('No internet connection, loading from local storage');
+        final localData = await _localService.getInventory(vendorId);
+        if (localData.isNotEmpty) {
+          return localData;
+        }
+        throw Exception('No internet connection and no local data available');
+      }
+    } catch (e) {
+      debugPrint('Error in getInventoryByVendor: $e');
+      // Try to return local data even if there was an error
+      try {
+        final localData = await _localService.getInventory(vendorId);
+        if (localData.isNotEmpty) {
+          return localData;
+        }
+      } catch (localError) {
+        debugPrint('Error loading local inventory: $localError');
+      }
+      rethrow;
+    }
+  }
+
+  // Método para sincronizar el inventario (llamar durante el login)
+  Future<void> syncInventory(int vendorId) async {
+    try {
+      final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
       final response = await http.get(
         url,
         headers: {
@@ -21,33 +84,50 @@ class InventoryService {
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
-        return List<Map<String, dynamic>>.from(jsonData);
+        await _localService.saveInventory(
+          List<Map<String, dynamic>>.from(jsonData),
+          vendorId,
+        );
+        debugPrint('Inventory synced successfully for vendor $vendorId');
       } else {
-        throw Exception('Failed to load inventory: ${response.statusCode}');
+        debugPrint('Failed to sync inventory: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Error fetching inventory: $e');
-      rethrow;
+      debugPrint('Error syncing inventory: $e');
     }
   }
 
-  // Nuevo método para obtener jornada detallada
+  // Método para obtener jornada detallada
   Future<Map<String, dynamic>> getJornadaDetallada(int vendorId) async {
-    final url = Uri.parse('$_apiServer/InventarioBodegas/JornadaDetallada/$vendorId');
     try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
-      );
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      if (hasConnection) {
+        final url = Uri.parse('$_apiServer/InventarioBodegas/JornadaDetallada/$vendorId');
+        final response = await http.get(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Api-Key': _apiKey,
+          },
+        );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonData = json.decode(response.body);
-        
-        // Verificar que la respuesta sea exitosa
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> jsonData = json.decode(response.body);
+          return jsonData;
+        }
+      }
+      
+      // Si estamos offline o hay un error, devolver datos básicos
+      return {
+        'success': true,
+        'message': 'Datos en modo offline',
+        'data': {
+          'inventario': await _localService.getInventory(vendorId),
+        },
+      };
         if (jsonData['success'] == true && jsonData['data'] != null) {
           return jsonData['data'] as Map<String, dynamic>;
         } else {

@@ -31,7 +31,12 @@ class _LoginBottomSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Expanded(child: LoginScreen(scrollController: controller)),
+              Expanded(
+                child: LoginScreen(
+                  scrollController: controller,
+                  checkSessionOnInit: false, // No verificar sesión al mostrarse desde onboarding
+                ),
+              ),
             ],
           ),
         );

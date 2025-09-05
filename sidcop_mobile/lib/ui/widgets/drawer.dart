@@ -2,6 +2,8 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:developer' as developer;
 import 'package:sidcop_mobile/ui/screens/goals_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
@@ -186,18 +188,56 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
-                        await _perfilUsuarioService.limpiarDatosUsuario();
-                        // Limpiar credenciales guardadas de "Remember me"
-                        await LoginScreen.clearSavedCredentials();
-                        // Limpiar credenciales offline
-                        await OfflineAuthService.clearOfflineCredentials();
-                        if (!mounted) return;
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (context) => const OnboardingScreen(),
+                        // Mostrar diálogo de confirmación
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Cerrar sesión'),
+                            content: const Text('¿Está seguro de que desea cerrar sesión?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('Cancelar'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text('Cerrar sesión'),
+                              ),
+                            ],
                           ),
-                          (route) => false,
                         );
+
+                        if (confirm != true) return;
+
+                        try {
+                          // Limpiar solo el estado de la sesión actual
+                          final prefs = await SharedPreferences.getInstance();
+                          await _perfilUsuarioService.limpiarDatosUsuario();
+                          
+                          // No limpiar las credenciales guardadas
+                          await prefs.setBool('isLoggedIn', false);
+                          await prefs.setBool('remember_me', false);
+
+                          if (!mounted) return;
+
+                          // Navegar a la pantalla de inicio
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const OnboardingScreen(),
+                            ),
+                            (route) => false,
+                          );
+                        } catch (e) {
+                          developer.log('Error al cerrar sesión: $e');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Error al cerrar sesión'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
                       },
                     ),
                   ],

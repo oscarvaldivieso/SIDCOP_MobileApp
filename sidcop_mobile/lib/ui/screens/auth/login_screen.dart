@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
+import 'package:sidcop_mobile/services/inventory_service.dart';
 
 import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
@@ -10,20 +11,46 @@ import '../../../services/OfflineAuthService.dart';
 import '../../screens/auth/forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:developer' as developer;
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
-  const LoginScreen({super.key, this.scrollController});
+  final bool checkSessionOnInit;
+  
+  const LoginScreen({
+    super.key, 
+    this.scrollController,
+    this.checkSessionOnInit = true,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 
   // Método estático para limpiar credenciales guardadas (accesible desde otras clases)
-  static Future<void> clearSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('remember_me');
-    await prefs.remove('saved_email');
-    await prefs.remove('saved_password');
+  // Solo limpia si hay conexión a internet
+  static Future<bool> clearSavedCredentials() async {
+    try {
+      // Verificar conexión a internet antes de permitir cerrar sesión
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = connectivityResult != ConnectivityResult.none;
+      
+      if (!hasConnection) {
+        return false; // No permitir cerrar sesión sin conexión
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('remember_me');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+      
+      // No limpiar las credenciales offline aquí para mantener la sesión
+      // OfflineAuthService.clearOfflineCredentials() debe llamarse explícitamente
+      
+      return true;
+    } catch (e) {
+      developer.log('Error al limpiar credenciales: $e');
+      return false;
+    }
   }
 }
 
@@ -40,18 +67,23 @@ class _LoginScreenState extends State<LoginScreen> {
   // Error general para credenciales incorrectas
   String? _generalError;
   bool _isLoading = false;
-  String _syncStatus = '';
+  String _syncStatus = 'Cargando';
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
 
   @override
   void initState() {
     super.initState();
-    _checkSavedSession();
+    if (widget.checkSessionOnInit) {
+      _checkSavedSession();
+    }
   }
 
   // Verificar si hay una sesión guardada
   Future<void> _checkSavedSession() async {
+    // No mostrar loading inicial al abrir el login
+    if (!mounted) return;
+    
     // Primero verificar si hay una sesión offline válida para auto-login directo
     final hasValidSession = await OfflineAuthService.hasValidOfflineSession();
     
@@ -60,10 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final connectivityResult = await Connectivity().checkConnectivity();
       final hasConnection = connectivityResult != ConnectivityResult.none;
       
-      setState(() {
-        _isLoading = true;
-        _syncStatus = hasConnection ? 'Restaurando sesión...' : 'Restaurando sesión offline...';
-      });
+      // Solo mostrar loading si hay una sesión válida que restaurar
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _syncStatus = 'Cargando';
+        });
+      }
       
       try {
         Map<String, dynamic>? result;
@@ -102,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (hasConnection && result['offline_login'] != true) {
             // Sincronización rápida para login online
             setState(() {
-              _syncStatus = 'Sincronizando...';
+              _syncStatus = 'Cargando';
             });
             
             await SyncService.syncAfterLogin(
@@ -170,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (hasConnection) {
         // Intentar auto-login online primero
         setState(() {
-          _syncStatus = 'Restaurando sesión...';
+          _syncStatus = 'Cargando';
         });
         
         try {
@@ -191,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } catch (e) {
           // Error de conexión - intentar auto-login offline
           setState(() {
-            _syncStatus = 'Sin conexión, restaurando sesión offline...';
+            _syncStatus = 'Cargando';
           });
           
           result = await _attemptOfflineLogin();
@@ -200,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // Sin conexión - usar auto-login offline directamente
         setState(() {
-          _syncStatus = 'Modo offline - Restaurando sesión...';
+          _syncStatus = 'Cargando';
         });
         
         result = await _attemptOfflineLogin();
@@ -213,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
         
         if (isOfflineLogin) {
           setState(() {
-            _syncStatus = 'Sesión restaurada (offline)';
+            _syncStatus = 'Cargando';
           });
           
           // Pequeña pausa para mostrar el mensaje
@@ -221,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           // Sincronización solo para auto-login online
           setState(() {
-            _syncStatus = 'Sincronizando datos...';
+            _syncStatus = 'Cargando';
           });
           
           await SyncService.syncAfterLogin(
@@ -288,65 +323,17 @@ class _LoginScreenState extends State<LoginScreen> {
       _generalError = null;
     });
 
-    // Validar campos individualmente
-    bool hasError = false;
-
-    if (_emailController.text.isEmpty) {
       setState(() {
-        _emailError = 'El campo Usuario es requerido';
+        _generalError = errorMessage;
       });
-      hasError = true;
     }
-
-    if (_passwordController.text.isEmpty) {
-      setState(() {
-        _passwordError = 'El campo Contraseña es requerido';
-      });
-      hasError = true;
-    }
-
-    // Si hay errores de validación, no continuar
-    if (hasError) return;
-
+  } catch (e) {
     setState(() {
-      _isLoading = true;
+      _generalError = 'Error inesperado: $e';
     });
-
-    try {
-      // Verificar conectividad
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final hasConnection = connectivityResult != ConnectivityResult.none;
-      
-      Map<String, dynamic>? result;
-      bool isOfflineLogin = false;
-      
-      if (hasConnection) {
-        // Intentar login online primero
-        setState(() {
-          _syncStatus = 'Conectando al servidor...';
-        });
-        
-        try {
-          result = await _usuarioService.iniciarSesion(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
-          
-          if (result != null && result['error'] != true) {
-            // Login online exitoso - SIEMPRE guardar credenciales offline
-            await OfflineAuthService.saveOfflineCredentials(
-              username: _emailController.text.trim(),
-              password: _passwordController.text,
-              userData: result,
-            );
-            
-            // Actualizar timestamp del último login online
-            await OfflineAuthService.updateLastOnlineLogin();
-          }
-        } catch (e) {
-          // Error de conexión - intentar login offline
-          setState(() {
-            _syncStatus = 'Sin conexión, intentando acceso offline...';
+  } finally {
+    if (mounted) {
+            _syncStatus = 'Cargando';
           });
           
           result = await _attemptOfflineLogin();
@@ -355,7 +342,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // Sin conexión - usar login offline directamente
         setState(() {
-          _syncStatus = 'Modo offline - Verificando credenciales...';
+          _syncStatus = 'Cargando';
         });
         
         result = await _attemptOfflineLogin();
@@ -381,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen> {
         
         if (isOfflineLogin) {
           setState(() {
-            _syncStatus = 'Acceso offline exitoso';
+            _syncStatus = 'Cargando';
           });
           
           // Pequeña pausa para mostrar el mensaje
@@ -389,7 +376,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           // Sincronización solo para login online
           setState(() {
-            _syncStatus = 'Ingresando';
+            _syncStatus = 'Cargando';
           });
           
           await SyncService.syncAfterLogin(
@@ -444,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       
       // Verificar si las credenciales han expirado (opcional)
-      final areExpired = await OfflineAuthService.areCredentialsExpired(maxDaysOffline: 30);
+      final areExpired = await OfflineAuthService.areCredentialsExpired();
       if (areExpired) {
         return {
           'error': true,
@@ -714,9 +701,9 @@ const SizedBox(height: 30),
                             ),
                             const SizedBox(height: 30),
                             // Texto principal
-                            Text(
-                              _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
-                              style: const TextStyle(
+                            const Text(
+                              'Cargando',
+                              style: TextStyle(
                                 fontFamily: 'Satoshi',
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
