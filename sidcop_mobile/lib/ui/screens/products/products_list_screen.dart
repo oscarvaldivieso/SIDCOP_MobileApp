@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Recargas_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/RecargasService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/widgets/CachedProductImageWidget.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class ProductScreen extends StatefulWidget {
   const ProductScreen({super.key});
@@ -111,28 +115,6 @@ class _ProductScreenState extends State<ProductScreen> {
       return response.statusCode == 200;
     } catch (_) {
       return false;
-    }
-  }
-
-  Future<void> _loadFiltersFromService() async {
-    try {
-      final results = await Future.wait([
-        _productosService.getCategorias(),
-        _productosService.getSubcategorias(),
-        _productosService.getMarcas(),
-      ]);
-
-      setState(() {
-        _categorias = results[0] as List<Map<String, dynamic>>? ?? [];
-        _subcategorias = results[1] as List<Map<String, dynamic>>? ?? [];
-        _marcas = results[2] as List<Map<String, dynamic>>? ?? [];
-        _filtersLoaded = true;
-      });
-    } catch (e) {
-      debugPrint('Error cargando filtros desde servicio: $e');
-      setState(() {
-        _filtersLoaded = true;
-      });
     }
   }
 
@@ -489,29 +471,6 @@ Future<void> _refreshData() async {
               onPressed: _showFiltersPanel,
               icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
               tooltip: 'Filtrar',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _showFiltersPanel,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
             ),
           ),
         ],
@@ -1192,25 +1151,144 @@ class _RecargaBottomSheetWrapperState
 
   List<Productos> _productos = [];
   Map<int, int> _cantidades = {};
+  Map<int, TextEditingController> _controllers = {};
   String search = '';
   bool _isLoading = true;
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
     _cantidades[widget.initialProduct.prod_Id] = 1;
     _fetchProductos();
+    if (!_isSyncing) {
+      _sincronizarRecargasPendientes();
+    }
+    Connectivity().onConnectivityChanged.listen((result) async {
+      if (result != ConnectivityResult.none && !_isSyncing) {
+        await _sincronizarRecargasPendientes();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _sincronizarRecargasPendientes() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final online = connectivityResult != ConnectivityResult.none;
+    if (!online) {
+      _isSyncing = false;
+      return;
+    }
+
+    try {
+      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final recargaService = RecargasService();
+
+      int sincronizadas = 0;
+      final recargasNoSincronizadas = <Map<String, dynamic>>[];
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (success) {
+            sincronizadas++;
+          } else {
+            recargasNoSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          recargasNoSincronizadas.add(recarga);
+          debugPrint('Error al sincronizar recarga: $e');
+        }
+      }
+
+      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
+
+      if (mounted && sincronizadas > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar recargas pendientes: $e');
+    } finally {
+      _isSyncing = false;
+    }
   }
 
   Future<void> _fetchProductos() async {
+    bool online = true;
     try {
-      final productos = await _productosService.getProductos();
+      final result = await InternetAddress.lookup('google.com');
+      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      online = false;
+    }
+
+    if (online) {
+      try {
+        final productos = await _productosService.getProductos();
+        setState(() {
+          _productos = productos;
+          _isLoading = false;
+        });
+        // Guardar productos offline
+        try {
+          final jsonList = productos.map((p) => p.toJson()).toList();
+          await RecargasScreenOffline.guardarJson('productos.json', jsonList);
+        } catch (_) {}
+      } catch (e) {
+        await _loadProductosOffline();
+      }
+    } else {
+      await _loadProductosOffline();
+    }
+  }
+
+  Future<void> _loadProductosOffline() async {
+    try {
+      final raw = await RecargasScreenOffline.leerJson('productos.json');
+      if (raw != null) {
+        final lista = List.from(raw as List);
+        setState(() {
+          _productos = lista.map((json) => Productos.fromJson(json)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _productos = [];
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
       setState(() {
-        _productos = productos;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
+        _productos = [];
         _isLoading = false;
       });
     }
@@ -1234,6 +1312,20 @@ class _RecargaBottomSheetWrapperState
         ),
         child: Column(
           children: [
+            // Handle bar
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 16),
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            
+            // Header
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
@@ -1242,138 +1334,276 @@ class _RecargaBottomSheetWrapperState
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(Icons.close_rounded, color: Color(0xFF475569)),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     'Solicitud de recarga',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ],
               ),
             ),
+            
+            // Search bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Buscar producto',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 12,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
                   ),
                 ),
-                onChanged: (v) => setState(() => search = v),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar producto...',
+                    hintStyle: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontFamily: 'Satoshi',
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: Color(0xFF64748B),
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                  ),
+                  onChanged: (v) => setState(() => search = v),
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            
+            const SizedBox(height: 16),
+            
+            // Products list
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final producto = filtered[i];
-                        final cantidad = _cantidades[producto.prod_Id] ?? 0;
-                        return _buildProducto(producto, cantidad);
-                      },
-                    ),
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                      ),
+                    )
+                  : filtered.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 64,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No se encontraron productos',
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  fontSize: 16,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, i) {
+                            final producto = filtered[i];
+                            final cantidad = _cantidades[producto.prod_Id] ?? 0;
+                            return _buildProducto(producto, cantidad);
+                          },
+                        ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  backgroundColor: const Color(0xFF141A2F),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+            
+            // Submit button
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: Color(0xFFE2E8F0),
+                    width: 1,
                   ),
                 ),
-                onPressed: () async {
-                  final userData = await _perfilService.obtenerDatosUsuario();
-                  if (userData == null || userData['usua_Id'] == null) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "No se pudo obtener el usuario logueado.",
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF141A2F),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    // Get logged user
+                    final userData = await _perfilService.obtenerDatosUsuario();
+                    if (userData == null || userData['usua_Id'] == null) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("No se pudo obtener el usuario logueado."),
+                            backgroundColor: Colors.red,
                           ),
-                        ),
-                      );
+                        );
+                      }
+                      return;
                     }
-                    return;
-                  }
 
-                  final int usuaId = userData['usua_Id'] is String
-                      ? int.tryParse(userData['usua_Id']) ?? 0
-                      : userData['usua_Id'] ?? 0;
+                    final int usuaId = userData['usua_Id'] is String
+                        ? int.tryParse(userData['usua_Id']) ?? 0
+                        : userData['usua_Id'] ?? 0;
 
-                  if (usuaId == 0) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("ID de usuario inválido."),
-                        ),
-                      );
+                    if (usuaId == 0) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("ID de usuario inválido."),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                      return;
                     }
-                    return;
-                  }
 
-                  final detalles = _cantidades.entries
-                      .where((e) => e.value > 0)
-                      .map(
-                        (e) => {
-                          "prod_Id": e.key,
-                          "reDe_Cantidad": e.value,
-                          "reDe_Observaciones": "N/A",
-                        },
-                      )
-                      .toList();
+                    // Build details
+                    final detalles = _cantidades.entries
+                        .where((e) => e.value > 0)
+                        .map(
+                          (e) => {
+                            "prod_Id": e.key,
+                            "reDe_Cantidad": e.value,
+                            "reDe_Observaciones": "N/A",
+                          },
+                        )
+                        .toList();
 
-                  if (detalles.isEmpty) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Selecciona al menos un producto."),
-                        ),
-                      );
+                    // Validate quantities
+                    for (var detalle in detalles) {
+                      if (int.tryParse(detalle['reDe_Cantidad'].toString())! > 99) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("La cantidad máxima es 99."),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
                     }
-                    return;
-                  }
 
-                  final ok = await _recargasService.insertarRecarga(
-                    usuaCreacion: usuaId,
-                    detalles: detalles,
-                  );
+                    if (detalles.isEmpty) {
+                      if (mounted) {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text('Alerta!'),
+                              content: const Text('Selecciona al menos un producto.'),
+                              actions: <Widget>[
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                      return;
+                    }
 
-                  if (mounted) {
-                    if (ok) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Recarga enviada correctamente"),
-                          backgroundColor: Colors.green,
-                        ),
+                    // Check connectivity
+                    bool online = true;
+                    try {
+                      final result = await InternetAddress.lookup('google.com');
+                      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+                    } catch (_) {
+                      online = false;
+                    }
+
+                    bool ok = false;
+                    if (online) {
+                      // Call RecargasService
+                      ok = await _recargasService.insertarRecarga(
+                        usuaCreacion: usuaId,
+                        detalles: detalles,
                       );
-                      Navigator.of(context).pop();
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Error al enviar la recarga"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
+                      // Save offline for later sync
+                      final recargaOffline = {
+                        'id': DateTime.now().microsecondsSinceEpoch,
+                        'usua_Id': usuaId,
+                        'detalles': detalles,
+                        'fecha': DateTime.now().toIso8601String(),
+                        'offline': true,
+                      };
+                      try {
+                        final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+                        List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+                        pendientes.add(recargaOffline);
+                        await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientes);
+                        ok = true;
+                      } catch (e) {
+                        ok = false;
+                      }
                     }
-                  }
-                },
-                icon: const Icon(Icons.send, color: Colors.white),
-                label: const Text(
-                  'Solicitar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+
+                    // Try to sync pending recharges
+                    await _sincronizarRecargasPendientes();
+
+                    if (mounted) {
+                      if (ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(online
+                                ? "Recarga enviada correctamente"
+                                : "Recarga guardada en modo offline. Se enviará cuando haya conexión."),
+                            backgroundColor: online ? Colors.green : Colors.orange,
+                          ),
+                        );
+                        Navigator.of(context).pop(true);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(online
+                                ? "Error al enviar la recarga"
+                                : "Error al guardar la recarga offline"),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.send_rounded, color: Colors.white),
+                  label: const Text(
+                    'Solicitar recarga',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -1385,59 +1615,253 @@ class _RecargaBottomSheetWrapperState
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child:
-                  producto.prod_Imagen != null &&
-                      producto.prod_Imagen!.isNotEmpty
-                  ? Image.network(
-                      producto.prod_Imagen!,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image, size: 48),
-                    )
-                  : const Icon(Icons.image, size: 48),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                producto.prod_DescripcionCorta ?? '-',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+    // Initialize controller if it doesn't exist
+    if (!_controllers.containsKey(producto.prod_Id)) {
+      final controller = TextEditingController(
+        text: cantidad > 0 ? cantidad.toString() : '',
+      );
+      controller.addListener(() {
+        final text = controller.text;
+        final value = int.tryParse(text);
+        if (value != null && value >= 0 && value <= 99) {
+          setState(() {
+            _cantidades[producto.prod_Id] = value;
+          });
+        } else if (text.isEmpty) {
+          setState(() {
+            _cantidades[producto.prod_Id] = 0;
+          });
+        }
+      });
+      _controllers[producto.prod_Id] = controller;
+    } else {
+      // Update controller text if quantity changed
+      final currentText = _controllers[producto.prod_Id]!.text;
+      final text = cantidad > 0 ? cantidad.toString() : '';
+      if (currentText != text) {
+        _controllers[producto.prod_Id]!.text = text;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Product image
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF0F172A).withOpacity(0.08),
+                  const Color(0xFF0F172A).withOpacity(0.12),
+                ],
+              ),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                width: 1,
               ),
             ),
-            Row(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(19),
+              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
+                  ? Image.network(
+                      producto.prod_Imagen!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.inventory_2_rounded,
+                          color: const Color(0xFF0F172A).withOpacity(0.6),
+                          size: 32,
+                        );
+                      },
+                    )
+                  : Icon(
+                      Icons.inventory_2_rounded,
+                      color: const Color(0xFF0F172A).withOpacity(0.6),
+                      size: 32,
+                    ),
+            ),
+          ),
+          
+          const SizedBox(width: 20),
+          
+          // Product info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
+                Text(
+                  producto.prod_DescripcionCorta ?? 'Producto',
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                if (producto.marc_Descripcion != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      producto.marc_Descripcion!,
+                      style: const TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Quantity controls
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: cantidad > 0 ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: cantidad > 0 ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.remove_rounded,
+                    color: cantidad > 0 ? Colors.white : const Color(0xFF94A3B8),
+                    size: 18,
+                  ),
+                  padding: EdgeInsets.zero,
                   onPressed: cantidad > 0
                       ? () {
+                          final newValue = cantidad - 1;
+                          _controllers[producto.prod_Id]?.text = newValue > 0
+                              ? newValue.toString()
+                              : '';
                           setState(() {
-                            _cantidades[producto.prod_Id] = cantidad - 1;
+                            _cantidades[producto.prod_Id] = newValue;
                           });
                         }
                       : null,
                 ),
-                Text('$cantidad', style: const TextStyle(fontSize: 16)),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      _cantidades[producto.prod_Id] = cantidad + 1;
-                    });
-                  },
+              ),
+              
+              const SizedBox(width: 12),
+              
+              Container(
+                width: 60,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
                 ),
-              ],
-            ),
-          ],
-        ),
+                child: TextField(
+                  controller: _controllers[producto.prod_Id],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF0F172A),
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: cantidad < 99 ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: cantidad < 99 ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.add_rounded,
+                    color: cantidad < 99 ? Colors.white : const Color(0xFF94A3B8),
+                    size: 18,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: cantidad < 99
+                      ? () {
+                          final newValue = cantidad + 1;
+                          _controllers[producto.prod_Id]?.text = newValue.toString();
+                          setState(() {
+                            _cantidades[producto.prod_Id] = newValue;
+                          });
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
