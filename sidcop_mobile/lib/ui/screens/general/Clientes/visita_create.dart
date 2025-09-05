@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
 // Removed unused imports: provider, ClientesVisitaHistorialModel, cloudinary_service
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
@@ -54,7 +53,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   // submission state handled inline; removed unused _isSubmitting
   // if the screen was opened with route arguments, store them to apply after data loads
   Map<String, dynamic>? _initialRouteArgs;
-  
+
   // Flag para determinar si venimos desde el mapa offline
   bool _desdeMapaOffline = false;
 
@@ -79,13 +78,15 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         _initialRouteArgs = args;
-        
+
         // Verificar si venimos desde el mapa offline
         if (args.containsKey('origen') && args['origen'] == 'mapa_offline') {
           setState(() {
             _desdeMapaOffline = true;
           });
-          print('⚠️ Visita iniciada desde mapa offline. Los campos cliente y dirección se bloquearán.');
+          print(
+            '⚠️ Visita iniciada desde mapa offline. Los campos cliente y dirección se bloquearán.',
+          );
         }
       }
       // Now load initial data (clients/states/directions). This ensures
@@ -775,33 +776,8 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   //   }
   // }
 
-  /// Recupera el ID de usuario desde SharedPreferences si está disponible
-  Future<int?> _recuperarUsuarioId() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userDataJson = prefs.getString('offline_user_data');
-
-      if (userDataJson != null) {
-        final userData = jsonDecode(userDataJson);
-
-        // Intentar obtener el ID de diferentes campos posibles
-        if (userData.containsKey('personaId')) {
-          final userId = userData['personaId'] is int
-              ? userData['personaId']
-              : int.tryParse(userData['personaId'].toString());
-          return userId;
-        } else if (userData.containsKey('usua_IdPersona')) {
-          final userId = userData['usua_IdPersona'] is int
-              ? userData['usua_IdPersona']
-              : int.tryParse(userData['usua_IdPersona'].toString());
-          return userId;
-        }
-      }
-    } catch (e) {
-      print('Error al recuperar ID de usuario: $e');
-    }
-    return null;
-  }
+  // Esta función fue eliminada ya que no se está utilizando y el SP
+  // siempre requiere que se utilice el ID 57
 
   void _mostrarError(String mensaje) {
     if (mounted) {
@@ -842,22 +818,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                       ],
                     ),
                     // Dropdown de Cliente
-                    Row(
-                      children: [
-                        Text(
-                          'Cliente *',
-                          style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        if (_desdeMapaOffline) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.lock, size: 16, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            '(Bloqueado)',
-                            style: _labelStyle.copyWith(color: Colors.grey, fontSize: 12),
-                          ),
-                        ]
-                      ],
+                    Text(
+                      'Cliente *',
+                      style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     _desdeMapaOffline && _selectedCliente != null
@@ -865,7 +828,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey.shade400),
                               borderRadius: BorderRadius.circular(8),
-                              color: Colors.grey.shade100, // Color más claro para indicar que está deshabilitado
+                              color: Colors
+                                  .grey
+                                  .shade100, // Color más claro para indicar que está deshabilitado
                             ),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -878,32 +843,35 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                             ),
                           )
                         : RawAutocomplete<Map<String, dynamic>>(
-                            optionsBuilder: (TextEditingValue textEditingValue) {
-                              if (textEditingValue.text.isEmpty) {
-                                return _clientes;
-                              }
-                              final searchValue = textEditingValue.text.toLowerCase();
-                              return _clientes.where((cliente) {
-                                return (cliente['clie_Nombres']
-                                            ?.toLowerCase()
-                                            .contains(searchValue) ??
-                                        false) ||
-                                    (cliente['clie_Apellidos']
-                                            ?.toLowerCase()
-                                            .contains(searchValue) ??
-                                        false) ||
-                                    (cliente['clie_NombreNegocio']
-                                            ?.toLowerCase()
-                                            .contains(searchValue) ??
-                                        false) ||
-                                    (cliente['clie_Codigo']?.toLowerCase().contains(
-                                          searchValue,
-                                        ) ??
-                                        false);
-                              });
-                            },
-                            displayStringForOption: (Map<String, dynamic> cliente) =>
-                                '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
+                            optionsBuilder:
+                                (TextEditingValue textEditingValue) {
+                                  if (textEditingValue.text.isEmpty) {
+                                    return _clientes;
+                                  }
+                                  final searchValue = textEditingValue.text
+                                      .toLowerCase();
+                                  return _clientes.where((cliente) {
+                                    return (cliente['clie_Nombres']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_Apellidos']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_NombreNegocio']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_Codigo']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false);
+                                  });
+                                },
+                            displayStringForOption:
+                                (Map<String, dynamic> cliente) =>
+                                    '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
                             fieldViewBuilder:
                                 (
                                   BuildContext context,
@@ -920,7 +888,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
 
                                   return Container(
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade400),
+                                      border: Border.all(
+                                        color: Colors.grey.shade400,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                       color: Colors.white,
                                     ),
@@ -941,9 +911,10 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                                           size: 24,
                                         ),
                                         isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
                                       ),
                                       onTap: () {
                                         if (_selectedCliente != null) {
@@ -955,74 +926,82 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                                           });
                                         }
                                       },
-                                      validator: (value) => _selectedCliente == null
+                                      validator: (value) =>
+                                          _selectedCliente == null
                                           ? 'Seleccione un cliente'
                                           : null,
                                     ),
                                   );
                                 },
-                      optionsViewBuilder:
-                          (
-                            BuildContext context,
-                            AutocompleteOnSelected<Map<String, dynamic>>
-                            onSelected,
-                            Iterable<Map<String, dynamic>> options,
-                          ) {
-                            return Align(
-                              alignment: Alignment.topLeft,
-                              child: Material(
-                                elevation: 4.0,
-                                child: Container(
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.9,
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 200,
-                                  ),
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    itemCount: options.length,
-                                    itemBuilder: (BuildContext context, int index) {
-                                      final option = options.elementAt(index);
-                                      return InkWell(
-                                        onTap: () async {
-                                          onSelected(option);
-                                          setState(() {
-                                            _selectedCliente = option;
-                                            _selectedDireccion = null;
-                                          });
-                                          await _cargarDireccionesCliente(
-                                            option['clie_Id'],
-                                          );
-                                        },
-                                        child: ListTile(
-                                          title: Text(
-                                            '${option['clie_Nombres']} ${option['clie_Apellidos']}',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          subtitle: Text(
-                                            option['clie_NombreNegocio'] ??
-                                                'Sin negocio',
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                            ),
-                                          ),
+                            optionsViewBuilder:
+                                (
+                                  BuildContext context,
+                                  AutocompleteOnSelected<Map<String, dynamic>>
+                                  onSelected,
+                                  Iterable<Map<String, dynamic>> options,
+                                ) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4.0,
+                                      child: Container(
+                                        width:
+                                            MediaQuery.of(context).size.width *
+                                            0.9,
+                                        constraints: const BoxConstraints(
+                                          maxHeight: 200,
                                         ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                      onSelected: (Map<String, dynamic> selection) async {
-                        setState(() {
-                          _selectedCliente = selection;
-                          _selectedDireccion = null;
-                        });
-                        await _cargarDireccionesCliente(selection['clie_Id']);
-                      },
-                    ),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (BuildContext context, int index) {
+                                            final option = options.elementAt(
+                                              index,
+                                            );
+                                            return InkWell(
+                                              onTap: () async {
+                                                onSelected(option);
+                                                setState(() {
+                                                  _selectedCliente = option;
+                                                  _selectedDireccion = null;
+                                                });
+                                                await _cargarDireccionesCliente(
+                                                  option['clie_Id'],
+                                                );
+                                              },
+                                              child: ListTile(
+                                                title: Text(
+                                                  '${option['clie_Nombres']} ${option['clie_Apellidos']}',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                subtitle: Text(
+                                                  option['clie_NombreNegocio'] ??
+                                                      'Sin negocio',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                            onSelected: (Map<String, dynamic> selection) async {
+                              setState(() {
+                                _selectedCliente = selection;
+                                _selectedDireccion = null;
+                              });
+                              await _cargarDireccionesCliente(
+                                selection['clie_Id'],
+                              );
+                            },
+                          ),
                     if (_selectedCliente != null) ...[
                       const SizedBox(height: 4),
                       Padding(
@@ -1045,50 +1024,76 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                       'Dirección *',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    // Use the direccion id (int) as the dropdown value to avoid
-                    // equality/assertion issues when using Map instances.
-                    DropdownButtonFormField<int>(
-                      value: _selectedDireccion == null
-                          ? null
-                          : (_selectedDireccion!['diCl_Id'] as num?)?.toInt(),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      items: _direcciones.map((direccion) {
-                        final id = (direccion['diCl_Id'] as num?)?.toInt();
-                        return DropdownMenuItem<int>(
-                          value: id,
-                          child: Text(
-                            '${direccion['diCl_DireccionExacta']}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (selectedId) {
-                        setState(() {
-                          if (selectedId == null) {
-                            _selectedDireccion = null;
-                          } else {
-                            try {
-                              _selectedDireccion = _direcciones.firstWhere(
-                                (d) =>
-                                    (d['diCl_Id'] as num?)?.toInt() ==
-                                    selectedId,
+
+                    // Si viene del mapa offline, mostrar un campo de solo lectura
+                    _desdeMapaOffline && _selectedDireccion != null
+                        ? Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors
+                                  .grey
+                                  .shade100, // Color más claro para indicar que está deshabilitado
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            width: double.infinity,
+                            child: Text(
+                              '${_selectedDireccion!['diCl_DireccionExacta']}',
+                              style: _labelStyle,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        : // Use the direccion id (int) as the dropdown value to avoid
+                          // equality/assertion issues when using Map instances.
+                          DropdownButtonFormField<int>(
+                            value: _selectedDireccion == null
+                                ? null
+                                : (_selectedDireccion!['diCl_Id'] as num?)
+                                      ?.toInt(),
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            items: _direcciones.map((direccion) {
+                              final id = (direccion['diCl_Id'] as num?)
+                                  ?.toInt();
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text(
+                                  '${direccion['diCl_DireccionExacta']}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
-                            } catch (_) {
-                              _selectedDireccion = null;
-                            }
-                          }
-                        });
-                      },
-                      validator: (value) =>
-                          value == null ? 'Seleccione una dirección' : null,
-                      isExpanded: true,
-                    ),
+                            }).toList(),
+                            onChanged: (selectedId) {
+                              setState(() {
+                                if (selectedId == null) {
+                                  _selectedDireccion = null;
+                                } else {
+                                  try {
+                                    _selectedDireccion = _direcciones
+                                        .firstWhere(
+                                          (d) =>
+                                              (d['diCl_Id'] as num?)?.toInt() ==
+                                              selectedId,
+                                        );
+                                  } catch (_) {
+                                    _selectedDireccion = null;
+                                  }
+                                }
+                              });
+                            },
+                            validator: (value) => value == null
+                                ? 'Seleccione una dirección'
+                                : null,
+                            isExpanded: true,
+                          ),
 
                     const SizedBox(height: 16),
 
