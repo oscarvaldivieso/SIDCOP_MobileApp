@@ -10,6 +10,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -595,8 +596,21 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       // pero asegurarnos de que todas las direcciones de la ruta se muestren,
       // no solo las visitadas.
       try {
-        final visitasLocal =
+        // Obtener las visitas desde AMBAS fuentes: historial y pendientes
+        final visitasHistorial =
             await RutasScreenOffline.obtenerVisitasHistorialLocal();
+
+        // También cargar desde visitas_pendientes.json (nuevo)
+        final visitasPendientes =
+            await VisitasOffline.obtenerVisitasPendientesLocal();
+
+        print(
+          'OFFLINE: Visitas historial: ${visitasHistorial.length}, Visitas pendientes: ${visitasPendientes.length}',
+        );
+
+        // Combinar ambas fuentes para una lista completa
+        final visitasLocal = [...visitasHistorial, ...visitasPendientes];
+        print('OFFLINE: Total visitas combinadas: ${visitasLocal.length}');
 
         // Obtener los IDs de todas las direcciones en la ruta actual
         final diclIdsInOrden = _ordenParadasOffline
@@ -632,6 +646,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 // Solo marcar si la dirección pertenece a esta ruta
                 if (diclIdsInOrden.contains(found)) {
                   nuevos.add(found);
+                  // Depurar para ver qué visita está marcando esta dirección
+                  print(
+                    'OFFLINE: Marcando dirección ID $found como visitada. Tipo: ${v.containsKey('offline') ? 'Pendiente' : 'Historial'}',
+                  );
                 }
               }
             }
@@ -650,6 +668,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           // No persistir un archivo separado; el estado de visitas proviene de visitas_historial.json
         }
       } catch (e) {
+        print('OFFLINE: Error al cargar visitas: $e');
         // ignore
       }
       if (failures.isNotEmpty) {
@@ -1370,13 +1389,69 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                         final clienteMap =
                                             parada['cliente']
                                                 as Map<String, dynamic>?;
+                                        // Primero vamos a buscar si podemos obtener el veRu_Id para este cliente y ruta
+                                        final clienteId = clienteMap != null
+                                            ? (clienteMap['clie_Id'] ??
+                                                  clienteMap['clieId'])
+                                            : null;
+
+                                        // Buscar veRu_Id si tenemos un clienteId y rutaId válidos
+                                        int? veRuId;
+                                        if (clienteId != null &&
+                                            widget.rutaId > 0) {
+                                          try {
+                                            final vendedoresPorRuta =
+                                                await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
+
+                                            // Convertir clienteId y rutaId a enteros para comparar
+                                            final clienteIdInt =
+                                                int.tryParse(
+                                                  clienteId.toString(),
+                                                ) ??
+                                                0;
+
+                                            for (final vpr
+                                                in vendedoresPorRuta) {
+                                              if (vpr is Map) {
+                                                final vprClienteId =
+                                                    vpr['clie_Id'] ?? 0;
+                                                final vprRutaId =
+                                                    vpr['ruta_Id'] ?? 0;
+                                                final vprVeRuId =
+                                                    vpr['veRu_Id'] ?? 0;
+
+                                                if (vprRutaId ==
+                                                    widget.rutaId) {
+                                                  // Si encontramos un vendedor para esta ruta, guardarlo
+                                                  veRuId = vprVeRuId;
+                                                  print(
+                                                    '✅ MAPA: Encontrado veRu_Id=$veRuId para ruta=${widget.rutaId}',
+                                                  );
+                                                  break;
+                                                }
+                                              }
+                                            }
+
+                                            if (veRuId == null || veRuId == 0) {
+                                              print(
+                                                '⚠️ MAPA: No se encontró veRu_Id para ruta=${widget.rutaId}',
+                                              );
+                                            }
+                                          } catch (e) {
+                                            print(
+                                              '❌ MAPA: Error buscando veRu_Id: $e',
+                                            );
+                                          }
+                                        }
+
                                         final args = <String, dynamic>{
-                                          'clienteId': clienteMap != null
-                                              ? (clienteMap['clie_Id'] ??
-                                                    clienteMap['clieId'])
-                                              : null,
+                                          'clienteId': clienteId,
                                           'diclId': int.tryParse(diclId),
                                           'rutaId': widget.rutaId,
+                                          'origen':
+                                              'mapa_offline', // Añadir origen para depurar
+                                          'veRu_Id':
+                                              veRuId, // Pasar el veRu_Id si lo encontramos
                                         };
                                         final result = await Navigator.of(ctx)
                                             .push<bool>(
@@ -1389,13 +1464,53 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                               ),
                                             );
                                         if (result == true) {
+                                          print(
+                                            'OFFLINE MAP: Visita creada desde el mapa. Actualizando estado...',
+                                          );
                                           setState(() {
                                             _direccionesVisitadasOffline.add(
                                               diclId,
                                             );
                                           });
-                                          // refresh visited state from local visitas_historial
+                                          // refresh visited state from BOTH visitas_historial AND visitas_pendientes
                                           await _loadClientesOffline();
+
+                                          // Verificar que la visita esté en pendientes
+                                          final pendientes =
+                                              await VisitasOffline.obtenerVisitasPendientesLocal();
+                                          print(
+                                            'OFFLINE MAP: Después de crear visita hay ${pendientes.length} visitas pendientes',
+                                          );
+
+                                          // Buscar si la visita está en pendientes (para depuración)
+                                          bool encontrada = false;
+                                          for (final v in pendientes) {
+                                            if (v is Map) {
+                                              final possibleKeys = [
+                                                'diCl_Id',
+                                                'diClId',
+                                                'dicl_id',
+                                              ];
+                                              for (final k in possibleKeys) {
+                                                if (v.containsKey(k) &&
+                                                    v[k] != null &&
+                                                    v[k].toString() == diclId) {
+                                                  encontrada = true;
+                                                  print(
+                                                    'OFFLINE MAP: Visita encontrada en pendientes con dirección ID: $diclId',
+                                                  );
+                                                  break;
+                                                }
+                                              }
+                                              if (encontrada) break;
+                                            }
+                                          }
+
+                                          if (!encontrada) {
+                                            print(
+                                              '⚠️ OFFLINE MAP: ADVERTENCIA - No se encontró la visita en pendientes con dirección ID: $diclId',
+                                            );
+                                          }
                                         } else if (v == false) {
                                           // allow unchecking manually (if UI ever allows)
                                           setState(() {
@@ -1403,7 +1518,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                               diclId,
                                             );
                                           });
-                                          // refresh visited state from local visitas_historial
+                                          // refresh visited state
                                           await _loadClientesOffline();
                                         }
                                       },
