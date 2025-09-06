@@ -117,6 +117,11 @@ class PedidosScreenOffline {
       print('=== GUARDANDO PEDIDOS ===');
       print('Cantidad de pedidos a guardar: ${pedidos.length}');
 
+      if (pedidos.isEmpty) {
+        print('Lista de pedidos vacía, no se guarda nada');
+        return;
+      }
+
       // Obtener pedidos existentes
       final pedidosExistentes = await obtenerPedidos();
       print('Pedidos existentes: ${pedidosExistentes.length}');
@@ -144,8 +149,11 @@ class PedidosScreenOffline {
 
       print('Lista final a guardar: ${listaJson.length} pedidos');
 
-      // Guardar usando el método _guardarDatos que guarda en ambos lugares
+      // Guardar en la clave principal de pedidos
       await _guardarDatos(_pedidosKey, listaJson);
+      
+      // También guardar en la clave de pendientes para compatibilidad
+      await _guardarDatos(_pedidosPendientesKey, listaJson);
 
       // También guardar cada pedido individualmente para búsquedas más rápidas
       for (var pedido in listaActualizada) {
@@ -166,11 +174,14 @@ class PedidosScreenOffline {
       final data = await _leerDatos(_pedidosKey);
 
       if (data == null) {
-        print('No se encontraron datos de pedidos');
-        return [];
+        print('No se encontraron datos de pedidos en _pedidosKey');
+        // Si no hay datos en la clave principal, intentar obtener de pendientes
+        print('Intentando obtener de pedidos pendientes...');
+        return await obtenerPedidosPendientes();
       }
 
       print('Tipo de datos: ${data.runtimeType}');
+      print('Datos raw: $data'); // Debug adicional
 
       if (data is List) {
         print('Procesando lista de ${data.length} elementos');
@@ -187,9 +198,7 @@ class PedidosScreenOffline {
 
               final pedido = PedidosViewModel.fromJson(pedidoMap);
               pedidos.add(pedido);
-              print(
-                'Pedido ${i + 1}: ID=${pedido.pediId} procesado correctamente',
-              );
+              print('Pedido ${i + 1}: ID=${pedido.pediId} procesado correctamente');
             } else {
               print('Elemento $i no es un mapa: ${item.runtimeType}');
             }
@@ -222,7 +231,13 @@ class PedidosScreenOffline {
       return [];
     } catch (e) {
       print('Error al obtener pedidos: $e');
-      return [];
+      // En caso de error, intentar obtener de pendientes como fallback
+      try {
+        return await obtenerPedidosPendientes();
+      } catch (e2) {
+        print('Error también en fallback: $e2');
+        return [];
+      }
     }
   }
 
@@ -389,6 +404,7 @@ class PedidosScreenOffline {
       }
 
       print('Tipo de datos recuperados: ${data.runtimeType}');
+      print('Contenido raw de datos: $data'); // Debug adicional
 
       // Si es una lista, procesar cada elemento
       if (data is List) {
@@ -398,14 +414,15 @@ class PedidosScreenOffline {
         for (var i = 0; i < data.length; i++) {
           try {
             final item = data[i];
+            print('Procesando item $i: ${item.runtimeType} - $item'); // Debug adicional
+            
             if (item is Map) {
               final pedidoMap = item is Map<String, dynamic>
                   ? item
                   : Map<String, dynamic>.from(item);
 
-              print(
-                '  - Procesando pedido #${i + 1}: ID=${pedidoMap['pediId']}',
-              );
+              print('PedidoMap keys: ${pedidoMap.keys.toList()}'); // Debug adicional
+              print('pediId value: ${pedidoMap['pediId']}'); // Debug adicional
 
               // Verificar campos requeridos
               if (pedidoMap['pediId'] == null) {
@@ -417,7 +434,7 @@ class PedidosScreenOffline {
               pedidos.add(pedido);
               print('  ✓ Pedido ${pedido.pediId} agregado correctamente');
             } else {
-              print('  ⚠️  Elemento en posición $i no es un mapa: $item');
+              print('  ⚠️  Elemento en posición $i no es un mapa: ${item.runtimeType}');
             }
           } catch (e, stackTrace) {
             print('  ❌ Error procesando pedido #$i: $e');
@@ -598,6 +615,40 @@ class PedidosScreenOffline {
     } catch (e) {
       print('Error en sincronizarPedidosPendientes: $e');
       rethrow;
+    }
+  }
+
+  /// Método adicional para verificar el estado del almacenamiento (solo para debug)
+  static Future<void> verificarEstadoAlmacenamiento() async {
+    try {
+      print('=== VERIFICACIÓN ESTADO ALMACENAMIENTO ===');
+      
+      // Verificar pedidos principales
+      final pedidosData = await _leerDatos(_pedidosKey);
+      print('Datos en $_pedidosKey: ${pedidosData?.runtimeType} - ${pedidosData is List ? (pedidosData as List).length : 'No es lista'}');
+      
+      // Verificar pedidos pendientes
+      final pendientesData = await _leerDatos(_pedidosPendientesKey);
+      print('Datos en $_pedidosPendientesKey: ${pendientesData?.runtimeType} - ${pendientesData is List ? (pendientesData as List).length : 'No es lista'}');
+      
+      // Listar todas las claves en secure storage
+      final todasLasClaves = await _storage.readAll();
+      print('Todas las claves en secure storage: ${todasLasClaves.keys.toList()}');
+      
+      print('=== FIN VERIFICACIÓN ===');
+    } catch (e) {
+      print('Error en verificación: $e');
+    }
+  }
+
+  /// Método auxiliar para limpiar y reinicializar el almacenamiento (usar solo para debug)
+  static Future<void> limpiarDatosDebug() async {
+    try {
+      await _storage.delete(key: _pedidosKey);
+      await _storage.delete(key: _pedidosPendientesKey);
+      print('Datos limpiados para debug');
+    } catch (e) {
+      print('Error limpiando datos: $e');
     }
   }
 }
