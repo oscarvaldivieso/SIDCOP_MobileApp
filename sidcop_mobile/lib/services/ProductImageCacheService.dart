@@ -240,8 +240,8 @@ class ProductImageCacheService {
       fadeInDuration: Duration(milliseconds: 300),
       fadeOutDuration: Duration(milliseconds: 100),
       useOldImageOnUrlChange: true,
-      memCacheWidth: width?.toInt(),
-      memCacheHeight: height?.toInt(),
+      memCacheWidth: width != null && width.isFinite ? width.toInt() : null,
+      memCacheHeight: height != null && height.isFinite ? height.toInt() : null,
     );
   }
 
