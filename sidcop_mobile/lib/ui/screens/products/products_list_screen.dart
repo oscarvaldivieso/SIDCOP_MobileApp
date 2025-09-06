@@ -323,7 +323,6 @@ Future<void> _refreshData() async {
     }
   }
 }
-// ...existing code...
 
   void _applyFilters() {
     final searchTerm = _searchController.text.toLowerCase();
@@ -995,25 +994,13 @@ Future<void> _refreshData() async {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
-                  child: ClipRRect(
+                  child: CachedProductImageWidget(
+                    product: product,
+                    width: double.infinity,
+                    height: 300,
+                    fit: BoxFit.contain,
                     borderRadius: BorderRadius.circular(12.0),
-                    child: Image.network(
-                      product.prod_Imagen ?? '',
-                      width: double.infinity,
-                      height: 300,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(
-                        height: 300,
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: Icon(
-                            Icons.image,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ),
+                    showPlaceholder: true,
                   ),
                 ),
                 Text(
@@ -1045,7 +1032,7 @@ Future<void> _refreshData() async {
                   'Tipo:',
                   product.subc_Descripcion ?? 'No especificado',
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1053,7 +1040,7 @@ Future<void> _refreshData() async {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                const SizedBox(height: 32),
+                
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1615,52 +1602,48 @@ class _RecargaBottomSheetWrapperState
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
-    // Initialize controller if it doesn't exist
-    if (!_controllers.containsKey(producto.prod_Id)) {
-      final controller = TextEditingController(
-        text: cantidad > 0 ? cantidad.toString() : '',
-      );
-      controller.addListener(() {
-        final text = controller.text;
-        final value = int.tryParse(text);
-        if (value != null && value >= 0 && value <= 99) {
-          setState(() {
-            _cantidades[producto.prod_Id] = value;
-          });
-        } else if (text.isEmpty) {
-          setState(() {
-            _cantidades[producto.prod_Id] = 0;
-          });
-        }
+
+if (!_controllers.containsKey(producto.prod_Id)) {
+  final cantidadInicial = _cantidades[producto.prod_Id] ?? 0;
+  final controller = TextEditingController(
+    text: cantidadInicial > 0 ? cantidadInicial.toString() : '0',
+  );
+  controller.addListener(() {
+    final text = controller.text;
+    final value = int.tryParse(text);
+    if (value != null && value >= 0 && value <= 99) {
+      setState(() {
+        _cantidades[producto.prod_Id] = value;
       });
-      _controllers[producto.prod_Id] = controller;
-    } else {
-      // Update controller text if quantity changed
-      final currentText = _controllers[producto.prod_Id]!.text;
-      final text = cantidad > 0 ? cantidad.toString() : '';
-      if (currentText != text) {
-        _controllers[producto.prod_Id]!.text = text;
-      }
+    } else if (text.isEmpty) {
+      setState(() {
+        _cantidades[producto.prod_Id] = 0;
+        controller.text = '0';
+        controller.selection = TextSelection.fromPosition(TextPosition(offset: controller.text.length));
+      });
     }
+  });
+  _controllers[producto.prod_Id] = controller;
+} else {
+  final currentText = _controllers[producto.prod_Id]!.text;
+  final text = cantidad > 0 ? cantidad.toString() : '0';
+  if (currentText != text) {
+    _controllers[producto.prod_Id]!.text = text;
+  }
+}
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
             offset: const Offset(0, 2),
-            spreadRadius: 0,
           ),
         ],
         border: Border.all(
@@ -1670,116 +1653,54 @@ class _RecargaBottomSheetWrapperState
       ),
       child: Row(
         children: [
-          // Product image
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF0F172A).withOpacity(0.08),
-                  const Color(0xFF0F172A).withOpacity(0.12),
-                ],
+          // Imagen del producto
+          CachedProductImageWidget(
+            product: producto,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            borderRadius: BorderRadius.circular(14),
+            showPlaceholder: true,
+          ),
+          const SizedBox(width: 16),
+          // Info del producto (solo nombre, más espacio)
+          Expanded(
+            child: Text(
+              producto.prod_DescripcionCorta ?? 'Producto',
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: Color(0xFF0F172A),
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Selector de cantidad horizontal, campo más pequeño
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: const Color(0xFFE2E8F0),
                 width: 1,
               ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(19),
-              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
-                  ? Image.network(
-                      producto.prod_Imagen!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.inventory_2_rounded,
-                          color: const Color(0xFF0F172A).withOpacity(0.6),
-                          size: 32,
-                        );
-                      },
-                    )
-                  : Icon(
-                      Icons.inventory_2_rounded,
-                      color: const Color(0xFF0F172A).withOpacity(0.6),
-                      size: 32,
-                    ),
-            ),
-          ),
-          
-          const SizedBox(width: 20),
-          
-          // Product info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  producto.prod_DescripcionCorta ?? 'Producto',
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                if (producto.marc_Descripcion != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF59E0B).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFF59E0B).withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      producto.marc_Descripcion!,
-                      style: const TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFFF59E0B),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Quantity controls
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: cantidad > 0 ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: cantidad > 0 ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
-                    width: 1,
-                  ),
-                ),
-                child: IconButton(
+                // Botón -
+                IconButton(
                   icon: Icon(
                     Icons.remove_rounded,
-                    color: cantidad > 0 ? Colors.white : const Color(0xFF94A3B8),
-                    size: 18,
+                    color: cantidad > 0 ? const Color(0xFF141A2F) : const Color(0xFF94A3B8),
+                    size: 20,
                   ),
                   padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 32),
                   onPressed: cantidad > 0
                       ? () {
                           final newValue = cantidad - 1;
@@ -1792,62 +1713,39 @@ class _RecargaBottomSheetWrapperState
                         }
                       : null,
                 ),
-              ),
-              
-              const SizedBox(width: 12),
-              
-              Container(
-                width: 60,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                    width: 1,
+                // Campo de número centrado y más pequeño
+                SizedBox(
+                  width: 28,
+                  child: TextField(
+                    controller: _controllers[producto.prod_Id],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(2),
+                    ],
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: Color(0xFF0F172A),
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
                 ),
-                child: TextField(
-                  controller: _controllers[producto.prod_Id],
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(2),
-                  ],
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Color(0xFF0F172A),
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-              
-              const SizedBox(width: 12),
-              
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: cantidad < 99 ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: cantidad < 99 ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
-                    width: 1,
-                  ),
-                ),
-                child: IconButton(
+                // Botón +
+                IconButton(
                   icon: Icon(
                     Icons.add_rounded,
-                    color: cantidad < 99 ? Colors.white : const Color(0xFF94A3B8),
-                    size: 18,
+                    color: cantidad < 99 ? const Color(0xFF141A2F) : const Color(0xFF94A3B8),
+                    size: 20,
                   ),
                   padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 32),
                   onPressed: cantidad < 99
                       ? () {
                           final newValue = cantidad + 1;
@@ -1858,8 +1756,8 @@ class _RecargaBottomSheetWrapperState
                         }
                       : null,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
