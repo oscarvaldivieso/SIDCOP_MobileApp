@@ -6,6 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
 
 
 
@@ -76,23 +77,45 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
     try {
       final response = await _ventaService.obtenerFacturaCompleta(widget.facturaId);
-      
+
       if (response != null && response['success'] == true) {
         setState(() {
           _facturaData = response['data'];
           _isLoading = false;
         });
+        // Guardar detalle de factura offline
+        await VentasOfflineService.guardarFacturaCompletaOffline(widget.facturaId, _facturaData!);
+      } else {
+        // Si falla la consulta online, intentar leer factura offline
+        final facturaOffline = await VentasOfflineService.obtenerFacturaCompletaOffline(widget.facturaId);
+        if (facturaOffline != null) {
+          setState(() {
+            _facturaData = facturaOffline;
+            _isLoading = false;
+            _error = null;
+          });
+        } else {
+          setState(() {
+            _error = response?['message'] ?? 'Error al cargar la factura';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      // Si hay error de conexión, intentar leer factura offline
+      final facturaOffline = await VentasOfflineService.obtenerFacturaCompletaOffline(widget.facturaId);
+      if (facturaOffline != null) {
+        setState(() {
+          _facturaData = facturaOffline;
+          _isLoading = false;
+          _error = null;
+        });
       } else {
         setState(() {
-          _error = response?['message'] ?? 'Error al cargar los detalles de la factura';
+          _error = 'Error inesperado: $e';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Error inesperado: $e';
-        _isLoading = false;
-      });
     }
   }
 

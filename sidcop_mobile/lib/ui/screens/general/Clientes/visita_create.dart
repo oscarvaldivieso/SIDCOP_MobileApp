@@ -54,6 +54,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   // if the screen was opened with route arguments, store them to apply after data loads
   Map<String, dynamic>? _initialRouteArgs;
 
+  // Flag para determinar si venimos desde el mapa offline
+  bool _desdeMapaOffline = false;
+
   // Datos para los dropdowns
   List<Map<String, dynamic>> _estadosVisita = [];
   List<Map<String, dynamic>> _clientes = [];
@@ -75,6 +78,16 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         _initialRouteArgs = args;
+
+        // Verificar si venimos desde el mapa offline
+        if (args.containsKey('origen') && args['origen'] == 'mapa_offline') {
+          setState(() {
+            _desdeMapaOffline = true;
+          });
+          print(
+            '⚠️ Visita iniciada desde mapa offline. Los campos cliente y dirección se bloquearán.',
+          );
+        }
       }
       // Now load initial data (clients/states/directions). This ensures
       // _initialRouteArgs is available for preselection inside _cargarDatosIniciales.
@@ -560,13 +573,93 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           } catch (_) {}
         }
 
+        // Siempre usar el ID 57 para el usuario según requerimientos del SP
         final visitaLocal = {
           ...visitaData,
           'imagenesBase64': imagenesBase64,
           'offline': true,
+          'usua_Creacion': 57, // ID fijo según requerimiento del SP
         };
 
+        // Verificar si la visita proviene del mapa offline y añadir metadata para depurar
+        final Map<String, dynamic> args =
+            ModalRoute.of(context)?.settings.arguments
+                as Map<String, dynamic>? ??
+            {};
+
+        if (args.containsKey('origen') && args['origen'] == 'mapa_offline') {
+          visitaLocal['origen'] = 'mapa_offline';
+
+          // Asegurarnos que los IDs sean del tipo correcto (enteros)
+          visitaLocal['clie_Id'] =
+              int.tryParse(visitaLocal['clie_Id'].toString()) ?? 0;
+          visitaLocal['diCl_Id'] =
+              int.tryParse(visitaLocal['diCl_Id'].toString()) ?? 0;
+
+          // Añadir rutaId para consistencia si viene del mapa
+          if (args.containsKey('rutaId')) {
+            visitaLocal['ruta_Id'] =
+                int.tryParse(args['rutaId'].toString()) ?? 0;
+          }
+
+          // Si el mapa nos pasó un veRu_Id, usarlo (este es el cambio crítico)
+          if (args.containsKey('veRu_Id') && args['veRu_Id'] != null) {
+            visitaLocal['veRu_Id'] =
+                int.tryParse(args['veRu_Id'].toString()) ?? 0;
+            print(
+              '✅ Usando veRu_Id=${visitaLocal['veRu_Id']} pasado desde el mapa',
+            );
+          }
+
+          print('\n===== CREANDO VISITA DESDE MAPA OFFLINE =====');
+          print(
+            'Cliente ID: ${visitaLocal['clie_Id']} (${visitaLocal['clie_Id'].runtimeType})',
+          );
+          print(
+            'Dirección ID: ${visitaLocal['diCl_Id']} (${visitaLocal['diCl_Id'].runtimeType})',
+          );
+          print(
+            'Ruta ID: ${visitaLocal['ruta_Id']} (${visitaLocal['ruta_Id'].runtimeType})',
+          );
+        }
+
+        print('===== GUARDANDO VISITA OFFLINE CON USUARIO ID: 57 =====');
+
+        // Mostrar toda la estructura JSON que se va a guardar
+        print('\n===== GUARDANDO VISITA OFFLINE - JSON COMPLETO =====');
+        try {
+          print(const JsonEncoder.withIndent('  ').convert(visitaLocal));
+        } catch (e) {
+          print('Error al imprimir estructura JSON: $e');
+        }
+
         final bool added = await VisitasOffline.agregarVisitaLocal(visitaLocal);
+
+        // Verificar que se guardó correctamente
+        final pendientes = await VisitasOffline.obtenerVisitasPendientesLocal();
+        print(
+          '\n===== DESPUÉS DE GUARDAR: ${pendientes.length} VISITAS PENDIENTES =====',
+        );
+
+        // Búsqueda de diagnóstico para verificar si se guardó correctamente
+        bool encontrada = false;
+        final diClId = visitaLocal['diCl_Id'].toString();
+        for (final v in pendientes) {
+          if (v is Map) {
+            final idEnPendiente = v['diCl_Id']?.toString() ?? '';
+            if (idEnPendiente == diClId) {
+              encontrada = true;
+              print('✅ VISITA ENCONTRADA EN PENDIENTES: diCl_Id=$diClId');
+              break;
+            }
+          }
+        }
+
+        if (!encontrada) {
+          print(
+            '⚠️ ERROR: VISITA NO ENCONTRADA EN PENDIENTES DESPUÉS DE GUARDAR: diCl_Id=$diClId',
+          );
+        }
 
         if (mounted) {
           if (added) {
@@ -683,6 +776,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   //   }
   // }
 
+  // Esta función fue eliminada ya que no se está utilizando y el SP
+  // siempre requiere que se utilice el ID 57
+
   void _mostrarError(String mensaje) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -727,152 +823,185 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                       style: _labelStyle.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    RawAutocomplete<Map<String, dynamic>>(
-                      optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return _clientes;
-                        }
-                        final searchValue = textEditingValue.text.toLowerCase();
-                        return _clientes.where((cliente) {
-                          return (cliente['clie_Nombres']
-                                      ?.toLowerCase()
-                                      .contains(searchValue) ??
-                                  false) ||
-                              (cliente['clie_Apellidos']
-                                      ?.toLowerCase()
-                                      .contains(searchValue) ??
-                                  false) ||
-                              (cliente['clie_NombreNegocio']
-                                      ?.toLowerCase()
-                                      .contains(searchValue) ??
-                                  false) ||
-                              (cliente['clie_Codigo']?.toLowerCase().contains(
-                                    searchValue,
-                                  ) ??
-                                  false);
-                        });
-                      },
-                      displayStringForOption: (Map<String, dynamic> cliente) =>
-                          '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
-                      fieldViewBuilder:
-                          (
-                            BuildContext context,
-                            TextEditingController textEditingController,
-                            FocusNode focusNode,
-                            VoidCallback onFieldSubmitted,
-                          ) {
-                            if (_selectedCliente == null) {
-                              textEditingController.clear();
-                            } else {
-                              textEditingController.text =
-                                  '${_selectedCliente!['clie_Nombres']} ${_selectedCliente!['clie_Apellidos']}';
-                            }
-
-                            return Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.white,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              child: TextFormField(
-                                controller: textEditingController,
-                                focusNode: focusNode,
-                                style: _labelStyle,
-                                decoration: InputDecoration(
-                                  hintText: 'Buscar cliente...',
-                                  hintStyle: _hintStyle,
-                                  border: InputBorder.none,
-                                  suffixIcon: const Icon(
-                                    Icons.arrow_drop_down,
-                                    size: 24,
-                                  ),
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                ),
-                                onTap: () {
-                                  if (_selectedCliente != null) {
-                                    setState(() {
-                                      _selectedCliente = null;
-                                      _selectedDireccion = null;
-                                      _direcciones = [];
-                                      textEditingController.clear();
-                                    });
+                    _desdeMapaOffline && _selectedCliente != null
+                        ? Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors
+                                  .grey
+                                  .shade100, // Color más claro para indicar que está deshabilitado
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            width: double.infinity,
+                            child: Text(
+                              '${_selectedCliente!['clie_Nombres']} ${_selectedCliente!['clie_Apellidos']}',
+                              style: _labelStyle,
+                            ),
+                          )
+                        : RawAutocomplete<Map<String, dynamic>>(
+                            optionsBuilder:
+                                (TextEditingValue textEditingValue) {
+                                  if (textEditingValue.text.isEmpty) {
+                                    return _clientes;
                                   }
+                                  final searchValue = textEditingValue.text
+                                      .toLowerCase();
+                                  return _clientes.where((cliente) {
+                                    return (cliente['clie_Nombres']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_Apellidos']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_NombreNegocio']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false) ||
+                                        (cliente['clie_Codigo']
+                                                ?.toLowerCase()
+                                                .contains(searchValue) ??
+                                            false);
+                                  });
                                 },
-                                validator: (value) => _selectedCliente == null
-                                    ? 'Seleccione un cliente'
-                                    : null,
-                              ),
-                            );
-                          },
-                      optionsViewBuilder:
-                          (
-                            BuildContext context,
-                            AutocompleteOnSelected<Map<String, dynamic>>
-                            onSelected,
-                            Iterable<Map<String, dynamic>> options,
-                          ) {
-                            return Align(
-                              alignment: Alignment.topLeft,
-                              child: Material(
-                                elevation: 4.0,
-                                child: Container(
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.9,
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 200,
-                                  ),
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    itemCount: options.length,
-                                    itemBuilder: (BuildContext context, int index) {
-                                      final option = options.elementAt(index);
-                                      return InkWell(
-                                        onTap: () async {
-                                          onSelected(option);
-                                          setState(() {
-                                            _selectedCliente = option;
-                                            _selectedDireccion = null;
-                                          });
-                                          await _cargarDireccionesCliente(
-                                            option['clie_Id'],
-                                          );
-                                        },
-                                        child: ListTile(
-                                          title: Text(
-                                            '${option['clie_Nombres']} ${option['clie_Apellidos']}',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          subtitle: Text(
-                                            option['clie_NombreNegocio'] ??
-                                                'Sin negocio',
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                            ),
-                                          ),
+                            displayStringForOption:
+                                (Map<String, dynamic> cliente) =>
+                                    '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
+                            fieldViewBuilder:
+                                (
+                                  BuildContext context,
+                                  TextEditingController textEditingController,
+                                  FocusNode focusNode,
+                                  VoidCallback onFieldSubmitted,
+                                ) {
+                                  if (_selectedCliente == null) {
+                                    textEditingController.clear();
+                                  } else {
+                                    textEditingController.text =
+                                        '${_selectedCliente!['clie_Nombres']} ${_selectedCliente!['clie_Apellidos']}';
+                                  }
+
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.white,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    child: TextFormField(
+                                      controller: textEditingController,
+                                      focusNode: focusNode,
+                                      style: _labelStyle,
+                                      decoration: InputDecoration(
+                                        hintText: 'Buscar cliente...',
+                                        hintStyle: _hintStyle,
+                                        border: InputBorder.none,
+                                        suffixIcon: const Icon(
+                                          Icons.arrow_drop_down,
+                                          size: 24,
                                         ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                      onSelected: (Map<String, dynamic> selection) async {
-                        setState(() {
-                          _selectedCliente = selection;
-                          _selectedDireccion = null;
-                        });
-                        await _cargarDireccionesCliente(selection['clie_Id']);
-                      },
-                    ),
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                      ),
+                                      onTap: () {
+                                        if (_selectedCliente != null) {
+                                          setState(() {
+                                            _selectedCliente = null;
+                                            _selectedDireccion = null;
+                                            _direcciones = [];
+                                            textEditingController.clear();
+                                          });
+                                        }
+                                      },
+                                      validator: (value) =>
+                                          _selectedCliente == null
+                                          ? 'Seleccione un cliente'
+                                          : null,
+                                    ),
+                                  );
+                                },
+                            optionsViewBuilder:
+                                (
+                                  BuildContext context,
+                                  AutocompleteOnSelected<Map<String, dynamic>>
+                                  onSelected,
+                                  Iterable<Map<String, dynamic>> options,
+                                ) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4.0,
+                                      child: Container(
+                                        width:
+                                            MediaQuery.of(context).size.width *
+                                            0.9,
+                                        constraints: const BoxConstraints(
+                                          maxHeight: 200,
+                                        ),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (BuildContext context, int index) {
+                                            final option = options.elementAt(
+                                              index,
+                                            );
+                                            return InkWell(
+                                              onTap: () async {
+                                                onSelected(option);
+                                                setState(() {
+                                                  _selectedCliente = option;
+                                                  _selectedDireccion = null;
+                                                });
+                                                await _cargarDireccionesCliente(
+                                                  option['clie_Id'],
+                                                );
+                                              },
+                                              child: ListTile(
+                                                title: Text(
+                                                  '${option['clie_Nombres']} ${option['clie_Apellidos']}',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                subtitle: Text(
+                                                  option['clie_NombreNegocio'] ??
+                                                      'Sin negocio',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                            onSelected: (Map<String, dynamic> selection) async {
+                              setState(() {
+                                _selectedCliente = selection;
+                                _selectedDireccion = null;
+                              });
+                              await _cargarDireccionesCliente(
+                                selection['clie_Id'],
+                              );
+                            },
+                          ),
                     if (_selectedCliente != null) ...[
                       const SizedBox(height: 4),
                       Padding(
@@ -895,50 +1024,76 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
                       'Dirección *',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    // Use the direccion id (int) as the dropdown value to avoid
-                    // equality/assertion issues when using Map instances.
-                    DropdownButtonFormField<int>(
-                      value: _selectedDireccion == null
-                          ? null
-                          : (_selectedDireccion!['diCl_Id'] as num?)?.toInt(),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      items: _direcciones.map((direccion) {
-                        final id = (direccion['diCl_Id'] as num?)?.toInt();
-                        return DropdownMenuItem<int>(
-                          value: id,
-                          child: Text(
-                            '${direccion['diCl_DireccionExacta']}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (selectedId) {
-                        setState(() {
-                          if (selectedId == null) {
-                            _selectedDireccion = null;
-                          } else {
-                            try {
-                              _selectedDireccion = _direcciones.firstWhere(
-                                (d) =>
-                                    (d['diCl_Id'] as num?)?.toInt() ==
-                                    selectedId,
+
+                    // Si viene del mapa offline, mostrar un campo de solo lectura
+                    _desdeMapaOffline && _selectedDireccion != null
+                        ? Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors
+                                  .grey
+                                  .shade100, // Color más claro para indicar que está deshabilitado
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            width: double.infinity,
+                            child: Text(
+                              '${_selectedDireccion!['diCl_DireccionExacta']}',
+                              style: _labelStyle,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        : // Use the direccion id (int) as the dropdown value to avoid
+                          // equality/assertion issues when using Map instances.
+                          DropdownButtonFormField<int>(
+                            value: _selectedDireccion == null
+                                ? null
+                                : (_selectedDireccion!['diCl_Id'] as num?)
+                                      ?.toInt(),
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            items: _direcciones.map((direccion) {
+                              final id = (direccion['diCl_Id'] as num?)
+                                  ?.toInt();
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text(
+                                  '${direccion['diCl_DireccionExacta']}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
-                            } catch (_) {
-                              _selectedDireccion = null;
-                            }
-                          }
-                        });
-                      },
-                      validator: (value) =>
-                          value == null ? 'Seleccione una dirección' : null,
-                      isExpanded: true,
-                    ),
+                            }).toList(),
+                            onChanged: (selectedId) {
+                              setState(() {
+                                if (selectedId == null) {
+                                  _selectedDireccion = null;
+                                } else {
+                                  try {
+                                    _selectedDireccion = _direcciones
+                                        .firstWhere(
+                                          (d) =>
+                                              (d['diCl_Id'] as num?)?.toInt() ==
+                                              selectedId,
+                                        );
+                                  } catch (_) {
+                                    _selectedDireccion = null;
+                                  }
+                                }
+                              });
+                            },
+                            validator: (value) => value == null
+                                ? 'Seleccione una dirección'
+                                : null,
+                            isExpanded: true,
+                          ),
 
                     const SizedBox(height: 16),
 
