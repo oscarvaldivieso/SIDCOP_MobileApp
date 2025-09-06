@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 
 /// Servicio para sincronizar datos offline cuando hay conexión a internet.
 /// Centraliza las funciones de sincronización para toda la aplicación.
@@ -40,18 +41,8 @@ class SincronizacionService {
   /// Cuenta las visitas pendientes de sincronización
   static Future<int> contarVisitasPendientes() async {
     try {
-      final visitas = await VisitasOffline.obtenerVisitasHistorialLocal();
-      int pendientes = 0;
-
-      for (var visita in visitas) {
-        try {
-          if (visita is Map && visita['offline'] == true) {
-            pendientes++;
-          }
-        } catch (_) {}
-      }
-
-      return pendientes;
+      final visitas = await VisitasOffline.obtenerVisitasPendientesLocal();
+      return visitas.length;
     } catch (_) {
       return 0;
     }
@@ -191,6 +182,95 @@ class SincronizacionService {
     } catch (e) {
       developer.log('❌ Error sincronizando visitas pendientes: $e');
       // No interrumpir el flujo de la app si falla la sincronización
+    }
+  }
+
+  /// Sincroniza las imágenes de las visitas de hoy
+  /// Descarga y almacena localmente todas las imágenes de las visitas actuales
+  static Future<Map<String, dynamic>> sincronizarImagenesVisitas() async {
+    try {
+      developer.log('🖼️ Iniciando sincronización de imágenes de visitas...');
+
+      // Verificar conexión
+      final isOnline = await VerificarService.verificarConexion();
+      if (!isOnline) {
+        developer.log('❌ Sin conexión, no se pueden sincronizar imágenes');
+        return {
+          'success': false,
+          'message': 'Sin conexión a internet',
+          'visitasConImagenes': 0,
+          'imagenesDescargadas': 0,
+        };
+      }
+
+      // Obtener visitas del día
+      final service = ClientesVisitaHistorialService();
+      final visitas = await service.listarPorVendedor();
+
+      if (visitas.isEmpty) {
+        developer.log('ℹ️ No hay visitas para sincronizar imágenes');
+        return {
+          'success': true,
+          'message': 'No hay visitas disponibles',
+          'visitasConImagenes': 0,
+          'imagenesDescargadas': 0,
+        };
+      }
+
+      developer.log('📋 Encontradas ${visitas.length} visitas para procesar');
+
+      // Variables para estadísticas
+      int visitasConImagenes = 0;
+      int totalImagenesDescargadas = 0;
+
+      // Procesar cada visita para sincronizar sus imágenes
+      for (final visita in visitas) {
+        try {
+          final visitaId = visita.clVi_Id ?? 0;
+          if (visitaId <= 0) continue;
+
+          developer.log('🔄 Sincronizando imágenes para visita ID: $visitaId');
+
+          // Usar el método de VisitasOffline para sincronizar imágenes
+          final imagenes = await VisitasOffline.sincronizarImagenesVisita(
+            visitaId,
+          );
+
+          if (imagenes != null && imagenes.isNotEmpty) {
+            visitasConImagenes++;
+            totalImagenesDescargadas += imagenes.length;
+            developer.log(
+              '✅ Descargadas ${imagenes.length} imágenes para visita $visitaId',
+            );
+          } else {
+            developer.log(
+              'ℹ️ No se encontraron imágenes para la visita $visitaId',
+            );
+          }
+        } catch (e) {
+          developer.log('⚠️ Error sincronizando imágenes de visita: $e');
+          // Continuar con la siguiente visita si hay error
+        }
+      }
+
+      developer.log(
+        '✅ Sincronización de imágenes completada: $visitasConImagenes visitas con imágenes, $totalImagenesDescargadas imágenes descargadas',
+      );
+
+      return {
+        'success': true,
+        'message': 'Sincronización de imágenes completada',
+        'visitasConImagenes': visitasConImagenes,
+        'imagenesDescargadas': totalImagenesDescargadas,
+      };
+    } catch (e) {
+      developer.log('❌ Error general sincronizando imágenes de visitas: $e');
+      return {
+        'success': false,
+        'message': 'Error: $e',
+        'visitasConImagenes': 0,
+        'imagenesDescargadas': 0,
+      };
     }
   }
 }

@@ -1,5 +1,7 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
@@ -20,11 +22,10 @@ class VisitaDetailsScreen extends StatefulWidget {
 }
 
 class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
-  final ClientesVisitaHistorialService _visitaService =
-      ClientesVisitaHistorialService();
   List<Map<String, dynamic>> _imagenes = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isOfflineVisita = false;
 
   @override
   void initState() {
@@ -39,15 +40,53 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         _errorMessage = '';
       });
 
-      final imagenes = await _visitaService.listarImagenesPorVisita(
+      // Verificar si es una visita offline con imágenes Base64
+      if (widget.visitaData != null &&
+          widget.visitaData!['offline'] == true &&
+          widget.visitaData!['imagenesBase64'] != null) {
+        _isOfflineVisita = true;
+        final List<dynamic> imagenesBase64 =
+            widget.visitaData!['imagenesBase64'];
+
+        if (imagenesBase64.isNotEmpty) {
+          // Convertir las imágenes Base64 a un formato que la UI pueda usar
+          List<Map<String, dynamic>> imagenesFormateadas = [];
+
+          for (int i = 0; i < imagenesBase64.length; i++) {
+            imagenesFormateadas.add({
+              'imVi_Id': i, // ID interno para identificar la imagen
+              'base64_data': imagenesBase64[i], // Datos Base64 de la imagen
+              'es_offline': true,
+            });
+          }
+
+          setState(() {
+            _imagenes = imagenesFormateadas;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      // Si no es offline o no tiene imágenes Base64, cargar desde almacenamiento local
+      final imagenes = await VisitasOffline.obtenerImagenesVisitaLocal(
         widget.visitaId,
       );
 
-      setState(() {
-        _imagenes = imagenes;
-        _isLoading = false;
-      });
+      if (imagenes != null && imagenes.isNotEmpty) {
+        setState(() {
+          _imagenes = imagenes;
+          _isLoading = false;
+        });
+      } else {
+        // Si no hay imágenes guardadas localmente, mostrar un mensaje amigable
+        setState(() {
+          _errorMessage = 'No hay imágenes disponibles para esta visita';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
+      print('Error cargando imágenes: $e');
       setState(() {
         _errorMessage = 'Error al cargar las imágenes de la visita';
         _isLoading = false;
@@ -55,7 +94,12 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
     }
   }
 
-  void _showImageFullScreen(String imageUrl, String tag) {
+  void _showImageFullScreen(
+    String imageUrl,
+    String tag, {
+    String? rutaLocal,
+    String? base64Data,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -71,18 +115,52 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
               maxScale: 4,
               child: Hero(
                 tag: tag,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey[300],
-                    child: const Icon(
-                      Icons.broken_image,
-                      color: Colors.grey,
-                      size: 60,
-                    ),
-                  ),
-                ),
+                child: base64Data != null
+                    ? Image.memory(
+                        base64Decode(base64Data),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                            size: 60,
+                          ),
+                        ),
+                      )
+                    : rutaLocal != null
+                    ? Image.file(
+                        File(rutaLocal),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          // Si la imagen local falla, intenta cargar desde la red
+                          return Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                    size: 60,
+                                  ),
+                                ),
+                          );
+                        },
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                            size: 60,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -126,6 +204,74 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         child: Icon(Icons.photo_library, size: 80, color: Colors.grey),
       ),
     );
+  }
+
+  // Método que construye una imagen con fallback de red a local o viceversa, o Base64 para offline
+  Widget _buildImageWithFallback(
+    Map<String, dynamic> imagen,
+    String baseUrl, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    final rutaLocal = imagen['ruta_local'] as String?;
+    final rutaRemota = imagen['imVi_Imagen'] as String?;
+    final base64Data = imagen['base64_data'] as String?;
+    final esOffline = imagen['es_offline'] == true;
+
+    // Si tenemos datos Base64 (caso de visitas offline), usar esa imagen
+    if (base64Data != null && esOffline) {
+      try {
+        return Image.memory(
+          base64Decode(base64Data),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error al mostrar imagen Base64: $error');
+            return _buildDefaultImage();
+          },
+        );
+      } catch (e) {
+        print('Error al decodificar Base64: $e');
+        return _buildDefaultImage();
+      }
+    } else if (rutaLocal != null) {
+      // Primero intentamos mostrar la imagen local
+      return Image.file(
+        File(rutaLocal),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) {
+          // Si falla la imagen local, intentamos con la remota
+          if (rutaRemota != null) {
+            return Image.network(
+              "$baseUrl$rutaRemota",
+              width: width,
+              height: height,
+              fit: fit,
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildDefaultImage(),
+            );
+          } else {
+            return _buildDefaultImage();
+          }
+        },
+      );
+    } else if (rutaRemota != null) {
+      // Si no hay ruta local, intentamos con la remota directamente
+      return Image.network(
+        "$baseUrl$rutaRemota",
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+      );
+    } else {
+      // Si no hay ninguna ruta, mostramos la imagen por defecto
+      return _buildDefaultImage();
+    }
   }
 
   @override
@@ -254,24 +400,37 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                               borderRadius: BorderRadius.circular(14),
                               child: primeraImagen != null
                                   ? GestureDetector(
-                                      onTap: () => _showImageFullScreen(
-                                        "$baseUrl$primeraImagen",
-                                        'featured_image',
-                                      ),
+                                      onTap: () {
+                                        // Verificar si hay ruta local disponible
+                                        final rutaLocal = _imagenes.isNotEmpty
+                                            ? _imagenes.first['ruta_local']
+                                                  as String?
+                                            : null;
+
+                                        // Verificar si hay datos Base64 disponibles
+                                        final base64Data = _imagenes.isNotEmpty
+                                            ? _imagenes.first['base64_data']
+                                                  as String?
+                                            : null;
+
+                                        _showImageFullScreen(
+                                          "$baseUrl$primeraImagen",
+                                          'featured_image',
+                                          rutaLocal: rutaLocal,
+                                          base64Data: base64Data,
+                                        );
+                                      },
                                       child: Hero(
                                         tag: 'featured_image',
-                                        child: Image.network(
-                                          "$baseUrl$primeraImagen",
+                                        child: _buildImageWithFallback(
+                                          _imagenes.first,
+                                          baseUrl,
                                           width:
                                               MediaQuery.of(
                                                 context,
                                               ).size.width -
                                               48,
                                           height: 200,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  _buildDefaultImage(),
                                         ),
                                       ),
                                     )
@@ -318,15 +477,27 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                     'gallery_image_${imagen['imVi_Id'] ?? index}';
                                 final imagePath =
                                     imagen['imVi_Imagen'] as String?;
+                                final rutaLocal =
+                                    imagen['ruta_local'] as String?;
+                                final base64Data =
+                                    imagen['base64_data'] as String?;
 
-                                if (imagePath == null)
+                                if (imagePath == null &&
+                                    rutaLocal == null &&
+                                    base64Data == null)
                                   return const SizedBox.shrink();
 
-                                final imageUrl = "$baseUrl$imagePath";
+                                final imageUrl = imagePath != null
+                                    ? "$baseUrl$imagePath"
+                                    : '';
 
                                 return GestureDetector(
-                                  onTap: () =>
-                                      _showImageFullScreen(imageUrl, tag),
+                                  onTap: () => _showImageFullScreen(
+                                    imageUrl,
+                                    tag,
+                                    rutaLocal: rutaLocal,
+                                    base64Data: base64Data,
+                                  ),
                                   child: Container(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(12),
@@ -342,19 +513,10 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                                       tag: tag,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
-                                        child: Image.network(
-                                          imageUrl,
+                                        child: _buildImageWithFallback(
+                                          imagen,
+                                          baseUrl,
                                           fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.broken_image,
-                                                      color: Colors.grey,
-                                                      size: 40,
-                                                    ),
-                                                  ),
                                         ),
                                       ),
                                     ),
@@ -364,14 +526,8 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                             ),
                           ),
 
-                        // Action Buttons Section (similar to ClientDetailsScreen)
-                        if (_imagenes.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24.0,
-                              vertical: 24.0,
-                            ),
-                          ),
+                        // Espacio adicional para separar la galería del final
+                        if (_imagenes.isNotEmpty) const SizedBox(height: 24),
 
                         // Empty state if no images
                         if (_imagenes.isEmpty &&
