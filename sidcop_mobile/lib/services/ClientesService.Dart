@@ -3,16 +3,14 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 
-
 class ClientesService {
   // --- Ubicaciones ---
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
-  Future<List<dynamic>> getClientes() async{
-
+  Future<List<dynamic>> getClientes() async {
     final url = Uri.parse('$_apiServer/Cliente/Listar');
-    
+
     developer.log('Get Clientes Request URL: $url');
     try {
       final response = await http.get(
@@ -46,7 +44,10 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get Cliente by ID Response Status: ${response.statusCode}');
+      developer.log(
+        'Get Cliente by ID Response Status: ${response.statusCode}',
+      );
+      print('Get Cliente by ID Response Body: ${response.body}');
       developer.log('Get Cliente by ID Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
@@ -64,16 +65,13 @@ class ClientesService {
 
   Future<List<dynamic>> getDireccionesPorCliente() async {
     final url = Uri.parse('$_apiServer/DireccionesPorCliente/Listar');
-    
+
     try {
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json', 
-          'X-Api-Key': _apiKey
-        },
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
-      
+
       if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
@@ -98,7 +96,9 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get CuentasPorCobrar Response Status: [33m[1m${response.statusCode}[0m');
+      developer.log(
+        'Get CuentasPorCobrar Response Status: [33m[1m${response.statusCode}[0m',
+      );
       developer.log('Get CuentasPorCobrar Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
@@ -111,7 +111,9 @@ class ClientesService {
             throw Exception('La clave "data" no es una lista.');
           }
         } else {
-          throw Exception('Respuesta inesperada del servidor: falta la clave "data".');
+          throw Exception(
+            'Respuesta inesperada del servidor: falta la clave "data".',
+          );
         }
       } else {
         throw Exception(
@@ -125,7 +127,9 @@ class ClientesService {
   }
 
   Future<List<dynamic>> getDireccionesCliente(int clienteId) async {
-    final url = Uri.parse('$_apiServer/DireccionesPorCliente/Buscar/$clienteId');
+    final url = Uri.parse(
+      '$_apiServer/DireccionesPorCliente/Buscar/$clienteId',
+    );
     developer.log('Get Direcciones Cliente Request URL: $url');
     try {
       final response = await http.get(
@@ -133,14 +137,20 @@ class ClientesService {
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
 
-      developer.log('Get Direcciones Cliente Response Status: ${response.statusCode}');
+      developer.log(
+        'Get Direcciones Cliente Response Status: ${response.statusCode}',
+      );
       developer.log('Get Direcciones Cliente Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data is List ? data : [data]; // Return as list even if single item
+        return data is List
+            ? data
+            : [data]; // Return as list even if single item
       } else {
-        throw Exception('Error al obtener las direcciones del cliente: Código ${response.statusCode}');
+        throw Exception(
+          'Error al obtener las direcciones del cliente: Código ${response.statusCode}',
+        );
       }
     } catch (e) {
       developer.log('Get Direcciones Cliente Error: $e');
@@ -148,7 +158,7 @@ class ClientesService {
     }
   }
 
- Future<List<Map<String, dynamic>>> getDepartamentos() async {
+  Future<List<Map<String, dynamic>>> getDepartamentos() async {
     final url = Uri.parse('$_apiServer/Departamentos/Listar');
     developer.log('Get Departamentos Request URL: $url');
     try {
@@ -156,7 +166,9 @@ class ClientesService {
         url,
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
-      developer.log('Get Departamentos Response Status: ${response.statusCode}');
+      developer.log(
+        'Get Departamentos Response Status: ${response.statusCode}',
+      );
       if (response.statusCode == 200) {
         final List<dynamic> list = jsonDecode(response.body);
         return list.cast<Map<String, dynamic>>();
@@ -221,6 +233,32 @@ class ClientesService {
     }
   }
 
+  Future<List<dynamic>> getClientesPorRuta(int usuaIdPersona) async {
+    final url = Uri.parse('$_apiServer/Cliente/BuscarPorRuta/$usuaIdPersona');
 
+    developer.log('DEBUG: Recibido usuaIdPersona parameter: $usuaIdPersona');
+    developer.log('DEBUG: URL construida: $url');
+    developer.log('Get Clientes Por Ruta Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
 
+      developer.log('Get Clientes Por Ruta Response Status: ${response.statusCode}');
+      developer.log('Get Clientes Por Ruta Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> clientesList = jsonDecode(response.body);
+        return clientesList;
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Clientes Por Ruta Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
 }

@@ -46,7 +46,8 @@ class UserVerificationService {
         },
         body: jsonEncode({
           'usua_Usuario': username,
-          'usua_Clave': '', // Required field, but can be empty for verification
+          'usua_Clave': '',
+          'role_Descripcion': '' // Required field, but can be empty for verification
         }),
       );
 

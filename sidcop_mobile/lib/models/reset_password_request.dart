@@ -1,6 +1,7 @@
 class ResetPasswordRequest {
   final int usua_Id;
   final String usua_Usuario;
+  final String role_Descripcion;
   final String correo;
   final String usua_Clave;
   final int role_Id;
@@ -18,6 +19,7 @@ class ResetPasswordRequest {
   ResetPasswordRequest({
     required this.usua_Id,
     required this.usua_Usuario,
+    this.role_Descripcion = ''  ,
     required this.correo,
     required this.usua_Clave,
     this.role_Id = 0,
@@ -37,6 +39,7 @@ class ResetPasswordRequest {
   Map<String, dynamic> toJson() => {
         'usua_Id': usua_Id,
         'usua_Usuario': usua_Usuario,
+        'role_Descripcion': role_Descripcion,
         'correo': correo,
         'usua_Clave': usua_Clave,
         'role_Id': role_Id,

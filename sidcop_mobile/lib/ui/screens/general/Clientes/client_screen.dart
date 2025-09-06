@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'dart:convert';
+import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
@@ -17,7 +21,7 @@ class clientScreen extends StatefulWidget {
 
 class _clientScreenState extends State<clientScreen> {
   List<dynamic> permisos = [];
-  late Future<List<dynamic>> clientesList;
+  late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
@@ -35,31 +39,94 @@ class _clientScreenState extends State<clientScreen> {
   int? _selectedColo;
 
   @override
+  @override
   void initState() {
     super.initState();
-    // Cargar direccionesPorCliente antes de inicializar la lista filtrada
-    _clienteService.getDireccionesPorCliente().then((direcciones) {
-      setState(() {
-        _direccionesPorCliente = direcciones;
-      });
-      clientesList.then((clientes) {
-        setState(() {
-          filteredClientes = clientes;
-        });
-      });
-    });
+    _loadAllClientData();
+  }
 
-    clientesList = ClientesService().getClientes();
-    // Cargar TODOS los datos de ubicación al inicializar
-    _loadAllLocationData();
+  Future<void> _loadAllClientData() async {
+    try {
+      // Cargar direcciones por cliente (solo si hay conexión)
+      final hasConnection = await SyncService.hasInternetConnection();
+      if (hasConnection) {
+        final direcciones = await _clienteService.getDireccionesPorCliente();
+        setState(() {
+          _direccionesPorCliente = direcciones;
+        });
+      } else {
+        print('Sin conexion - saltando carga de direcciones');
+      }
+    } catch (e) {
+      print('Error cargando direcciones: $e');
+    }
+
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+
+    final usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    List<dynamic> clientes = [];
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona);
+      print(
+        'DEBUG: Clientes obtenidos por ruta para vendedor: ${clientes.length}',
+      );
+    } else if (esAdmin) {
+      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
+      try {
+        clientes = await SyncService.getClients();
+        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
+      } catch (e) {
+        print('DEBUG: Error obteniendo clientes para admin: $e');
+        clientes = [];
+      }
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      clientes = await SyncService.getClients();
+      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
+    }
+    setState(() {
+      filteredClientes = clientes;
+      clientesList = Future.value(clientes); // Actualiza el FutureBuilder
+    });
+    // Asegurarse que filteredClientes siempre tenga datos frescos si no hay filtro
+    if (_searchController.text.isEmpty &&
+        _selectedDepa == null &&
+        _selectedMuni == null &&
+        _selectedColo == null) {
+      setState(() {
+        filteredClientes = clientes;
+      });
+    }
 
     // Cargar cuentas por cobrar
-    _clienteService.getCuentasPorCobrar().then((cuentas) {
-      setState(() {
-        print('Cuentas por cobrarrr: ${cuentas}');
-        _cuentasPorCobrar = cuentas;
-      });
+    final cuentas = await _clienteService.getCuentasPorCobrar();
+    setState(() {
+      _cuentasPorCobrar = cuentas;
     });
+
+    // Cargar datos de ubicación
+    await _loadAllLocationData();
   }
 
   @override
@@ -80,11 +147,7 @@ class _clientScreenState extends State<clientScreen> {
     print('Depa seleccionado: ${_selectedDepa}');
     print('Muni seleccionado: ${_selectedMuni}');
     print('Colo seleccionado: ${_selectedColo}');
-
-    // Verificar datos cargados
-    print(
-      'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',
-    );
+    //print( 'Datos disponibles - Departamentos: ${_departamentos.length}, Municipios: ${_municipios.length}, Colonias: ${_colonias.length}, Direcciones: ${_direccionesPorCliente.length}',);
 
     // Si hay municipio seleccionado, mostrar colonias de ese municipio
     if (_selectedMuni != null) {
@@ -98,6 +161,20 @@ class _clientScreenState extends State<clientScreen> {
         print('Ejemplo de colonia: ${coloniasDelMunicipio.first}');
       }
     }
+
+    //  Future<void> _loadPermisos() async {
+    //     final perfilService = PerfilUsuarioService();
+    //     final userData = await perfilService.obtenerDatosUsuario();
+    //     if (userData != null && (userData['PermisosJson'] != null || userData['permisosJson'] != null)) {
+    //       try {
+    //         final permisosJson = userData['PermisosJson'] ?? userData['permisosJson'];
+    //         permisos = jsonDecode(permisosJson);
+    //       } catch (_) {
+    //         permisos = [];
+    //       }
+    //     }
+    //     setState(() {});
+    //   }
 
     final searchLower = query.toLowerCase();
 
@@ -298,40 +375,80 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   // Método para construir la barra de búsqueda
+
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 45,
+              child: TextField(
+                controller: _searchController,
+                onChanged: _filterClientes,
+                style: const TextStyle(fontFamily: 'Satoshi'),
+                decoration: InputDecoration(
+                  hintText: 'Filtrar por nombre...',
+                  hintStyle: const TextStyle(
+                    color: Colors.grey,
+                    fontFamily: 'Satoshi',
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF141A2F),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0), // Más redondeado
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF141A2F),
+                      width: 2,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterClientes('');
+                          },
+                        )
+                      : null,
+                ),
+              ),
             ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _filterClientes,
-          decoration: InputDecoration(
-            hintText: 'Filtrar por nombre...',
-            prefixIcon: const Icon(Icons.search, color: Color(0xFF141A2F)),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Color(0xFF141A2F)),
-                    onPressed: () {
-                      _searchController.clear();
-                      _filterClientes('');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
           ),
-        ),
+          const SizedBox(width: 12),
+          Container(
+            height: 48, // Misma altura que el TextField
+            width: 48, // Hacer el botón cuadrado
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                24,
+              ), // Completamente redondeado
+              border: Border.all(width: 1),
+            ),
+            child: IconButton(
+              onPressed: _showLocationFilters,
+              icon: const Icon(Icons.filter_list, color: Color(0xFF141A2F)),
+              tooltip: 'Filtrar',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -347,218 +464,215 @@ class _clientScreenState extends State<clientScreen> {
     final int resultCount = filteredClientes.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0),
+      padding: const EdgeInsets.symmetric(horizontal: 13.0),
       child: Row(
         children: [
           // Contador de resultados
           Text(
             '$resultCount resultados',
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w500, fontFamily: 'Satoshi'),
           ),
           const Spacer(),
-          const SizedBox(width: 8),
-          // Botón de filtrar
-          ElevatedButton.icon(
-            onPressed: _showLocationFilters,
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filtrar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF141A2F),
-              foregroundColor: const Color(0xFFD6B68A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          // Mostrar botón "Limpiar filtros" si hay filtros activos
+          if (hasAnyFilter)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _selectedDepa = null;
+                  _selectedMuni = null;
+                  _selectedColo = null;
+                });
+                _applyAllFilters('');
+              },
+              child: const Text(
+                'Limpiar filtros',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildClientesList() {
-    return FutureBuilder<List<dynamic>>(
-      future: clientesList,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No hay clientes'));
-        } else {
-          // Verificar si hay algún filtro activo (texto o ubicación)
-          final bool hasTextFilter = _searchController.text.isNotEmpty;
-          final bool hasLocationFilter =
-              _selectedDepa != null ||
-              _selectedMuni != null ||
-              _selectedColo != null;
-          final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
+  return FutureBuilder<List<dynamic>>(
+    future: clientesList,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
+          ),
+        );
+      } else if (snapshot.hasError) {
+        return Center(
+          child: Text(
+            'Error: ${snapshot.error}',
+            style: const TextStyle(
+              fontFamily: 'Satoshi',
+              color: Colors.red,
+            ),
+          ),
+        );
+      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        return const Center(
+          child: Text(
+            'No hay clientes',
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+        );
+      } else {
+        // Verificar si hay algún filtro activo (texto o ubicación)
+        final bool hasTextFilter = _searchController.text.isNotEmpty;
+        final bool hasLocationFilter =
+            _selectedDepa != null ||
+            _selectedMuni != null ||
+            _selectedColo != null;
+        final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
 
-          // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
-          final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
+        // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
+        final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
 
-          if (clientes.isEmpty) {
-            return const Center(
-              child: Text('No se encontraron clientes con ese criterio'),
-            );
-          }
-          return ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: clientes.length,
-            itemBuilder: (context, index) {
-              final cliente = clientes[index];
-              return Card(
-                margin: const EdgeInsets.all(8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-                child: SizedBox(
-                  height: 140,
-                  child: Row(
-                    children: [
-                      // Image on the left
-                      ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          bottomLeft: Radius.circular(16),
-                        ),
-                        child: Image.network(
-                          '${cliente['clie_ImagenDelNegocio'] ?? ''}',
-                          height: 140,
-                          width: 140, // Fixed width for the image
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                                height: 140,
-                                width: 140,
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.grey,
-                                ),
-                              ),
+        if (clientes.isEmpty) {
+          return const Center(
+            child: Text(
+              'No se encontraron clientes con ese criterio',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+        
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: clientes.length,
+          itemBuilder: (context, index) {
+            final cliente = clientes[index];
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    offset: const Offset(0, 4),
+                    blurRadius: 20,
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+              child: Material(
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ClientdetailsScreen(
+                          clienteId: cliente['clie_Id'],
                         ),
                       ),
-                      // Content on the right
-                      Expanded(
-                        child: Stack(
+                    );
+                  },
+                  child: Container(
+                    height: 190,
+                    child: Row(
+                      children: [
+                        // Imagen del cliente con overlay de estado
+                        Stack(
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        '${cliente['clie_NombreNegocio'] ?? ''}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        cliente['clie_Nombres'] +
-                                                ' ' +
-                                                cliente['clie_Apellidos'] ??
-                                            'Sin dirección',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 40,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF141A2F,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                        ),
-                                      ),
-                                      onPressed: () async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClientdetailsScreen(
-        clienteId: cliente['clie_Id'],
-      ),
-    ),
-  );
-                                      },
-                                      child: const Text(
-                                        'Detalles',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Color(0xFFD6B68A),
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.1,
-                                        ),
-                                      ),
+                            ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(12),
+                                bottomLeft: Radius.circular(12),
+                              ),
+                              child: ClientImageCacheService().getCachedClientImage(
+                                imageUrl: cliente['clie_ImagenDelNegocio'],
+                                clientId: cliente['clie_Id'].toString(),
+                                height: 190,
+                                width: 130,
+                                fit: BoxFit.cover,
+                                errorWidget: Container(
+                                  height: 190,
+                                  width: 130,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.grey[200]!,
+                                        Colors.grey[300]!,
+                                      ],
                                     ),
                                   ),
-                                ],
+                                  child: const Icon(
+                                    Icons.storefront,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
                             ),
-                            // Badge de monto
+                            
+                            // Badge de estado (crédito/deuda)
                             Positioned(
-                              top: 0,
-                              right: 0,
+                              top: 12,
+                              left: 12,
                               child: Builder(
                                 builder: (context) {
                                   final amount = _getBadgeAmount(
                                     cliente['clie_Id'],
                                     cliente['clie_LimiteCredito'],
                                   );
-                                  final isZero = amount == 0;
+                                  final badgeColor = _getBadgeColor(
+                                    cliente['clie_Id'],
+                                    amount: amount,
+                                  );
+                                  final isRed = badgeColor == Colors.red;
+                                  final shouldShowSinCredito = amount == 0 && !isRed;
 
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
+                                      horizontal: 8,
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _getBadgeColor(
-                                        cliente['clie_Id'],
-                                        amount: amount,
-                                      ),
-                                      borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(16),
-                                        bottomLeft: Radius.circular(16),
-                                        topLeft: Radius.circular(0),
-                                        bottomRight: Radius.circular(0),
-                                      ),
+                                      color: badgeColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: badgeColor.withOpacity(0.3),
+                                          offset: const Offset(0, 2),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
                                     ),
                                     child: Text(
-                                      isZero
+                                      shouldShowSinCredito
                                           ? 'Sin crédito'
+                                          : isRed
+                                          ? 'L. ${amount.toStringAsFixed(2)}'
                                           : 'L. ${amount.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 10,
+                                        fontFamily: 'Satoshi',
                                       ),
                                     ),
                                   );
@@ -567,25 +681,158 @@ class _clientScreenState extends State<clientScreen> {
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        
+                        // Contenido de la card
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Header con nombre del negocio
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${cliente['clie_NombreNegocio'] ?? ''}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          fontFamily: 'Satoshi',
+                                          color: Color(0xFF141A2F),
+                                          letterSpacing: -0.5,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF141A2F).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14,
+                                        color: Color(0xFF141A2F),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                
+                                const SizedBox(height: 8),
+                                
+                                // Información del cliente
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.person_outline,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[700],
+                                          fontFamily: 'Satoshi',
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                
+                                const SizedBox(height: 6),
+                                
+                                // Teléfono
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.phone_outlined,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      cliente['clie_Telefono'] ?? 'Sin teléfono',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[600],
+                                        fontFamily: 'Satoshi',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6)
+                                  ],
+                                ),
+                                
+                                const Spacer(),
+                                
+                                // Botón de acción moderno
+                                Container(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: CustomButton(
+                                    text: 'Ver Detalles',
+                                    onPressed: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ClientdetailsScreen(
+                                            clienteId: cliente['clie_Id'],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    height: 40,
+                                    fontSize: 14,
+                                    width: double.infinity,
+                                    icon: const Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              );
-            },
-          );
-        }
-      },
-    );
-  }
+              ),
+            );
+          },
+        );
+      }
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //drawer: CustomDrawer(permisos: permisos),
       backgroundColor: Colors.transparent,
       body: AppBackground(
         title: 'Clientes',
         icon: Icons.people,
+        onRefresh: () async {
+          // Limpiar filtros antes de recargar
+          _searchController.clear();
+          _selectedDepa = null;
+          _selectedMuni = null;
+          _selectedColo = null;
+          await _loadAllClientData();
+          if (mounted) setState(() {}); // Forzar rebuild tras refresh
+        },
         child: Column(
           children: [
             _buildSearchBar(),
@@ -606,12 +853,8 @@ class _clientScreenState extends State<clientScreen> {
 
           if (result == true) {
             // Refresh the client list if a new client was added
-            setState(() {
-              clientesList = ClientesService().getClientes();
-              clientesList.then((clientes) {
-                _filterClientes(_searchController.text);
-              });
-            });
+            // Recargar toda la data usando el mismo método que initState
+            await _loadAllClientData();
           }
         },
         child: const Icon(Icons.add, color: Colors.white),
@@ -621,14 +864,10 @@ class _clientScreenState extends State<clientScreen> {
     );
   }
 
+  // -  MÉTODO CORREGIDO - Evalúa vencimiento ANTES que monto cero
   Color _getBadgeColor(dynamic clienteId, {double? amount}) {
-    print('DEBUG _getBadgeColor: clienteId=[32m$clienteId[0m, amount=$amount');
+    print('DEBUG _getBadgeColor: clienteId=$clienteId, amount=$amount');
     if (clienteId == null) return Colors.grey;
-
-    // Si el monto es 0, mostrar gris (sin crédito)
-    if (amount != null && amount == 0) {
-      return Colors.grey;
-    }
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -640,38 +879,50 @@ class _clientScreenState extends State<clientScreen> {
         )
         .toList();
 
-    // Si no tiene cuentas por cobrar, mostrar verde (solo tiene crédito disponible)
-    if (cuentasCliente.isEmpty) {
-      print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
-      return Colors.green;
+    // -  EVALUAR VENCIMIENTO PRIMERO (antes de verificar si tiene cuentas)
+    if (cuentasCliente.isNotEmpty) {
+      final now = DateTime.now();
+      bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+        print(
+          'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
+        );
+        if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+
+        final fechaVencimiento = DateTime.tryParse(
+          cuenta['cpCo_FechaVencimiento'].toString(),
+        );
+        if (fechaVencimiento == null) return false;
+
+        return fechaVencimiento.isBefore(now);
+      });
+
+      // -  PRIORIDAD MÁXIMA: Rojo si tiene cuenta vencida (sin importar el monto)
+      if (tieneCuentaVencida) {
+        print('DEBUG _getBadgeColor: CUENTA VENCIDA -> ROJO (monto: $amount)');
+        return Colors.red;
+      }
+
+      // Si tiene cuentas activas pero no vencidas -> NARANJA
+      print('DEBUG _getBadgeColor: Cuenta activa no vencida -> NARANJA');
+      return Colors.orange;
     }
 
-    // Verificar si tiene alguna cuenta vencida
-    final now = DateTime.now();
-    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
-      print(
-        'DEBUG _getBadgeColor: cuenta vencimiento=${cuenta['cpCo_FechaVencimiento']}',
-      );
-      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+    // Si no tiene cuentas por cobrar
+    if (amount != null && amount == 0) {
+      print('DEBUG _getBadgeColor: Sin cuentas y sin crédito -> GRIS');
+      return Colors.grey;
+    }
 
-      final fechaVencimiento = DateTime.tryParse(
-        cuenta['cpCo_FechaVencimiento'].toString(),
-      );
-      if (fechaVencimiento == null) return false;
-
-      return fechaVencimiento.isBefore(now);
-    });
-
-    // Rojo si tiene cuenta vencida, naranja si tiene cuenta por cobrar pero no vencida
-    final color = tieneCuentaVencida ? Colors.red : Colors.orange;
-    print(
-      'DEBUG _getBadgeColor: tieneCuentaVencida=$tieneCuentaVencida -> color=$color',
-    );
-    return color;
+    // Si tiene límite de crédito disponible -> VERDE
+    print('DEBUG _getBadgeColor: SIN cuentas por cobrar -> VERDE');
+    return Colors.green;
   }
 
   double _getBadgeAmount(dynamic clienteId, dynamic limiteCredito) {
     if (clienteId == null) return 0;
+
+    final limiteCredito_double =
+        double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
 
     // Buscar cuentas por cobrar del cliente
     final cuentasCliente = _cuentasPorCobrar
@@ -685,10 +936,10 @@ class _clientScreenState extends State<clientScreen> {
 
     // Si no tiene cuentas por cobrar, mostrar el límite de crédito
     if (cuentasCliente.isEmpty) {
-      return double.tryParse(limiteCredito?.toString() ?? '0') ?? 0;
+      return limiteCredito_double;
     }
 
-    // Si hay cuentas por cobrar, mostrar el clie_Saldo de la cuenta más reciente
+    // Si hay cuentas por cobrar, obtener el saldo de la cuenta más reciente
     cuentasCliente.sort((a, b) {
       final fechaA =
           DateTime.tryParse(a['cpCo_Fecha']?.toString() ?? '') ??
@@ -698,11 +949,33 @@ class _clientScreenState extends State<clientScreen> {
           DateTime(1970);
       return fechaB.compareTo(fechaA);
     });
+
     final saldoReciente =
         double.tryParse(
           cuentasCliente.first['clie_Saldo']?.toString() ?? '0',
         ) ??
         0;
+
+    // VERIFICAR SI TIENE CUENTA VENCIDA
+    final now = DateTime.now();
+    bool tieneCuentaVencida = cuentasCliente.any((cuenta) {
+      if (cuenta['cpCo_FechaVencimiento'] == null) return false;
+      final fechaVencimiento = DateTime.tryParse(
+        cuenta['cpCo_FechaVencimiento'].toString(),
+      );
+      if (fechaVencimiento == null) return false;
+      return fechaVencimiento.isBefore(now);
+    });
+
+    // Si tiene cuenta vencida, mostrar el saldo actual (cpCo_Saldo)
+    if (tieneCuentaVencida) {
+      print(
+        'DEBUG _getBadgeAmount: CUENTA VENCIDA - Mostrando saldo actual: $saldoReciente',
+      );
+      return saldoReciente;
+    }
+
+    // Si tiene cuentas activas pero no vencidas, mostrar el saldo actual
     return saldoReciente;
   }
 
@@ -784,8 +1057,11 @@ class _clientScreenState extends State<clientScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
@@ -803,10 +1079,13 @@ class _clientScreenState extends State<clientScreen> {
                 label: Text(
                   name,
                   style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: isSelected
-                        ? const Color.fromARGB(255, 0, 0, 0)
-                        : const Color.fromARGB(255, 255, 255, 255),
-                    fontSize: 13,
+                        ? const Color(0xFF141A2F)
+                        : const Color(0xFFFFFFFF),
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 selected: isSelected,

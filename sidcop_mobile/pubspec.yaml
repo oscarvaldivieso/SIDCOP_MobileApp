@@ -9,35 +9,62 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.4.0
   flutter_dotenv: ^5.2.1
   # flutter_svg: ^2.2.0
-  http: ^1.4.0
+  
   provider: ^6.1.5
   flutter_svg: ^2.0.5
+  lottie: ^3.1.0
   shared_preferences: ^2.2.2
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
   geocoding: ^2.1.1
+  custom_info_window: ^1.0.1
   url_launcher: ^6.2.5
   csv: ^5.0.2
-  path_provider: ^2.1.1
+  path_provider: ^2.0.15
   connectivity_plus: ^5.0.1
   encrypt: ^5.0.3
+  sqflite: ^2.3.0
   image_picker: ^1.0.7
   cloudinary_flutter: ^1.3.0
   http_parser: ^4.0.2
   path: ^1.8.3
   crypto: ^3.0.3
-  cached_network_image: ^3.3.0
+  flutter_launcher_icons: ^0.14.4
+  mask_text_input_formatter: ^2.9.0
+  screenshot: ^3.0.0
+  pdf: ^3.11.0
+  printing: ^5.12.0
+  share_plus: ^7.2.1
+  flutter_secure_storage: ^9.0.0
+  fluttertoast: ^8.2.4
+  flutter_blue_plus: ^1.35.5
+  permission_handler: ^12.0.1
+  intl: ^0.17.0
+  font_awesome_flutter: ^10.7.0
+  flutter_map: ^6.1.0
+  flutter_map_marker_popup: ^6.1.2
+  open_filex: ^4.0.0
+  file_picker: ^10.3.1
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+ 
+  font_awesome_flutter: ^10.7.0
 
 
-
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/Sidcop_Logo.png"
+  adaptive_icon_foreground: "assets/Sidcop_Logo.png"
+  adaptive_icon_background: "#141a2e"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
@@ -45,13 +72,15 @@ flutter:
     - .env
     - assets/auth-background.jpg
     - assets/marca_blanco.png
-    - assets/logo_blanco.png
+    - assets/logo_blanco.png  
+    - assets/Sidcop_Logo.png      
     - assets/undraw_forgot-password_odai 1.png
     - assets/eslogancompleto_Claro_SIDCOP 2.png
     - assets/mark_email_unread.png
     - assets/breadcrum2.png
     - assets/breadcrum1.svg
     - assets/test.svg
+    - assets/marker_cliente.png
     - assets/Key.png
     - assets/fondo_usuario.png
     - assets/galaxia.jpg
@@ -59,9 +88,12 @@ flutter:
     - assets/FondoNuevo.svg
     - assets/FondoNuevo2.svg
     - assets/BreadCrumSVG2.svg
+    - assets/Artboard_3.json
+    - assets/AnimationDefinitive.json
     - assets/SIDCOP.svg
     - assets/miniBreadSVG.svg
-  
+    - assets/Ellipse1.png
+  # - assets/tiles
   
   fonts:
   - family: Satoshi
@@ -73,4 +105,6 @@ flutter:
         weight: 500
       - asset: fonts/Satoshi-Bold.otf
         weight: 700
+      - asset: fonts/Satoshi-Black.otf
+        weight: 900
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:sidcop_mobile/widgets/CachedProductImageWidget.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final Productos product;
@@ -18,30 +18,15 @@ class ProductDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagen principal
+            // Imagen principal con caché
             Center(
-              child: ClipRRect(
+              child: CachedProductImageWidget(
+                product: product,
+                width: double.infinity,
+                height: 300,
+                fit: BoxFit.contain,
                 borderRadius: BorderRadius.circular(12.0),
-                child: CachedNetworkImage(
-                  imageUrl: product.prod_Imagen ?? '',
-                  width: double.infinity,
-                  height: 300,
-                  fit: BoxFit.contain,
-                  placeholder: (context, url) => Container(
-                    height: 300,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    height: 300,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.image, size: 50, color: Colors.grey),
-                    ),
-                  ),
-                ),
+                showPlaceholder: true,
               ),
             ),
             const SizedBox(height: 24),
