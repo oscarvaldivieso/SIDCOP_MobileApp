@@ -109,8 +109,9 @@ class UsuarioService {
         
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
-        await SincronizacionService.sincronizarTodoOffline();
-
+        await SincronizacionService.sincronizarTodoOffline(
+          vendedorId: globalVendId,
+        );
         return data;
       } else {
         // Status code diferente a 200
