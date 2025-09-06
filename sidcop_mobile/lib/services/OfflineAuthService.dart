@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
-import 'dart:async';
 
 class OfflineAuthService {
   static const String _keyOfflineCredentials = 'offline_credentials';
@@ -124,33 +122,35 @@ class OfflineAuthService {
     }
   }
 
-  /// Verifica si hay una sesión offline válida
-  /// Verifica si hay credenciales y datos de usuario válidos
+  /// Verifica si hay una sesión offline válida que permita auto-login directo
   static Future<bool> hasValidOfflineSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Verificar si hay credenciales y datos de usuario
+      // Verificar si "Remember me" está activado
+      final rememberMe = prefs.getBool('remember_me') ?? false;
+      if (!rememberMe) return false;
+      
+      // Verificar si hay credenciales offline
+      final hasCredentials = await hasOfflineCredentials();
+      if (!hasCredentials) return false;
+      
+      // Verificar si las credenciales no han expirado
+      final areExpired = await areCredentialsExpired();
+      if (areExpired) return false;
+      
+      // Verificar que las credenciales de "Remember me" coincidan con las offline
+      final savedEmail = prefs.getString('saved_email') ?? '';
       final credentialsJson = prefs.getString(_keyOfflineCredentials);
-      final userDataJson = prefs.getString(_keyOfflineUserData);
       
-      // Verificar que existan tanto credenciales como datos de usuario
-      if (credentialsJson == null || credentialsJson.isEmpty ||
-          userDataJson == null || userDataJson.isEmpty) {
-        return false;
-      }
-      
-      // Verificar que las credenciales tengan el formato correcto
-      try {
+      if (credentialsJson != null && savedEmail.isNotEmpty) {
         final credentials = jsonDecode(credentialsJson);
-        if (credentials['username'] == null || credentials['password_hash'] == null) {
-          return false;
-        }
-      } catch (e) {
-        return false;
+        final storedUsername = credentials['username'];
+        
+        return storedUsername == savedEmail;
       }
       
-      return true;
+      return false;
     } catch (e) {
       developer.log('OfflineAuthService: Error al verificar sesión offline válida: $e');
       return false;
@@ -204,41 +204,37 @@ class OfflineAuthService {
     }
   }
 
-  /// Limpia todas las credenciales offline solo si hay conexión a internet
-  static Future<bool> clearOfflineCredentials() async {
+  /// Limpia todas las credenciales offline guardadas
+  static Future<void> clearOfflineCredentials() async {
     try {
-      // Verificar conexión a internet
-      bool hasConnection;
-      try {
-        final connectivityResult = await Connectivity().checkConnectivity();
-        hasConnection = connectivityResult != ConnectivityResult.none;
-      } catch (e) {
-        // Si hay un error al verificar la conexión, asumir que no hay conexión
-        hasConnection = false;
-      }
-      
-      if (!hasConnection) {
-        developer.log('OfflineAuthService: No se puede cerrar sesión sin conexión a internet');
-        return false; // No permitir cerrar sesión sin conexión
-      }
-      
       final prefs = await SharedPreferences.getInstance();
+      
       await prefs.remove(_keyOfflineCredentials);
       await prefs.remove(_keyOfflineUserData);
       await prefs.remove(_keyLastOnlineLogin);
+      
       developer.log('OfflineAuthService: Credenciales offline eliminadas');
-      return true;
     } catch (e) {
       developer.log('OfflineAuthService: Error al limpiar credenciales offline: $e');
-      return false;
     }
   }
 
-  /// Verifica si las credenciales offline han expirado
-  /// Siempre devuelve false para mantener las credenciales indefinidamente
-  static Future<bool> areCredentialsExpired() async {
-    // Nunca expirar las credenciales
-    return false;
+  /// Verifica si las credenciales offline han expirado (opcional)
+  static Future<bool> areCredentialsExpired({int maxDaysOffline = 30}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastOnlineLogin = prefs.getString(_keyLastOnlineLogin);
+      
+      if (lastOnlineLogin == null) return true;
+      
+      final lastLoginDate = DateTime.parse(lastOnlineLogin);
+      final daysSinceLastLogin = DateTime.now().difference(lastLoginDate).inDays;
+      
+      return daysSinceLastLogin > maxDaysOffline;
+    } catch (e) {
+      developer.log('OfflineAuthService: Error al verificar expiración: $e');
+      return true;
+    }
   }
 
   /// Actualiza el timestamp del último login online

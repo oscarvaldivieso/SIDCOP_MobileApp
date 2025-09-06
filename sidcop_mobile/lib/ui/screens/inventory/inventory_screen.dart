@@ -921,43 +921,25 @@ Widget _buildSummaryItem(String label, String value, Color color) {
   }
 
   Future<void> _loadInventoryData() async {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
-      // Intentar cargar el inventario
-      final inventory = await _inventoryService.getInventoryByVendor(widget.usuaIdPersona);
-      
-      if (mounted) {
-        setState(() {
-          _inventoryItems = List<Map<String, dynamic>>.from(inventory);
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final items = await InventoryService().getInventoryByVendor(
+        widget.usuaIdPersona,
+      );
+
+      setState(() {
+        _inventoryItems = items;
+        _isLoading = false;
+      });
     } catch (e) {
-      // Si hay un error, verificar si hay datos locales
-      try {
-        final localInventory = await _inventoryService.getInventoryByVendor(widget.usuaIdPersona);
-        if (mounted) {
-          setState(() {
-            _inventoryItems = List<Map<String, dynamic>>.from(localInventory);
-            _errorMessage = 'Modo offline: Mostrando datos almacenados localmente';
-            _isLoading = false;
-          });
-        }
-      } catch (localError) {
-        // Si no hay datos locales, mostrar error
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Error al cargar el inventario. Verifica tu conexión a internet e inténtalo de nuevo.';
-            _isLoading = false;
-          });
-        }
-      }
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
     }
   }
 
