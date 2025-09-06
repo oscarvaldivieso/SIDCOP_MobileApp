@@ -151,7 +151,7 @@ class PedidosScreenOffline {
 
       // Guardar en la clave principal de pedidos
       await _guardarDatos(_pedidosKey, listaJson);
-      
+
       // También guardar en la clave de pendientes para compatibilidad
       await _guardarDatos(_pedidosPendientesKey, listaJson);
 
@@ -198,7 +198,9 @@ class PedidosScreenOffline {
 
               final pedido = PedidosViewModel.fromJson(pedidoMap);
               pedidos.add(pedido);
-              print('Pedido ${i + 1}: ID=${pedido.pediId} procesado correctamente');
+              print(
+                'Pedido ${i + 1}: ID=${pedido.pediId} procesado correctamente',
+              );
             } else {
               print('Elemento $i no es un mapa: ${item.runtimeType}');
             }
@@ -414,14 +416,18 @@ class PedidosScreenOffline {
         for (var i = 0; i < data.length; i++) {
           try {
             final item = data[i];
-            print('Procesando item $i: ${item.runtimeType} - $item'); // Debug adicional
-            
+            print(
+              'Procesando item $i: ${item.runtimeType} - $item',
+            ); // Debug adicional
+
             if (item is Map) {
               final pedidoMap = item is Map<String, dynamic>
                   ? item
                   : Map<String, dynamic>.from(item);
 
-              print('PedidoMap keys: ${pedidoMap.keys.toList()}'); // Debug adicional
+              print(
+                'PedidoMap keys: ${pedidoMap.keys.toList()}',
+              ); // Debug adicional
               print('pediId value: ${pedidoMap['pediId']}'); // Debug adicional
 
               // Verificar campos requeridos
@@ -434,7 +440,9 @@ class PedidosScreenOffline {
               pedidos.add(pedido);
               print('  ✓ Pedido ${pedido.pediId} agregado correctamente');
             } else {
-              print('  ⚠️  Elemento en posición $i no es un mapa: ${item.runtimeType}');
+              print(
+                '  ⚠️  Elemento en posición $i no es un mapa: ${item.runtimeType}',
+              );
             }
           } catch (e, stackTrace) {
             print('  ❌ Error procesando pedido #$i: $e');
@@ -622,19 +630,25 @@ class PedidosScreenOffline {
   static Future<void> verificarEstadoAlmacenamiento() async {
     try {
       print('=== VERIFICACIÓN ESTADO ALMACENAMIENTO ===');
-      
+
       // Verificar pedidos principales
       final pedidosData = await _leerDatos(_pedidosKey);
-      print('Datos en $_pedidosKey: ${pedidosData?.runtimeType} - ${pedidosData is List ? (pedidosData as List).length : 'No es lista'}');
-      
+      print(
+        'Datos en $_pedidosKey: ${pedidosData?.runtimeType} - ${pedidosData is List ? (pedidosData as List).length : 'No es lista'}',
+      );
+
       // Verificar pedidos pendientes
       final pendientesData = await _leerDatos(_pedidosPendientesKey);
-      print('Datos en $_pedidosPendientesKey: ${pendientesData?.runtimeType} - ${pendientesData is List ? (pendientesData as List).length : 'No es lista'}');
-      
+      print(
+        'Datos en $_pedidosPendientesKey: ${pendientesData?.runtimeType} - ${pendientesData is List ? (pendientesData as List).length : 'No es lista'}',
+      );
+
       // Listar todas las claves en secure storage
       final todasLasClaves = await _storage.readAll();
-      print('Todas las claves en secure storage: ${todasLasClaves.keys.toList()}');
-      
+      print(
+        'Todas las claves en secure storage: ${todasLasClaves.keys.toList()}',
+      );
+
       print('=== FIN VERIFICACIÓN ===');
     } catch (e) {
       print('Error en verificación: $e');
