@@ -56,6 +56,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final DropdownDataService _dropdownService = DropdownDataService();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
+  
+  // Gender selection
+  String _selectedGender = 'M';
 
   // Form controllers
   final _nombresController = TextEditingController();
@@ -82,6 +85,12 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
   var MKIdentidad = new MaskTextInputFormatter(
   mask: '####-####-#####', 
+  filter: { "#": RegExp(r'[0-9]') },
+  type: MaskAutoCompletionType.lazy
+  );
+
+  var MKRTN = new MaskTextInputFormatter(
+  mask: '####-####-######', 
   filter: { "#": RegExp(r'[0-9]') },
   type: MaskAutoCompletionType.lazy
   );
@@ -304,8 +313,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
         'clie_ImagenDelNegocio': imageUrl ?? '',
         'clie_Telefono': _telefonoController.text.trim(), 
-        'clie_Correo':'${_nombresController.text.trim().toLowerCase().replaceAll(' ', '')}.${_apellidosController.text.trim().toLowerCase().replaceAll(' ', '')}@gmail.com',
-        'clie_Sexo': 'M',
+        'clie_Correo':'',
+        'clie_Sexo': _selectedGender,
         'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(),
         'tiVi_Id': 1, // Fixed parameter name
         'cana_Id': 1,
@@ -733,9 +742,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                 _buildTextField(
                   label: 'RTN',
                   controller: _rtnController,
-                  hint: '0000-0000-00000 ',
+                  hint: '0000-0000-000000 ',
                   isRequired: false,
-                  inputFormatters: [MKIdentidad],
+                  inputFormatters: [MKRTN],
                   keyboardType: TextInputType.number,
                   errorText: _rtnError,
                   onChanged: (value) {
@@ -745,6 +754,120 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                       });
                     }
                   },
+                ),
+
+                // Gender selection
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Género',
+                        style: _labelStyle,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 45,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE0E0E0)),
+                        ),
+                        clipBehavior: Clip.hardEdge,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Material(
+                                color: _selectedGender == 'M' 
+                                    ? const Color(0xFF0D47A1) // Darker blue color
+                                    : Colors.white,
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedGender = 'M';
+                                    });
+                                  },
+                                  child: Container(
+                                    height: double.infinity,
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.male,
+                                          color: _selectedGender == 'M' 
+                                              ? Colors.white 
+                                              : const Color(0xFF0D47A1),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Masculino',
+                                          style: TextStyle(
+                                            color: _selectedGender == 'M' 
+                                                ? Colors.white 
+                                                : Colors.black,
+                                            fontWeight: FontWeight.w500,
+                                            fontFamily: 'Satoshi',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              color: const Color(0xFFE0E0E0),
+                            ),
+                            Expanded(
+                              child: Material(
+                                color: _selectedGender == 'F' 
+                                    ? const Color(0xFFF06292) // Pink color
+                                    : Colors.white,
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedGender = 'F';
+                                    });
+                                  },
+                                  child: Container(
+                                    height: double.infinity,
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.female,
+                                          color: _selectedGender == 'F' 
+                                              ? Colors.white 
+                                              : const Color(0xFFF06292),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Femenino',
+                                          style: TextStyle(
+                                            color: _selectedGender == 'F' 
+                                                ? Colors.white 
+                                                : Colors.black,
+                                            fontWeight: FontWeight.w500,
+                                            fontFamily: 'Satoshi',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 16),
