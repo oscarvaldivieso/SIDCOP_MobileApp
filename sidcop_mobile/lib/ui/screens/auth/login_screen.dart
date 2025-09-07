@@ -268,15 +268,34 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     
-    // Siempre guardar las credenciales para acceso offline
+    // Guardar credenciales para acceso offline
     await prefs.setString('saved_email', email);
     await prefs.setString('saved_password', password);
     
-    // Actualizar solo la preferencia de "Remember me"
+    // Actualizar la preferencia de "Remember me"
     await prefs.setBool('remember_me', _rememberMe);
     
-    // Nota: No eliminamos nunca las credenciales guardadas para permitir acceso offline
-    // incluso cuando "Remember me" está desactivado
+    // Si está marcado "Recordar sesión", guardar credenciales para autenticación offline
+    if (_rememberMe) {
+      try {
+        // Usar el método iniciarSesion para obtener los datos del usuario
+        final userData = await _usuarioService.iniciarSesion(email, password);
+        if (userData != null && userData['error'] != true) {
+          // Guardar credenciales offline completas
+          await OfflineAuthService.saveOfflineCredentials(
+            username: email,
+            password: password,
+            userData: userData,
+          );
+        }
+      } catch (e) {
+        // Si falla, guardar solo las credenciales básicas
+        await OfflineAuthService.saveBasicOfflineCredentials(
+          username: email,
+          password: password,
+        );
+      }
+    }
   }
 
 
@@ -428,35 +447,19 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Intenta realizar login offline
   Future<Map<String, dynamic>?> _attemptOfflineLogin() async {
     try {
-      // Verificar si hay credenciales offline disponibles
-      final hasOfflineCredentials = await OfflineAuthService.hasOfflineCredentials();
-      
-      if (!hasOfflineCredentials) {
-        return {
-          'error': true,
-          'message': 'No hay credenciales guardadas para acceso offline. Necesitas conectarte a internet para el primer login.',
-        };
-      }
-      
-      // Verificar si las credenciales han expirado (opcional)
-      final areExpired = await OfflineAuthService.areCredentialsExpired(maxDaysOffline: 30);
-      if (areExpired) {
-        return {
-          'error': true,
-          'message': 'Las credenciales offline han expirado. Conecta a internet para renovar el acceso.',
-        };
-      }
-      
-      // Intentar autenticación offline
-      return await OfflineAuthService.authenticateOffline(
+      final result = await OfflineAuthService.authenticateOffline(
         username: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      
+      // Si el login offline fue exitoso, actualizar el timestamp de última sesión
+      if (result != null && result['error'] != true) {
+        await OfflineAuthService.updateLastSessionTimestamp();
+      }
+      
+      return result;
     } catch (e) {
-      return {
-        'error': true,
-        'message': 'Error en autenticación offline: $e',
-      };
+      return {'error': true, 'message': 'Error al intentar autenticar offline: $e'};
     }
   }
 
@@ -708,26 +711,14 @@ const SizedBox(height: 30),
                               ),
                             ),
                             const SizedBox(height: 30),
-                            // Texto principal
-                            Text(
-                              _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
-                              style: const TextStyle(
+                            // Texto de carga
+                            const Text(
+                              'Cargando',
+                              style: TextStyle(
                                 fontFamily: 'Satoshi',
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            // Texto secundario
-                            Text(
-                              'Por favor espere',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: const Color(0xFFD6B68A), // Dorado claro
                               ),
                               textAlign: TextAlign.center,
                             ),
