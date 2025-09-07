@@ -61,9 +61,7 @@ class PedidosScreenOffline {
 
       // Si no hay datos en secure storage, intentar leer del archivo
       if (datos == null) {
-        print(
-          'No se encontraron datos en secure storage, buscando en archivo...',
-        );
+        print('No se encontraron datos en secure storage, buscando en archivo...');
         try {
           final ruta = await _rutaArchivo('$clave.json');
           final file = File(ruta);
@@ -74,9 +72,7 @@ class PedidosScreenOffline {
 
             // Si se encontró en archivo, actualizar secure storage
             if (datos.isNotEmpty) {
-              print(
-                'Datos encontrados en archivo, actualizando secure storage...',
-              );
+              print('Datos encontrados en archivo, actualizando secure storage...');
               await _storage.write(key: clave, value: datos);
             } else {
               print('Archivo vacío');
@@ -137,6 +133,49 @@ class PedidosScreenOffline {
 
       // Actualizar o agregar los nuevos pedidos
       for (var pedido in pedidos) {
+        // Asegurarse de que los detalles estén en el formato correcto
+        if (pedido.detallesJson == null && pedido.detalles.isNotEmpty) {
+          pedido = PedidosViewModel(
+            coFaNombreEmpresa: pedido.coFaNombreEmpresa,
+            coFaDireccionEmpresa: pedido.coFaDireccionEmpresa,
+            coFaRTN: pedido.coFaRTN,
+            coFaCorreo: pedido.coFaCorreo,
+            coFaTelefono1: pedido.coFaTelefono1,
+            coFaTelefono2: pedido.coFaTelefono2,
+            coFaLogo: pedido.coFaLogo,
+            secuencia: pedido.secuencia,
+            pediId: pedido.pediId,
+            diClId: pedido.diClId,
+            vendId: pedido.vendId,
+            pediFechaPedido: pedido.pediFechaPedido,
+            pediFechaEntrega: pedido.pediFechaEntrega,
+            pedi_Codigo: pedido.pedi_Codigo,
+            usuaCreacion: pedido.usuaCreacion,
+            pediFechaCreacion: pedido.pediFechaCreacion,
+            usuaModificacion: pedido.usuaModificacion,
+            pediFechaModificacion: pedido.pediFechaModificacion,
+            pediEstado: pedido.pediEstado,
+            clieCodigo: pedido.clieCodigo,
+            clieId: pedido.clieId,
+            clieNombreNegocio: pedido.clieNombreNegocio,
+            clieNombres: pedido.clieNombres,
+            clieApellidos: pedido.clieApellidos,
+            coloDescripcion: pedido.coloDescripcion,
+            muniDescripcion: pedido.muniDescripcion,
+            depaDescripcion: pedido.depaDescripcion,
+            diClDireccionExacta: pedido.diClDireccionExacta,
+            vendNombres: pedido.vendNombres,
+            vendApellidos: pedido.vendApellidos,
+            usuarioCreacion: pedido.usuarioCreacion,
+            usuarioModificacion: pedido.usuarioModificacion,
+            prodCodigo: pedido.prodCodigo,
+            prodDescripcion: pedido.prodDescripcion,
+            peDeProdPrecio: pedido.peDeProdPrecio,
+            peDeCantidad: pedido.peDeCantidad,
+            detalles: pedido.detalles,
+            detallesJson: jsonEncode(pedido.detalles), // Asegurar que detallesJson esté en formato JSON
+          );
+        }
         mapaPedidos[pedido.pediId] = pedido;
       }
       print('Después de agregar nuevos: ${mapaPedidos.length} pedidos');
@@ -152,9 +191,6 @@ class PedidosScreenOffline {
       // Guardar en la clave principal de pedidos
       await _guardarDatos(_pedidosKey, listaJson);
 
-      // También guardar en la clave de pendientes para compatibilidad
-      await _guardarDatos(_pedidosPendientesKey, listaJson);
-
       // También guardar cada pedido individualmente para búsquedas más rápidas
       for (var pedido in listaActualizada) {
         await guardarDetallePedido(pedido);
@@ -164,6 +200,53 @@ class PedidosScreenOffline {
     } catch (e) {
       print('Error en guardarPedidos: $e');
       rethrow;
+    }
+  }
+
+  /// Procesa los detalles de un pedido para asegurar el formato correcto
+  static void _procesarDetallesPedido(Map<String, dynamic> pedidoMap) {
+    try {
+      // Si no hay detalles pero sí hay detallesJson, intentar parsear
+      if ((pedidoMap['detalles'] == null || 
+          (pedidoMap['detalles'] is List && pedidoMap['detalles'].isEmpty)) &&
+          pedidoMap['detallesJson'] != null) {
+        try {
+          if (pedidoMap['detallesJson'] is String) {
+            pedidoMap['detalles'] = jsonDecode(pedidoMap['detallesJson']);
+          } else {
+            pedidoMap['detalles'] = pedidoMap['detallesJson'];
+          }
+          print('Detalles convertidos desde detallesJson: ${pedidoMap['detalles'].length} items');
+        } catch (e) {
+          print('Error al parsear detallesJson: $e');
+          pedidoMap['detalles'] = [];
+        }
+      } else if (pedidoMap['detalles'] == null) {
+        pedidoMap['detalles'] = [];
+      }
+      
+      // Asegurarse de que los detalles sean una lista
+      if (pedidoMap['detalles'] is! List) {
+        pedidoMap['detalles'] = [pedidoMap['detalles']].whereType<dynamic>().toList();
+      }
+      
+      // Asegurarse de que cada detalle tenga los campos necesarios
+      final detalles = pedidoMap['detalles'] as List;
+      for (var i = 0; i < detalles.length; i++) {
+        if (detalles[i] is Map) {
+          final detalle = Map<String, dynamic>.from(detalles[i]);
+          detalle['descripcion'] = detalle['descripcion'] ?? detalle['prod_Descripcion'] ?? 'Producto sin descripción';
+          detalle['cantidad'] = detalle['cantidad'] ?? detalle['peDe_Cantidad'] ?? 1;
+          detalle['precio'] = detalle['precio'] ?? detalle['peDe_ProdPrecio'] ?? 0.0;
+          detalle['imagen'] = detalle['imagen'] ?? detalle['prod_Imagen'] ?? '';
+          detalles[i] = detalle;
+        }
+      }
+      
+      print('Procesados ${detalles.length} detalles para el pedido');
+    } catch (e) {
+      print('Error en _procesarDetallesPedido: $e');
+      pedidoMap['detalles'] = [];
     }
   }
 
@@ -189,21 +272,22 @@ class PedidosScreenOffline {
           try {
             final item = data[i];
             if (item is Map) {
-              final Map<String, dynamic> pedidoMap =
-                  item is Map<String, dynamic>
-                  ? item
-                  : Map<String, dynamic>.from(item);
+              final pedidoMap = Map<String, dynamic>.from(item);
 
+              // Asegurarse de que los detalles estén en el formato correcto
+              _procesarDetallesPedido(pedidoMap);
+              
               final pedido = PedidosViewModel.fromJson(pedidoMap);
               pedidos.add(pedido);
               print(
-                'Pedido ${i + 1}: ID=${pedido.pediId} procesado correctamente',
+                'Pedido ${i + 1}: ID=${pedido.pediId} con ${pedido.detalles.length} detalles',
               );
             } else {
               print('Elemento $i no es un mapa: ${item.runtimeType}');
             }
-          } catch (e) {
+          } catch (e, stackTrace) {
             print('Error procesando pedido en posición $i: $e');
+            print('Stack trace: $stackTrace');
           }
         }
 
@@ -214,15 +298,17 @@ class PedidosScreenOffline {
         // Si es un solo pedido (formato antiguo o error)
         print('Dato único detectado, convirtiendo a lista');
         try {
-          final pedidoMap = data is Map<String, dynamic>
-              ? data
-              : Map<String, dynamic>.from(data);
+          final pedidoMap = Map<String, dynamic>.from(data);
 
+          // Asegurarse de que los detalles estén en el formato correcto
+          _procesarDetallesPedido(pedidoMap);
+          
           final pedido = PedidosViewModel.fromJson(pedidoMap);
-          print('Pedido único procesado: ID=${pedido.pediId}');
+          print('Pedido único procesado: ID=${pedido.pediId} con ${pedido.detalles.length} detalles');
           return [pedido];
-        } catch (e) {
+        } catch (e, stackTrace) {
           print('Error al procesar pedido único: $e');
+          print('Stack trace: $stackTrace');
           return [];
         }
       }
