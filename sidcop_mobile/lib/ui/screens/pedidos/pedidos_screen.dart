@@ -5,7 +5,6 @@ import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedido_detalle_bottom_sheet.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
-import 'package:sidcop_mobile/ui/screens/pedidos/pedido_offline_helper.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 
@@ -33,6 +32,14 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
       // Obtener datos del usuario actual para el filtrado
       final datosUsuario = await _perfilService.obtenerDatosUsuario();
+      
+      // Obtener el ID del vendedor para el filtrado
+      int vendedorId = 0;
+      if (datosUsuario != null) {
+        vendedorId = datosUsuario['usua_IdPersona'] is String
+            ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
+            : datosUsuario['usua_IdPersona'] ?? 0;
+      }
 
       // Obtener pedidos según el modo (online/offline)
       List<PedidosViewModel> pedidos = [];
@@ -47,6 +54,12 @@ class _PedidosScreenState extends State<PedidosScreen> {
             print('Actualizando caché local con ${pedidos.length} pedidos...');
             await PedidosScreenOffline.guardarPedidos(pedidos);
           }
+          
+          // Si no hay pedidos, intentar cargar del caché
+          if (pedidos.isEmpty) {
+            print('No se encontraron pedidos en línea, intentando cargar del caché...');
+            pedidos = await PedidosScreenOffline.obtenerPedidos();
+          }
         } catch (e) {
           print('Error obteniendo pedidos del servidor: $e');
           // Si falla la conexión al servidor, usar datos offline
@@ -60,21 +73,9 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
       print('Total de pedidos obtenidos: ${pedidos.length}');
 
-      // Si no hay datos de usuario, devolver todos los pedidos
-      if (datosUsuario == null) {
-        print('No hay datos de usuario, devolviendo todos los pedidos');
-        return pedidos;
-      }
-
-      // Obtener el ID del vendedor
-      final int vendedorId = datosUsuario['usua_IdPersona'] is String
-          ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
-          : datosUsuario['usua_IdPersona'] ?? 0;
-
+      // Si no hay ID de vendedor o es cero, devolver todos los pedidos
       if (vendedorId == 0) {
-        print(
-          'ID de vendedor no válido: $vendedorId, devolviendo todos los pedidos',
-        );
+        print('ID de vendedor no válido, devolviendo todos los pedidos');
         return pedidos;
       }
 
@@ -91,15 +92,16 @@ class _PedidosScreenState extends State<PedidosScreen> {
       print(
         'Pedidos filtrados: ${pedidosFiltrados.length} de ${pedidos.length} totales',
       );
+      
       return pedidosFiltrados;
     } catch (e, stackTrace) {
       print('Error crítico en _getPedidosDelVendedor: $e');
       print('Stack trace: $stackTrace');
 
-      // En caso de error crítico, intentar obtener datos locales como última opción
+      // En caso de error crítico, intentar obtener datos locales
       try {
         print('Último intento: obteniendo datos offline...');
-        return await PedidoOfflineHelper.obtenerPedidos();
+        return await PedidosScreenOffline.obtenerPedidos();
       } catch (e2) {
         print('Error también en último intento: $e2');
         return [];

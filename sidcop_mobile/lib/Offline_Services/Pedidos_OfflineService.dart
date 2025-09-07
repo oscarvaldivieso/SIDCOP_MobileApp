@@ -170,14 +170,12 @@ class PedidosScreenOffline {
   /// Obtiene la lista de pedidos guardados localmente
   static Future<List<PedidosViewModel>> obtenerPedidos() async {
     try {
-      print('=== OBTENIENDO PEDIDOS ===');
+      print('=== OBTENIENDO TODOS LOS PEDIDOS ===');
       final data = await _leerDatos(_pedidosKey);
 
       if (data == null) {
         print('No se encontraron datos de pedidos en _pedidosKey');
-        // Si no hay datos en la clave principal, intentar obtener de pendientes
-        print('Intentando obtener de pedidos pendientes...');
-        return await obtenerPedidosPendientes();
+        return [];
       }
 
       print('Tipo de datos: ${data.runtimeType}');
@@ -233,13 +231,7 @@ class PedidosScreenOffline {
       return [];
     } catch (e) {
       print('Error al obtener pedidos: $e');
-      // En caso de error, intentar obtener de pendientes como fallback
-      try {
-        return await obtenerPedidosPendientes();
-      } catch (e2) {
-        print('Error también en fallback: $e2');
-        return [];
-      }
+      return [];
     }
   }
 
