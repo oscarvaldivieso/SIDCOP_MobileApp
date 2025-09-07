@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 class DropdownDataService {
   final String _baseUrl = '$apiServer';
@@ -73,22 +75,29 @@ class DropdownDataService {
     try {
       // Set default values
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
-      // clie_ImagenDelNegocio will be set by the client creation form
-      
-      final response = await http.post(
-        Uri.parse('$_baseUrl/Cliente/Insertar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(clienteData),
-      );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final hasConnection = await SyncService.hasInternetConnection();
+
+      if (hasConnection) {
+        final response = await http.post(
+          Uri.parse('$_baseUrl/Cliente/Insertar'),
+          headers: {
+            'accept': '*/*',
+            'X-Api-Key': _apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(clienteData),
+        );
+
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body);
+        } else {
+          throw Exception('Failed to insert cliente');
+        }
       } else {
-        throw Exception('Failed to insert cliente');
+        // Guardar cliente localmente si no hay conexión
+        await ClientesOfflineService.guardarClientesPendientes([clienteData]);
+        return {'success': false, 'message': 'Cliente guardado localmente. Se sincronizará cuando haya conexión.'};
       }
     } catch (e) {
       print('Error inserting cliente: $e');

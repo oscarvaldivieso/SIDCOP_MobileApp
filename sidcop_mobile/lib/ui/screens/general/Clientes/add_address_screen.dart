@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -71,10 +72,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
   Future<void> _loadColonias() async {
     try {
-      final colonias = await _direccionClienteService.getColonias();
+      final coloniasMap = await ClientesOfflineService.manejarColoniasOffline(
+        () async => (await _direccionClienteService.getColonias())
+            .map((colonia) => colonia.toJson())
+            .toList(),
+      );
+
+      final colonias = coloniasMap.map((map) => Colonia.fromJson(map)).toList();
+
       setState(() {
         _colonias = colonias;
-        // Don't set a default colonia
         _isLoading = false;
       });
     } catch (e) {
