@@ -10,7 +10,8 @@ import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
-  const PedidosCreateScreen({Key? key, required this.clienteId}) : super(key: key);
+  const PedidosCreateScreen({Key? key, required this.clienteId})
+    : super(key: key);
 
   @override
   State<PedidosCreateScreen> createState() => _PedidosCreateScreenState();
@@ -22,12 +23,13 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   List<DescuentoEscalaModel> _descuentos = [];
   List<ProductosPedidosViewModel> _filteredProductos = [];
   final Map<int, int> _cantidades = {};
-  final Map<int, int?> _descuentosSeleccionados = {}; // prodId -> índice del descuento seleccionado (null = ninguno)
+  final Map<int, int?> _descuentosSeleccionados =
+      {}; // prodId -> índice del descuento seleccionado (null = ninguno)
   bool _isLoading = true;
   String? _error;
   final TextEditingController _searchController = TextEditingController();
   int _productosMostrados = 8;
-  
+
   // Variables para direcciones
   List<dynamic> _direcciones = [];
   dynamic _direccionSeleccionada;
@@ -55,9 +57,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         decoration: InputDecoration(
           hintText: 'Buscar productos...',
           prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
           contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
         ),
       ),
@@ -104,7 +104,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       children: [
         _buildSearchBar(),
         const SizedBox(height: 16),
-        
+
         // Header de productos seleccionados si hay al menos uno
         if (_hasSelectedProducts()) ...[
           Row(
@@ -134,7 +134,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE0C7A0),
                   borderRadius: BorderRadius.circular(16),
@@ -153,13 +156,14 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        
-        
+
         _filteredProductos.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32.0),
-                child: Text('No se encontraron productos que coincidan con la búsqueda',
-                    textAlign: TextAlign.center),
+                child: Text(
+                  'No se encontraron productos que coincidan con la búsqueda',
+                  textAlign: TextAlign.center,
+                ),
               )
             : listView,
         if (!isSearching && _productosMostrados < _filteredProductos.length)
@@ -207,7 +211,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       _error = null;
     });
     try {
-      final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
+      final productos = await PedidosService().getProductosConListaPrecio(
+        widget.clienteId,
+      );
       print(productos[3].toJson());
       //print(productos[3].descuentosEscala![0].toJson());
       setState(() {
@@ -228,15 +234,17 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       _loadingDirecciones = true;
     });
     try {
-      final direcciones = await ClientesService().getDireccionesCliente(widget.clienteId);
-      
+      final direcciones = await ClientesService().getDireccionesCliente(
+        widget.clienteId,
+      );
+
       // Debug: Imprimir estructura de direcciones
       print('Direcciones obtenidas: $direcciones');
       if (direcciones.isNotEmpty) {
         print('Primera dirección: ${direcciones[0]}');
         print('Claves de primera dirección: ${direcciones[0].keys.toList()}');
       }
-      
+
       setState(() {
         _direcciones = direcciones;
         _loadingDirecciones = false;
@@ -259,31 +267,34 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   }
 
   Future<void> _selectFechaEntrega(BuildContext context) async {
-  try {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      // locale: const Locale('es', 'ES'), // Quitar si da error
-    );
-    if (picked != null) {
-      setState(() {
-        _fechaEntrega = picked;
-      });
+    try {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now().add(const Duration(days: 1)),
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        // locale: const Locale('es', 'ES'), // Quitar si da error
+      );
+      if (picked != null) {
+        setState(() {
+          _fechaEntrega = picked;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar fecha: \\${e.toString()}'),
+        ),
+      );
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error al seleccionar fecha: \\${e.toString()}')),
-    );
   }
-}
-
 
   num _getPrecioPorCantidad(ProductosPedidosViewModel producto, int cantidad) {
     // 1. Obtener el precio base según escala
     num precioBase;
-    if (producto.listasPrecio != null && producto.listasPrecio!.isNotEmpty && cantidad > 0) {
+    if (producto.listasPrecio != null &&
+        producto.listasPrecio!.isNotEmpty &&
+        cantidad > 0) {
       ListaPrecioModel? ultimaEscala;
       for (final lp in producto.listasPrecio!) {
         if (cantidad >= lp.prePInicioEscala && cantidad <= lp.prePFinEscala) {
@@ -301,25 +312,38 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return _aplicarDescuento(producto, cantidad, precioBase);
   }
 
-  num _aplicarDescuento(ProductosPedidosViewModel producto, int cantidad, num precioBase) {
+  num _aplicarDescuento(
+    ProductosPedidosViewModel producto,
+    int cantidad,
+    num precioBase,
+  ) {
     // Solo aplicar descuento si hay uno seleccionado manualmente
-    final indiceDescuentoSeleccionado = _descuentosSeleccionados[producto.prodId];
-    if (indiceDescuentoSeleccionado != null && 
-        producto.descuentosEscala != null && 
+    final indiceDescuentoSeleccionado =
+        _descuentosSeleccionados[producto.prodId];
+    if (indiceDescuentoSeleccionado != null &&
+        producto.descuentosEscala != null &&
         indiceDescuentoSeleccionado < producto.descuentosEscala!.length) {
-      
       final descEsp = producto.descEspecificaciones;
       if (descEsp != null && descEsp.descTipoFactura == 'AM') {
-        final descuentoSeleccionado = producto.descuentosEscala![indiceDescuentoSeleccionado];
-        return _calcularDescuento(precioBase, descEsp, descuentoSeleccionado.deEsValor);
+        final descuentoSeleccionado =
+            producto.descuentosEscala![indiceDescuentoSeleccionado];
+        return _calcularDescuento(
+          precioBase,
+          descEsp,
+          descuentoSeleccionado.deEsValor,
+        );
       }
     }
-    
+
     // Si no hay descuento seleccionado manualmente, devolver precio base sin descuento
     return precioBase;
   }
 
-  num _calcularDescuento(num precioBase, DescEspecificacionesModel descEsp, num valorDescuento) {
+  num _calcularDescuento(
+    num precioBase,
+    DescEspecificacionesModel descEsp,
+    num valorDescuento,
+  ) {
     if (descEsp.descTipo == 0) {
       // Porcentaje
       return precioBase - (precioBase * (valorDescuento / 100));
@@ -330,7 +354,6 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return precioBase;
   }
 
-
   // Verificar si hay productos seleccionados
   bool _hasSelectedProducts() {
     return _cantidades.values.any((cantidad) => cantidad > 0);
@@ -338,10 +361,16 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
 
   Future<void> _navegarASiguientePantalla() async {
     // 1. Validar productos seleccionados
-    final productosSeleccionados = _cantidades.entries.where((e) => e.value > 0).toList();
+    final productosSeleccionados = _cantidades.entries
+        .where((e) => e.value > 0)
+        .toList();
     if (productosSeleccionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona al menos un producto con cantidad mayor a cero.')),
+        const SnackBar(
+          content: Text(
+            'Selecciona al menos un producto con cantidad mayor a cero.',
+          ),
+        ),
       );
       return;
     }
@@ -360,7 +389,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       return;
     }
     // 4. Preparar productos para confirmación
-    final productosSeleccionadosList = _cantidades.entries.where((e) => e.value > 0).toList();
+    final productosSeleccionadosList = _cantidades.entries
+        .where((e) => e.value > 0)
+        .toList();
     final productosConfirmacion = productosSeleccionadosList.map((e) {
       final producto = _productos.firstWhere((p) => p.prodId == e.key);
       final precioFinal = _getPrecioPorCantidad(producto, e.value);
@@ -376,9 +407,18 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     }).toList();
 
     // 5. Calcular totales
-    final cantidadTotal = productosConfirmacion.fold<int>(0, (sum, p) => sum + p.cantidad);
-    final subtotal = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioBase * p.cantidad));
-    final total = productosConfirmacion.fold<num>(0, (sum, p) => sum + (p.precioFinal * p.cantidad));
+    final cantidadTotal = productosConfirmacion.fold<int>(
+      0,
+      (sum, p) => sum + p.cantidad,
+    );
+    final subtotal = productosConfirmacion.fold<num>(
+      0,
+      (sum, p) => sum + (p.precioBase * p.cantidad),
+    );
+    final total = productosConfirmacion.fold<num>(
+      0,
+      (sum, p) => sum + (p.precioFinal * p.cantidad),
+    );
 
     // 6. Navegar a pantalla de confirmación
     Navigator.push(
@@ -397,19 +437,24 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
-  Widget _buildDescuentosItem(ProductosPedidosViewModel producto, DescuentoEscalaModel descuento, int indiceDescuento) {
-    final isSelected = _descuentosSeleccionados[producto.prodId] == indiceDescuento;
-    
+  Widget _buildDescuentosItem(
+    ProductosPedidosViewModel producto,
+    DescuentoEscalaModel descuento,
+    int indiceDescuento,
+  ) {
+    final isSelected =
+        _descuentosSeleccionados[producto.prodId] == indiceDescuento;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected 
+        color: isSelected
             ? const Color(0xFFE0C7A0).withOpacity(0.2)
             : const Color(0xFFE0C7A0).withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isSelected 
+          color: isSelected
               ? const Color(0xFF98774A)
               : const Color(0xFFE0C7A0).withOpacity(0.3),
           width: isSelected ? 2 : 1,
@@ -442,14 +487,12 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                     color: isSelected ? const Color(0xFF98774A) : Colors.grey,
                     width: 2,
                   ),
-                  color: isSelected ? const Color(0xFF98774A) : Colors.transparent,
+                  color: isSelected
+                      ? const Color(0xFF98774A)
+                      : Colors.transparent,
                 ),
                 child: isSelected
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 12,
-                      )
+                    ? const Icon(Icons.check, color: Colors.white, size: 12)
                     : null,
               ),
               const SizedBox(width: 8),
@@ -466,7 +509,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                     fontFamily: 'Satoshi',
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    color: isSelected ? const Color(0xFF141A2F) : Colors.grey[700],
+                    color: isSelected
+                        ? const Color(0xFF141A2F)
+                        : Colors.grey[700],
                   ),
                 ),
               ),
@@ -480,7 +525,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
     final isSelected = cantidad > 0;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -497,12 +542,14 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+          color: isSelected
+              ? const Color(0xFF98774A)
+              : const Color(0xFF262B40).withOpacity(0.1),
           width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: isSelected 
+            color: isSelected
                 ? const Color(0xFF98774A).withOpacity(0.2)
                 : Colors.black.withOpacity(0.05),
             blurRadius: isSelected ? 12 : 10,
@@ -540,7 +587,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(11),
-                          child: producto.prodImagen != null && producto.prodImagen!.isNotEmpty
+                          child:
+                              producto.prodImagen != null &&
+                                  producto.prodImagen!.isNotEmpty
                               ? Image.network(
                                   producto.prodImagen!,
                                   width: 70,
@@ -555,8 +604,12 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                             begin: Alignment.topLeft,
                                             end: Alignment.bottomRight,
                                             colors: [
-                                              const Color(0xFFD6B68A).withOpacity(0.2),
-                                              const Color(0xFF98774A).withOpacity(0.1),
+                                              const Color(
+                                                0xFFD6B68A,
+                                              ).withOpacity(0.2),
+                                              const Color(
+                                                0xFF98774A,
+                                              ).withOpacity(0.1),
                                             ],
                                           ),
                                         ),
@@ -575,8 +628,12 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                       colors: [
-                                        const Color(0xFFD6B68A).withOpacity(0.2),
-                                        const Color(0xFF98774A).withOpacity(0.1),
+                                        const Color(
+                                          0xFFD6B68A,
+                                        ).withOpacity(0.2),
+                                        const Color(
+                                          0xFF98774A,
+                                        ).withOpacity(0.1),
                                       ],
                                     ),
                                   ),
@@ -595,12 +652,15 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              producto.prodDescripcionCorta ?? 'Sin descripción',
+                              producto.prodDescripcionCorta ??
+                                  'Sin descripción',
                               style: TextStyle(
                                 fontFamily: 'Satoshi',
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
-                                color: isSelected ? Color(0xFF262B40) : Color(0xFF262B40),
+                                color: isSelected
+                                    ? Color(0xFF262B40)
+                                    : Color(0xFF262B40),
                                 height: 1.3,
                               ),
                               maxLines: 2,
@@ -632,7 +692,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                       ),
                                     ),
                                     // Indicador de descuento manual seleccionado
-                                    if (_descuentosSeleccionados[producto.prodId] != null)
+                                    if (_descuentosSeleccionados[producto
+                                            .prodId] !=
+                                        null)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Row(
@@ -676,7 +738,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                             _cantidades[producto.prodId] = 0;
                           }),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE74C3C).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
@@ -715,7 +780,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                           color: const Color(0xFF262B40).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(25),
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF98774A) : const Color(0xFF262B40).withOpacity(0.1),
+                            color: isSelected
+                                ? const Color(0xFF98774A)
+                                : const Color(0xFF262B40).withOpacity(0.1),
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -726,15 +793,16 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: cantidad > 0 
-                                    ? const Color(0xFF262B40) 
+                                color: cantidad > 0
+                                    ? const Color(0xFF262B40)
                                     : const Color(0xFF262B40).withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: IconButton(
                                 onPressed: cantidad > 0
                                     ? () => setState(() {
-                                        _cantidades[producto.prodId] = cantidad - 1;
+                                        _cantidades[producto.prodId] =
+                                            cantidad - 1;
                                       })
                                     : null,
                                 icon: const Icon(Icons.remove, size: 18),
@@ -744,14 +812,18 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                             ),
                             InkWell(
                               onTap: () async {
-                                final TextEditingController controller = TextEditingController(
-                                  text: cantidad.toString(),
-                                );
-                                
+                                final TextEditingController controller =
+                                    TextEditingController(
+                                      text: cantidad.toString(),
+                                    );
+
                                 final result = await showDialog<int>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    title: const Text('Cantidad', style: TextStyle(fontFamily: 'Satoshi')),
+                                    title: const Text(
+                                      'Cantidad',
+                                      style: TextStyle(fontFamily: 'Satoshi'),
+                                    ),
                                     content: TextField(
                                       controller: controller,
                                       keyboardType: TextInputType.number,
@@ -760,25 +832,40 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                         border: OutlineInputBorder(),
                                       ),
                                       onSubmitted: (_) {
-                                        final value = int.tryParse(controller.text) ?? 0;
+                                        final value =
+                                            int.tryParse(controller.text) ?? 0;
                                         Navigator.of(context).pop(value);
                                       },
                                     ),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.pop(context),
-                                        child: const Text('Cancelar', style: TextStyle(fontFamily: 'Satoshi')),
+                                        child: const Text(
+                                          'Cancelar',
+                                          style: TextStyle(
+                                            fontFamily: 'Satoshi',
+                                          ),
+                                        ),
                                       ),
                                       ElevatedButton(
                                         onPressed: () {
-                                          final value = int.tryParse(controller.text) ?? 0;
+                                          final value =
+                                              int.tryParse(controller.text) ??
+                                              0;
                                           Navigator.of(context).pop(value);
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF98774A),
+                                          backgroundColor: const Color(
+                                            0xFF98774A,
+                                          ),
                                           foregroundColor: Colors.white,
                                         ),
-                                        child: const Text('Aceptar', style: TextStyle(fontFamily: 'Satoshi')),
+                                        child: const Text(
+                                          'Aceptar',
+                                          style: TextStyle(
+                                            fontFamily: 'Satoshi',
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -794,7 +881,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                 width: 50,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: isSelected 
+                                  color: isSelected
                                       ? const Color(0xFFD6B68A).withOpacity(0.2)
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
@@ -806,7 +893,11 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                       fontFamily: 'Satoshi',
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
-                                      color: isSelected ? const Color(0xFF262B40) : const Color(0xFF262B40).withOpacity(0.7),
+                                      color: isSelected
+                                          ? const Color(0xFF262B40)
+                                          : const Color(
+                                              0xFF262B40,
+                                            ).withOpacity(0.7),
                                     ),
                                   ),
                                 ),
@@ -825,7 +916,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF98774A).withOpacity(0.3),
+                                    color: const Color(
+                                      0xFF98774A,
+                                    ).withOpacity(0.3),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -846,7 +939,8 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                     ],
                   ),
                   // Mostrar descuentos si existen
-                  if (producto.descuentosEscala != null && producto.descuentosEscala!.isNotEmpty)
+                  if (producto.descuentosEscala != null &&
+                      producto.descuentosEscala!.isNotEmpty)
                     Container(
                       child: ExpansionTile(
                         title: Text(
@@ -865,13 +959,19 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                               children: producto.descuentosEscala!
                                   .asMap()
                                   .entries
-                                  .map((entry) => _buildDescuentosItem(producto, entry.value, entry.key))
+                                  .map(
+                                    (entry) => _buildDescuentosItem(
+                                      producto,
+                                      entry.value,
+                                      entry.key,
+                                    ),
+                                  )
                                   .toList(),
                             ),
                           ),
                         ],
                       ),
-                    )
+                    ),
                 ],
               ),
             ),
@@ -916,11 +1016,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       bottomLeft: Radius.circular(16),
                     ),
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 20),
                 ),
               ),
             // Faja de promoción si el producto es promo
@@ -929,7 +1025,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 top: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
@@ -997,14 +1096,17 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20.0,
+                            ),
                             child: Text(
                               'Nuevo Pedido',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                fontFamily: 'Satoshi',
-                              ),
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontFamily: 'Satoshi',
+                                  ),
                             ),
                           ),
                         ),
@@ -1033,118 +1135,174 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-              Text('Selecciona fecha de entrega:', 
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () => _selectFechaEntrega(context),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today, size: 19, color: Colors.grey.shade600),
-                      const SizedBox(width: 10),
                       Text(
-                        _fechaEntrega != null
-                            ? '${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}'
-                            : 'Elegir fecha',
-                        style: TextStyle(fontSize: 15, color: _fechaEntrega != null ? Colors.black : Colors.grey.shade500),
+                        'Selecciona fecha de entrega:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Dropdown de direcciones
-              Text('Selecciona dirección de entrega:', 
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-              const SizedBox(height: 8),
-              _loadingDirecciones
-                  ? Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: const Center(child: CircularProgressIndicator()),
-                    )
-                  : _direcciones.isEmpty
-                      ? Container(
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => _selectFechaEntrega(context),
+                        child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 10,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.location_off, size: 19, color: Colors.grey.shade600),
-                              const SizedBox(width: 10),
-                              Text(
-                                'No hay direcciones disponibles',
-                                style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.grey.shade300),
                           ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<dynamic>(
-                              value: _direccionSeleccionada,
-                              isExpanded: true,
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-                              items: _direcciones.map<DropdownMenuItem<dynamic>>((direccion) {
-                                final descripcion = direccion['diCl_DireccionExacta'] ?? 
-                                                   direccion['DiCl_DireccionExacta'] ?? 
-                                                   direccion['descripcion'] ?? 
-                                                   'Dirección sin descripción';
-                                return DropdownMenuItem<dynamic>(
-                                  value: direccion,
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.location_on, size: 19, color: Colors.grey.shade600),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          descripcion,
-                                          style: const TextStyle(fontSize: 15),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _direccionSeleccionada = value;
-                                });
-                              },
-                            ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 19,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                _fechaEntrega != null
+                                    ? '${_fechaEntrega!.day.toString().padLeft(2, '0')}/${_fechaEntrega!.month.toString().padLeft(2, '0')}/${_fechaEntrega!.year}'
+                                    : 'Elegir fecha',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: _fechaEntrega != null
+                                      ? Colors.black
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-              const SizedBox(height: 24),
-              Text('Selecciona productos y cantidades:', 
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-              const SizedBox(height: 8),
-              _buildProductList(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Dropdown de direcciones
+                      Text(
+                        'Selecciona dirección de entrega:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _loadingDirecciones
+                          ? Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : _direcciones.isEmpty
+                          ? Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_off,
+                                    size: 19,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'No hay direcciones disponibles',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<dynamic>(
+                                  value: _direccionSeleccionada,
+                                  isExpanded: true,
+                                  icon: Icon(
+                                    Icons.arrow_drop_down,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  items: _direcciones
+                                      .map<DropdownMenuItem<dynamic>>((
+                                        direccion,
+                                      ) {
+                                        final descripcion =
+                                            direccion['diCl_DireccionExacta'] ??
+                                            direccion['DiCl_DireccionExacta'] ??
+                                            direccion['descripcion'] ??
+                                            'Dirección sin descripción';
+                                        return DropdownMenuItem<dynamic>(
+                                          value: direccion,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.location_on,
+                                                size: 19,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  descripcion,
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      })
+                                      .toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _direccionSeleccionada = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Selecciona productos y cantidades:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildProductList(),
                       // Padding at bottom to prevent overlap with fixed button
                       const SizedBox(height: 80),
                     ],
@@ -1174,9 +1332,14 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
             child: ElevatedButton(
               onPressed: _navegarASiguientePantalla,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE0C7A0), // Color dorado del proyecto
+                backgroundColor: const Color(
+                  0xFFE0C7A0,
+                ), // Color dorado del proyecto
                 foregroundColor: Colors.black,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
