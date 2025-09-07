@@ -1,9 +1,11 @@
 // Archivo para manejar clientes en modo offline
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/DropdownDataService.dart';
+import 'package:sidcop_mobile/services/cloudinary_service.dart';
 
 class ClientesOfflineService {
   static const String _archivoClientes = 'clientes.json';
@@ -44,36 +46,77 @@ class ClientesOfflineService {
 
   /// Sincroniza clientes pendientes con el servidor
   static Future<void> sincronizarClientesPendientes() async {
-    final pendientes = await cargarClientesPendientes();
-    if (pendientes.isEmpty) return;
+    try {
+      final pendientes = await cargarClientesPendientes();
+      if (pendientes.isEmpty) return;
 
-    final hasConnection = await SyncService.hasInternetConnection();
-    if (!hasConnection) {
-      print('No hay conexión a internet. Sincronización pospuesta.');
-      return;
-    }
+      final hasConnection = await SyncService.hasInternetConnection();
+      if (!hasConnection) return;
 
-    final dropdownService = DropdownDataService();
-    final noSincronizados = <Map<String, dynamic>>[];
+      final dropdownService = DropdownDataService();
+      final imageUploadService = ImageUploadService();
+      final noSincronizados = <Map<String, dynamic>>[];
 
-    for (final cliente in pendientes) {
-      try {
-        final response = await dropdownService.insertCliente(cliente);
-        if (response['success'] != true) {
-          print('Error al sincronizar cliente: ${cliente['id']}');
+      for (var cliente in pendientes) {
+        try {
+          String? imageUrl;
+          final imageKey = cliente['imageKey'] as String?;
+          
+          // Si hay una imagen guardada, subirla primero
+          if (imageKey != null) {
+            print('Buscando imagen con key: $imageKey');
+            final imageData = await _secureStorage.read(key: imageKey);
+            if (imageData != null && imageData.isNotEmpty) {
+              print('Imagen encontrada, subiendo...');
+              final imageBytes = base64Decode(imageData);
+              imageUrl = await imageUploadService.uploadImageFromBytes(imageBytes);
+              print('Imagen subida exitosamente: $imageUrl');
+              
+              // Asignar la URL de la imagen al campo correcto
+              cliente['clie_ImagenDelNegocio'] = imageUrl;
+              
+              // Eliminar la imagen del almacenamiento local
+              await _secureStorage.delete(key: imageKey);
+              print('Imagen eliminada del almacenamiento local');
+              cliente.remove('imageKey');
+            }
+          }
+
+          print('Enviando datos del cliente al servidor...');
+          
+          // Crear una copia del cliente sin los campos que no necesita el servidor
+          final clienteParaEnviar = Map<String, dynamic>.from(cliente);
+          clienteParaEnviar.remove('direcciones');
+          
+          // Asegurarse de que clie_ImagenDelNegocio esté presente
+          if (!clienteParaEnviar.containsKey('clie_ImagenDelNegocio')) {
+            clienteParaEnviar['clie_ImagenDelNegocio'] = '';
+          }
+          
+          print('Datos del cliente a enviar: $clienteParaEnviar');
+          
+          // Enviar los datos del cliente al servidor
+          final response = await dropdownService.insertCliente(clienteParaEnviar);
+          print('Respuesta del servidor: $response');
+
+          if (response['success'] == true) {
+            print('Cliente sincronizado exitosamente');
+          } else {
+            print('Error al sincronizar cliente: ${response['message']}');
+            noSincronizados.add(cliente);
+          }
+        } catch (e) {
+          print('Error al sincronizar cliente: $e');
           noSincronizados.add(cliente);
         }
-      } catch (e) {
-        print('Excepción al sincronizar cliente: ${cliente['id']} - $e');
-        noSincronizados.add(cliente);
       }
-    }
 
-    if (noSincronizados.isNotEmpty) {
-      print('Clientes no sincronizados: ${noSincronizados.length}');
+      // Guardar los clientes que no se pudieron sincronizar
+      await guardarClientesPendientes(noSincronizados);
+    } catch (e) {
+      print('Error en sincronizarClientesPendientes: $e');
+      rethrow;
     }
-
-    await guardarClientesPendientes(noSincronizados);
   }
 
   /// Guarda un objeto JSON en almacenamiento seguro
@@ -149,15 +192,46 @@ class ClientesOfflineService {
 
   /// Guarda un cliente y sus direcciones en modo offline
   static Future<void> saveClienteOffline(
-      Map<String, dynamic> cliente,
-      List<Map<String, dynamic>> direcciones) async {
-    final clientesPendientes = await cargarClientesPendientes();
-    final clienteConDirecciones = {
-      ...cliente,
-      'direcciones': direcciones,
-    };
-    clientesPendientes.add(clienteConDirecciones);
-    await guardarClientesPendientes(clientesPendientes);
-    print('Cliente guardado offline con éxito.');
+    Map<String, dynamic> cliente,
+    List<Map<String, dynamic>> direcciones, {
+    Uint8List? imageBytes,
+  }) async {
+    try {
+      // Guardar la imagen en el almacenamiento seguro si se proporciona
+      String? imageKey;
+      if (imageBytes != null) {
+        imageKey = 'cliente_image_${DateTime.now().millisecondsSinceEpoch}';
+        await _secureStorage.write(
+          key: imageKey,
+          value: base64Encode(imageBytes),
+        );
+        print('Imagen guardada con key: $imageKey');
+      }
+
+      // Crear una copia del cliente para modificar
+      final clienteParaGuardar = Map<String, dynamic>.from(cliente);
+      
+      // Agregar la key de la imagen si existe
+      if (imageKey != null) {
+        clienteParaGuardar['imageKey'] = imageKey;
+      }
+      
+      // Agregar las direcciones al cliente
+      clienteParaGuardar['direcciones'] = direcciones;
+      
+      // Cargar clientes pendientes existentes
+      final pendientes = await cargarClientesPendientes();
+      
+      // Agregar el nuevo cliente
+      pendientes.add(clienteParaGuardar);
+      
+      // Guardar la lista actualizada
+      await guardarClientesPendientes(pendientes);
+      
+      print('Cliente guardado offline exitosamente');
+    } catch (e) {
+      print('Error al guardar cliente offline: $e');
+      rethrow;
+    }
   }
 }

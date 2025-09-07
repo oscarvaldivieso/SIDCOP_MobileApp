@@ -73,12 +73,18 @@ class DropdownDataService {
 
   Future<Map<String, dynamic>> insertCliente(Map<String, dynamic> clienteData) async {
     try {
-      // Set default values
+      // Set default values if not provided
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
+      clienteData['clie_DNI'] = clienteData['clie_DNI'] ?? '';
+      clienteData['clie_RTN'] = clienteData['clie_RTN'] ?? '';
+      clienteData['clie_Nacionalidad'] = clienteData['clie_Nacionalidad'] ?? 'HND';
+      clienteData['clie_Imagen'] = clienteData['clie_Imagen'] ?? '';
 
       final hasConnection = await SyncService.hasInternetConnection();
 
       if (hasConnection) {
+        print('Enviando datos del cliente al servidor: $clienteData');
+        
         final response = await http.post(
           Uri.parse('$_baseUrl/Cliente/Insertar'),
           headers: {
@@ -90,9 +96,12 @@ class DropdownDataService {
         );
 
         if (response.statusCode == 200) {
-          return jsonDecode(response.body);
+          final responseData = jsonDecode(response.body);
+          print('Respuesta del servidor: $responseData');
+          return responseData;
         } else {
-          throw Exception('Failed to insert cliente');
+          print('Error del servidor: ${response.statusCode} - ${response.body}');
+          return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
         }
       } else {
         // Guardar cliente localmente si no hay conexión
@@ -100,8 +109,8 @@ class DropdownDataService {
         return {'success': false, 'message': 'Cliente guardado localmente. Se sincronizará cuando haya conexión.'};
       }
     } catch (e) {
-      print('Error inserting cliente: $e');
-      rethrow;
+      print('Error en insertCliente: $e');
+      return {'success': false, 'message': 'Error al insertar cliente: $e'};
     }
   }
 }
