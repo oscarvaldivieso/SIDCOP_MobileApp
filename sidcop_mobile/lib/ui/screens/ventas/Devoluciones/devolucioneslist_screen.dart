@@ -4,6 +4,8 @@ import 'package:intl/intl.dart' as intl;
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
+import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
@@ -19,13 +21,48 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   final DevolucionesService _devolucionesService = DevolucionesService();
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
   List<dynamic> permisos = [];
+  bool isOnline = true; // Indicador de estado de conexión
+
+  // Método para verificar la conexión a internet
+  Future<bool> verificarConexion() async {
+    try {
+      final tieneConexion = await VerificarService.verificarConexion();
+      setState(() {
+        isOnline = tieneConexion;
+      });
+      print('Estado de conexión: ${tieneConexion ? 'Online' : 'Offline'}');
+      return tieneConexion;
+    } catch (e) {
+      print('Error al verificar la conexión: $e');
+      setState(() {
+        isOnline = false;
+      });
+      return false;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _loadPermisos();
+    // Inicializar _devolucionesFuture inmediatamente para evitar LateInitializationError
     _devolucionesFuture = _loadDevoluciones();
+    // Luego actualizar después de verificar conexión
+    _actualizarDatosSegunConexion();
     print('DevolucioneslistScreen initialized');
+  }
+
+  // Método para actualizar los datos según la conexión
+  Future<void> _actualizarDatosSegunConexion() async {
+    // Verificar si hay conexión a internet
+    await verificarConexion();
+
+    // Solo actualizar si la pantalla sigue montada
+    if (mounted) {
+      setState(() {
+        _devolucionesFuture = _loadDevoluciones();
+      });
+    }
   }
 
   Future<void> _loadPermisos() async {
@@ -47,17 +84,75 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   Future<List<DevolucionesViewModel>> _loadDevoluciones() async {
     try {
-      final devoluciones = await _devolucionesService.listarDevoluciones();
-      print('Successfully loaded ${devoluciones.length} devoluciones');
-      if (devoluciones.isEmpty) {
-        print('No devoluciones found in the response');
+      // Ya no verificamos la conexión aquí, usamos el estado actual de isOnline
+      // que se actualiza mediante el método verificarConexion()
+
+      List<DevolucionesViewModel> devoluciones = [];
+
+      if (isOnline) {
+        // Si hay internet, obtener datos del servidor y sincronizar localmente
+        print('Cargando devoluciones desde el servidor...');
+
+        // Sincronizar y guardar devoluciones
+        final devolucionesData =
+            await DevolucionesOffline.sincronizarYGuardarDevoluciones();
+
+        // Convertir a modelos
+        devoluciones = DevolucionesOffline.convertirAModelos(devolucionesData);
+
+        print(
+          'Successfully loaded ${devoluciones.length} devoluciones from server and saved locally',
+        );
+
+        if (devoluciones.isEmpty) {
+          print('No devoluciones found in the server response');
+        } else {
+          print('First devolucion from server: ${devoluciones.first.toJson()}');
+        }
       } else {
-        print('First devolucion: ${devoluciones.first.toJson()}');
+        // Si no hay internet, obtener datos almacenados localmente
+        print(
+          'Sin conexión a internet. Cargando devoluciones desde almacenamiento local...',
+        );
+
+        final devolucionesData =
+            await DevolucionesOffline.obtenerDevolucionesLocal();
+        devoluciones = DevolucionesOffline.convertirAModelos(devolucionesData);
+
+        print(
+          'Successfully loaded ${devoluciones.length} devoluciones from local storage',
+        );
+        if (devoluciones.isEmpty) {
+          print('No devoluciones found in local storage');
+        } else {
+          print(
+            'First devolucion from local storage: ${devoluciones.first.toJson()}',
+          );
+        }
       }
+
       return devoluciones;
     } catch (e) {
       print('Error loading devoluciones: $e');
-      rethrow;
+
+      // Si ocurre un error, intentar cargar desde almacenamiento local
+      try {
+        print(
+          'Intentando cargar devoluciones desde almacenamiento local debido a un error...',
+        );
+        final devolucionesData =
+            await DevolucionesOffline.obtenerDevolucionesLocal();
+        final localDevoluciones = DevolucionesOffline.convertirAModelos(
+          devolucionesData,
+        );
+        print(
+          'Successfully loaded ${localDevoluciones.length} devoluciones from local storage after error',
+        );
+        return localDevoluciones;
+      } catch (localError) {
+        print('Error también al cargar datos locales: $localError');
+        rethrow; // Re-lanzar el error original
+      }
     }
   }
 
@@ -68,7 +163,9 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const DevolucioncrearScreen()),
+            MaterialPageRoute(
+              builder: (context) => const DevolucioncrearScreen(),
+            ),
           );
         },
         backgroundColor: const Color(0xFF141A2F),
@@ -81,13 +178,19 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         icon: Icons.restart_alt,
         permisos: permisos,
         onRefresh: () async {
+          // Verificar conexión antes de recargar
+          await verificarConexion();
+
           setState(() {
             _devolucionesFuture = _loadDevoluciones();
           });
         },
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -106,92 +209,96 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                     ),
                   ],
                 ),
-              const SizedBox(height: 15),
-              FutureBuilder<List<DevolucionesViewModel>>(
-                future: _devolucionesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 50.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 50.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error al cargar las devoluciones',
-                              style: TextStyle(
-                                color: Colors.grey[800],
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Satoshi',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              snapshot.error.toString(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontFamily: 'Satoshi',
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _devolucionesFuture = _loadDevoluciones();
-                                });
-                              },
-                              child: const Text(
-                                'Reintentar',
-                                style: TextStyle(fontFamily: 'Satoshi'),
-                              ),
-                            ),
-                          ],
+                const SizedBox(height: 15),
+                FutureBuilder<List<DevolucionesViewModel>>(
+                  future: _devolucionesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 50.0),
+                          child: CircularProgressIndicator(),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 50.0),
-                        child: Text(
-                          'No hay devoluciones registradas',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontFamily: 'Satoshi',
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 50.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error al cargar las devoluciones',
+                                style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Satoshi',
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                snapshot.error.toString(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _devolucionesFuture = _loadDevoluciones();
+                                  });
+                                },
+                                child: const Text(
+                                  'Reintentar',
+                                  style: TextStyle(fontFamily: 'Satoshi'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  final devoluciones = snapshot.data!;
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: devoluciones.length,
-                    itemBuilder: (context, index) {
-                      final devolucion = devoluciones[index];
-                      return _buildDevolucionCard(devolucion);
-                    },
-                  );
-                },
-              ),
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 50.0),
+                          child: Text(
+                            'No hay devoluciones registradas',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final devoluciones = snapshot.data!;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: devoluciones.length,
+                      itemBuilder: (context, index) {
+                        final devolucion = devoluciones[index];
+                        return _buildDevolucionCard(devolucion);
+                      },
+                    );
+                  },
+                ),
                 const SizedBox(height: 20),
               ],
             ),
@@ -208,14 +315,13 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   Widget _buildDevolucionCard(DevolucionesViewModel devolucion) {
     // Color principal del proyecto (usando el mismo que en el drawer y otros componentes)
     final primaryColor = const Color(0xFF141A2F); // Azul oscuro principal
-    final secondaryColor = const Color(0xFF1E2746); // Tono ligeramente más claro para gradiente
+    final secondaryColor = const Color(
+      0xFF1E2746,
+    ); // Tono ligeramente más claro para gradiente
     final backgroundColor = const Color(0xFFF5F5F7); // Fondo gris claro
-    
+
     // Usar el ícono original de devolución
     final iconoDevolucion = Icons.assignment_return;
-    
-    // Obtener el estado como texto
-    final estado = devolucion.devoEstado.toString();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -345,11 +451,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: const Color(0xFF8E8E93),
-        ),
+        Icon(icon, size: 20, color: const Color(0xFF8E8E93)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -382,10 +484,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
     );
   }
 
-  void _showDevolucionDetails(BuildContext context, DevolucionesViewModel devolucion) {
-    showDevolucionDetalleBottomSheet(
-      context: context,
-      devolucion: devolucion,
-    );
+  void _showDevolucionDetails(
+    BuildContext context,
+    DevolucionesViewModel devolucion,
+  ) {
+    showDevolucionDetalleBottomSheet(context: context, devolucion: devolucion);
   }
 }
