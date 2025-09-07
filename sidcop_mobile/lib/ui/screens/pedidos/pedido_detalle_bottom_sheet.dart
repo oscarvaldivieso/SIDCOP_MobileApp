@@ -167,10 +167,37 @@ Widget build(BuildContext context) {
   }
 
   List<dynamic> _parseDetalles(String? detallesJson) {
-    if (detallesJson == null || detallesJson.isEmpty) return [];
     try {
-      return jsonDecode(detallesJson) as List<dynamic>;
-    } catch (_) {
+      if (detallesJson == null || detallesJson.isEmpty) {
+        // Si no hay detallesJson, verificar si hay detalles directos en el pedido
+        if (widget.pedido.detalles.isNotEmpty) {
+          return widget.pedido.detalles;
+        }
+        return [];
+      }
+
+      // Intentar parsear como JSON
+      final parsed = jsonDecode(detallesJson);
+      
+      // Si es una lista, devolverla directamente
+      if (parsed is List) return parsed;
+      
+      // Si es un mapa, verificar si tiene una propiedad 'detalles' o similar
+      if (parsed is Map) {
+        if (parsed['detalles'] is List) {
+          return parsed['detalles'];
+        }
+        // Si no tiene 'detalles', devolver el mapa dentro de una lista
+        return [parsed];
+      }
+      
+      return [];
+    } catch (e) {
+      print('Error al parsear detalles del pedido: $e');
+      // Si hay un error, verificar si hay detalles directos en el pedido
+      if (widget.pedido.detalles.isNotEmpty) {
+        return widget.pedido.detalles;
+      }
       return [];
     }
   }
