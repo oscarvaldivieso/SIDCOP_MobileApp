@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/GoalsService.dart';
+import 'package:sidcop_mobile/Offline_Services/Metas_OfflineService.dart';
+import 'package:sidcop_mobile/models/MetasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 
@@ -16,9 +18,10 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
   final GoalsService _goalsService = GoalsService();
   bool _isLoading = true;
   String _errorMessage = '';
-  List<dynamic> _goals = [];
+  List<Metas> _goals = [];
   late AnimationController _refreshController;
 
+  List<Metas> _allMetas = [];
   @override
   void initState() {
     super.initState();
@@ -38,7 +41,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
   Future<void> _loadGoals() async {
     debugPrint('[_loadGoals] Iniciando carga de metas...');
     debugPrint('[_loadGoals] ID de usuario: ${widget.usuaIdPersona}');
-    
+
     if (!_isLoading) {
       setState(() {
         _isLoading = true;
@@ -47,20 +50,26 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     }
 
     try {
-      debugPrint('[_loadGoals] Llamando a _goalsService.getGoalsByVendor...');
-      final goals = await _goalsService.getGoalsByVendor(widget.usuaIdPersona);
-      debugPrint('[_loadGoals] Respuesta recibida: ${goals?.length ?? 0} metas');
-      
-      if (goals != null) {
-        debugPrint('[_loadGoals] Datos de metas: $goals');
+      // 1. Intentar cargar desde backend
+      final goalsRaw = await _goalsService.getGoalsByVendor(widget.usuaIdPersona);
+      debugPrint('[_loadGoals] Respuesta recibida: ${goalsRaw?.length ?? 0} metas');
+
+      List<Metas> metasList = [];
+      if (goalsRaw != null && goalsRaw.isNotEmpty) {
+        metasList = goalsRaw.map<Metas>((json) => Metas.fromJson(json)).toList();
+        debugPrint('[_loadGoals] Metas mapeadas: ${metasList.length}');
+        // Guardar en cache offline
+        await MetasOffline.guardarMetas(metasList);
       } else {
-        debugPrint('[_loadGoals] La respuesta de metas es nula');
+        // Si no hay metas online, intentar cargar offline
+        metasList = await MetasOffline.obtenerMetasLocal();
+        debugPrint('[_loadGoals] Metas offline cargadas: ${metasList.length}');
       }
 
       if (mounted) {
         setState(() {
-          if (goals != null && goals.isNotEmpty) {
-            _goals = goals;
+          if (metasList.isNotEmpty) {
+            _goals = metasList;
             debugPrint('[_loadGoals] Metas actualizadas en el estado: ${_goals.length}');
           } else {
             _errorMessage = 'No se encontraron metas para mostrar';
@@ -72,10 +81,16 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     } catch (e, stackTrace) {
       debugPrint('[_loadGoals] Error al cargar metas: $e');
       debugPrint('Stack trace: $stackTrace');
-      
+      // Si hay error, intentar cargar offline
+      final offlineMetas = await MetasOffline.obtenerMetasLocal();
       if (mounted) {
         setState(() {
-          _errorMessage = 'Error de conexión. Intente nuevamente.';
+          if (offlineMetas.isNotEmpty) {
+            _goals = offlineMetas;
+            _errorMessage = '';
+          } else {
+            _errorMessage = 'Error de conexión y no hay metas offline.';
+          }
           _isLoading = false;
         });
       }
@@ -84,6 +99,23 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       debugPrint('[_loadGoals] Carga de metas finalizada');
     }
   }
+
+   // Sincroniza metas en background
+  Future<void> _sincronizarMetasEnBackground() async {
+  try {
+    debugPrint('Sincronizando metas en background...');
+    final nuevasMetas = await MetasOffline.sincronizarMetasPorVendedor(widget.usuaIdPersona);
+    if (nuevasMetas.isNotEmpty && mounted) {
+      setState(() {
+        _goals = nuevasMetas;
+        // Si tienes filtros, reaplícalos aquí
+      });
+      debugPrint('Metas actualizadas en background: ${nuevasMetas.length}');
+    }
+  } catch (e) {
+    debugPrint('Error en sincronización background: $e');
+  }
+}
 
   String _formatDate(String dateString) {
     try {
@@ -180,31 +212,31 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildGoalCard(Map<String, dynamic> goal) {
-    final goalType = goal['Meta_Tipo'] ?? '';
+  Widget _buildGoalCard(Metas goal) {
+  final goalType = goal.metaTipo;
     final color = _getGoalTypeColor(goalType);
     final icon = _getGoalTypeIcon(goalType);
     
     double progress = 0.0;
     String progressText = '';
     String targetText = '';
-    String progressLabel = 'Progreso';
+      // String progressLabel = 'Progreso'; // No se usa
 
-    if (goal['Meta_Ingresos'] != null && goal['Meta_Ingresos'] > 0) {
-      final metaIngresos = (goal['Meta_Ingresos'] as num).toDouble();
-      final progresoIngresos = (goal['ProgresoIngresos'] as num?)?.toDouble() ?? 0.0;
-      progress = (progresoIngresos / metaIngresos).clamp(0.0, 1.0);
-      progressText = NumberFormat.currency(symbol: 'L ').format(progresoIngresos);
-      targetText = NumberFormat.currency(symbol: 'L ').format(metaIngresos);
-      progressLabel = 'Ingresos';
-    } else if (goal['Meta_Unidades'] != null && goal['Meta_Unidades'] > 0) {
-      final metaUnidades = (goal['Meta_Unidades'] as num).toDouble();
-      final progresoUnidades = (goal['ProgresoUnidades'] as num?)?.toDouble() ?? 0.0;
-      progress = (progresoUnidades / metaUnidades).clamp(0.0, 1.0);
-      progressText = '${progresoUnidades.toInt()}';
-      targetText = '${metaUnidades.toInt()}';
-      progressLabel = 'Clientes';
-    }
+      if (goal.metaIngresos != null && goal.metaIngresos! > 0) {
+        final metaIngresos = goal.metaIngresos!;
+        final progresoIngresos = goal.progresoIngresos;
+        progress = (progresoIngresos / metaIngresos).clamp(0.0, 1.0);
+        progressText = NumberFormat.currency(symbol: 'L ').format(progresoIngresos);
+        targetText = NumberFormat.currency(symbol: 'L ').format(metaIngresos);
+        // progressLabel = 'Ingresos';
+      } else if (goal.metaUnidades != null && goal.metaUnidades! > 0) {
+        final metaUnidades = goal.metaUnidades!;
+        final progresoUnidades = goal.progresoUnidades;
+        progress = (progresoUnidades / metaUnidades).clamp(0.0, 1.0);
+        progressText = '${progresoUnidades.toInt()}';
+        targetText = '${metaUnidades.toInt()}';
+        // progressLabel = 'Clientes';
+      }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -251,7 +283,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        goal['Meta_Descripcion'] ?? 'Sin descripción',
+                        goal.metaDescripcion,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -322,17 +354,17 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_formatDate(goal['Meta_FechaInicio'] ?? '')} - ${_formatDate(goal['Meta_FechaFin'] ?? '')}',
+                    '${_formatDate(goal.metaFechaInicio ?? '')} - ${_formatDate(goal.metaFechaFin ?? '')}',
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey[600],
                       fontFamily: 'Satoshi',
                     ),
                   ),
-                  if (goal['Producto'] != null)
+                  if (goal.producto != null)
                     Flexible(
                       child: Text(
-                        goal['Producto'],
+                        goal.producto!,
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -357,12 +389,12 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
 
     int completedGoals = 0;
     for (var goal in _goals) {
-      if (goal['Meta_Ingresos'] != null && goal['Meta_Ingresos'] > 0) {
-        if ((goal['ProgresoIngresos'] ?? 0) >= goal['Meta_Ingresos']) {
+      if (goal.metaIngresos != null && goal.metaIngresos! > 0) {
+        if (goal.progresoIngresos >= goal.metaIngresos!) {
           completedGoals++;
         }
-      } else if (goal['Meta_Unidades'] != null && goal['Meta_Unidades'] > 0) {
-        if ((goal['ProgresoUnidades'] ?? 0) >= goal['Meta_Unidades']) {
+      } else if (goal.metaUnidades != null && goal.metaUnidades! > 0) {
+        if (goal.progresoUnidades >= goal.metaUnidades!) {
           completedGoals++;
         }
       }
