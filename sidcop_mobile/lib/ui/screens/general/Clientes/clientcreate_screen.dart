@@ -16,6 +16,7 @@ import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -46,7 +47,6 @@ class ClientCreateScreen extends StatefulWidget {
   @override
   _ClientCreateScreenState createState() => _ClientCreateScreenState();
 }
-
 class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
@@ -56,6 +56,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final DropdownDataService _dropdownService = DropdownDataService();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
+  final ClientesOfflineService _clientesOfflineService = ClientesOfflineService();
   
   // Gender selection
   String _selectedGender = 'M';
@@ -73,10 +74,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   bool? esAdmin;
   int? usuaId;
 
-
-
-
-    var MKTelefono = new MaskTextInputFormatter(
+  var MKTelefono = new MaskTextInputFormatter(
   mask: '####-####', 
   filter: { "#": RegExp(r'[0-9]') },
   type: MaskAutoCompletionType.lazy
@@ -301,11 +299,62 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }
       }
 
+      // Verificar conectividad
+      final isConnected = await _checkConnectivity();
+
+      if (!isConnected) {
+        // Guardar cliente y direcciones localmente
+        final clienteOffline = {
+          'clie_Codigo':
+              'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+          'clie_Nacionalidad': 'HND',
+          'clie_DNI': _dniController.text.trim(),
+          'clie_RTN': _rtnController.text.trim(),
+          'clie_Nombres': _nombresController.text.trim(),
+          'clie_Apellidos': _apellidosController.text.trim(),
+          'clie_NombreNegocio': _nombreNegocioController.text.trim(),
+          'clie_ImagenDelNegocio': imageUrl ?? '',
+          'clie_Telefono': _telefonoController.text.trim(),
+          'clie_Correo': '',
+          'clie_Sexo': _selectedGender,
+          'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(),
+          'tiVi_Id': 1,
+          'cana_Id': 1,
+          'esCv_Id': 1,
+          'ruta_Id': rutaId,
+          'clie_LimiteCredito': 0,
+          'clie_DiasCredito': 0,
+          'clie_Saldo': 0,
+          'clie_Vencido': false,
+          'clie_Observaciones': 'Cliente creado offline',
+          'clie_ObservacionRetiro': 'Ninguna',
+          'clie_Confirmacion': false,
+          'usua_Creacion': usuaId,
+          'clie_FechaCreacion': DateTime.now().toIso8601String(),
+        };
+
+        await ClientesOfflineService.saveClienteOffline(
+          clienteOffline,
+          _direcciones.map((d) => d.toJson()).toList(),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cliente guardado offline. Se sincronizará cuando haya conexión.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+
       // 2. Prepare and insert client
       final clienteData = {
         'clie_Codigo':
             'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-        'clie_Nacionalidad': 'HND', // Required parameter
+        'clie_Nacionalidad': 'HND',
         'clie_DNI': _dniController.text.trim(),
         'clie_RTN': _rtnController.text.trim(),
         'clie_Nombres': _nombresController.text.trim(),
@@ -329,7 +378,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Confirmacion': false,
         'usua_Creacion': usuaId,
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
-        // Removed 'tras_Id' and 'clie_Estado' as they're not in the stored procedure
       };
 
       print('Enviando datos del cliente: $clienteData');
@@ -432,6 +480,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           _isSubmitting = false;
         });
       }
+    }
+  }
+
+  Future<bool> _checkConnectivity() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (e) {
+      return false;
     }
   }
 

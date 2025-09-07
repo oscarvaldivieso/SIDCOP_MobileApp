@@ -146,4 +146,18 @@ class ClientesOfflineService {
     // Si no hay conexión o falla la carga en línea, cargar desde almacenamiento local
     return await cargarColonias();
   }
+
+  /// Guarda un cliente y sus direcciones en modo offline
+  static Future<void> saveClienteOffline(
+      Map<String, dynamic> cliente,
+      List<Map<String, dynamic>> direcciones) async {
+    final clientesPendientes = await cargarClientesPendientes();
+    final clienteConDirecciones = {
+      ...cliente,
+      'direcciones': direcciones,
+    };
+    clientesPendientes.add(clienteConDirecciones);
+    await guardarClientesPendientes(clientesPendientes);
+    print('Cliente guardado offline con éxito.');
+  }
 }
