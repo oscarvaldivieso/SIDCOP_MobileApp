@@ -94,6 +94,11 @@ class DireccionCliente {
       'diCl_FechaCreacion': dicl_fechacreacion.toIso8601String(),
       'usua_Modificacion': usua_modificacion,
       'diCl_FechaModificacion': dicl_fechamodificacion?.toIso8601String(),
+      // Campos del cliente (importantes para almacenamiento offline)
+      'clie_Nombres': clie_Nombres,
+      'clie_Apellidos': clie_Apellidos,
+      'clie_NombreNegocio': clie_NombreNegocio,
+      'clie_Codigo': clie_Codigo,
     };
   }
 

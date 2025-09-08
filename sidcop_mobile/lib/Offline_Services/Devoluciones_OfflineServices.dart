@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 /// Servicio offline para operaciones relacionadas con devoluciones.
 class DevolucionesOffline {
@@ -10,6 +13,240 @@ class DevolucionesOffline {
   static const String _archivoDevolucionesHistorial =
       "devoluciones_historial.json";
   static const String _archivoDetallesDevolucion = "devoluciones_detalles.json";
+  static const String _archivoDevolucionesPendientes =
+      "devoluciones_pendientes.json";
+  static const String _archivoDevolucionesSyncErrors =
+      "devoluciones_sync_errors.json";
+  static const String _archivoFacturasCreate =
+      "devoluciones_create_facturas.json";
+  static const String _archivoDireccionesCreate =
+      "devoluciones_create_direcciones.json";
+  static const String _archivoProductosPorFactura =
+      "devoluciones_productos_por_factura.json";
+
+  /// Guarda devoluciones pendientes en almacenamiento local
+  static Future<void> guardarDevolucionesPendientes(
+    List<Map<String, dynamic>> devoluciones,
+  ) async {
+    await guardarJson(_archivoDevolucionesPendientes, devoluciones);
+  }
+
+  /// Guarda la lista de facturas usadas por la pantalla crear devolución
+  static Future<void> guardarFacturasCreate(
+    List<Map<String, dynamic>> facturas,
+  ) async {
+    try {
+      await guardarJson(_archivoFacturasCreate, facturas);
+      print('Facturas para create guardadas localmente (${facturas.length})');
+    } catch (e) {
+      print('Error guardando facturas create: $e');
+    }
+  }
+
+  /// Obtiene la lista de facturas guardadas para la pantalla crear devolución
+  static Future<List<Map<String, dynamic>>> obtenerFacturasCreateLocal() async {
+    try {
+      final raw = await leerJson(_archivoFacturasCreate);
+      if (raw == null) return [];
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error obteniendo facturas create local: $e');
+      return [];
+    }
+  }
+
+  /// Guarda la lista de direcciones/clientes usadas por la pantalla crear devolución
+  static Future<void> guardarDireccionesCreate(
+    List<Map<String, dynamic>> direcciones,
+  ) async {
+    try {
+      await guardarJson(_archivoDireccionesCreate, direcciones);
+      print(
+        'Direcciones para create guardadas localmente (${direcciones.length})',
+      );
+    } catch (e) {
+      print('Error guardando direcciones create: $e');
+    }
+  }
+
+  /// Obtiene las direcciones/clientes guardadas para la pantalla crear devolución
+  static Future<List<Map<String, dynamic>>>
+  obtenerDireccionesCreateLocal() async {
+    try {
+      final raw = await leerJson(_archivoDireccionesCreate);
+      if (raw == null) return [];
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error obteniendo direcciones create local: $e');
+      return [];
+    }
+  }
+
+  /// Guarda los productos asociados a una factura para uso offline
+  static Future<void> guardarProductosPorFactura(
+    int facturaId,
+    List<dynamic> productos,
+  ) async {
+    try {
+      final key = "json:$_archivoProductosPorFactura";
+      final existing = await _secureStorage.read(key: key);
+      Map<String, dynamic> map = {};
+      if (existing != null && existing.isNotEmpty) {
+        try {
+          map = jsonDecode(existing) as Map<String, dynamic>;
+        } catch (_) {
+          map = {};
+        }
+      }
+
+      // Intentar descargar y reemplazar imágenes por rutas locales
+      final List<dynamic> processed = [];
+      for (var producto in productos) {
+        try {
+          if (producto is Map && producto.containsKey('prod_Imagen')) {
+            final img = producto['prod_Imagen'];
+            if (img is String &&
+                img.trim().isNotEmpty &&
+                img.startsWith('http')) {
+              try {
+                final prodId =
+                    producto['prod_Id'] ??
+                    DateTime.now().millisecondsSinceEpoch;
+                final localPath = await _downloadAndSaveImage(
+                  img,
+                  facturaId,
+                  prodId,
+                );
+                // Clonar el mapa y reemplazar la ruta
+                final Map<String, dynamic> clone = Map<String, dynamic>.from(
+                  producto,
+                );
+                clone['prod_Imagen'] = localPath;
+                processed.add(clone);
+                continue;
+              } catch (imgErr) {
+                print(
+                  'Error descargando imagen para prod ${producto['prod_Id']}: $imgErr',
+                );
+                // continuar y guardar la referencia original
+              }
+            }
+          }
+        } catch (_) {
+          // en caso de estructura inesperada, seguir
+        }
+        processed.add(producto);
+      }
+
+      // Guardar la lista de productos (serializable) bajo la clave facturaId
+      map[facturaId.toString()] = processed;
+      await _secureStorage.write(key: key, value: jsonEncode(map));
+      print(
+        'Productos guardados localmente para factura $facturaId (con imágenes procesadas si fue posible)',
+      );
+    } catch (e) {
+      print('Error guardando productos por factura $facturaId: $e');
+      rethrow;
+    }
+  }
+
+  /// Descarga una imagen desde [url] y la guarda en la carpeta de documentos
+  /// bajo subcarpeta 'devoluciones_images'. Devuelve la ruta local del archivo
+  /// o la misma URL si falla la descarga.
+  static Future<String> _downloadAndSaveImage(
+    String url,
+    int facturaId,
+    dynamic prodId,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final bytes = response.bodyBytes;
+        final dir = await getApplicationDocumentsDirectory();
+        final imagesDir = Directory(p.join(dir.path, 'devoluciones_images'));
+        if (!await imagesDir.exists()) await imagesDir.create(recursive: true);
+
+        final ext = p.extension(Uri.parse(url).path).isNotEmpty
+            ? p.extension(Uri.parse(url).path)
+            : '.jpg';
+        final filename = '${facturaId}_$prodId$ext';
+        final filePath = p.join(imagesDir.path, filename);
+        final file = File(filePath);
+        await file.writeAsBytes(bytes);
+        print('Imagen guardada localmente en $filePath');
+        return filePath;
+      } else {
+        print('Fallo al descargar imagen: ${response.statusCode}');
+        return url;
+      }
+    } catch (e) {
+      print('Error descargando imagen $url: $e');
+      return url;
+    }
+  }
+
+  /// Obtiene los productos guardados para una factura específica
+  static Future<List<Map<String, dynamic>>> obtenerProductosPorFacturaLocal(
+    int facturaId,
+  ) async {
+    try {
+      final key = "json:$_archivoProductosPorFactura";
+      final existing = await _secureStorage.read(key: key);
+      if (existing == null || existing.isEmpty) return [];
+
+      final Map<String, dynamic> map = jsonDecode(existing);
+      final raw = map[facturaId.toString()];
+      if (raw == null) return [];
+
+      // Asegurar que devolvemos List<Map<String,dynamic>>
+      final List<dynamic> rawList = raw as List<dynamic>;
+      final List<Map<String, dynamic>> productos = rawList
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+      print(
+        'Leídos ${productos.length} productos locales para factura $facturaId',
+      );
+      return productos;
+    } catch (e) {
+      print('Error leyendo productos locales para factura $facturaId: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene las devoluciones pendientes almacenadas localmente
+  static Future<List<Map<String, dynamic>>>
+  obtenerDevolucionesPendientesLocal() async {
+    final raw = await leerJson(_archivoDevolucionesPendientes);
+    if (raw == null) return [];
+    return List<Map<String, dynamic>>.from(raw as List);
+  }
+
+  /// Agrega una devolución pendiente localmente (evita duplicados por devo_Id)
+  static Future<bool> agregarDevolucionPendienteLocal(
+    Map<String, dynamic> devolucion,
+  ) async {
+    final lista = await obtenerDevolucionesPendientesLocal();
+    final id =
+        devolucion['devo_Id'] ?? devolucion['devoId'] ?? devolucion['id'];
+    if (id != null) {
+      for (final item in lista) {
+        final itemId = item['devo_Id'] ?? item['devoId'] ?? item['id'];
+        if (itemId == id) {
+          // Ya existe una devolución pendiente con ese ID
+          return false;
+        }
+      }
+    }
+    lista.add(devolucion);
+    await guardarDevolucionesPendientes(lista);
+    return true;
+  }
+
+  /// Verifica si hay devoluciones pendientes
+  static Future<bool> existenDevolucionesPendientes() async {
+    final pendientes = await obtenerDevolucionesPendientesLocal();
+    return pendientes.isNotEmpty;
+  }
 
   // Instancia de secure storage para almacenar datos
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
@@ -155,6 +392,19 @@ class DevolucionesOffline {
       print("Error al sincronizar devoluciones: $e");
       print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
 
+      // Guardar información del error de sincronización localmente para diagnóstico
+      try {
+        final errorEntry = {
+          'timestamp': DateTime.now().toIso8601String(),
+          'error': e.toString(),
+          'context': 'Devoluciones/Listar',
+        };
+        await guardarErrorSincronizacionDevoluciones(errorEntry);
+        print('✓ Error de sincronización guardado localmente');
+      } catch (saveErr) {
+        print('❌ No se pudo guardar el error de sincronización: $saveErr');
+      }
+
       // Si ocurre un error, intentar devolver lo que está guardado localmente
       try {
         print("Intentando obtener devoluciones locales después del error...");
@@ -216,6 +466,54 @@ class DevolucionesOffline {
     } catch (e) {
       print("Error al guardar devoluciones: $e");
       print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+      rethrow;
+    }
+  }
+
+  /// Guarda un registro de error de sincronización de devoluciones en almacenamiento local
+  static Future<void> guardarErrorSincronizacionDevoluciones(
+    Map<String, dynamic> errorEntry,
+  ) async {
+    try {
+      final existing = await leerJson(_archivoDevolucionesSyncErrors);
+      List<Map<String, dynamic>> list = [];
+      if (existing != null && existing is List) {
+        try {
+          list = List<Map<String, dynamic>>.from(existing);
+        } catch (_) {
+          // Si el formato es inesperado, reiniciar la lista
+          list = [];
+        }
+      }
+      list.add(errorEntry);
+      await guardarJson(_archivoDevolucionesSyncErrors, list);
+    } catch (e) {
+      print('Error guardando error de sincronizacion: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtiene los errores de sincronización guardados localmente
+  static Future<List<Map<String, dynamic>>>
+  obtenerErroresSincronizacionLocal() async {
+    final raw = await leerJson(_archivoDevolucionesSyncErrors);
+    if (raw == null) return [];
+    try {
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error parseando errores de sincronizacion: $e');
+      return [];
+    }
+  }
+
+  /// Limpia el archivo de errores de sincronización local
+  static Future<void> limpiarErroresSincronizacion() async {
+    try {
+      final key = "json:$_archivoDevolucionesSyncErrors";
+      await _secureStorage.delete(key: key);
+      print('Errores de sincronizacion limpiados');
+    } catch (e) {
+      print('Error limpiando errores de sincronizacion: $e');
       rethrow;
     }
   }
@@ -483,49 +781,6 @@ class DevolucionesOffline {
         print(
           "Procesando bloque de devoluciones ${i + 1} a $fin de ${devoluciones.length}",
         );
-
-        // Procesar cada devolución en este bloque
-        for (int j = i; j < fin; j++) {
-          final devolucion = devoluciones[j];
-          try {
-            final devolucionId = devolucion['devo_Id'];
-            if (devolucionId != null) {
-              print(
-                "Sincronizando detalles para devolución ID: $devolucionId (${j + 1} de ${devoluciones.length})",
-              );
-
-              // Obtener detalles directamente desde el servidor
-              final service = DevolucionesService();
-              final detallesServidor = await service.getDevolucionDetalles(
-                devolucionId,
-              );
-
-              // Convertir a formato adecuado para almacenamiento
-              final detallesMap = detallesServidor
-                  .map((detalle) => detalle.toJson())
-                  .toList();
-
-              if (detallesMap.isNotEmpty) {
-                // Guardar directamente los detalles localmente
-                await guardarDetallesDevolucion(devolucionId, detallesMap);
-                contadorExitosos++;
-                totalDetallesSincronizados += detallesMap.length;
-                print(
-                  "✓ Guardados ${detallesMap.length} detalles para ID: $devolucionId",
-                );
-              } else {
-                print(
-                  "⚠ No se encontraron detalles en el servidor para ID: $devolucionId",
-                );
-              }
-            }
-          } catch (e) {
-            print(
-              "Error al sincronizar detalles para la devolución ${devoluciones[j]['devo_Id']}: $e",
-            );
-            // Continuamos con la siguiente devolución
-          }
-        }
 
         // Imprimir progreso después de cada bloque
         print(
