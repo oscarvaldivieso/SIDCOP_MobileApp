@@ -84,61 +84,147 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   Future<List<DevolucionesViewModel>> _loadDevoluciones() async {
     try {
+      print(
+        'Estado de conexión antes de cargar devoluciones: ${isOnline ? 'Online' : 'Offline'}',
+      );
+
       // Ya no verificamos la conexión aquí, usamos el estado actual de isOnline
       // que se actualiza mediante el método verificarConexion()
-
       List<DevolucionesViewModel> devoluciones = [];
 
-      if (isOnline) {
-        // Si hay internet, obtener datos del servidor y sincronizar localmente
-        print('Cargando devoluciones desde el servidor...');
+      // Sincronizar y guardar devoluciones pasando el estado de conexión actual
+      final devolucionesData =
+          await DevolucionesOffline.sincronizarYGuardarDevoluciones(
+            forzarSincronizacionDetalles:
+                isOnline, // Solo sincronizar detalles si estamos online
+            isOnline:
+                isOnline, // Pasar el estado de conexión para que el método sepa si debe obtener del servidor o localmente
+          );
 
-        // Sincronizar y guardar devoluciones
-        final devolucionesData =
-            await DevolucionesOffline.sincronizarYGuardarDevoluciones();
-
-        // Convertir a modelos
+      // Convertir a modelos con manejo mejorado de errores
+      try {
         devoluciones = DevolucionesOffline.convertirAModelos(devolucionesData);
-
         print(
-          'Successfully loaded ${devoluciones.length} devoluciones from server and saved locally',
+          '${isOnline ? 'Online' : 'Offline'}: Successfully loaded ${devoluciones.length} devoluciones',
         );
+      } catch (conversionError) {
+        print('Error al convertir devoluciones a modelos: $conversionError');
+
+        // Intentar conversión manual
+        devoluciones = [];
+        for (var devData in devolucionesData) {
+          try {
+            devoluciones.add(DevolucionesViewModel.fromJson(devData));
+          } catch (e) {
+            print('Error al convertir una devolución específica: $e');
+            print('Datos problemáticos: $devData');
+          }
+        }
+        print(
+          'Se pudieron convertir ${devoluciones.length} devoluciones después del manejo de errores',
+        );
+      }
+
+      if (isOnline) {
+        // Si estamos online, sincronizar detalles para todas las devoluciones
+        print(
+          'Modo online: Sincronizando detalles para todas las devoluciones...',
+        );
+
+        // Imprimir el estado actual del almacenamiento local de detalles
+        await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
 
         if (devoluciones.isEmpty) {
           print('No devoluciones found in the server response');
         } else {
-          print('First devolucion from server: ${devoluciones.first.toJson()}');
+          // Sincronizar detalles para todas las devoluciones que aún no los tienen
+          for (final devolucion in devoluciones) {
+            final tieneDetalles =
+                await DevolucionesOffline.existenDetallesParaDevolicion(
+                  devolucion.devoId,
+                );
+
+            if (!tieneDetalles) {
+              print(
+                'La devolución ID ${devolucion.devoId} no tiene detalles. Sincronizando...',
+              );
+
+              try {
+                // Intentar sincronizar los detalles para esta devolución específica
+                final service = DevolucionesService();
+                final detallesServidor = await service.getDevolucionDetalles(
+                  devolucion.devoId,
+                );
+
+                if (detallesServidor.isNotEmpty) {
+                  // Convertir a formato Map para almacenamiento
+                  final detallesMap = detallesServidor
+                      .map((d) => d.toJson())
+                      .toList();
+
+                  await DevolucionesOffline.guardarDetallesDevolucion(
+                    devolucion.devoId,
+                    detallesMap,
+                  );
+
+                  print(
+                    '✓ Sincronizados ${detallesMap.length} detalles para ID ${devolucion.devoId}',
+                  );
+                } else {
+                  print(
+                    '⚠ No se encontraron detalles en el servidor para ID ${devolucion.devoId}',
+                  );
+                }
+              } catch (detalleError) {
+                print(
+                  'Error al sincronizar detalles para ID ${devolucion.devoId}: $detalleError',
+                );
+              }
+            }
+          }
+
+          // Verificar el estado final del almacenamiento
+          await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
         }
       } else {
-        // Si no hay internet, obtener datos almacenados localmente
-        print(
-          'Sin conexión a internet. Cargando devoluciones desde almacenamiento local...',
-        );
+        print('Modo offline: Usando datos almacenados localmente');
 
-        final devolucionesData =
-            await DevolucionesOffline.obtenerDevolucionesLocal();
-        devoluciones = DevolucionesOffline.convertirAModelos(devolucionesData);
+        // Imprimir los detalles disponibles en modo offline para diagnóstico
+        await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
 
-        print(
-          'Successfully loaded ${devoluciones.length} devoluciones from local storage',
-        );
         if (devoluciones.isEmpty) {
-          print('No devoluciones found in local storage');
-        } else {
-          print(
-            'First devolucion from local storage: ${devoluciones.first.toJson()}',
-          );
+          print('⚠ No se encontraron devoluciones en el almacenamiento local');
+
+          // Intentar cargar directamente desde el almacenamiento como último recurso
+          try {
+            print(
+              'Intentando cargar devoluciones directamente del almacenamiento...',
+            );
+            final devolucionesDirectas =
+                await DevolucionesOffline.obtenerDevolucionesLocal();
+            if (devolucionesDirectas.isNotEmpty) {
+              devoluciones = DevolucionesOffline.convertirAModelos(
+                devolucionesDirectas,
+              );
+              print(
+                '✓ Recuperadas ${devoluciones.length} devoluciones directamente del almacenamiento',
+              );
+            }
+          } catch (e) {
+            print('Error en la recuperación directa: $e');
+          }
         }
       }
 
       return devoluciones;
     } catch (e) {
-      print('Error loading devoluciones: $e');
+      print('Error general al cargar devoluciones: $e');
+      print('Stacktrace: ${e is Error ? e.stackTrace : ''}');
 
-      // Si ocurre un error, intentar cargar desde almacenamiento local
+      // Si ocurre un error, intentar cargar desde almacenamiento local como último recurso
       try {
         print(
-          'Intentando cargar devoluciones desde almacenamiento local debido a un error...',
+          '🔄 Intentando recuperación de emergencia desde almacenamiento local...',
         );
         final devolucionesData =
             await DevolucionesOffline.obtenerDevolucionesLocal();
@@ -146,12 +232,12 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
           devolucionesData,
         );
         print(
-          'Successfully loaded ${localDevoluciones.length} devoluciones from local storage after error',
+          '✓ Recuperadas ${localDevoluciones.length} devoluciones en modo de emergencia',
         );
         return localDevoluciones;
       } catch (localError) {
-        print('Error también al cargar datos locales: $localError');
-        rethrow; // Re-lanzar el error original
+        print('❌ Error también en la recuperación de emergencia: $localError');
+        return []; // Devolver lista vacía en lugar de relanzar el error para evitar un crash
       }
     }
   }
