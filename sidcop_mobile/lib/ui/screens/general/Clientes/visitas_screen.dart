@@ -172,34 +172,6 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             print(
               'Preservando ${pendientes.length} visitas pendientes durante guardado de historial',
             );
-
-            // Mostrar detalles de las visitas pendientes para diagnóstico
-            for (int i = 0; i < pendientes.length; i++) {
-              print('\n===== VISITA PENDIENTE #${i + 1} DETALLE =====');
-              try {
-                print('Cliente ID: ${pendientes[i]['clie_Id']}');
-                print('Dirección ID: ${pendientes[i]['diCl_Id']}');
-                print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
-                print('Fecha: ${pendientes[i]['clVi_Fecha']}');
-                print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
-                print('Offline: ${pendientes[i]['offline']}');
-                print('Observaciones: ${pendientes[i]['clVi_Observaciones']}');
-                print('Firma: ${pendientes[i]['local_signature']}');
-                print(
-                  'Imágenes: ${(pendientes[i]['imagenesBase64'] as List?)?.length ?? 0}',
-                );
-
-                // Mostrar el JSON completo para análisis
-                print('\nJSON COMPLETO:');
-                print(
-                  const JsonEncoder.withIndent('  ').convert(pendientes[i]),
-                );
-              } catch (e) {
-                print(
-                  'Error al imprimir detalles de visita pendiente #${i + 1}: $e',
-                );
-              }
-            }
           }
         } catch (e) {
           print('Error al verificar visitas pendientes: $e');
