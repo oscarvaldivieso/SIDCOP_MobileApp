@@ -166,13 +166,7 @@ Future<void> _registrarPago() async {
 
   // Validar que el monto no sea mayor al pendiente
   final double montoIngresado = double.tryParse(_montoController.text) ?? 0;
-  final double totalPendiente = widget.cuentaResumen.totalPendiente ?? 0;
-
-  if (montoIngresado > totalPendiente) {
-    _showErrorDialog('El monto ingresado no puede ser mayor al total pendiente (${_formatCurrency(totalPendiente)})');
-    return;
-  }
-
+  
   if (montoIngresado <= 0) {
     _showErrorDialog('El monto debe ser mayor a cero');
     return;
@@ -195,6 +189,14 @@ Future<void> _registrarPago() async {
   final String numeroReferencia = _numeroReferenciaController.text.trim();
   if (numeroReferencia.isEmpty) {
     _showErrorDialog('El número de referencia es requerido');
+    return;
+  }
+
+  // Obtener el saldo real desde los datos offline (incluyendo pagos ya aplicados)
+  final double saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuenta(cpCoId);
+  
+  if (montoIngresado > saldoReal) {
+    _showErrorDialog('El monto ingresado no puede ser mayor al saldo pendiente (${_formatCurrency(saldoReal)})');
     return;
   }
 
@@ -237,34 +239,11 @@ Future<void> _registrarPago() async {
 
     
 
-    // Verificar conectividad para decidir si enviar inmediatamente o guardar offline
-    final connectivityResult = await Connectivity().checkConnectivity();
-    final isConnected = connectivityResult != ConnectivityResult.none;
-
-    if (isConnected) {
-      try {
-        // Intentar enviar al servicio inmediatamente
-        final resultado = await _pagoService.insertarPago(pago);
-
-        if (resultado['success']) {
-          _showSuccessDialog();
-        } else {
-          // Si falla el envío, guardar offline
-          await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
-          _showSuccessDialog();
-        }
-      } catch (e) {
-        // Error de conexión durante el envío, guardar offline
-        print('⚠️ Error enviando pago, guardando offline: $e');
-        await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
-        _showSuccessDialog();
-      }
-    } else {
-      // Sin conexión, guardar offline directamente
-      print('📱 Sin conexión, guardando pago offline');
-      await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
-      _showSuccessDialog();
-    }
+    // MODO OFFLINE EXCLUSIVO - Guardar directamente en offline para reflejar cambios inmediatamente
+    print('💾 Registrando pago offline para reflejo inmediato');
+    await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
+    print('✅ Pago registrado offline - cambios reflejados inmediatamente');
+    _showSuccessDialog();
   } catch (e) {
     _showErrorDialog('Error de conexión: ${e.toString()}');
   } finally {

@@ -419,6 +419,12 @@ class CuentasPorCobrarOfflineService {
   /// Guarda un pago pendiente cuando no hay conexión.
   static Future<void> guardarPagoPendiente(PagosCuentasXCobrar pago) async {
     try {
+      // VALIDACIONES PREVIAS ANTES DE GUARDAR
+      final validacionResult = await validarPagoOffline(pago);
+      if (!validacionResult['valido']) {
+        throw Exception(validacionResult['mensaje']);
+      }
+
       // Obtener pagos pendientes existentes
       final pendientes = await obtenerPagosPendientesLocal();
       
@@ -445,16 +451,122 @@ class CuentasPorCobrarOfflineService {
     }
   }
 
+  /// Valida un pago offline para asegurar que sea válido antes de procesarlo
+  static Future<Map<String, dynamic>> validarPagoOffline(PagosCuentasXCobrar pago) async {
+    try {
+      final cpCoId = pago.cpCoId;
+      final montoPago = pago.pagoMonto;
+
+      // 1. Validar que la cuenta existe en los datos offline
+      final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
+      if (cuentaDetalle == null) {
+        // Buscar en el resumen de clientes
+        final resumenClientes = await obtenerResumenClientesLocal();
+        final cuentaEnResumen = resumenClientes.firstWhere(
+          (item) => item['cpCo_Id'] == cpCoId,
+          orElse: () => null,
+        );
+        
+        if (cuentaEnResumen == null) {
+          return {
+            'valido': false,
+            'mensaje': 'La cuenta por cobrar no existe en los datos offline'
+          };
+        }
+      }
+
+      // 2. Obtener el saldo actual (incluyendo pagos pendientes ya aplicados)
+      double saldoActual = 0;
+      if (cuentaDetalle != null) {
+        saldoActual = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
+      } else {
+        // Buscar en resumen de clientes
+        final resumenClientes = await obtenerResumenClientesLocal();
+        for (final item in resumenClientes) {
+          if (item['cpCo_Id'] == cpCoId) {
+            saldoActual = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+            break;
+          }
+        }
+      }
+
+      // 3. Validar que el monto no exceda el saldo pendiente
+      if (montoPago > saldoActual) {
+        return {
+          'valido': false,
+          'mensaje': 'El monto del pago (${_formatCurrency(montoPago)}) excede el saldo pendiente (${_formatCurrency(saldoActual)})'
+        };
+      }
+
+      // 4. Validar que no haya pagos duplicados pendientes para la misma cuenta
+      final pagosPendientes = await obtenerPagosPendientesLocal();
+      double montoPagosYaPendientes = 0;
+      
+      for (final pendiente in pagosPendientes) {
+        final pagoData = pendiente['pago'] as Map<String, dynamic>;
+        if (pagoData['CPCo_Id'] == cpCoId) {
+          montoPagosYaPendientes += (pagoData['Pago_Monto'] ?? 0).toDouble();
+        }
+      }
+
+      final saldoDisponible = saldoActual - montoPagosYaPendientes;
+      if (montoPago > saldoDisponible) {
+        return {
+          'valido': false,
+          'mensaje': 'Ya hay pagos pendientes por ${_formatCurrency(montoPagosYaPendientes)}. Saldo disponible: ${_formatCurrency(saldoDisponible)}'
+        };
+      }
+
+      // 5. Validaciones de negocio básicas
+      if (montoPago <= 0) {
+        return {
+          'valido': false,
+          'mensaje': 'El monto del pago debe ser mayor a cero'
+        };
+      }
+
+      if (pago.pagoNumeroReferencia.trim().isEmpty) {
+        return {
+          'valido': false,
+          'mensaje': 'El número de referencia es requerido'
+        };
+      }
+
+      if (pago.foPaId <= 0) {
+        return {
+          'valido': false,
+          'mensaje': 'Debe seleccionar una forma de pago válida'
+        };
+      }
+
+      return {
+        'valido': true,
+        'mensaje': 'Pago válido',
+        'saldoActual': saldoActual,
+        'saldoDisponible': saldoDisponible
+      };
+
+    } catch (e) {
+      return {
+        'valido': false,
+        'mensaje': 'Error validando pago: $e'
+      };
+    }
+  }
+
   /// Simula un pago localmente actualizando los saldos en cache
   static Future<void> _simularPagoLocal(PagosCuentasXCobrar pago) async {
     try {
       final cpCoId = pago.cpCoId;
       final montoPago = pago.pagoMonto;
       
+      print('🔄 Simulando pago local para cuenta $cpCoId: ${_formatCurrency(montoPago)}');
+      
       // 1. Actualizar el detalle de la cuenta si existe
       final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
       if (cuentaDetalle != null) {
-        final nuevoSaldo = (cuentaDetalle.cpCo_Saldo ?? 0) - montoPago;
+        final saldoAnterior = cuentaDetalle.cpCo_Saldo ?? 0;
+        final nuevoSaldo = saldoAnterior - montoPago;
         
         // Crear una nueva instancia con el saldo actualizado
         final cuentaJson = cuentaDetalle.toJson();
@@ -463,20 +575,26 @@ class CuentasPorCobrarOfflineService {
         // Si el saldo llega a 0, marcar como saldada
         if (nuevoSaldo <= 0) {
           cuentaJson['cpCo_Saldada'] = true;
+          cuentaJson['cpCo_FechaSaldada'] = DateTime.now().toIso8601String();
         }
         
         final cuentaActualizada = CuentasXCobrar.fromJson(cuentaJson);
         await guardarDetalleCuenta(cpCoId, cuentaActualizada);
+        
+        print('✅ Detalle de cuenta actualizado: Saldo ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
       }
       
       // 2. Actualizar el resumen de clientes
       final resumenClientes = await obtenerResumenClientesLocal();
+      bool resumenActualizado = false;
+      
       for (int i = 0; i < resumenClientes.length; i++) {
         final item = resumenClientes[i];
         final cuenta = CuentasXCobrar.fromJson(item);
         
         if (cuenta.cpCo_Id == cpCoId) {
-          final nuevoSaldo = (cuenta.cpCo_Saldo ?? 0) - montoPago;
+          final saldoAnterior = cuenta.totalPendiente ?? cuenta.cpCo_Saldo ?? 0;
+          final nuevoSaldo = saldoAnterior - montoPago;
           
           // Crear una nueva instancia con valores actualizados
           final cuentaJson = cuenta.toJson();
@@ -485,23 +603,67 @@ class CuentasPorCobrarOfflineService {
           
           if (nuevoSaldo <= 0) {
             cuentaJson['cpCo_Saldada'] = true;
+            cuentaJson['cpCo_FechaSaldada'] = DateTime.now().toIso8601String();
           }
+          
+          // Actualizar información de último pago
+          cuentaJson['ultimoPago'] = DateTime.now().toIso8601String();
           
           // Actualizar el item en la lista
           resumenClientes[i] = cuentaJson;
+          resumenActualizado = true;
+          print('✅ Resumen de cliente actualizado: Pendiente ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
           break;
         }
       }
       
-      // Guardar el resumen actualizado
-      await guardarJson(_archivoResumenClientes, resumenClientes);
+      // Guardar el resumen actualizado solo si se hicieron cambios
+      if (resumenActualizado) {
+        await guardarJson(_archivoResumenClientes, resumenClientes);
+      }
       
       // 3. Agregar el pago al historial local
       await _agregarPagoAlHistorialLocal(pago);
       
-      print('Simulación de pago local completada para cuenta $cpCoId');
+      // 4. Actualizar el timeline del cliente inmediatamente
+      await _actualizarTimelineInmediato(pago);
+      
+      print('✅ Simulación de pago local completada para cuenta $cpCoId');
     } catch (e) {
-      print('Error simulando pago local: $e');
+      print('❌ Error simulando pago local: $e');
+      rethrow;
+    }
+  }
+
+  /// Método auxiliar para formatear moneda en los logs
+  static String _formatCurrency(double amount) {
+    return 'L ${amount.toStringAsFixed(2)}';
+  }
+
+  /// Obtiene el saldo real de una cuenta considerando pagos pendientes offline
+  static Future<double> obtenerSaldoRealCuenta(int cpCoId) async {
+    try {
+      // 1. Obtener saldo base de la cuenta
+      double saldoBase = 0;
+      
+      final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
+      if (cuentaDetalle != null) {
+        saldoBase = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
+      } else {
+        // Buscar en resumen de clientes
+        final resumenClientes = await obtenerResumenClientesLocal();
+        for (final item in resumenClientes) {
+          if (item['cpCo_Id'] == cpCoId) {
+            saldoBase = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+            break;
+          }
+        }
+      }
+
+      return saldoBase;
+    } catch (e) {
+      print('Error obteniendo saldo real de cuenta $cpCoId: $e');
+      return 0;
     }
   }
 
@@ -910,6 +1072,64 @@ class CuentasPorCobrarOfflineService {
     } catch (e) {
       print('❌ Error en sincronización completa de Cuentas por Cobrar: $e');
       rethrow;
+    }
+  }
+
+  /// Actualiza el timeline del cliente inmediatamente después de un pago
+  static Future<void> _actualizarTimelineInmediato(PagosCuentasXCobrar pago) async {
+    try {
+      // Obtener los datos actualizados de la cuenta desde el resumen de clientes
+      final resumenClientes = await obtenerResumenClientesLocal();
+      
+      // Buscar la cuenta específica y obtener su cliente ID
+      int? clienteId;
+      for (final item in resumenClientes) {
+        if (item['cpCo_Id'] == pago.cpCoId) {
+          clienteId = item['clie_Id'];
+          break;
+        }
+      }
+      
+      if (clienteId != null) {
+        // Obtener el timeline actual del cliente
+        final timelineKey = 'timeline_cliente_$clienteId';
+        final timelineActual = await leerJsonSeguro(timelineKey) ?? [];
+        final listaTimeline = List.from(timelineActual as List);
+        
+        // Buscar y actualizar la cuenta específica en el timeline
+        bool cuentaActualizada = false;
+        for (int i = 0; i < listaTimeline.length; i++) {
+          final item = listaTimeline[i];
+          if (item['cpCo_Id'] == pago.cpCoId) {
+            // Actualizar el saldo en el timeline
+            final saldoAnterior = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+            final nuevoSaldo = saldoAnterior - pago.pagoMonto;
+            
+            item['cpCo_Saldo'] = nuevoSaldo > 0 ? nuevoSaldo : 0;
+            item['totalPendiente'] = item['cpCo_Saldo'];
+            
+            if (nuevoSaldo <= 0) {
+              item['cpCo_Saldada'] = true;
+              item['cpCo_FechaSaldada'] = DateTime.now().toIso8601String();
+            }
+            
+            // Actualizar fecha de último pago
+            item['ultimoPago'] = DateTime.now().toIso8601String();
+            
+            listaTimeline[i] = item;
+            cuentaActualizada = true;
+            break;
+          }
+        }
+        
+        // Guardar el timeline actualizado si se hicieron cambios
+        if (cuentaActualizada) {
+          await guardarJsonSeguro(timelineKey, listaTimeline);
+          print('✅ Timeline de cliente $clienteId actualizado inmediatamente');
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error actualizando timeline inmediatamente: $e');
     }
   }
 }

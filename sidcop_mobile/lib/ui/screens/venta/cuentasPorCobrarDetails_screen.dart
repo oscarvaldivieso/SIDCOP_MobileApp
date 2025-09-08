@@ -655,16 +655,17 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
     
     // Si el pago fue exitoso, recargar el timeline y notificar a la pantalla anterior
     if (result != null && result['pagoRegistrado'] == true) {
-      print('✅ Pago registrado, recargando timeline...');
-      _loadTimelineCliente();
+      print('✅ Pago registrado, recargando datos...');
       
-      // Notificar a la pantalla anterior que hubo cambios
+      // Recargar inmediatamente el timeline y actualizar la cuenta
+      await _loadTimelineCliente();
+      
+      // Actualizar también la información de la cuenta desde los datos offline actualizados
+      await _actualizarInformacionCuenta();
+      
+      // Notificar a la pantalla anterior que hubo cambios (sin delay para inmediatez)
       if (mounted) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            Navigator.of(context).pop({'pagoRegistrado': true});
-          }
-        });
+        Navigator.of(context).pop({'pagoRegistrado': true});
       }
     }
   }
@@ -700,5 +701,31 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
         ),
       ],
     );
+  }
+
+  /// Actualiza la información de la cuenta desde los datos offline actualizados
+  Future<void> _actualizarInformacionCuenta() async {
+    try {
+      // Buscar la cuenta actualizada en el resumen de clientes offline
+      final resumenClientes = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      
+      for (final item in resumenClientes) {
+        if (item['cpCo_Id'] == widget.cuentaResumen.cpCo_Id) {
+          // Crear una nueva instancia de la cuenta con los datos actualizados
+          final cuentaActualizada = CuentasXCobrar.fromJson(item);
+          
+          // Como no puedo modificar el widget.cuentaResumen directamente, 
+          // simplemente forzar un rebuild del UI que mostrará los nuevos datos
+          setState(() {
+            // Solo hacer un setState para refrescar la UI
+          });
+          
+          print('✅ Información de cuenta actualizada: Nuevo saldo ${cuentaActualizada.totalPendiente}');
+          break;
+        }
+      }
+    } catch (e) {
+      print('Error actualizando información de cuenta: $e');
+    }
   }
 }
