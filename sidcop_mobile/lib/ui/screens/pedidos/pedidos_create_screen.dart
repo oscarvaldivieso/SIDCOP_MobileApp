@@ -455,23 +455,32 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     });
 
     try {
-      // Cargar direcciones del cliente desde API o caché
+      // Verificar conexión a internet
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOnline = connectivityResult != ConnectivityResult.none;
+      
       List<dynamic> direcciones = [];
       
-      try {
-        // Intentar cargar desde la API primero
-        direcciones = await ClientesService().getDireccionesCliente(
-          widget.clienteId,
-        );
-        print('Direcciones obtenidas desde API: $direcciones');
-      } catch (e) {
-        print('Error cargando direcciones desde API: $e');
-        
-        // Fallback: intentar cargar desde caché offline
+      if (isOnline) {
+        // Si hay conexión, intentar cargar desde la API
         try {
+          direcciones = await ClientesService().getDireccionesCliente(
+            widget.clienteId,
+          );
+          print('Direcciones obtenidas desde API: ${direcciones.length}');
+        } catch (e) {
+          print('Error cargando direcciones desde API: $e');
+          // Continuar con fallback offline
+        }
+      }
+      
+      // Fallback offline: si no hay conexión o falló la API
+      if (direcciones.isEmpty) {
+        try {
+          print('Cargando direcciones desde caché offline...');
           final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
           direcciones = direccionesCache;
-          print('Direcciones obtenidas desde caché: $direcciones');
+          print('Direcciones obtenidas desde caché: ${direcciones.length}');
         } catch (cacheError) {
           print('Error cargando direcciones desde caché: $cacheError');
         }
@@ -485,6 +494,8 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         if (_direcciones.isNotEmpty) {
           _direccionSeleccionada = _direcciones[0];
           print('Dirección seleccionada por defecto: $_direccionSeleccionada');
+        } else {
+          print('No se encontraron direcciones para el cliente ${widget.clienteId}');
         }
       });
     } catch (e) {
@@ -492,9 +503,18 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         _loadingDirecciones = false;
       });
 
+      print('Error general cargando direcciones: $e');
       if (mounted) {
+        final connectivityResult = await Connectivity().checkConnectivity();
+        final bool hasConnection = connectivityResult != ConnectivityResult.none;
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar direcciones: $e')),
+          SnackBar(
+            content: Text(
+              'Error al cargar direcciones: ${hasConnection ? 'Error del servidor' : 'Sin conexión y sin datos offline'}',
+            ),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
     }
