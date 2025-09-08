@@ -579,23 +579,24 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
               ? _buildErrorWidget()
               : _goals.isEmpty
                   ? _buildEmptyState()
-                  : SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          _buildSummaryCard(),
-                          const SizedBox(height: 16),
-                        ...List.generate(
-                          _goals.length,
-                          (index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: _buildGoalCard(_goals[index]),
-                          ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 8),
+                                  _buildSummaryCard(),
+                                  const SizedBox(height: 16),
+                                  ..._goals.map((goal) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12.0),
+                                    child: _buildGoalCard(goal),
+                                  )),
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
+                            );
+                      },
                     ),
     );
   }
