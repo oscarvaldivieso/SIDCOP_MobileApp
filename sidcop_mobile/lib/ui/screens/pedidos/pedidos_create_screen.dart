@@ -11,6 +11,7 @@ import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_confirmar_screen.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
+import 'dart:io';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -214,22 +215,50 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       _isLoading = true;
       _error = null;
     });
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final isOnline = connectivityResult != ConnectivityResult.none;
+
     try {
-      final productos = await PedidosService().getProductosConListaPrecio(
-        widget.clienteId,
-      );
-      print(productos[3].toJson());
-      //print(productos[3].descuentosEscala![0].toJson());
-      setState(() {
-        _productos = productos;
-        _filteredProductos = List.from(_productos);
-        _isLoading = false;
-      });
+      List<ProductosPedidosViewModel> productos;
+      if (isOnline) {
+        print('Modo Online: Cargando productos desde el servidor...');
+        productos = await PedidosService().getProductosConListaPrecio(
+          widget.clienteId,
+        );
+        // Guardar productos en la caché para uso offline
+        if (productos.isNotEmpty) {
+          await PedidosScreenOffline.guardarProductosPorCliente(
+            widget.clienteId,
+            productos,
+          );
+        }
+      } else {
+        print('Modo Offline: Cargando productos desde la caché...');
+        productos = await PedidosScreenOffline.obtenerProductosPorCliente(
+          widget.clienteId,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          if (productos.isEmpty) {
+            _error = isOnline
+                ? 'No se encontraron productos.'
+                : 'No hay productos guardados para ver offline.';
+          }
+          _productos = productos;
+          _filteredProductos = List.from(_productos);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Error al cargar productos $e';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Error al cargar productos: $e';
+        });
+      }
     }
   }
 
@@ -551,7 +580,55 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ),
       ),
     );
-  }}
+  }
+
+  Widget _buildProductImage(ProductosPedidosViewModel producto) {
+    final imageUrl = producto.prodImagen;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildPlaceholderImage();
+    }
+
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        width: 70,
+        height: 70,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
+      );
+    } else {
+      final file = File(imageUrl);
+      return Image.file(
+        file,
+        width: 70,
+        height: 70,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
+      );
+    }
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 70,
+      height: 70,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFD6B68A).withOpacity(0.2),
+            const Color(0xFF98774A).withOpacity(0.1),
+          ],
+        ),
+      ),
+      child: const Icon(
+        Icons.inventory_2_outlined,
+        color: Color(0xFF98774A),
+        size: 28,
+      ),
+    );
+  }
 
   Widget _buildDescuentosItem(
     ProductosPedidosViewModel producto,
@@ -706,64 +783,189 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                           child:
                               producto.prodImagen != null &&
                                   producto.prodImagen!.isNotEmpty
-                              ? Image.network(
-                                  producto.prodImagen!,
-                                  width: 70,
-                                  height: 70,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                        width: 70,
-                                        height: 70,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                            colors: [
-                                              const Color(
-                                                0xFFD6B68A,
-                                              ).withOpacity(0.2),
-                                              const Color(
-                                                0xFF98774A,
-                                              ).withOpacity(0.1),
-                                            ],
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.inventory_2_outlined,
-                                          color: Color(0xFF98774A),
-                                          size: 28,
-                                        ),
-                                      ),
-                                )
-                              : Container(
-                                  width: 70,
-                                  height: 70,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        const Color(
-                                          0xFFD6B68A,
-                                        ).withOpacity(0.2),
-                                        const Color(
-                                          0xFF98774A,
-                                        ).withOpacity(0.1),
-                                      ],
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.inventory_2_outlined,
-                                    color: Color(0xFF98774A),
-                                    size: 28,
-                                  ),
-                                ),
+                              ? (producto.prodImagen!.startsWith('http')
+                                  ? Image.network(
+                                      producto.prodImagen!,
+                                      width: 70,
+                                      height: 70,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildPlaceholderImage(),
+                                    )
+                                  : Image.file(
+                                      File(producto.prodImagen!),
+                                      width: 70,
+                                      height: 70,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildPlaceholderImage(),
+                                    ))
+                              : _buildPlaceholderImage(),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // Información del producto
-                      Expanded(
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Controles de cantidad mejorados
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Botón de deseleccionar cuando está seleccionado
+                      if (isSelected)
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _cantidades[producto.prodId] = 0;
+                            });
+                          },
+                          icon: const Icon(Icons.close, size: 16),
+                          label: const Text('Quitar'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red.shade700,
+                            textStyle:
+                                const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      const Spacer(),
+                      _buildCantidadController(producto),
+                    ],
+                  ),
+                  // Mostrar descuentos si están disponibles
+                  if (producto.descuentosEscala != null &&
+                      producto.descuentosEscala!.isNotEmpty &&
+                      producto.descEspecificaciones != null &&
+                      producto.descEspecificaciones!.descTipoFactura == 'AM')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Descuentos Manuales Disponibles:',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF141A2F),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ...producto.descuentosEscala!.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            DescuentoEscalaModel desc = entry.value;
+                            return _buildDescuentosItem(producto, desc, idx);
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Badge de producto seleccionado
+            if (isSelected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF98774A),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'SELECCIONADO',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 70,
+      height: 70,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFD6B68A).withOpacity(0.2),
+            const Color(0xFF98774A).withOpacity(0.1),
+          ],
+        ),
+      ),
+      child: const Icon(
+        Icons.inventory_2_outlined,
+        color: Color(0xFF98774A),
+        size: 28,
+      ),
+    );
+  }
+
+  Widget _buildCantidadController(ProductosPedidosViewModel producto) {
+    final cantidad = _cantidades[producto.prodId] ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F2F5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, color: Color(0xFF141A2F)),
+            onPressed: () {
+              if (cantidad > 0) {
+                setState(() {
+                  _cantidades[producto.prodId] = cantidad - 1;
+                });
+              }
+            },
+            splashRadius: 20,
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Text(
+              '$cantidad',
+              style: const TextStyle(
+                fontFamily: 'Satoshi',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF141A2F),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, color: Color(0xFF141A2F)),
+            onPressed: () {
+              setState(() {
+                _cantidades[producto.prodId] = cantidad + 1;
+              });
+            },
+            splashRadius: 20,
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        ],
+      ),
+    );
+  }
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

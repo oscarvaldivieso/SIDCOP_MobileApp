@@ -13,7 +13,8 @@ class PedidosScreenOffline {
   static const String _carpetaOffline = 'offline_pedidos';
   static const String _pedidosKey = 'pedidos_list';
   static const String _pedidoDetalleKey = 'pedido_detalle_';
-  static const String _pedidosPendientesKey = 'pedidos_pendientes';
+    static const String _pedidosPendientesKey = 'pedidos_pendientes';
+
 
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
