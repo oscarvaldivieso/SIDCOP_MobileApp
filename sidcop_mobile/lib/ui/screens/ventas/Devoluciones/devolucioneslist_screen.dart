@@ -24,6 +24,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
   List<dynamic> permisos = [];
   bool isOnline = true; // Indicador de estado de conexión
+  bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
 
   // Método para verificar la conexión a internet
   Future<bool> verificarConexion() async {
@@ -94,6 +95,18 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       // que se actualiza mediante el método verificarConexion()
       List<DevolucionesViewModel> devoluciones = [];
 
+      // Debug: verificar si hay devoluciones pendientes locales antes de sincronizar
+      try {
+        final pendingLocal =
+            await DevolucionesOffline.obtenerDevolucionesLocal();
+        print(
+          'DEBUG: devoluciones pendientes locales count: ${pendingLocal.length}',
+        );
+        print('DEBUG: devoluciones pendientes locales (raw): $pendingLocal');
+      } catch (debugErr) {
+        print('DEBUG: error leyendo devoluciones locales: $debugErr');
+      }
+
       // Sincronizar y guardar devoluciones pasando el estado de conexión actual
       final devolucionesData =
           await DevolucionesOffline.sincronizarYGuardarDevoluciones(
@@ -127,6 +140,19 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         );
       }
 
+      // If online, attempt to sync pending devoluciones that were saved offline
+      if (isOnline) {
+        try {
+          final resultadoPendientes =
+              await DevolucionesOffline.sincronizarPendientesDevoluciones();
+          print(
+            'DEBUG: Resultado sincronización pendientes: $resultadoPendientes',
+          );
+        } catch (e) {
+          print('DEBUG: Error sincronizando pendientes: $e');
+        }
+      }
+
       if (isOnline) {
         // Si estamos online, sincronizar detalles para todas las devoluciones
         print(
@@ -136,83 +162,91 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         // Obtener facturas por límite de devoluciones, filtrar por vendedor
         // actual (GlobalService.globalVendId), deduplicar fact_Id, comprobar
         // caché y prefetch con concurrencia limitada y tope (top-N).
-        try {
-          final facturaService = FacturaService();
-          final facturasData = await facturaService
-              .getFacturasDevolucionesLimite();
+        // Ejecutar prefetch una sola vez por instancia de pantalla
+        if (!_prefetchCompleted) {
+          _prefetchCompleted = true;
+          try {
+            final facturaService = FacturaService();
+            final facturasData = await facturaService
+                .getFacturasDevolucionesLimite();
 
-          final int? vendIdActual = globalVendId; // desde GlobalService
-          final Set<int> factIdsSet = {};
+            final int? vendIdActual = globalVendId; // desde GlobalService
+            final Set<int> factIdsSet = {};
 
-          for (var f in facturasData) {
-            try {
-              final dynamic vendVal = f['vend_Id'] ?? f['vendId'];
-              final int? vend = vendVal != null
-                  ? int.tryParse(vendVal.toString())
-                  : null;
-              if (vend != null &&
-                  vendIdActual != null &&
-                  vend == vendIdActual) {
-                final dynamic fid = f['fact_Id'] ?? f['factId'];
-                if (fid != null) {
-                  final int? factId = int.tryParse(fid.toString());
-                  if (factId != null) factIdsSet.add(factId);
-                }
-              }
-            } catch (inner) {
-              print('Warning: error parsing factura entry: $inner');
-            }
-          }
-
-          // Usar todos los IDs deduplicados retornados por el endpoint
-          final List<int> factIdsToConsider = factIdsSet.toList();
-
-          // Filtrar facturas que ya están cacheadas
-          final List<int> toFetch = [];
-          for (final id in factIdsToConsider) {
-            try {
-              final cached =
-                  await DevolucionesOffline.obtenerProductosPorFacturaLocal(id);
-              // Si la caché está vacía, considerarla no cacheada
-              if (cached.isEmpty) {
-                toFetch.add(id);
-              }
-            } catch (cacheErr) {
-              print('Error comprobando cache para factura $id: $cacheErr');
-              toFetch.add(id); // si falla la comprobación, intentar descargar
-            }
-          }
-
-          // Descarga con concurrencia limitada
-          final int concurrency = 5;
-          final productosService = ProductosService();
-          for (int i = 0; i < toFetch.length; i += concurrency) {
-            final batch = toFetch.sublist(
-              i,
-              (i + concurrency) > toFetch.length
-                  ? toFetch.length
-                  : (i + concurrency),
-            );
-            await Future.wait(
-              batch.map((factId) async {
-                try {
-                  print('Obteniendo productos para factura $factId (prefetch)');
-                  final productosPorFactura = await productosService
-                      .getProductosPorFactura(factId);
-                  if (productosPorFactura.isNotEmpty) {
-                    await DevolucionesOffline.guardarProductosPorFactura(
-                      factId,
-                      productosPorFactura,
-                    );
+            for (var f in facturasData) {
+              try {
+                final dynamic vendVal = f['vend_Id'] ?? f['vendId'];
+                final int? vend = vendVal != null
+                    ? int.tryParse(vendVal.toString())
+                    : null;
+                if (vend != null &&
+                    vendIdActual != null &&
+                    vend == vendIdActual) {
+                  final dynamic fid = f['fact_Id'] ?? f['factId'];
+                  if (fid != null) {
+                    final int? factId = int.tryParse(fid.toString());
+                    if (factId != null) factIdsSet.add(factId);
                   }
-                } catch (err) {
-                  print('Error prefetch productos factura $factId: $err');
                 }
-              }),
-            );
+              } catch (inner) {
+                print('Warning: error parsing factura entry: $inner');
+              }
+            }
+
+            // Usar todos los IDs deduplicados retornados por el endpoint
+            final List<int> factIdsToConsider = factIdsSet.toList();
+
+            // Filtrar facturas que ya están cacheadas
+            final List<int> toFetch = [];
+            for (final id in factIdsToConsider) {
+              try {
+                final cached =
+                    await DevolucionesOffline.obtenerProductosPorFacturaLocal(
+                      id,
+                    );
+                // Si la caché está vacía, considerarla no cacheada
+                if (cached.isEmpty) {
+                  toFetch.add(id);
+                }
+              } catch (cacheErr) {
+                print('Error comprobando cache para factura $id: $cacheErr');
+                toFetch.add(id); // si falla la comprobación, intentar descargar
+              }
+            }
+
+            // Descarga con concurrencia limitada
+            final int concurrency = 5;
+            final productosService = ProductosService();
+            for (int i = 0; i < toFetch.length; i += concurrency) {
+              final batch = toFetch.sublist(
+                i,
+                (i + concurrency) > toFetch.length
+                    ? toFetch.length
+                    : (i + concurrency),
+              );
+              await Future.wait(
+                batch.map((factId) async {
+                  try {
+                    print(
+                      'Obteniendo productos para factura $factId (prefetch)',
+                    );
+                    final productosPorFactura = await productosService
+                        .getProductosPorFactura(factId);
+                    if (productosPorFactura.isNotEmpty) {
+                      await DevolucionesOffline.guardarProductosPorFactura(
+                        factId,
+                        productosPorFactura,
+                      );
+                    }
+                  } catch (err) {
+                    print('Error prefetch productos factura $factId: $err');
+                  }
+                }),
+              );
+            }
+          } catch (e) {
+            print('Error general al prefetch productos por factura: $e');
           }
-        } catch (e) {
-          print('Error general al prefetch productos por factura: $e');
         }
 
         // Imprimir el estado actual del almacenamiento local de detalles

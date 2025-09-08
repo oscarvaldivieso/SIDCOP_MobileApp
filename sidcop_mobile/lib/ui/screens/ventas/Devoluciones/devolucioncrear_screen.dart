@@ -476,151 +476,93 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Crear la devolución con factura ajustada
       try {
-        final response = await _devolucionesService
-            .insertarDevolucionConFacturaAjustada(
-              clieId: _selectedClienteId!,
-              factId: _selectedFacturaId!,
-              devoMotivo: _motivoController.text,
-              usuaCreacion:
-                  usuaId!, // TODO: Reemplazar con el ID del usuario autenticado
-              detalles: productosADevolver,
-              devoFecha: DateTime.tryParse(_fechaController.text),
-              crearNuevaFactura: true,
-            );
+        final isOnline = await VerificarService.verificarConexion();
 
-        // Cerrar el diálogo de carga
-        if (!mounted) return;
-        Navigator.pop(context);
+        if (isOnline) {
+          // Enviar devolución online
+          final response = await _devolucionesService
+              .insertarDevolucionConFacturaAjustada(
+                clieId: _selectedClienteId!,
+                factId: _selectedFacturaId!,
+                devoMotivo: _motivoController.text,
+                usuaCreacion: usuaId!,
+                detalles: productosADevolver,
+                devoFecha: DateTime.tryParse(_fechaController.text),
+                crearNuevaFactura: true,
+              );
 
-        // DEBUG: Imprimir toda la respuesta para entender la estructura
-        print('🔍 DEBUGGING - Respuesta completa del servicio:');
-        print(response);
+          Navigator.pop(context); // Cerrar el diálogo de carga
 
-        // VALIDACIÓN CRÍTICA: Verificar si el proceso fue exitoso
-        final success = response['success'] == true;
-        final hasError = response['error'] == true;
+          // Print para verificar la respuesta del endpoint
+          print('Respuesta del endpoint:');
+          print(response);
 
-        print('🔍 DEBUG - success: $success, hasError: $hasError');
-
-        if (!success || hasError) {
-          // El proceso falló - mostrar error
-          final errorMessage =
-              response['message'] ??
-              'Error desconocido en el proceso de devolución';
-          print('❌ MOSTRANDO ERROR: $errorMessage');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $errorMessage'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-          return; // Salir sin mostrar modal de éxito
-        }
-
-        // Extraer datos de la respuesta SOLO si fue exitoso
-        final devoId = response['devolucion']?['data']?['devo_Id'] ?? 'N/A';
-        final facturaAjustada = response['facturaAjustada'];
-        final facturaCreada = facturaAjustada?['facturaCreada'] == true;
-        final facturaNumero = facturaAjustada?['facturaNumero'];
-
-        // Extraer datos de la respuesta del VentaService
-        final ventaServiceResponse = facturaAjustada?['ventaServiceResponse'];
-        final ventaServiceData = ventaServiceResponse?['data'];
-
-        print(
-          '✅ Proceso exitoso - devoId: $devoId, facturaCreada: $facturaCreada',
-        );
-        print('facturaNumero: $facturaNumero');
-        print('ventaServiceData: $ventaServiceData');
-
-        // VALIDACIÓN ADICIONAL: Verificar que el proceso de factura fue exitoso
-        // Nota: facturaCreada puede ser false en devoluciones completas (válido)
-        if (facturaAjustada == null) {
-          print('❌ ERROR: No se recibió respuesta de factura ajustada');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: No se pudo procesar la factura ajustada'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-          return;
-        }
-
-        // Mostrar modal de éxito SOLO si todo fue exitoso
-        if (!mounted) return;
-
-        // Preparar datos para el modal (manejar devoluciones completas y parciales)
-        final modalData = {
-          'devoId': devoId,
-          'facturaNumero': facturaNumero,
-          'facturaData':
-              ventaServiceData, // Puede ser null en devoluciones completas
-          'productosDevueltos': productosADevolver.length,
-          'facturaCreada': facturaCreada, // Indicar si se creó nueva factura
-        };
-
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => _buildReturnSuccessDialog(context, modalData),
-        );
-      } catch (e) {
-        // Cerrar diálogo de carga
-        if (!mounted) return;
-        Navigator.pop(context);
-
-        // Si no hay conexión, guardar la devolución como pendiente localmente
-        try {
-          final hasConnection = await VerificarService.verificarConexion();
-          if (!hasConnection) {
-            final pending = {
-              'clie_Id': _selectedClienteId,
-              'fact_Id': _selectedFacturaId,
-              'devo_Motivo': _motivoController.text,
-              'usua_Creacion': usuaId ?? 0,
-              'devo_Fecha': _fechaController.text,
-              'detalles': productosADevolver,
-              'pendiente_Creacion': DateTime.now().toIso8601String(),
+          if (response['success'] == true) {
+            // Mostrar éxito
+            final modalData = {
+              'devoId': response['devolucion']?['data']?['devo_Id'] ?? 'N/A',
+              'facturaNumero': response['facturaAjustada']?['facturaNumero'],
+              'productosDevueltos': productosADevolver.length,
+              'facturaCreada':
+                  response['facturaAjustada']?['facturaCreada'] == true,
             };
-
-            final added =
-                await DevolucionesOffline.agregarDevolucionPendienteLocal(
-                  pending,
-                );
-
-            if (!mounted) return;
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => _buildReturnSuccessDialog(context, modalData),
+            );
+          } else {
+            // Mostrar error
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  added
-                      ? 'Sin conexión: devolución guardada como pendiente'
-                      : 'Sin conexión: ya existe una devolución pendiente similar',
-                ),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 4),
+                content: Text(response['message'] ?? 'Error desconocido'),
+                backgroundColor: Colors.red,
               ),
             );
-
-            // Regresar a la lista de devoluciones
-            if (!mounted) return;
-            _navigateToReturnsList();
-            return;
           }
-        } catch (inner) {
-          print('Error comprobando conexión o guardando pendiente: $inner');
-        }
+        } else {
+          // Guardar devolución offline
+          final pending = {
+            'clie_Id': _selectedClienteId,
+            'fact_Id': _selectedFacturaId,
+            'devo_Motivo': _motivoController.text,
+            'usua_Creacion': usuaId ?? 0,
+            'devo_Fecha': _fechaController.text,
+            'detalles': productosADevolver,
+            'pendiente_Creacion': DateTime.now().toIso8601String(),
+          };
 
-        // Si sí había conexión o ocurrió otro error, mostrar mensaje de error
-        if (!mounted) return;
+          // Print para verificar la devolución guardada offline
+          print('Devolución guardada offline:');
+          print(pending);
+
+          final added =
+              await DevolucionesOffline.agregarDevolucionPendienteLocal(
+                pending,
+              );
+
+          Navigator.pop(context); // Cerrar el diálogo de carga
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                added
+                    ? 'Sin conexión: devolución guardada como pendiente'
+                    : 'Sin conexión: ya existe una devolución pendiente similar',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+
+          _navigateToReturnsList();
+        }
+      } catch (e) {
+        Navigator.pop(context); // Cerrar el diálogo de carga
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al crear devolución: $e'),
+            content: Text('Error al procesar la devolución: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
           ),
         );
       }

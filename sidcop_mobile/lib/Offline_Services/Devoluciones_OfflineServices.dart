@@ -159,19 +159,26 @@ class DevolucionesOffline {
     dynamic prodId,
   ) async {
     try {
+      final dir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory(p.join(dir.path, 'devoluciones_images'));
+      if (!await imagesDir.exists()) await imagesDir.create(recursive: true);
+
+      final ext = p.extension(Uri.parse(url).path).isNotEmpty
+          ? p.extension(Uri.parse(url).path)
+          : '.jpg';
+      final filename = '${facturaId}_$prodId$ext';
+      final filePath = p.join(imagesDir.path, filename);
+      final file = File(filePath);
+
+      // Si el archivo ya existe, devolverlo inmediatamente (idempotencia)
+      if (await file.exists()) {
+        print('Imagen local ya existe en $filePath - saltando descarga');
+        return filePath;
+      }
+
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final bytes = response.bodyBytes;
-        final dir = await getApplicationDocumentsDirectory();
-        final imagesDir = Directory(p.join(dir.path, 'devoluciones_images'));
-        if (!await imagesDir.exists()) await imagesDir.create(recursive: true);
-
-        final ext = p.extension(Uri.parse(url).path).isNotEmpty
-            ? p.extension(Uri.parse(url).path)
-            : '.jpg';
-        final filename = '${facturaId}_$prodId$ext';
-        final filePath = p.join(imagesDir.path, filename);
-        final file = File(filePath);
         await file.writeAsBytes(bytes);
         print('Imagen guardada localmente en $filePath');
         return filePath;
@@ -1310,6 +1317,174 @@ class DevolucionesOffline {
     } catch (e) {
       print("Error al obtener detalles de devolución ID $devolucionId: $e");
       return [];
+    }
+  }
+
+  /// Intenta sincronizar y enviar las devoluciones pendientes al servidor.
+  /// Devuelve un mapa con conteos de exito/fallo.
+  static Future<Map<String, int>> sincronizarPendientesDevoluciones() async {
+    try {
+      print('Iniciando sincronización de devoluciones pendientes...');
+      final pendientes = await obtenerDevolucionesPendientesLocal();
+      if (pendientes.isEmpty) {
+        print('No hay devoluciones pendientes para sincronizar');
+        return {'success': 0, 'failed': 0};
+      }
+
+      final service = DevolucionesService();
+      int success = 0;
+      int failed = 0;
+
+      // Lista mutable de pendientes que permanecerán si fallan
+      final List<Map<String, dynamic>> remaining =
+          List<Map<String, dynamic>>.from(pendientes);
+
+      for (final pend in List<Map<String, dynamic>>.from(pendientes)) {
+        try {
+          final clieId = pend['clie_Id'] ?? pend['clieId'];
+          final factId = pend['fact_Id'] ?? pend['factId'];
+          final devoMotivo = pend['devo_Motivo'] ?? pend['devoMotivo'] ?? '';
+          final usuaCreacion =
+              pend['usua_Creacion'] ?? pend['usuaCreacion'] ?? 0;
+          final detalles = pend['detalles'] ?? [];
+          DateTime? devoFecha;
+          final devoFechaRaw = pend['devo_Fecha'] ?? pend['devoFecha'];
+          if (devoFechaRaw != null) {
+            try {
+              devoFecha = DateTime.tryParse(devoFechaRaw.toString());
+            } catch (_) {
+              devoFecha = null;
+            }
+          }
+
+          print(
+            'Enviando devolución pendiente: clieId=$clieId factId=$factId detalles=${(detalles as List).length}',
+          );
+
+          // Ensure detalles is List<Map<String, dynamic>>
+          List<Map<String, dynamic>> detallesCast = [];
+          try {
+            for (var d in detalles) {
+              if (d is Map) {
+                detallesCast.add(Map<String, dynamic>.from(d));
+              }
+            }
+          } catch (_) {
+            // Si el formato no es iterable, dejar la lista vacía
+          }
+
+          final response = await service.insertarDevolucionConFacturaAjustada(
+            clieId: clieId,
+            factId: factId,
+            devoMotivo: devoMotivo,
+            usuaCreacion: usuaCreacion,
+            detalles: detallesCast,
+            devoFecha: devoFecha,
+            crearNuevaFactura: true,
+          );
+
+          print('Respuesta al enviar pendiente: $response');
+
+          if (response['success'] == true) {
+            success++;
+            // eliminar de la lista remaining: eliminar el objeto pendiente procesado directamente
+            try {
+              // Intentar remover por referencia/igualdad del mapa pending
+              remaining.remove(pend);
+            } catch (_) {
+              // fallback: intentar eliminar por match de campos clave (cliente+factura+fecha)
+              final clieIdP = pend['clie_Id'] ?? pend['clieId'];
+              final factIdP = pend['fact_Id'] ?? pend['factId'];
+              final fechaP = pend['devo_Fecha'] ?? pend['devoFecha'];
+              remaining.removeWhere((r) {
+                final clieIdR = r['clie_Id'] ?? r['clieId'];
+                final factIdR = r['fact_Id'] ?? r['factId'];
+                final fechaR = r['devo_Fecha'] ?? r['devoFecha'];
+                return clieIdR == clieIdP &&
+                    factIdR == factIdP &&
+                    fechaR == fechaP;
+              });
+            }
+
+            // Agregar la devolución creada al historial local si viene en la respuesta
+            final created =
+                response['devolucion']?['data'] ??
+                response['devolucion'] ??
+                response;
+            try {
+              final existing =
+                  await leerJson(_archivoDevolucionesHistorial) as dynamic;
+              List<Map<String, dynamic>> histor = [];
+              if (existing != null && existing is List) {
+                histor = List<Map<String, dynamic>>.from(existing);
+              }
+              if (created is Map) {
+                // evitar duplicados en el historial
+                final createdId =
+                    created['devo_Id'] ?? created['devoId'] ?? created['id'];
+                bool already = false;
+                if (createdId != null) {
+                  for (var h in histor) {
+                    final hid = h['devo_Id'] ?? h['devoId'] ?? h['id'];
+                    if (hid == createdId) {
+                      already = true;
+                      break;
+                    }
+                  }
+                } else {
+                  // fallback: comparar por cliente+factura+fecha
+                  final c = created['clie_Id'] ?? created['clieId'];
+                  final f = created['fact_Id'] ?? created['factId'];
+                  final dt = created['devo_Fecha'] ?? created['devoFecha'];
+                  for (var h in histor) {
+                    if ((h['clie_Id'] ?? h['clieId']) == c &&
+                        (h['fact_Id'] ?? h['factId']) == f &&
+                        (h['devo_Fecha'] ?? h['devoFecha']) == dt) {
+                      already = true;
+                      break;
+                    }
+                  }
+                }
+                if (!already) {
+                  histor.add(Map<String, dynamic>.from(created));
+                } else {
+                  print(
+                    'Creación ya existe en historial local, evitando duplicado',
+                  );
+                }
+              }
+            } catch (histErr) {
+              print(
+                'Error añadiendo devolución enviada al historial local: $histErr',
+              );
+            }
+          } else {
+            failed++;
+            print(
+              'Fallo al enviar devolución pendiente: ${response['message'] ?? response}',
+            );
+          }
+        } catch (e) {
+          failed++;
+          print('Error enviando devolución pendiente: $e');
+        }
+      }
+
+      // Guardar los pendientes que quedaron
+      try {
+        await guardarDevolucionesPendientes(remaining);
+        print('Pendientes restantes guardados: ${remaining.length}');
+      } catch (saveErr) {
+        print('Error guardando pendientes restantes: $saveErr');
+      }
+
+      print(
+        'Sincronización de pendientes completada. success=$success failed=$failed',
+      );
+      return {'success': success, 'failed': failed};
+    } catch (e) {
+      print('Error general sincronizando pendientes: $e');
+      return {'success': 0, 'failed': 0};
     }
   }
 }
