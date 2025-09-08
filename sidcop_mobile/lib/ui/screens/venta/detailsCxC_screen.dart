@@ -3,9 +3,10 @@ import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 import 'package:sidcop_mobile/models/ventas/PagosCXCViewModel.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/services/PagosCxCService.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
-import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class DetailsCxCScreen extends StatefulWidget {
   final int cpCoId;
@@ -33,6 +34,19 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
   void initState() {
     super.initState();
     _loadData();
+    
+    // Pre-cargar datos disponibles en background
+    Future.microtask(() async {
+      try {
+        // Intentar sincronizar datos específicos de la cuenta si hay conectividad
+        final connectivityResult = await Connectivity().checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          await CuentasPorCobrarOfflineService.sincronizarHistorialPagos(widget.cpCoId);
+        }
+      } catch (e) {
+        print('Error en pre-carga: $e');
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -49,7 +63,44 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
         _errorMessage = null;
       });
 
-      final cuenta = await _cuentasService.getDetalleCuentaPorCobrar(widget.cpCoId);
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+
+      CuentasXCobrar? cuenta;
+      
+      if (isConnected) {
+        try {
+          // Intentar cargar desde el servidor
+          cuenta = await _cuentasService.getDetalleCuentaPorCobrar(widget.cpCoId);
+          
+          // Guardar en cache offline para uso posterior
+          if (cuenta != null) {
+            await CuentasPorCobrarOfflineService.guardarDetalleCuenta(widget.cpCoId, cuenta);
+          }
+          
+          print('✅ Detalle cuenta ${widget.cpCoId} cargado desde servidor');
+        } catch (e) {
+          print('⚠️ Error cargando detalle desde servidor, intentando datos offline: $e');
+          // Si falla el servidor, usar datos offline
+          cuenta = await CuentasPorCobrarOfflineService.obtenerDetalleCuentaLocal(widget.cpCoId);
+          
+          // Si no hay datos offline específicos, buscar en datos generales
+          if (cuenta == null) {
+            cuenta = await _buscarCuentaEnDatosGenerales(widget.cpCoId);
+          }
+        }
+      } else {
+        // Sin conexión, cargar datos offline
+        print('📱 Sin conexión, cargando detalle offline para cuenta ${widget.cpCoId}');
+        cuenta = await CuentasPorCobrarOfflineService.obtenerDetalleCuentaLocal(widget.cpCoId);
+        
+        // Si no hay datos offline específicos, buscar en datos generales
+        if (cuenta == null) {
+          print('📄 No hay detalle offline específico, buscando en datos generales...');
+          cuenta = await _buscarCuentaEnDatosGenerales(widget.cpCoId);
+        }
+      }
       
       if (mounted) {
         setState(() {
@@ -71,13 +122,91 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
     try {
       setState(() => _isLoadingPagos = true);
 
-      final pagos = await _pagosService.listarPagosPorCuenta(widget.cpCoId);
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+
+      List<PagosCuentasXCobrar> pagos = [];
+      
+      if (isConnected) {
+        try {
+          // Intentar cargar desde el servidor
+          pagos = await _pagosService.listarPagosPorCuenta(widget.cpCoId);
+          
+          // Guardar pagos en cache local inmediatamente después de cargarlos
+          if (pagos.isNotEmpty) {
+            final key = 'pagos_cuenta_${widget.cpCoId}';
+            final pagosJson = pagos.map((pago) => {
+              'pago_Id': pago.pagoId,
+              'cpCo_Id': pago.cpCoId,
+              'pago_Fecha': pago.pagoFecha.toIso8601String(),
+              'pago_Monto': pago.pagoMonto,
+              'pago_FormaPago': pago.pagoFormaPago,
+              'pago_NumeroReferencia': pago.pagoNumeroReferencia,
+              'pago_Observaciones': pago.pagoObservaciones,
+              'usua_Creacion': pago.usuaCreacion,
+              'pago_FechaCreacion': pago.pagoFechaCreacion.toIso8601String(),
+              'usua_Modificacion': pago.usuaModificacion,
+              'pago_FechaModificacion': pago.pagoFechaModificacion?.toIso8601String(),
+              'pago_Estado': pago.pagoEstado,
+              'pago_Anulado': pago.pagoAnulado,
+              'foPa_Id': pago.foPaId,
+              'usuarioCreacion': pago.usuarioCreacion,
+              'usuarioModificacion': pago.usuarioModificacion,
+              'clie_Id': pago.clieId,
+              'clie_NombreCompleto': pago.clieNombreCompleto,
+              'clie_RTN': pago.clieRTN,
+              'fact_Id': pago.factId,
+              'fact_Numero': pago.factNumero,
+            }).toList();
+            await CuentasPorCobrarOfflineService.guardarJsonSeguro(key, pagosJson);
+            print('💾 Guardados ${pagos.length} pagos en cache para cuenta ${widget.cpCoId}');
+          }
+          
+          print('✅ Pagos cuenta ${widget.cpCoId} cargados desde servidor (${pagos.length} elementos)');
+        } catch (e) {
+          print('⚠️ Error cargando pagos desde servidor, intentando datos offline: $e');
+          // Si falla el servidor, usar datos offline
+          pagos = await CuentasPorCobrarOfflineService.obtenerHistorialPagosLocal(widget.cpCoId);
+          print('📱 Cargados ${pagos.length} pagos desde cache offline');
+          
+          // Debug: Mostrar los datos de los pagos cargados desde offline
+          for (int i = 0; i < pagos.length && i < 3; i++) {
+            final pago = pagos[i];
+            print('🔍 Pago offline $i: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}"');
+          }
+        }
+      } else {
+        // Sin conexión, cargar datos offline
+        print('📱 Sin conexión, cargando pagos offline para cuenta ${widget.cpCoId}');
+        pagos = await CuentasPorCobrarOfflineService.obtenerHistorialPagosLocal(widget.cpCoId);
+        print('📱 Encontrados ${pagos.length} pagos en cache offline');
+        
+        // Debug: Mostrar los datos de los pagos cargados desde offline
+        for (int i = 0; i < pagos.length && i < 3; i++) {
+          final pago = pagos[i];
+          print('🔍 Pago offline $i: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}"');
+        }
+        
+        // Si no hay datos offline, intentar cargar desde el servidor en background para la próxima vez
+        if (pagos.isEmpty) {
+          print('⚠️ No hay pagos en cache offline para cuenta ${widget.cpCoId}');
+          // En el futuro se podría mostrar datos de prueba aquí para debugging
+        }
+      }
       
       if (mounted) {
         setState(() {
           _pagos = pagos;
           _isLoadingPagos = false;
         });
+        
+        // Debug: Verificar los datos asignados a _pagos
+        print('🔧 setState completado: _pagos.length = ${_pagos.length}');
+        for (int i = 0; i < _pagos.length; i++) {
+          final pago = _pagos[i];
+          print('   📄 Pago $i: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Referencia="${pago.pagoNumeroReferencia}", Observaciones="${pago.pagoObservaciones}"');
+        }
       }
     } catch (e) {
       print('Error cargando pagos: $e');
@@ -87,6 +216,48 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
           _isLoadingPagos = false;
         });
       }
+    }
+  }
+
+  /// Busca una cuenta específica en los datos generales de cuentas por cobrar
+  Future<CuentasXCobrar?> _buscarCuentaEnDatosGenerales(int cpCoId) async {
+    try {
+      // Intentar obtener datos del resumen general de clientes
+      final resumenClientes = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      final cuentasGenerales = await CuentasPorCobrarOfflineService.obtenerCuentasPorCobrarLocal();
+      
+      // Buscar en resumen de clientes
+      for (final item in resumenClientes) {
+        try {
+          final cuenta = CuentasXCobrar.fromJson(item);
+          if (cuenta.cpCo_Id == cpCoId) {
+            print('🔍 Cuenta $cpCoId encontrada en resumen de clientes');
+            return cuenta;
+          }
+        } catch (e) {
+          print('Error parseando item del resumen: $e');
+        }
+      }
+      
+      // Buscar en cuentas generales
+      for (final item in cuentasGenerales) {
+        try {
+          final cuenta = CuentasXCobrar.fromJson(item);
+          if (cuenta.cpCo_Id == cpCoId) {
+            print('🔍 Cuenta $cpCoId encontrada en cuentas generales');
+            return cuenta;
+          }
+        } catch (e) {
+          print('Error parseando item de cuentas generales: $e');
+        }
+      }
+      
+      print('⚠️ Cuenta $cpCoId no encontrada en datos generales offline');
+      return null;
+      
+    } catch (e) {
+      print('Error buscando cuenta en datos generales: $e');
+      return null;
     }
   }
 
@@ -114,7 +285,18 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
       body: AppBackground(
         title: 'Detalle Cuenta por Cobrar',
         icon: Icons.receipt_long,
-        onRefresh: _loadData,
+        onRefresh: () async {
+          // Sincronizar datos específicos de la cuenta antes de recargar
+          try {
+            final connectivityResult = await Connectivity().checkConnectivity();
+            if (connectivityResult != ConnectivityResult.none) {
+              await CuentasPorCobrarOfflineService.sincronizarHistorialPagos(widget.cpCoId);
+            }
+          } catch (e) {
+            print('Error sincronizando en refresh: $e');
+          }
+          await _loadData();
+        },
         child: _buildContent(),
       ),
     );
@@ -412,9 +594,14 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
   }
 
   Widget _buildPagosContent() {
+    print('🔧 _buildPagosContent llamado: _pagos.length = ${_pagos.length}');
+    
     if (_pagos.isEmpty) {
+      print('🔧 _pagos está vacío, mostrando estado sin pagos');
       return _buildNoPagosState();
     }
+
+    print('🔧 _pagos contiene ${_pagos.length} elementos, construyendo lista');
 
     return Column(
       children: [
@@ -459,6 +646,7 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
         ..._pagos.asMap().entries.map((entry) {
           final index = entry.key;
           final pago = entry.value;
+          print('🎨 Renderizando pago $index: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}"');
           return Column(
             children: [
               _buildPagoItem(pago),
@@ -516,6 +704,9 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
   }
 
   Widget _buildPagoItem(PagosCuentasXCobrar pago) {
+    // Debug: Verificar los datos del pago
+    print('🎨 Construyendo UI para pago: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}", Fecha=${pago.pagoFecha}');
+    
     final bool isAnulado = pago.pagoAnulado;
     final Color statusColor = isAnulado ? Colors.red.shade600 : const Color(0xFF059669);
     
@@ -683,53 +874,6 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
         ],
       ),
     );
-  }
-
-  // Widget _buildActionButtons() {
-  //   final cuenta = _cuentaDetalle!;
-  //   final bool tienePendiente = (cuenta.cpCo_Saldo ?? 0) > 0;
-  //   final bool estaAnulado = cuenta.cpCo_Anulado == true;
-  //   final bool estaSaldado = cuenta.cpCo_Saldada == true;
-    
-  //   return Row(
-  //     children: [
-  //       // Botón Registrar Pago (solo si tiene saldo pendiente y no está anulado ni saldado)
-  //       if (tienePendiente && !estaAnulado && !estaSaldado)
-  //         Expanded(
-  //           child: ElevatedButton.icon(
-  //             onPressed: () => _navigateToPaymentScreen(),
-  //             icon: const Icon(Icons.payment_rounded, size: 18, color: Colors.white),
-  //             label: const Text('Registrar Pago', style: TextStyle(fontSize: 14, fontFamily: 'Satoshi', color: Colors.white, fontWeight: FontWeight.w600)),
-  //             style: ElevatedButton.styleFrom(
-  //               backgroundColor: Colors.green.shade600,
-  //               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  //               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  //             ),
-  //           ),
-  //         ),
-  //     ],
-  //   );
-  // }
-
-  void _navigateToPaymentScreen() async {
-    final cuenta = _cuentaDetalle!;
-    
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PagoCuentaPorCobrarScreen(
-          cuentaResumen: cuenta,
-        ),
-      ),
-    );
-    
-    // Si el pago fue exitoso, recargar los datos y regresar
-    if (result == true) {
-      await _loadData();
-      if (mounted) {
-        Navigator.pop(context, true); // Regresar con resultado exitoso
-      }
-    }
   }
 
   Widget _buildCard({
