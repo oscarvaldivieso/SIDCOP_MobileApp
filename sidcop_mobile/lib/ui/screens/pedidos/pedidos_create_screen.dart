@@ -725,11 +725,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
               content: Text(
                 'Pedido guardado localmente. Se sincronizará cuando haya conexión.',
               ),
-              duration: Duration(seconds: 3),
+              duration: Duration(seconds: 2),
             ),
           );
-          Navigator.of(context).pop(); // Volver a la pantalla anterior
-          return;
+          // NO hacer return aquí, continuar al flujo de confirmación
         }
       } catch (e) {
         if (mounted) {

@@ -7,10 +7,12 @@ import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
 import '../../../services/OfflineAuthService.dart';
-import '../../../Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../../screens/auth/forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -44,6 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
   String _syncStatus = '';
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
+  
+  // Connectivity listener
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
