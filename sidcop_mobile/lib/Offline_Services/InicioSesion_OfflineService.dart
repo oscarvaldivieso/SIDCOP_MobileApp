@@ -121,36 +121,81 @@ class InicioSesionOfflineService {
   /// Cachea las direcciones de los clientes
   static Future<void> _cachearDireccionesClientes(List<dynamic> clientes) async {
     try {
-      print('Cacheando direcciones de clientes...');
+      print('=== INICIANDO CACHÉ DE DIRECCIONES DE CLIENTES ===');
+      print('Número de clientes a procesar: ${clientes.length}');
       
       final clientesService = ClientesService();
       final direccionesMap = <String, List<dynamic>>{};
+      int clientesProcesados = 0;
+      int clientesConDirecciones = 0;
       
       for (final cliente in clientes) {
         if (cliente is Map<String, dynamic>) {
           final clienteId = cliente['clie_Id'];
+          final clienteNombre = cliente['clie_Nombre'] ?? 'Sin nombre';
+          
           if (clienteId != null) {
+            clientesProcesados++;
+            print('>>> Procesando cliente $clientesProcesados/${clientes.length}: ID=$clienteId, Nombre=$clienteNombre');
+            
             try {
               final direcciones = await clientesService.getDireccionesCliente(clienteId);
+              print('>>> Cliente $clienteId: ${direcciones.length} direcciones encontradas');
+              
               if (direcciones.isNotEmpty) {
                 direccionesMap[clienteId.toString()] = direcciones;
+                clientesConDirecciones++;
+                
+                // Log de la primera dirección para debug
+                if (direcciones.isNotEmpty) {
+                  final primeraDireccion = direcciones[0];
+                  print('>>> Primera dirección: ${primeraDireccion}');
+                }
+              } else {
+                print('>>> Cliente $clienteId no tiene direcciones');
               }
             } catch (e) {
-              print('Error obteniendo direcciones del cliente $clienteId: $e');
+              print('>>> ERROR obteniendo direcciones del cliente $clienteId: $e');
             }
+          } else {
+            print('>>> Cliente sin ID válido: $cliente');
           }
+        } else {
+          print('>>> Formato de cliente inválido: $cliente');
         }
       }
       
+      print('=== RESUMEN CACHÉ DIRECCIONES ===');
+      print('Clientes procesados: $clientesProcesados');
+      print('Clientes con direcciones: $clientesConDirecciones');
+      print('Total direcciones cacheadas para ${direccionesMap.length} clientes');
+      
       if (direccionesMap.isNotEmpty) {
+        final jsonData = jsonEncode(direccionesMap);
         await _secureStorage.write(
           key: _clientesDireccionesKey,
-          value: jsonEncode(direccionesMap),
+          value: jsonData,
         );
-        print('Direcciones de clientes cacheadas: ${direccionesMap.length}');
+        
+        // Verificar que se guardó correctamente
+        final verificacion = await _secureStorage.read(key: _clientesDireccionesKey);
+        if (verificacion != null) {
+          print('✓ DIRECCIONES CACHEADAS EXITOSAMENTE');
+          print('Tamaño del caché: ${verificacion.length} caracteres');
+        } else {
+          print('✗ ERROR: No se pudo verificar el caché de direcciones');
+        }
+      } else {
+        print('⚠ No se encontraron direcciones para cachear');
+        // Guardar caché vacío para evitar errores
+        await _secureStorage.write(
+          key: _clientesDireccionesKey,
+          value: jsonEncode({}),
+        );
       }
     } catch (e) {
-      print('Error cacheando direcciones de clientes: $e');
+      print('✗ ERROR CRÍTICO cacheando direcciones de clientes: $e');
+      print('Stack trace: ${e.toString()}');
     }
   }
 
@@ -363,7 +408,6 @@ class InicioSesionOfflineService {
       final clientesData = jsonDecode(clientesStr);
       return List<Map<String, dynamic>>.from(clientesData);
     } catch (e) {
-      print('Error obteniendo clientes desde caché: $e');
       return [];
     }
   }
@@ -371,24 +415,55 @@ class InicioSesionOfflineService {
   /// Obtiene direcciones de clientes desde el caché
   static Future<List<Map<String, dynamic>>> obtenerDireccionesClienteCache(int clienteId) async {
     try {
-      if (await _cacheHaExpirado()) {
-        print('Caché de direcciones expirado');
+      print('=== OBTENIENDO DIRECCIONES DESDE CACHÉ ===');
+      print('Cliente ID solicitado: $clienteId');
+      
+      // Verificar expiración del caché
+      final cacheExpirado = await _cacheHaExpirado();
+      print('Caché expirado: $cacheExpirado');
+      
+      if (cacheExpirado) {
+        print('⚠ Caché de direcciones expirado');
         return [];
       }
       
+      // Leer datos del caché de direcciones
       final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
-      if (direccionesStr == null) return [];
+      print('Datos leídos del caché: ${direccionesStr?.length ?? 0} caracteres');
       
-      final direccionesMap = Map<String, dynamic>.from(jsonDecode(direccionesStr));
-      final direccionesCliente = direccionesMap[clienteId.toString()];
-      
-      if (direccionesCliente != null) {
-        return List<Map<String, dynamic>>.from(direccionesCliente);
+      if (direccionesStr == null || direccionesStr.isEmpty) {
+        print('⚠ No hay datos de direcciones en el caché');
+        return [];
       }
       
-      return [];
+      // Decodificar JSON
+      final direccionesMap = Map<String, dynamic>.from(jsonDecode(direccionesStr));
+      print('Clientes con direcciones en caché: ${direccionesMap.keys.toList()}');
+      
+      // Buscar direcciones del cliente específico
+      final clienteKey = clienteId.toString();
+      print('Buscando direcciones para cliente key: "$clienteKey"');
+      
+      final direccionesCliente = direccionesMap[clienteKey];
+      
+      if (direccionesCliente != null) {
+        final direcciones = List<Map<String, dynamic>>.from(direccionesCliente);
+        print('✓ Direcciones encontradas para cliente $clienteId: ${direcciones.length}');
+        
+        // Log de la primera dirección para debug
+        if (direcciones.isNotEmpty) {
+          print('Primera dirección: ${direcciones[0]}');
+        }
+        
+        return direcciones;
+      } else {
+        print('⚠ No se encontraron direcciones para cliente $clienteId');
+        print('Clientes disponibles en caché: ${direccionesMap.keys.join(", ")}');
+        return [];
+      }
     } catch (e) {
-      print('Error obteniendo direcciones del cliente desde caché: $e');
+      print('✗ ERROR obteniendo direcciones del cliente desde caché: $e');
+      print('Stack trace: ${e.toString()}');
       return [];
     }
   }
