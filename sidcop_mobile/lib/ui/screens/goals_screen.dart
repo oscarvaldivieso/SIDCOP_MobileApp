@@ -71,9 +71,10 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
           if (metasList.isNotEmpty) {
             _goals = metasList;
             debugPrint('[_loadGoals] Metas actualizadas en el estado: ${_goals.length}');
+            _errorMessage = '';
           } else {
-            _errorMessage = 'No se encontraron metas para mostrar';
-            debugPrint('[_loadGoals] No se encontraron metas');
+            _errorMessage = 'No hay metas disponibles offline. Conéctate a una red para sincronizar tus metas.';
+            debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
         });
@@ -89,7 +90,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             _goals = offlineMetas;
             _errorMessage = '';
           } else {
-            _errorMessage = 'Error de conexión y no hay metas offline.';
+            _errorMessage = 'No hay metas disponibles offline. Conéctate a una red para sincronizar tus metas.';
+            debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
         });
@@ -280,6 +282,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           fontWeight: FontWeight.w600,
                           fontFamily: 'Satoshi',
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -318,6 +322,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           color: Color(0xFF141A2F),
                           fontFamily: 'Satoshi',
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -327,6 +333,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           color: Colors.grey[600],
                           fontFamily: 'Satoshi',
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
@@ -351,18 +359,21 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${_formatDate(goal.metaFechaInicio ?? '')} - ${_formatDate(goal.metaFechaFin ?? '')}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                      fontFamily: 'Satoshi',
+                  Expanded(
+                    child: Text(
+                      '${_formatDate(goal.metaFechaInicio ?? '')} - ${_formatDate(goal.metaFechaFin ?? '')}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        fontFamily: 'Satoshi',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (goal.producto != null)
-                    Flexible(
+                    Expanded(
                       child: Text(
                         goal.producto!,
                         style: const TextStyle(
@@ -373,6 +384,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                         ),
                         textAlign: TextAlign.right,
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                 ],
