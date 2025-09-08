@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/inventory_service.dart';
 
 class OfflineAuthService {
   static const String _keyOfflineCredentials = 'offline_credentials';
@@ -10,6 +11,7 @@ class OfflineAuthService {
   static const String _keyLastOnlineLogin = 'last_online_login';
 
   /// Guarda las credenciales y datos del usuario después de un login online exitoso
+  /// Ahora también sincroniza automáticamente los datos del inventario para uso offline
   static Future<void> saveOfflineCredentials({
     required String username,
     required String password,
@@ -36,10 +38,53 @@ class OfflineAuthService {
       // Guardar timestamp del último login online
       await prefs.setString(_keyLastOnlineLogin, DateTime.now().toIso8601String());
       
+      // NUEVO: Sincronizar automáticamente datos del inventario para uso offline
+      await _syncInventoryDataForOfflineUse(userData);
+      
       developer.log('OfflineAuthService: Credenciales offline guardadas exitosamente');
     } catch (e) {
       developer.log('OfflineAuthService: Error al guardar credenciales offline: $e');
     }
+  }
+
+  /// Sincroniza automáticamente los datos del inventario cuando se guarden las credenciales offline
+  static Future<void> _syncInventoryDataForOfflineUse(Map<String, dynamic> userData) async {
+    try {
+      // Obtener el vendorId del usuario
+      int? vendorId;
+      
+      if (userData.containsKey('personaId')) {
+        vendorId = userData['personaId'] is int
+            ? userData['personaId']
+            : int.tryParse(userData['personaId'].toString());
+      } else if (userData.containsKey('usua_IdPersona')) {
+        vendorId = userData['usua_IdPersona'] is int
+            ? userData['usua_IdPersona']
+            : int.tryParse(userData['usua_IdPersona'].toString());
+      }
+      
+      if (vendorId != null && vendorId > 0) {
+        developer.log('OfflineAuthService: Sincronizando datos de inventario para vendorId: $vendorId');
+        
+        // Obtener servicio de inventario y sincronizar datos automáticamente
+        final inventoryService = _getInventoryService();
+        final success = await inventoryService.syncInventoryData(vendorId);
+        if (success) {
+          developer.log('OfflineAuthService: Datos de inventario sincronizados exitosamente para uso offline');
+        } else {
+          developer.log('OfflineAuthService: Error al sincronizar datos de inventario');
+        }
+      } else {
+        developer.log('OfflineAuthService: No se pudo obtener vendorId para sincronizar inventario');
+      }
+    } catch (e) {
+      developer.log('OfflineAuthService: Error al sincronizar inventario automáticamente: $e');
+    }
+  }
+
+  /// Obtiene una instancia del servicio de inventario
+  static InventoryService _getInventoryService() {
+    return InventoryService();
   }
 
   /// Guarda credenciales básicas sin necesidad de los datos completos del usuario
