@@ -513,7 +513,7 @@ class CuentasPorCobrarOfflineService {
       final listaPagos = List.from(pagosExistentes as List);
       
       // Agregar el nuevo pago al inicio (más reciente primero)
-      listaPagos.insert(0, pago.toJson());
+      listaPagos.insert(0, pago.toFullJson());
       
       await guardarJsonSeguro(key, listaPagos);
       print('Pago agregado al historial local de cuenta ${pago.cpCoId}');
@@ -527,12 +527,37 @@ class CuentasPorCobrarOfflineService {
     try {
       final key = 'pagos_cuenta_$cpCoId';
       final raw = await leerJsonSeguro(key);
-      if (raw == null) return [];
+      if (raw == null) {
+        print('📋 No hay pagos en cache para cuenta $cpCoId');
+        return [];
+      }
+      
+      print('📋 Datos raw encontrados para cuenta $cpCoId: ${raw.toString().length} caracteres');
       
       final lista = List.from(raw as List);
-      return lista.map((item) => PagosCuentasXCobrar.fromJson(item)).toList();
+      print('📋 Lista deserializada: ${lista.length} elementos');
+      
+      // Debug: Mostrar el primer elemento si existe
+      if (lista.isNotEmpty) {
+        print('🔍 Primer elemento raw: ${lista[0]}');
+      }
+      
+      final pagos = lista.map((item) {
+        try {
+          final pago = PagosCuentasXCobrar.fromJson(item);
+          print('✅ Pago convertido: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}"');
+          return pago;
+        } catch (e) {
+          print('❌ Error convirtiendo pago: $e');
+          print('   Datos del item: $item');
+          rethrow;
+        }
+      }).toList();
+      
+      print('📋 Obtenidos ${pagos.length} pagos desde cache para cuenta $cpCoId');
+      return pagos;
     } catch (e) {
-      print('Error obteniendo historial de pagos local: $e');
+      print('❌ Error obteniendo historial de pagos local para cuenta $cpCoId: $e');
       return [];
     }
   }
@@ -543,14 +568,36 @@ class CuentasPorCobrarOfflineService {
       final servicio = PagoCuentasXCobrarService();
       final pagos = await servicio.listarPagosPorCuenta(cpCoId);
       
-      // Guardar en cache local
+      // Guardar en cache local con el formato correcto para fromJson
       final key = 'pagos_cuenta_$cpCoId';
-      final pagosJson = pagos.map((pago) => pago.toJson()).toList();
+      final pagosJson = pagos.map((pago) => {
+        'pago_Id': pago.pagoId,
+        'cpCo_Id': pago.cpCoId,
+        'pago_Fecha': pago.pagoFecha.toIso8601String(),
+        'pago_Monto': pago.pagoMonto,
+        'pago_FormaPago': pago.pagoFormaPago,
+        'pago_NumeroReferencia': pago.pagoNumeroReferencia,
+        'pago_Observaciones': pago.pagoObservaciones,
+        'usua_Creacion': pago.usuaCreacion,
+        'pago_FechaCreacion': pago.pagoFechaCreacion.toIso8601String(),
+        'usua_Modificacion': pago.usuaModificacion,
+        'pago_FechaModificacion': pago.pagoFechaModificacion?.toIso8601String(),
+        'pago_Estado': pago.pagoEstado,
+        'pago_Anulado': pago.pagoAnulado,
+        'foPa_Id': pago.foPaId,
+        'usuarioCreacion': pago.usuarioCreacion,
+        'usuarioModificacion': pago.usuarioModificacion,
+        'clie_Id': pago.clieId,
+        'clie_NombreCompleto': pago.clieNombreCompleto,
+        'clie_RTN': pago.clieRTN,
+        'fact_Id': pago.factId,
+        'fact_Numero': pago.factNumero,
+      }).toList();
       await guardarJsonSeguro(key, pagosJson);
       
-      print('Historial de pagos sincronizado para cuenta $cpCoId');
+      print('✅ Historial de pagos sincronizado para cuenta $cpCoId (${pagos.length} pagos)');
     } catch (e) {
-      print('Error sincronizando historial de pagos: $e');
+      print('❌ Error sincronizando historial de pagos para cuenta $cpCoId: $e');
       rethrow;
     }
   }
