@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
@@ -456,51 +455,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     });
 
     try {
-      // Primero intentamos obtener la dirección de la sesión del usuario
-      final perfilService = PerfilUsuarioService();
-      final userData = await perfilService.obtenerDatosUsuario();
-
-      if (userData != null && userData['datosVendedor'] != null) {
-        final vendedorData = userData['datosVendedor'];
-
-        // Verificar si vendedorData es un String y convertirlo a Map si es necesario
-        Map<String, dynamic> vendedorMap = {};
-        if (vendedorData is String) {
-          try {
-            final decoded = json.decode(vendedorData);
-            if (decoded is Map) {
-              vendedorMap = Map<String, dynamic>.from(decoded);
-            }
-          } catch (e) {
-            print('Error al convertir vendedorData a Map: $e');
-          }
-        } else if (vendedorData is Map) {
-          vendedorMap = Map<String, dynamic>.from(vendedorData);
-        }
-
-        if (vendedorMap['vend_DireccionExacta'] != null) {
-          // Creamos un mapa con la dirección del usuario
-          // Usar un ID único basado en el vendedor para evitar conflictos
-          final vendedorId = vendedorMap['vend_Id'] ?? DateTime.now().millisecondsSinceEpoch;
-          final direccionUsuario = {
-            'diCl_Id': vendedorId, // Usar ID del vendedor como ID de dirección
-            'DiCl_Id': vendedorId, // Variante del campo para compatibilidad
-            'diCl_DireccionExacta': vendedorMap['vend_DireccionExacta'],
-            'DiCl_DescripcionExacta': vendedorMap['vend_DireccionExacta'],
-            'diCl_EsPrincipal': true,
-            'esDeSesion': true, // Bandera para identificar que viene de la sesión
-          };
-
-          setState(() {
-            _direcciones = [direccionUsuario];
-            _direccionSeleccionada = direccionUsuario;
-            _loadingDirecciones = false;
-          });
-          return;
-        }
-      }
-
-      // Si no hay dirección en la sesión, intentamos cargar desde la API
+      // Cargar direcciones del cliente desde API o caché
       List<dynamic> direcciones = [];
       
       try {
@@ -727,6 +682,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
         pendientes.add(pedidoOfflineCompleto);
         await PedidosScreenOffline.guardarJson('pedidos_pendientes.json', pendientes);
+        
+        print('DEBUG: Pedido guardado offline - Total pendientes: ${pendientes.length}');
+        print('DEBUG: Pedido guardado: $pedidoOfflineCompleto');
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

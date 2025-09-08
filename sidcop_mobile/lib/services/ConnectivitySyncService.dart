@@ -45,8 +45,15 @@ class ConnectivitySyncService {
     try {
       print('ConnectivitySyncService: Conectividad restaurada, sincronizando pedidos offline...');
       
+      // Debug: List all storage keys
+      await PedidosScreenOffline.listarTodasLasClaves();
+      
       // Check if there are pending orders to sync using simple method
       final pendientesRaw = await PedidosScreenOffline.leerJson('pedidos_pendientes.json');
+      
+      print('ConnectivitySyncService DEBUG: pendientesRaw = $pendientesRaw');
+      print('ConnectivitySyncService DEBUG: pendientesRaw type = ${pendientesRaw?.runtimeType}');
+      print('ConnectivitySyncService DEBUG: pendientesRaw isEmpty = ${pendientesRaw?.isEmpty}');
       
       if (pendientesRaw != null && pendientesRaw.isNotEmpty) {
         final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
@@ -106,7 +113,19 @@ class ConnectivitySyncService {
   // Check if there are pending orders without syncing
   Future<bool> hasPendingOrders() async {
     try {
+      // Check using simple method first
+      final pendientesRaw = await PedidosScreenOffline.leerJson('pedidos_pendientes.json');
+      print('ConnectivitySyncService hasPendingOrders: pendientesRaw = $pendientesRaw');
+      
+      if (pendientesRaw != null && pendientesRaw.isNotEmpty) {
+        final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+        print('ConnectivitySyncService hasPendingOrders: Found ${pendientes.length} pending orders');
+        return pendientes.isNotEmpty;
+      }
+      
+      // Fallback to complex method
       final pedidosPendientes = await PedidosScreenOffline.obtenerPedidosPendientes();
+      print('ConnectivitySyncService hasPendingOrders: Complex method found ${pedidosPendientes.length} orders');
       return pedidosPendientes.isNotEmpty;
     } catch (e) {
       print('ConnectivitySyncService: Error checking pending orders: $e');

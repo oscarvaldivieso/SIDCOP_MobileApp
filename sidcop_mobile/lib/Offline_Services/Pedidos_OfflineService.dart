@@ -20,8 +20,15 @@ class PedidosScreenOffline {
     try {
       final contenido = jsonEncode(objeto);
       final key = 'json:$nombreArchivo';
+      print('DEBUG guardarJson: Guardando en clave: $key');
+      print('DEBUG guardarJson: Contenido: $contenido');
       await _storage.write(key: key, value: contenido);
+      
+      // Verificar que se guardó correctamente
+      final verificacion = await _storage.read(key: key);
+      print('DEBUG guardarJson: Verificación - contenido guardado: $verificacion');
     } catch (e) {
+      print('DEBUG guardarJson: Error: $e');
       rethrow;
     }
   }
@@ -30,10 +37,18 @@ class PedidosScreenOffline {
   static Future<dynamic> leerJson(String nombreArchivo) async {
     try {
       final key = 'json:$nombreArchivo';
+      print('DEBUG leerJson: Buscando clave: $key');
       final s = await _storage.read(key: key);
-      if (s == null) return null;
-      return jsonDecode(s);
+      print('DEBUG leerJson: Contenido raw: $s');
+      if (s == null) {
+        print('DEBUG leerJson: No se encontró contenido para $key');
+        return null;
+      }
+      final decoded = jsonDecode(s);
+      print('DEBUG leerJson: Contenido decodificado: $decoded');
+      return decoded;
     } catch (e) {
+      print('DEBUG leerJson: Error: $e');
       rethrow;
     }
   }
@@ -876,11 +891,40 @@ class PedidosScreenOffline {
     }
   }
 
+  /// Lista todas las claves en el almacenamiento para debug
+  static Future<void> listarTodasLasClaves() async {
+    try {
+      final todasLasClaves = await _storage.readAll();
+      print('=== TODAS LAS CLAVES EN STORAGE ===');
+      for (final entry in todasLasClaves.entries) {
+        print('Clave: ${entry.key}');
+        if (entry.key.startsWith('json:')) {
+          try {
+            final decoded = jsonDecode(entry.value);
+            if (decoded is List) {
+              print('  Contenido: Lista con ${decoded.length} elementos');
+            } else {
+              print('  Contenido: ${decoded.runtimeType}');
+            }
+          } catch (e) {
+            print('  Contenido: ${entry.value.length} caracteres (no JSON válido)');
+          }
+        } else {
+          print('  Contenido: ${entry.value.length} caracteres');
+        }
+      }
+      print('=== FIN LISTADO CLAVES ===');
+    } catch (e) {
+      print('Error listando claves: $e');
+    }
+  }
+
   /// Método auxiliar para limpiar y reinicializar el almacenamiento (usar solo para debug)
   static Future<void> limpiarDatosDebug() async {
     try {
       await _storage.delete(key: _pedidosKey);
       await _storage.delete(key: _pedidosPendientesKey);
+      await _storage.delete(key: 'json:pedidos_pendientes.json');
       print('Datos limpiados para debug');
     } catch (e) {
       print('Error limpiando datos: $e');
