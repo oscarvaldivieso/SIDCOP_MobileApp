@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
@@ -107,8 +108,8 @@ class InicioSesionOfflineService {
             value: jsonEncode(clientesRuta),
           );
           
-          // Cachear direcciones de cada cliente
-          await _cachearDireccionesClientes(clientesRuta);
+          // Usar el nuevo método optimizado de ClientesOfflineService
+          await ClientesOfflineService.syncDireccionesForAllClients(clientesRuta);
           
           print('Clientes por ruta cacheados: ${clientesRuta.length}');
         }
@@ -118,86 +119,6 @@ class InicioSesionOfflineService {
     }
   }
 
-  /// Cachea las direcciones de los clientes
-  static Future<void> _cachearDireccionesClientes(List<dynamic> clientes) async {
-    try {
-      print('=== INICIANDO CACHÉ DE DIRECCIONES DE CLIENTES ===');
-      print('Número de clientes a procesar: ${clientes.length}');
-      
-      final clientesService = ClientesService();
-      final direccionesMap = <String, List<dynamic>>{};
-      int clientesProcesados = 0;
-      int clientesConDirecciones = 0;
-      
-      for (final cliente in clientes) {
-        if (cliente is Map<String, dynamic>) {
-          final clienteId = cliente['clie_Id'];
-          final clienteNombre = cliente['clie_Nombre'] ?? 'Sin nombre';
-          
-          if (clienteId != null) {
-            clientesProcesados++;
-            print('>>> Procesando cliente $clientesProcesados/${clientes.length}: ID=$clienteId, Nombre=$clienteNombre');
-            
-            try {
-              final direcciones = await clientesService.getDireccionesCliente(clienteId);
-              print('>>> Cliente $clienteId: ${direcciones.length} direcciones encontradas');
-              
-              if (direcciones.isNotEmpty) {
-                direccionesMap[clienteId.toString()] = direcciones;
-                clientesConDirecciones++;
-                
-                // Log de la primera dirección para debug
-                if (direcciones.isNotEmpty) {
-                  final primeraDireccion = direcciones[0];
-                  print('>>> Primera dirección: ${primeraDireccion}');
-                }
-              } else {
-                print('>>> Cliente $clienteId no tiene direcciones');
-              }
-            } catch (e) {
-              print('>>> ERROR obteniendo direcciones del cliente $clienteId: $e');
-            }
-          } else {
-            print('>>> Cliente sin ID válido: $cliente');
-          }
-        } else {
-          print('>>> Formato de cliente inválido: $cliente');
-        }
-      }
-      
-      print('=== RESUMEN CACHÉ DIRECCIONES ===');
-      print('Clientes procesados: $clientesProcesados');
-      print('Clientes con direcciones: $clientesConDirecciones');
-      print('Total direcciones cacheadas para ${direccionesMap.length} clientes');
-      
-      if (direccionesMap.isNotEmpty) {
-        final jsonData = jsonEncode(direccionesMap);
-        await _secureStorage.write(
-          key: _clientesDireccionesKey,
-          value: jsonData,
-        );
-        
-        // Verificar que se guardó correctamente
-        final verificacion = await _secureStorage.read(key: _clientesDireccionesKey);
-        if (verificacion != null) {
-          print('✓ DIRECCIONES CACHEADAS EXITOSAMENTE');
-          print('Tamaño del caché: ${verificacion.length} caracteres');
-        } else {
-          print('✗ ERROR: No se pudo verificar el caché de direcciones');
-        }
-      } else {
-        print('⚠ No se encontraron direcciones para cachear');
-        // Guardar caché vacío para evitar errores
-        await _secureStorage.write(
-          key: _clientesDireccionesKey,
-          value: jsonEncode({}),
-        );
-      }
-    } catch (e) {
-      print('✗ ERROR CRÍTICO cacheando direcciones de clientes: $e');
-      print('Stack trace: ${e.toString()}');
-    }
-  }
 
   /// Cachea productos básicos para la creación de pedidos
   static Future<void> _cachearProductosBasicos() async {
