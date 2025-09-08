@@ -1,5 +1,6 @@
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
 
 // Aquí puedes importar otros servicios offline cuando los agregues:
 // import 'package:sidcop_mobile/Offline_Services/OtroOfflineService.dart';
@@ -8,10 +9,15 @@ import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 /// Llama a los servicios offline para guardar toda la información necesaria
 /// cuando el usuario inicia sesión o cuando se requiera actualizar el almacenamiento local.
 class SincronizacionService {
-  static Future<void> sincronizarTodoOffline() async {
+  static Future<void> sincronizarTodoOffline({int? vendedorId}) async {
     try {
       await RutasScreenOffline.sincronizarTodo();
       await VisitasOffline.sincronizarTodo();
+      if (vendedorId != null) {
+        await VentasOfflineService.sincronizarTodo(vendedorId);
+        // Precargar productos con descuento para cliente 1158 y vendedor 13
+        await VentasOfflineService.descargarYGuardarProductosConDescuentoOffline(1158, 13);
+      }
       print('Sincronización offline completada.');
     } catch (e) {
       print('Error en la sincronización offline: $e');

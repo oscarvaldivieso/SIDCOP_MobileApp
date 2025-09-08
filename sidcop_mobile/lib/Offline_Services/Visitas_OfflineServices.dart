@@ -7,8 +7,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
+import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
 
 /// Servicio offline para operaciones relacionadas con el historial de visitas.
 class VisitasOffline {
@@ -182,6 +185,8 @@ class VisitasOffline {
   // Helpers específicos para Visitas
   // -----------------------------
   static const String _archivoVisitas = 'visitas_historial.json';
+  static const String _archivoVisitasPendientes = 'visitas_pendientes.json';
+  static const String _prefixImagenesVisita = 'imagenes_visita_';
 
   /// Sincroniza el historial de visitas desde el servicio remoto y guarda localmente.
   static Future<List<dynamic>> sincronizarVisitasHistorial() async {
@@ -196,7 +201,11 @@ class VisitasOffline {
       } catch (_) {
         print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
       }
+
+      // Guardar los datos remotos en el archivo de historial
+      // Importante: NO sobrescribir las visitas pendientes
       await guardarJson(_archivoVisitas, data);
+
       return data as List<dynamic>;
     } catch (e) {
       rethrow;
@@ -215,6 +224,40 @@ class VisitasOffline {
     return List.from(raw as List);
   }
 
+  /// Método que obtiene tanto las visitas históricas como las pendientes.
+  /// Util para presentar en la UI todas las visitas juntas.
+  static Future<List<dynamic>> obtenerTodasLasVisitas() async {
+    final historial = await obtenerVisitasHistorialLocal();
+    final pendientes = await obtenerVisitasPendientesLocal();
+
+    final resultado = List.from(historial);
+
+    // Agregar las pendientes que no estén ya en el historial
+    for (final p in pendientes) {
+      if (p is! Map) continue;
+
+      final signature = p['local_signature'];
+      if (signature == null) {
+        resultado.add(p);
+        continue;
+      }
+
+      // Verificar que no exista ya en el historial
+      final existe = historial.any(
+        (h) => h is Map && h['local_signature'] == signature,
+      );
+
+      if (!existe) {
+        resultado.add(p);
+      }
+    }
+
+    print(
+      'Total de visitas combinadas: ${resultado.length} (${historial.length} historial + ${pendientes.length} pendientes)',
+    );
+    return resultado;
+  }
+
   /// Wrapper que fuerza lectura/sincronización remota para visitas (si se necesita).
   static Future<List<dynamic>> leerVisitasHistorial() async {
     return await sincronizarVisitasHistorial();
@@ -223,8 +266,29 @@ class VisitasOffline {
   /// Agrega una visita localmente (carga, agrega y guarda).
   /// Evita duplicados calculando una "firma" basada en campos clave.
   /// Devuelve true si la visita fue añadida, false si ya existía.
+  /// Lee las visitas pendientes almacenadas localmente o devuelve lista vacía.
+  static Future<List<dynamic>> obtenerVisitasPendientesLocal() async {
+    final raw = await leerJson(_archivoVisitasPendientes);
+    if (raw == null) return [];
+    return List.from(raw as List);
+  }
+
+  /// Guarda las visitas pendientes en un archivo separado.
+  static Future<void> guardarVisitasPendientes(List<dynamic> visitas) async {
+    await guardarJson(_archivoVisitasPendientes, visitas);
+  }
+
   static Future<bool> agregarVisitaLocal(Map<String, dynamic> visita) async {
-    final lista = await obtenerVisitasHistorialLocal();
+    // Registrar la estructura de la visita para depuración
+    try {
+      print('DEBUG - ESTRUCTURA DE VISITA OFFLINE A GUARDAR:');
+      print(const JsonEncoder.withIndent('  ').convert(visita));
+    } catch (e) {
+      print('Error al imprimir estructura JSON: $e');
+    }
+
+    // Obtener las visitas pendientes almacenadas
+    final lista = await obtenerVisitasPendientesLocal();
 
     // Calcular firma a partir de campos clave que definen una visita
     final signatureSource = {
@@ -253,8 +317,90 @@ class VisitasOffline {
     visitaToSave['local_signature'] = signature;
     visitaToSave['local_created_at'] = DateTime.now().toIso8601String();
 
+    // Asegurar que los campos críticos sean del tipo correcto
+    visitaToSave['clie_Id'] = int.tryParse('${visitaToSave['clie_Id']}') ?? 0;
+    visitaToSave['diCl_Id'] = int.tryParse('${visitaToSave['diCl_Id']}') ?? 0;
+    visitaToSave['esVi_Id'] = int.tryParse('${visitaToSave['esVi_Id']}') ?? 0;
+    visitaToSave['ruta_Id'] = int.tryParse('${visitaToSave['ruta_Id']}') ?? 0;
+
+    // Verificar que veRu_Id tenga un valor válido (mayor a cero)
+    // Si no lo tiene, intentar buscarlo usando clie_Id y ruta_Id
+    if ((visitaToSave['veRu_Id'] == null || visitaToSave['veRu_Id'] == 0) &&
+        visitaToSave['clie_Id'] != 0 &&
+        visitaToSave['ruta_Id'] != 0) {
+      final veRuId = await _buscarVendedorRutaId(
+        visitaToSave['clie_Id'],
+        visitaToSave['ruta_Id'],
+      );
+
+      if (veRuId > 0) {
+        visitaToSave['veRu_Id'] = veRuId;
+        print(
+          '🔄 Se encontró veRu_Id=$veRuId para cliente=${visitaToSave['clie_Id']} y ruta=${visitaToSave['ruta_Id']}',
+        );
+      } else {
+        print(
+          '⚠️ No se encontró veRu_Id para cliente=${visitaToSave['clie_Id']} y ruta=${visitaToSave['ruta_Id']}',
+        );
+
+        // Intentar buscar veRu_Id desde el cliente
+        final clientes = await obtenerClientesLocal();
+        final clienteMatch = clientes.firstWhere(
+          (c) => c['clie_Id'] == visitaToSave['clie_Id'],
+          orElse: () => <String, dynamic>{},
+        );
+
+        if (clienteMatch.isNotEmpty && clienteMatch['veRu_Id'] != null) {
+          visitaToSave['veRu_Id'] =
+              int.tryParse('${clienteMatch['veRu_Id']}') ?? 0;
+          print(
+            '🔄 Se encontró veRu_Id=${visitaToSave['veRu_Id']} desde datos del cliente',
+          );
+        }
+      }
+    } else {
+      visitaToSave['veRu_Id'] = int.tryParse('${visitaToSave['veRu_Id']}') ?? 0;
+    }
+
+    // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
+    visitaToSave['usua_Creacion'] = 57;
+
+    // Verificar si proviene del mapa y añadir metadata adicional si es necesario
+    if (visitaToSave['origen'] == 'mapa_offline') {
+      print('\n===== GUARDANDO VISITA DESDE MAPA OFFLINE =====');
+      print(
+        'Cliente ID: ${visitaToSave['clie_Id']} (${visitaToSave['clie_Id'].runtimeType})',
+      );
+      print(
+        'Dirección ID: ${visitaToSave['diCl_Id']} (${visitaToSave['diCl_Id'].runtimeType})',
+      );
+      print(
+        'Ruta ID: ${visitaToSave['ruta_Id']} (${visitaToSave['ruta_Id'].runtimeType})',
+      );
+    }
+
     lista.add(visitaToSave);
-    await guardarVisitasHistorial(lista);
+    print('\n===== GUARDANDO VISITA OFFLINE EN visitas_pendientes.json =====');
+    print('Cliente ID: ${visitaToSave['clie_Id']}');
+    print('Dirección ID: ${visitaToSave['diCl_Id']}');
+    print('Usuario ID: ${visitaToSave['usua_Creacion']}');
+
+    await guardarVisitasPendientes(lista);
+    print('Total de visitas pendientes: ${lista.length}');
+
+    // Mostrar la visita guardada para verificar
+    print('\n===== VISITA OFFLINE GUARDADA CORRECTAMENTE =====');
+    print('Cliente ID: ${visitaToSave['clie_Id']}');
+    print('Dirección ID: ${visitaToSave['diCl_Id']}');
+    print('Estado ID: ${visitaToSave['esVi_Id']}');
+    print('Usuario Creación: ${visitaToSave['usua_Creacion']}');
+    print(
+      'veRu_Id: ${visitaToSave['veRu_Id']}',
+    ); // Añadir veRu_Id para verificación
+    print('Firma local: ${visitaToSave['local_signature']}');
+    print('\nDEBUG - VISITA GUARDADA CORRECTAMENTE:');
+    print(const JsonEncoder.withIndent('  ').convert(visitaToSave));
+
     return true;
   }
 
@@ -270,13 +416,17 @@ class VisitasOffline {
     try {
       final servicio = ClientesVisitaHistorialService();
       final data = await servicio.obtenerEstadosVisita();
+
+      // Guardar los estados en almacenamiento local
+      await guardarJson(_archivoEstadosVisita, data);
+
       try {
         final lista = List.from(data);
         print('SYNC: sincronizarEstadosVisita fetched ${lista.length} items');
       } catch (_) {
         print('SYNC: sincronizarEstadosVisita fetched (unknown count)');
       }
-      await guardarJson(_archivoEstadosVisita, data);
+
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       rethrow;
@@ -364,6 +514,78 @@ class VisitasOffline {
     }
   }
 
+  /// Busca el veRu_Id (ID de VendedorPorRuta) basado en el ID del cliente y la ruta
+  static Future<int> _buscarVendedorRutaId(int clienteId, int rutaId) async {
+    try {
+      // Intentar leer los vendedores por rutas desde el archivo local
+      final raw = await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
+      if (raw.isEmpty) {
+        print('❌ No hay datos de vendedores por rutas disponibles localmente');
+        return 0;
+      }
+
+      // Convertir a lista manipulable
+      final vendedoresPorRuta = List<Map<String, dynamic>>.from(
+        raw.map((e) => e is Map ? Map<String, dynamic>.from(e) : {}),
+      );
+
+      // Primero buscar coincidencia exacta por clienteId y rutaId
+      for (final vpr in vendedoresPorRuta) {
+        final veRuClieId =
+            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuRutaId =
+            int.tryParse('${vpr['ruta_Id'] ?? vpr['rutaId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuClieId == clienteId && veRuRutaId == rutaId && veRuId > 0) {
+          print(
+            '✅ Se encontró veRu_Id=$veRuId para cliente=$clienteId y ruta=$rutaId',
+          );
+          return veRuId;
+        }
+      }
+
+      // Si no hay coincidencia exacta, buscar solo por clienteId
+      for (final vpr in vendedoresPorRuta) {
+        final veRuClieId =
+            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuClieId == clienteId && veRuId > 0) {
+          print(
+            '⚠️ Se encontró veRu_Id=$veRuId para cliente=$clienteId (ignorando rutaId)',
+          );
+          return veRuId;
+        }
+      }
+
+      // Como último recurso, simplemente tomar el primer vendedor asociado a esta ruta
+      for (final vpr in vendedoresPorRuta) {
+        final veRuRutaId =
+            int.tryParse('${vpr['ruta_Id'] ?? vpr['rutaId'] ?? 0}') ?? 0;
+        final veRuId =
+            int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
+
+        if (veRuRutaId == rutaId && veRuId > 0) {
+          print(
+            '⚠️ Se encontró veRu_Id=$veRuId para ruta=$rutaId (ignorando clienteId)',
+          );
+          return veRuId;
+        }
+      }
+
+      print(
+        '❌ No se encontró ningún veRu_Id para cliente=$clienteId y ruta=$rutaId',
+      );
+      return 0;
+    } catch (e) {
+      print('❌ Error buscando veRu_Id: $e');
+      return 0;
+    }
+  }
+
   /// Lee los estados de visita preferiendo el cache local. Si no hay datos
   /// locales, intenta sincronizar desde el servicio remoto y los guarda.
   /// Útil para poblar dropdowns: primero intenta usar lo ya descargado.
@@ -403,19 +625,53 @@ class VisitasOffline {
   /// remoto (crearVisitaConImagenes). Si la subida es exitosa, la visita se elimina
   /// del almacen local. Retorna la cantidad de visitas sincronizadas correctamente.
   static Future<int> sincronizarPendientes() async {
-    final lista = await obtenerVisitasHistorialLocal();
-    if (lista.isEmpty) return 0;
-
-    final pendientes = lista
-        .where((v) => v is Map && (v['offline'] == true))
-        .toList();
+    final pendientes = await obtenerVisitasPendientesLocal();
     if (pendientes.isEmpty) return 0;
+
+    // Imprimir todas las visitas offline para depuración
+    print('DEBUG - VISITAS OFFLINE PENDIENTES: ${pendientes.length}');
+    try {
+      for (int i = 0; i < pendientes.length; i++) {
+        print('\n===== VISITA OFFLINE PENDIENTE #${i + 1} DETALLE =====');
+        try {
+          print('Cliente ID: ${pendientes[i]['clie_Id']}');
+          print('Dirección ID: ${pendientes[i]['diCl_Id']}');
+          print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
+          print('Fecha: ${pendientes[i]['clVi_Fecha']}');
+          print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
+          print('Offline: ${pendientes[i]['offline']}');
+          print('Observaciones: ${pendientes[i]['clVi_Observaciones']}');
+          print('Firma: ${pendientes[i]['local_signature']}');
+          print(
+            'Imágenes: ${(pendientes[i]['imagenesBase64'] as List?)?.length ?? 0}',
+          );
+          // Añadir validación para veRu_Id
+          print(
+            'veRu_Id: ${pendientes[i]['veRu_Id'] ?? "NO PRESENTE"}, Ruta ID: ${pendientes[i]['ruta_Id'] ?? "NO PRESENTE"}',
+          );
+
+          // Mostrar el origen si es de maps offline
+          if (pendientes[i]['origen'] != null) {
+            print('Origen: ${pendientes[i]['origen']}');
+          }
+
+          print('\nJSON COMPLETO:');
+          print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+        } catch (e) {
+          print('Error al imprimir detalle de visita offline #${i + 1}: $e');
+          print('Intentando imprimir JSON completo:');
+          print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+        }
+      }
+    } catch (e) {
+      print('Error al imprimir visitas offline: $e');
+    }
 
     final servicio = ClientesVisitaHistorialService();
     int sincronizadas = 0;
 
     // Copia de la lista para ir eliminando elementos sincronizados
-    final remaining = List.from(lista);
+    final remaining = List.from(pendientes);
 
     for (final p in pendientes) {
       try {
@@ -429,42 +685,91 @@ class VisitasOffline {
 
         final diClId = int.tryParse('${visita['diCl_Id'] ?? 0}') ?? 0;
         final clieId = int.tryParse('${visita['clie_Id'] ?? 0}') ?? 0;
+        final veruId = int.tryParse('${visita['veRu_Id'] ?? 0}') ?? 0;
+        final rutaId = int.tryParse('${visita['ruta_Id'] ?? 0}') ?? 0;
 
         final sig = (visita['local_signature'] ?? 'no-signature').toString();
         print(
-          'SYNC: intentando subir visita local_signature=$sig clieId=$clieId diClId=$diClId imagenes=${imagenesBase64.length}',
+          'SYNC: intentando subir visita local_signature=$sig clieId=$clieId diClId=$diClId veruId=$veruId rutaId=$rutaId imagenes=${imagenesBase64.length}',
         );
 
         try {
           // Construir payload para insertar la visita (reutilizamos la estructura local)
           final visitaPayload = Map<String, dynamic>.from(visita);
+
+          // Verificar campos críticos antes de enviar
+          print('\nDEBUG - VALIDACIÓN DE CAMPOS CRÍTICOS:');
+          final camposCriticos = [
+            'clie_Id',
+            'diCl_Id',
+            'clVi_Fecha',
+            'esVi_Id',
+            'clVi_Observaciones',
+            'usua_Creacion',
+          ];
+
+          for (final campo in camposCriticos) {
+            print('$campo: ${visitaPayload[campo]}');
+          }
+
           // Limpiar campos locales/aux
           visitaPayload.remove('imagenesBase64');
           visitaPayload.remove('offline');
           visitaPayload.remove('local_signature');
           visitaPayload.remove('local_created_at');
-          // Asegurar usuario: preferir el valor guardado en la visita (cuando se guardó offline),
-          // si no existe usar el `globalVendId`. No sobrescribir por 0.
+
+          // Asegurar que tenemos un ID de usuario válido para la sincronización
+          // Primero intentar obtener el usuario guardado en la visita
           int? usuarioGuardado;
           try {
             usuarioGuardado = int.tryParse('${visita['usua_Creacion'] ?? ''}');
           } catch (_) {
             usuarioGuardado = null;
           }
-          if (usuarioGuardado != null && usuarioGuardado > 0) {
-            visitaPayload['usua_Creacion'] = usuarioGuardado;
-            print(
-              'SYNC: usando usua_Creacion desde visita guardada = $usuarioGuardado',
-            );
-          } else if ((globalVendId ?? 0) > 0) {
-            visitaPayload['usua_Creacion'] = globalVendId;
-            print(
-              'SYNC: usando usua_Creacion desde globalVendId = $globalVendId',
-            );
-          } else {
-            visitaPayload.remove('usua_Creacion');
-            print('SYNC: no hay usua_Creacion valido, se elimina del payload');
+
+          // Asegurar que todos los campos numéricos sean números y no cadenas
+          // Conversión explícita de los campos clave
+          final clieId = int.tryParse('${visitaPayload['clie_Id']}') ?? 0;
+          visitaPayload['clie_Id'] = clieId;
+          visitaPayload['diCl_Id'] =
+              int.tryParse('${visitaPayload['diCl_Id']}') ?? 0;
+          visitaPayload['esVi_Id'] =
+              int.tryParse('${visitaPayload['esVi_Id']}') ?? 0;
+
+          // Verificar y asegurar que veRu_Id tenga un valor válido
+          int rutaId = int.tryParse('${visitaPayload['ruta_Id'] ?? 0}') ?? 0;
+          int veruId = int.tryParse('${visitaPayload['veRu_Id'] ?? 0}') ?? 0;
+
+          if (veruId == 0 && clieId > 0 && rutaId > 0) {
+            // Buscar veRu_Id si no está presente
+            veruId = await _buscarVendedorRutaId(clieId, rutaId);
+            if (veruId > 0) {
+              visitaPayload['veRu_Id'] = veruId;
+              print(
+                'SYNC: Se asignó veRu_Id=$veruId al sincronizar visita cliente=$clieId ruta=$rutaId',
+              );
+            } else {
+              print(
+                'SYNC: ⚠️ No se encontró veRu_Id para cliente=$clieId ruta=$rutaId',
+              );
+            }
+          } else if (veruId > 0) {
+            print('SYNC: Usando veRu_Id=$veruId existente en la visita');
+            visitaPayload['veRu_Id'] = veruId; // Asegurar que sea numérico
           }
+
+          // Siempre usar el ID 57 para el usuario de creación según requerimiento del SP
+          visitaPayload['usua_Creacion'] = 57;
+          print('SYNC: usando usua_Creacion = 57 según requerimiento del SP');
+
+          // Verificación final de veRu_Id
+          print(
+            '\nDEBUG - Verificación de veRu_Id: ${visitaPayload['veRu_Id']}',
+          );
+
+          // Mostrar el payload final justo antes de enviarlo
+          print('\nDEBUG - PAYLOAD FINAL ANTES DE ENVIAR:');
+          print(const JsonEncoder.withIndent('  ').convert(visitaPayload));
 
           // Intentar crear la visita remoto usando el mismo flujo que la UI
           final insertResult = await servicio.insertarVisita(visitaPayload);
@@ -626,20 +931,207 @@ class VisitasOffline {
       }
     }
 
-    // Guardar la lista restante (las no sincronizadas)
-    await guardarVisitasHistorial(remaining);
+    // Guardar la lista restante (las no sincronizadas) en el archivo de pendientes
+    await guardarVisitasPendientes(remaining);
+
+    print(
+      'DEBUG - VISITAS PENDIENTES DESPUÉS DE SINCRONIZAR: ${remaining.length}',
+    );
     return sincronizadas;
   }
-  
+
   /// Sincroniza toda la información relevante de visitas offline.
   static Future<void> sincronizarTodo() async {
+    // Primero obtener las visitas pendientes para no perderlas
+    final pendientes = await obtenerVisitasPendientesLocal();
+
+    // Sincronizar datos del servidor
     final visitas = await sincronizarVisitasHistorial();
     await guardarVisitasHistorial(visitas);
+
+    // Volver a guardar las pendientes para que no se pierdan
+    if (pendientes.isNotEmpty) {
+      print(
+        'Preservando ${pendientes.length} visitas pendientes durante sincronización',
+      );
+      await guardarVisitasPendientes(pendientes);
+    }
+
     final estados = await sincronizarEstadosVisita();
     await guardarJson(_archivoEstadosVisita, estados);
     final clientes = await sincronizarClientes();
     await guardarClientes(clientes);
     final direcciones = await sincronizarDirecciones();
     await guardarDirecciones(direcciones);
+  }
+
+  // ---------------------------------
+  // Manejo de imágenes de visitas
+  // ---------------------------------
+
+  /// Genera la clave para almacenar las imágenes de una visita específica
+  static String _claveImagenesVisita(int visitaId) {
+    return 'json:${_prefixImagenesVisita}$visitaId';
+  }
+
+  /// Guarda las imágenes de una visita localmente
+  /// @param visitaId ID de la visita
+  /// @param imagenes Lista de imágenes en formato Map (como las devuelve la API)
+  static Future<bool> guardarImagenesVisita(
+    int visitaId,
+    List<Map<String, dynamic>> imagenes,
+  ) async {
+    try {
+      final clave = _claveImagenesVisita(visitaId);
+      // Incluimos metadatos como la fecha de descarga
+      final datosGuardar = {
+        'visitaId': visitaId,
+        'descargadoEl': DateTime.now().toIso8601String(),
+        'imagenes': imagenes,
+      };
+      await _secureStorage.write(key: clave, value: jsonEncode(datosGuardar));
+      print('✅ Guardadas ${imagenes.length} imágenes para visita $visitaId');
+      return true;
+    } catch (e) {
+      print('❌ Error guardando imágenes para visita $visitaId: $e');
+      return false;
+    }
+  }
+
+  /// Obtiene las imágenes guardadas localmente para una visita
+  /// @param visitaId ID de la visita
+  /// @returns Lista de imágenes o null si no hay imágenes guardadas
+  static Future<List<Map<String, dynamic>>?> obtenerImagenesVisitaLocal(
+    int visitaId,
+  ) async {
+    try {
+      final clave = _claveImagenesVisita(visitaId);
+      final datosJson = await _secureStorage.read(key: clave);
+
+      if (datosJson == null) {
+        print('ℹ️ No hay imágenes guardadas para la visita $visitaId');
+        return null;
+      }
+
+      final datos = jsonDecode(datosJson) as Map<String, dynamic>;
+      final imagenes = List<Map<String, dynamic>>.from(
+        datos['imagenes'] as List,
+      );
+
+      print(
+        '✅ Recuperadas ${imagenes.length} imágenes locales para visita $visitaId',
+      );
+      return imagenes;
+    } catch (e) {
+      print('❌ Error recuperando imágenes para visita $visitaId: $e');
+      return null;
+    }
+  }
+
+  /// Descarga y guarda las imágenes de una visita desde el servidor
+  /// @param visitaId ID de la visita
+  /// @returns Lista de imágenes descargadas o null si hay error
+  static Future<List<Map<String, dynamic>>?> sincronizarImagenesVisita(
+    int visitaId,
+  ) async {
+    try {
+      print('🔄 Sincronizando imágenes para visita $visitaId...');
+      final servicio = ClientesVisitaHistorialService();
+      final imagenes = await servicio.listarImagenesPorVisita(visitaId);
+
+      if (imagenes.isNotEmpty) {
+        // Procesamos las URLs para guardar también las imágenes como archivos
+        // y así poder mostrarlas sin conexión
+        final baseUrl = 'http://200.59.27.115:8091'; // URL base del servidor
+        final imagenesConRutasLocales = <Map<String, dynamic>>[];
+
+        for (var i = 0; i < imagenes.length; i++) {
+          final imagen = Map<String, dynamic>.from(imagenes[i]);
+          final imagenUrl = imagen['imVi_Imagen'] as String?;
+
+          if (imagenUrl != null && imagenUrl.isNotEmpty) {
+            final urlCompleta = "$baseUrl$imagenUrl";
+            final nombreArchivo = 'visita_${visitaId}_img_$i.jpg';
+
+            try {
+              // Intentar descargar la imagen y guardarla localmente
+              final rutaLocal = await guardarArchivoDesdeUrl(
+                urlCompleta,
+                nombreArchivo,
+              );
+
+              if (rutaLocal != null) {
+                imagen['ruta_local'] = rutaLocal;
+                print('✅ Imagen $i guardada localmente en $rutaLocal');
+              }
+            } catch (e) {
+              print('⚠️ Error descargando imagen $i: $e');
+              // Continuar con las demás imágenes si falla una
+            }
+          }
+
+          imagenesConRutasLocales.add(imagen);
+        }
+
+        // Guardar los metadatos de las imágenes en secure storage
+        await guardarImagenesVisita(visitaId, imagenesConRutasLocales);
+
+        print(
+          '✅ Sincronizadas ${imagenesConRutasLocales.length} imágenes para visita $visitaId',
+        );
+        return imagenesConRutasLocales;
+      } else {
+        print('ℹ️ No hay imágenes para la visita $visitaId');
+        // Guardar un registro vacío para no tener que consultar de nuevo
+        await guardarImagenesVisita(visitaId, []);
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error sincronizando imágenes para visita $visitaId: $e');
+      return null;
+    }
+  }
+
+  /// Obtiene las imágenes de una visita, primero intenta local, luego remoto si hay conexión
+  /// @param visitaId ID de la visita
+  /// @param forzarSincronizacion Si es true, siempre intenta sincronizar desde el servidor
+  /// @returns Lista de imágenes o lista vacía si no hay imágenes
+  static Future<List<Map<String, dynamic>>> obtenerImagenesVisita(
+    int visitaId, {
+    bool forzarSincronizacion = false,
+  }) async {
+    // Primero intentamos obtener las imágenes guardadas localmente
+    final imagenesLocales = await obtenerImagenesVisitaLocal(visitaId);
+
+    // Si no hay imágenes locales o se fuerza la sincronización, intentamos obtener del servidor
+    if (imagenesLocales == null || forzarSincronizacion) {
+      try {
+        // Verificar conexión usando VerificarService
+        final isOnline = await VerificarService.verificarConexion();
+
+        if (isOnline) {
+          final imagenesRemoto = await sincronizarImagenesVisita(visitaId);
+          if (imagenesRemoto != null && imagenesRemoto.isNotEmpty) {
+            return imagenesRemoto;
+          }
+        } else if (imagenesLocales != null) {
+          // Si no hay conexión pero tenemos imágenes locales, las usamos
+          print(
+            'ℹ️ Sin conexión, usando imágenes locales para visita $visitaId',
+          );
+          return imagenesLocales;
+        }
+      } catch (e) {
+        print('⚠️ Error en obtenerImagenesVisita: $e');
+        // Si hay error y tenemos imágenes locales, las devolvemos
+        if (imagenesLocales != null) return imagenesLocales;
+      }
+    } else if (imagenesLocales.isNotEmpty) {
+      // Si hay imágenes locales y no se fuerza sincronización, las devolvemos
+      return imagenesLocales;
+    }
+
+    // Si llegamos aquí, no hay imágenes o hubo error
+    return [];
   }
 }
