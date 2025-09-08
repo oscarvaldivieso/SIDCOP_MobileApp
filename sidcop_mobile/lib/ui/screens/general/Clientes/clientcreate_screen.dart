@@ -16,6 +16,7 @@ import 'package:sidcop_mobile/ui/widgets/custom_input.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -56,7 +57,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   final DropdownDataService _dropdownService = DropdownDataService();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
-  
+  final ClientesOfflineService _clientesOfflineService = ClientesOfflineService();
+
   // Gender selection
   String _selectedGender = 'M';
 
@@ -73,28 +75,23 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   bool? esAdmin;
   int? usuaId;
 
-
-
-
-    var MKTelefono = new MaskTextInputFormatter(
-  mask: '####-####', 
-  filter: { "#": RegExp(r'[0-9]') },
-  type: MaskAutoCompletionType.lazy
+  var MKTelefono = new MaskTextInputFormatter(
+    mask: '####-####', 
+    filter: { "#": RegExp(r'[0-9]') },
+    type: MaskAutoCompletionType.lazy
   );
 
-
   var MKIdentidad = new MaskTextInputFormatter(
-  mask: '####-####-#####', 
-  filter: { "#": RegExp(r'[0-9]') },
-  type: MaskAutoCompletionType.lazy
+    mask: '####-####-#####', 
+    filter: { "#": RegExp(r'[0-9]') },
+    type: MaskAutoCompletionType.lazy
   );
 
   var MKRTN = new MaskTextInputFormatter(
-  mask: '####-####-######', 
-  filter: { "#": RegExp(r'[0-9]') },
-  type: MaskAutoCompletionType.lazy
+    mask: '####-####-######', 
+    filter: { "#": RegExp(r'[0-9]') },
+    type: MaskAutoCompletionType.lazy
   );
-
 
   // Error text states
   String? _nombresError;
@@ -109,6 +106,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     super.initState();
     _loadAllClientData();
   }
+
   @override
   void dispose() {
     _nombresController.dispose();
@@ -118,7 +116,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     super.dispose();
   }
 
-    Future<void> _loadAllClientData() async {
+  Future<void> _loadAllClientData() async {
 
     // Obtener el usua_IdPersona del usuario logueado
     final perfilService = PerfilUsuarioService();
@@ -179,7 +177,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       clientes = await SyncService.getClients();
       print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
     }
-    }
+  }
 
   bool _validateFields() {
     setState(() {
@@ -242,32 +240,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       return;
     }
 
-    // Check if there's at least one address
     if (_direcciones.isEmpty) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Sin direcciones', style: _titleStyle),
-          content: Text(
-            '¿Desea continuar sin agregar una dirección al cliente?',
-            style: _labelStyle,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancelar', style: _buttonTextStyle),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Continuar', style: _buttonTextStyle),
-            ),
-          ],
+      print('Error: No se han agregado direcciones.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debe agregar al menos una dirección.'),
+          backgroundColor: Colors.red,
         ),
       );
-
-      if (confirm != true) {
-        return;
-      }
+      return;
     }
 
     if (!mounted) return;
@@ -277,46 +258,31 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     });
 
     try {
-      String? imageUrl;
+      final isConnected = await _checkConnectivity();
+      Uint8List? imageBytes;
 
-      // 1. Upload image if exists
-      if (_selectedImage != null || _selectedImageBytes != null) {
-        try {
-          imageUrl = await _uploadImage();
-          if (imageUrl == null) {
-            throw Exception('No se pudo subir la imagen');
-          }
-        } catch (e) {
-          print('Error al subir la imagen: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Error al subir la imagen. Continuando sin imagen...',
-                ),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        }
+      // Obtener los bytes de la imagen si existe
+      if (_selectedImageBytes != null) {
+        imageBytes = _selectedImageBytes;
+      } else if (_selectedImage != null) {
+        imageBytes = await _selectedImage!.readAsBytes();
       }
 
-      // 2. Prepare and insert client
+      // Preparar los datos del cliente
       final clienteData = {
-        'clie_Codigo':
-            'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-        'clie_Nacionalidad': 'HND', // Required parameter
+        'clie_Codigo': 'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+        'clie_Nacionalidad': 'HND',
         'clie_DNI': _dniController.text.trim(),
         'clie_RTN': _rtnController.text.trim(),
         'clie_Nombres': _nombresController.text.trim(),
         'clie_Apellidos': _apellidosController.text.trim(),
         'clie_NombreNegocio': _nombreNegocioController.text.trim(),
-        'clie_ImagenDelNegocio': imageUrl ?? '',
-        'clie_Telefono': _telefonoController.text.trim(), 
-        'clie_Correo':'',
+        'clie_ImagenDelNegocio': '', // Se actualizará con la URL de la imagen si se sube
+        'clie_Telefono': _telefonoController.text.trim(),
+        'clie_Correo': '',
         'clie_Sexo': _selectedGender,
         'clie_FechaNacimiento': DateTime(1990, 1, 1).toIso8601String(),
-        'tiVi_Id': 1, // Fixed parameter name
+        'tiVi_Id': 1,
         'cana_Id': 1,
         'esCv_Id': 1,
         'ruta_Id': rutaId,
@@ -329,92 +295,109 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_Confirmacion': false,
         'usua_Creacion': usuaId,
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
-        // Removed 'tras_Id' and 'clie_Estado' as they're not in the stored procedure
       };
 
-      print('Enviando datos del cliente: $clienteData');
+      print('Datos del cliente a enviar: ${jsonEncode(clienteData)}');
 
-      // 3. Insert client
-      final response = await _dropdownService.insertCliente(clienteData);
-      print('Respuesta del servidor: $response');
-
-      if (response['success'] != true) {
-        throw Exception(
-          'Error al crear el cliente: ${response['message'] ?? 'Error desconocido'}',
-        );
-      }
-
-      // Extract client ID from the nested response
-      final clientData = response['data'];
-      if (clientData == null || clientData['data'] == null) {
-        throw Exception('No se recibió un ID de cliente válido del servidor');
-      }
-
-      // Parse client ID whether it comes as String or int
-      final clientId = clientData['data'] is String
-          ? int.tryParse(clientData['data'])
-          : (clientData['data'] as num?)?.toInt();
-
-      if (clientId == null) {
-        throw Exception(
-          'Formato de ID de cliente inválido: ${clientData['data']}',
-        );
-      }
-
-      print('Client ID extraído: $clientId (${clientId.runtimeType})');
-
-      // 4. Insert all addresses with the new client ID
-      if (_direcciones.isNotEmpty) {
-        int successfulAddresses = 0;
-
-        for (var direccion in _direcciones) {
-          try {
-            // Actualizar el ID del cliente en cada dirección
-            final direccionData = direccion.copyWith(clie_id: clientId);
-
-            print('=== Enviando dirección para cliente $clientId ===');
-            print('Datos completos: ${direccionData.toJson()}');
-
-            final result = await _direccionClienteService
-                .insertDireccionCliente(direccionData);
-
-            print('Respuesta del servidor para dirección: $result');
-
-            if (result['success'] == true) {
-              successfulAddresses++;
-              print('✅ Dirección guardada exitosamente');
-            } else {
-              print('❌ Error al guardar dirección: ${result['message']}');
-            }
-          } catch (e) {
-            print('Excepción al guardar dirección: $e');
+      if (isConnected) {
+        // Subir imagen primero
+        if (imageBytes != null) {
+          final imageUrl = await _uploadImage();
+          if (imageUrl != null) {
+            clienteData['clie_ImagenDelNegocio'] = imageUrl; // Asignar la URL de la imagen
           }
         }
 
-        if (successfulAddresses < _direcciones.length) {
-          // Show warning if not all addresses were saved
+        // Enviar datos del cliente
+        final response = await _dropdownService.insertCliente(clienteData);
+
+        if (response['success'] == true) {
+          // Extraer el clientId de la respuesta
+          final clientData = response['data'];
+          if (clientData == null || clientData['data'] == null) {
+            throw Exception('No se recibió un ID de cliente válido del servidor');
+          }
+
+          final clientId = clientData['data'] is String
+              ? int.tryParse(clientData['data'])
+              : (clientData['data'] as num?)?.toInt();
+
+          if (clientId == null) {
+            throw Exception(
+              'Formato de ID de cliente inválido: ${clientData['data']}',
+            );
+          }
+
+          print('Client ID extraído: $clientId (${clientId.runtimeType})');
+
+          // Enviar direcciones al servidor
+          int successfulAddresses = 0;
+
+          for (var direccion in _direcciones) {
+            try {
+              // Actualizar el ID del cliente en cada dirección
+              final direccionData = direccion.copyWith(clie_id: clientId);
+
+              print('=== Enviando dirección para cliente $clientId ===');
+              print('Datos completos: ${direccionData.toJson()}');
+
+              final result = await _direccionClienteService.insertDireccionCliente(direccionData);
+
+              print('Respuesta del servidor para dirección: $result');
+
+              if (result['success'] == true) {
+                successfulAddresses++;
+                print('✅ Dirección guardada exitosamente');
+              } else {
+                print('❌ Error al guardar dirección: ${result['message']}');
+              }
+            } catch (e) {
+              print('Excepción al guardar dirección: $e');
+            }
+          }
+
+          if (successfulAddresses < _direcciones.length) {
+            print(
+              'Advertencia: No todas las direcciones se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+            );
+          }
+
+          // Mostrar mensaje de éxito
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+                  successfulAddresses == _direcciones.length
+                      ? 'Cliente y direcciones creados exitosamente'
+                      : 'Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
                 ),
-                backgroundColor: Colors.orange,
+                backgroundColor: successfulAddresses == _direcciones.length
+                    ? Colors.green
+                    : Colors.orange,
               ),
             );
+            Navigator.pop(context, true);
           }
+        } else {
+          throw Exception(response['message'] ?? 'Error al crear el cliente');
         }
-      }
-
-      // 5. Show success message and return to previous screen
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cliente creado exitosamente'),
-            backgroundColor: Colors.green,
-          ),
+      } else {
+        // Flujo offline: guardar datos localmente
+        await ClientesOfflineService.saveClienteOffline(
+          clienteData,
+          _direcciones.map((d) => d.toJson()).toList(),
+          imageBytes: imageBytes,
         );
-        Navigator.pop(context, true);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cliente guardado localmente. Se sincronizará cuando haya conexión.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       print('Error en _submitForm: $e');
@@ -432,6 +415,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           _isSubmitting = false;
         });
       }
+    }
+  }
+
+  Future<bool> _checkConnectivity() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -556,7 +548,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         keyboardType: keyboardType,
         errorText: errorText,
         onChanged: onChanged,
-      inputFormatters: inputFormatters,        
+        inputFormatters: inputFormatters,
       ),
     );
   }
@@ -651,7 +643,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                                // Nombre del Negocio
+                // Nombre del Negocio
                 _buildTextField(
                   label: 'Nombre del Negocio',
                   controller: _nombreNegocioController,
@@ -666,9 +658,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
-
-
                 // Nombres
                 _buildTextField(
                   label: 'Nombres',
@@ -684,7 +673,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
                 // Apellidos
                 _buildTextField(
                   label: 'Apellidos',
@@ -700,9 +688,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
-
-                
                 _buildTextField(
                   label: 'Numero De Telefono',
                   controller: _telefonoController,
@@ -719,8 +704,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
-
                 // Identidad
                 _buildTextField(
                   label: 'Identidad',
@@ -738,7 +721,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
                 _buildTextField(
                   label: 'RTN',
                   controller: _rtnController,
@@ -755,7 +737,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     }
                   },
                 ),
-
                 // Gender selection
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16.0),
@@ -869,7 +850,6 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 16),
                 _buildLocationButton(),
                 const SizedBox(height: 8),

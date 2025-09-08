@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
-import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/ui/widgets/drawer.dart';
-import 'package:sidcop_mobile/ui/widgets/appBar.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
-import 'dart:convert';
+import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
@@ -47,86 +44,51 @@ class _clientScreenState extends State<clientScreen> {
 
   Future<void> _loadAllClientData() async {
     try {
-      // Cargar direcciones por cliente (solo si hay conexión)
+      // Verificar conexión a internet
       final hasConnection = await SyncService.hasInternetConnection();
+      List<Map<String, dynamic>> clientes = [];
+
       if (hasConnection) {
+        // Cargar direcciones por cliente
         final direcciones = await _clienteService.getDireccionesPorCliente();
         setState(() {
           _direccionesPorCliente = direcciones;
         });
+
+        // Cargar clientes desde el servidor
+        final usuaIdPersona = await _getUsuarioIdPersona();
+        if (usuaIdPersona != null) {
+          clientes = (await _clienteService.getClientesPorRuta(usuaIdPersona))
+              .cast<Map<String, dynamic>>();
+        } else {
+          clientes = (await SyncService.getClients()).cast<Map<String, dynamic>>();
+        }
+
+        // Guardar clientes en almacenamiento local para uso offline
+        await ClientesOfflineService.guardarClientes(clientes);
+
+        // Sincronizar clientes pendientes
+        await ClientesOfflineService.sincronizarClientesPendientes();
       } else {
-        print('Sin conexion - saltando carga de direcciones');
+        print('Sin conexión - cargando datos offline');
+
+        // Cargar clientes desde almacenamiento local
+        clientes = await ClientesOfflineService.cargarClientes();
       }
-    } catch (e) {
-      print('Error cargando direcciones: $e');
-    }
 
-    // Obtener el usua_IdPersona del usuario logueado
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-
-    print('DEBUG: userData completo = $userData');
-    print('DEBUG: userData keys = ${userData?.keys}');
-
-    final usuaIdPersona = userData?['usua_IdPersona'] as int?;
-    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
-    final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
-
-    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
-    List<dynamic> clientes = [];
-
-    if (esVendedor && usuaIdPersona != null) {
-      print(
-        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
-      );
-      clientes = await _clienteService.getClientesPorRuta(usuaIdPersona);
-      print(
-        'DEBUG: Clientes obtenidos por ruta para vendedor: ${clientes.length}',
-      );
-    } else if (esAdmin) {
-      print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
-      try {
-        clientes = await SyncService.getClients();
-        print('DEBUG: Clientes obtenidos para administrador: ${clientes.length}');
-      } catch (e) {
-        print('DEBUG: Error obteniendo clientes para admin: $e');
-        clientes = [];
-      }
-    } else if (esVendedor && usuaIdPersona == null) {
-      print(
-        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
-      );
-      clientes = [];
-      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
-    } else {
-      print(
-        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
-      );
-      clientes = await SyncService.getClients();
-      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
-    }
-    setState(() {
-      filteredClientes = clientes;
-      clientesList = Future.value(clientes); // Actualiza el FutureBuilder
-    });
-    // Asegurarse que filteredClientes siempre tenga datos frescos si no hay filtro
-    if (_searchController.text.isEmpty &&
-        _selectedDepa == null &&
-        _selectedMuni == null &&
-        _selectedColo == null) {
       setState(() {
         filteredClientes = clientes;
+        clientesList = Future.value(clientes);
       });
+    } catch (e) {
+      print('Error cargando datos de clientes: $e');
     }
+  }
 
-    // Cargar cuentas por cobrar
-    final cuentas = await _clienteService.getCuentasPorCobrar();
-    setState(() {
-      _cuentasPorCobrar = cuentas;
-    });
-
-    // Cargar datos de ubicación
-    await _loadAllLocationData();
+  Future<int?> _getUsuarioIdPersona() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    return userData?['usua_IdPersona'] as int?;
   }
 
   @override
@@ -288,8 +250,7 @@ class _clientScreenState extends State<clientScreen> {
           // FILTRO POR DEPARTAMENTO
           if (_selectedDepa != null) {
             // Verificar si alguna dirección del cliente pertenece al departamento seleccionado
-            final bool
-            clienteTieneDepartamentoSeleccionado = direccionesCliente.any((
+            final bool clienteTieneDepartamentoSeleccionado = direccionesCliente.any((
               direccionCliente,
             ) {
               final int? coloId = direccionCliente['colo_Id'] as int?;
@@ -516,8 +477,7 @@ class _clientScreenState extends State<clientScreen> {
               fontFamily: 'Satoshi',
               color: Colors.red,
             ),
-          ),
-        );
+          ));
       } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
         return const Center(
           child: Text(
@@ -807,9 +767,8 @@ class _clientScreenState extends State<clientScreen> {
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+            ));
+            },
         );
       }
     },
@@ -1340,11 +1299,10 @@ class _clientScreenState extends State<clientScreen> {
                     ),
                   );
                 },
-              ),
-            );
-          },
-        );
-      },
+              ));
+            },
+          );
+        },
     );
   }
 }

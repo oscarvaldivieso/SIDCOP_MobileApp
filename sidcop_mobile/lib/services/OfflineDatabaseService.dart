@@ -7,7 +7,7 @@ import 'package:sidcop_mobile/services/EncryptionService.dart';
 class OfflineDatabaseService {
   static Database? _database;
   static const String _databaseName = 'sidcop_offline.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   /// Obtiene la instancia de la base de datos
   static Future<Database> get database async {
@@ -111,6 +111,36 @@ class OfflineDatabaseService {
       )
     ''');
 
+    // Tabla de inventario
+    await db.execute('''
+      CREATE TABLE inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    // Tabla de jornada activa
+    await db.execute('''
+      CREATE TABLE jornada_activa (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    // Tabla de jornada detallada
+    await db.execute('''
+      CREATE TABLE jornada_detallada (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
     // Índices para mejorar performance
     await db.execute('CREATE INDEX idx_pedidos_synced ON pedidos(synced)');
     await db.execute('CREATE INDEX idx_usuarios_created ON usuarios(created_at)');
@@ -123,7 +153,38 @@ class OfflineDatabaseService {
   /// Maneja actualizaciones de la base de datos
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     print('Actualizando base de datos de versión $oldVersion a $newVersion');
-    // Aquí se manejarían las migraciones futuras
+    
+    if (oldVersion < 2) {
+      // Agregar tablas de inventario en versión 2
+      await db.execute('''
+        CREATE TABLE inventario (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE jornada_activa (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE jornada_detallada (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+      
+      print('Tablas de inventario creadas en migración a versión 2');
+    }
   }
 
   /// Guarda datos cifrados en una tabla específica
@@ -244,6 +305,54 @@ class OfflineDatabaseService {
   /// Carga datos de recargas
   static Future<List<Map<String, dynamic>>> loadRecargasData() async {
     return await _loadEncryptedData('recargas', 'Recargas');
+  }
+
+  /// Guarda datos de inventario
+  static Future<bool> saveInventoryData(List<Map<String, dynamic>> inventory) async {
+    try {
+      print('🔄 Guardando ${inventory.length} productos de inventario...');
+      final result = await _saveEncryptedData('inventario', inventory, 'Inventario');
+      print(result ? '✅ Inventario guardado exitosamente' : '❌ Error al guardar inventario');
+      return result;
+    } catch (e) {
+      print('❌ Excepción al guardar inventario: $e');
+      return false;
+    }
+  }
+
+  /// Carga datos de inventario
+  static Future<List<Map<String, dynamic>>> loadInventoryData() async {
+    try {
+      print('🔍 Cargando datos de inventario offline...');
+      final data = await _loadEncryptedData('inventario', 'Inventario');
+      print('📦 Inventario cargado: ${data.length} productos');
+      return data;
+    } catch (e) {
+      print('❌ Error al cargar inventario offline: $e');
+      return [];
+    }
+  }
+
+  /// Guarda datos de jornada activa
+  static Future<bool> saveJornadaActivaData(Map<String, dynamic> jornadaData) async {
+    return await _saveEncryptedData('jornada_activa', [jornadaData], 'Jornada Activa');
+  }
+
+  /// Carga datos de jornada activa
+  static Future<Map<String, dynamic>?> loadJornadaActivaData() async {
+    final data = await _loadEncryptedData('jornada_activa', 'Jornada Activa');
+    return data.isNotEmpty ? data.first : null;
+  }
+
+  /// Guarda datos de jornada detallada
+  static Future<bool> saveJornadaDetalladaData(Map<String, dynamic> jornadaData) async {
+    return await _saveEncryptedData('jornada_detallada', [jornadaData], 'Jornada Detallada');
+  }
+
+  /// Carga datos de jornada detallada
+  static Future<Map<String, dynamic>?> loadJornadaDetalladaData() async {
+    final data = await _loadEncryptedData('jornada_detallada', 'Jornada Detallada');
+    return data.isNotEmpty ? data.first : null;
   }
 
   /// Guarda mapeo de imágenes de productos

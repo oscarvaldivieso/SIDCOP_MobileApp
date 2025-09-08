@@ -165,4 +165,15 @@ class Colonia {
       depaDescripcion: json['depa_Descripcion'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'colo_Id': coloId,
+      'colo_Descripcion': coloDescripcion,
+      'muni_Codigo': muniCodigo,
+      'muni_Descripcion': muniDescripcion,
+      'depa_Codigo': depaCodigo,
+      'depa_Descripcion': depaDescripcion,
+    };
+  }
 }

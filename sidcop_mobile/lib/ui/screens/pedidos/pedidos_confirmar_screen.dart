@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
   final List<ProductoConfirmacion> productosSeleccionados;
@@ -232,33 +233,101 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
       print('Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}');
       
-      final int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
-                       widget.direccionSeleccionada['DiCl_Id'] ?? 
-                       widget.direccionSeleccionada['dicl_Id'] ?? 
-                       widget.direccionSeleccionada['Id'] ?? 
-                       widget.direccionSeleccionada['id'] ?? 
-                       widget.direccionSeleccionada['ID'] ?? 0;
+      int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                   widget.direccionSeleccionada['DiCl_Id'] ?? 
+                   widget.direccionSeleccionada['dicl_Id'] ?? 
+                   widget.direccionSeleccionada['Id'] ?? 
+                   widget.direccionSeleccionada['id'] ?? 
+                   widget.direccionSeleccionada['ID'] ?? 0;
       
       print('DiCl_Id obtenido: $diClId');
       
+      // Validar el ID de dirección
       if (diClId == 0) {
-        throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        // Si es una dirección de sesión, usar el ID del cliente como fallback
+        if (widget.direccionSeleccionada['esDeSesion'] == true) {
+          print('Usando dirección de sesión del vendedor, usando ID del cliente como referencia');
+          diClId = widget.clienteId; // Usar el ID del cliente como referencia para direcciones de sesión
+        } else {
+          throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        }
       }
+      
+      print('DiCl_Id final a usar: $diClId');
 
       // Obtener datos necesarios para generar el código del pedido
       final clienteService = ClientesService();
-      final direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
-      final clientes = await clienteService.getClientes();
+      List<dynamic> direcciones = [];
+      List<dynamic> clientes = [];
+      
+      try {
+        direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
+        print('Direcciones obtenidas: ${direcciones.length}');
+      } catch (e) {
+        print('Error obteniendo direcciones: $e');
+        // Intentar desde caché offline
+        try {
+          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
+          direcciones = direccionesCache;
+          print('Direcciones desde caché: ${direcciones.length}');
+        } catch (cacheError) {
+          print('Error obteniendo direcciones desde caché: $cacheError');
+        }
+      }
+      
+      try {
+        clientes = await clienteService.getClientes();
+        print('Clientes obtenidos: ${clientes.length}');
+      } catch (e) {
+        print('Error obteniendo clientes: $e');
+        // Intentar desde caché offline
+        try {
+          final clientesCache = await InicioSesionOfflineService.obtenerClientesRutaCache();
+          clientes = clientesCache;
+          print('Clientes desde caché: ${clientes.length}');
+        } catch (cacheError) {
+          print('Error obteniendo clientes desde caché: $cacheError');
+        }
+      }
+      
+      // Si es una dirección de sesión, agregarla a la lista de direcciones
+      List<dynamic> direccionesCompletas = List.from(direcciones);
+      if (widget.direccionSeleccionada['esDeSesion'] == true) {
+        // Crear una dirección temporal para la generación del código
+        final direccionTemporal = {
+          'diCl_Id': diClId,
+          'clie_Id': widget.clienteId,
+          'diCl_DireccionExacta': widget.direccionSeleccionada['diCl_DireccionExacta'] ?? 
+                                 widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? 
+                                 'Dirección del vendedor',
+          'diCl_EsPrincipal': true,
+        };
+        direccionesCompletas.add(direccionTemporal);
+        print('Agregada dirección de sesión temporal: $direccionTemporal');
+      }
       
       // Generar el código del pedido
       final pedidosService = PedidosService();
-      final pediCodigo = await pedidosService.generarSiguienteCodigo(
-        diClId: diClId,
-        direcciones: direcciones,
-        clientes: clientes,
-      );
+      String pediCodigo = '';
       
-      print('Código de pedido generado: $pediCodigo');
+      try {
+        pediCodigo = await pedidosService.generarSiguienteCodigo(
+          diClId: diClId,
+          direcciones: direccionesCompletas,
+          clientes: clientes,
+        );
+        print('Código de pedido generado: $pediCodigo');
+      } catch (e) {
+        print('Error generando código con método normal: $e');
+      }
+      
+      // Si no se pudo generar el código, usar un código de fallback
+      if (pediCodigo.isEmpty) {
+        print('Generando código de fallback...');
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        pediCodigo = 'PED-TEMP-${widget.clienteId}-$timestamp';
+        print('Código de fallback generado: $pediCodigo');
+      }
       
       if (pediCodigo.isEmpty) {
         throw Exception('No se pudo generar el código del pedido');
