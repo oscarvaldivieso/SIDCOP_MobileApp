@@ -51,6 +51,80 @@ class PedidosScreenOffline {
     }
   }
 
+  // Guarda el detalle de un pedido en el almacenamiento local
+  static Future<void> guardarPedidoDetalle(int pedidoId, dynamic detalle) async {
+    try {
+      final detalleKey = '$_pedidoDetalleKey$pedidoId';
+      await _guardarDatos(detalleKey, detalle);
+    } catch (e) {
+      print('Error al guardar detalle del pedido $pedidoId: $e');
+      rethrow;
+    }
+  }
+
+  // Preload all order details for offline access
+  static Future<bool> preloadOrderDetails() async {
+    try {
+      final pedidosService = PedidosService();
+      
+      // Get all orders
+      final pedidos = await pedidosService.getPedidos();
+      
+      // Save each order's details
+      for (final pedido in pedidos) {
+        try {
+          final detalle = await pedidosService.getPedidoDetalle(pedido.pediId);
+          await guardarPedidoDetalle(pedido.pediId, detalle);
+        } catch (e) {
+          print('Error al cargar detalle del pedido ${pedido.pediId}: $e');
+          continue;
+        }
+      }
+      
+      return true;
+    } catch (e) {
+      print('Error en preloadOrderDetails: $e');
+      return false;
+    }
+  }
+
+  // Guarda un pedido pendiente de sincronización
+  static Future<void> guardarPedidoPendiente(Map<String, dynamic> pedidoData) async {
+    try {
+      // Obtener pedidos pendientes existentes
+      final pedidosPendientes = await _obtenerPedidosPendientes();
+      
+      // Agregar el nuevo pedido
+      pedidosPendientes.add(pedidoData);
+      
+      // Guardar la lista actualizada
+      await _guardarDatos(_pedidosPendientesKey, pedidosPendientes);
+      
+      print('Pedido guardado para sincronización: ${pedidoData['pedidoId']}');
+    } catch (e) {
+      print('Error al guardar pedido pendiente: $e');
+      rethrow;
+    }
+  }
+  
+  // Obtiene la lista de pedidos pendientes de sincronización
+  static Future<List<Map<String, dynamic>>> _obtenerPedidosPendientes() async {
+    try {
+      final datos = await _leerDatos(_pedidosPendientesKey);
+      if (datos != null && datos is List) {
+        return List<Map<String, dynamic>>.from(datos);
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener pedidos pendientes: $e');
+      return [];
+    }
+  }
+  
+  // Sincroniza los pedidos pendientes con el servidor
+  // Este método ya está implementado más abajo en el archivo
+  // con la lógica completa de sincronización
+
   // Lee datos del almacenamiento seguro o del archivo
   static Future<dynamic> _leerDatos(String clave) async {
     try {

@@ -7,6 +7,7 @@ import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
 import '../../../services/OfflineAuthService.dart';
+import '../../../Offline_Services/InicioSesion_OfflineService.dart';
 import '../../screens/auth/forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -85,6 +86,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 userData: result,
               );
               await OfflineAuthService.updateLastOnlineLogin();
+              
+              // Cachear datos de pedidos y productos durante el login
+              setState(() {
+                _syncStatus = 'Cacheando datos para uso offline...';
+              });
+              await InicioSesionOfflineService.cachearDatosInicioSesion(result);
             }
           } catch (e) {
             // Si falla online, usar offline
@@ -187,6 +194,12 @@ class _LoginScreenState extends State<LoginScreen> {
               userData: result,
             );
             await OfflineAuthService.updateLastOnlineLogin();
+            
+            // Cachear datos de pedidos y productos durante el login
+            setState(() {
+              _syncStatus = 'Cacheando datos para uso offline...';
+            });
+            await InicioSesionOfflineService.cachearDatosInicioSesion(result);
           }
         } catch (e) {
           // Error de conexión - intentar auto-login offline
