@@ -467,16 +467,11 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       } catch (e) {
         print('Error cargando direcciones desde API: $e');
         
-        // Fallback: intentar cargar desde caché offline (ignorando expiración para modo offline)
+        // Fallback: intentar cargar desde caché offline
         try {
-          print('Intentando cargar direcciones desde caché para cliente ID: ${widget.clienteId}');
-          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(
-            widget.clienteId, 
-            ignorarExpiracion: true  // Ignorar expiración cuando estamos offline
-          );
+          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
           direcciones = direccionesCache;
-          print('Direcciones obtenidas desde caché: ${direcciones.length} direcciones encontradas');
-          print('Contenido direcciones caché: $direcciones');
+          print('Direcciones obtenidas desde caché: $direcciones');
         } catch (cacheError) {
           print('Error cargando direcciones desde caché: $cacheError');
         }
