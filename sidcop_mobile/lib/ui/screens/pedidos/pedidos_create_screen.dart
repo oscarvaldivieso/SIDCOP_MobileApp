@@ -703,38 +703,49 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ? int.tryParse(userData?['usua_IdPersona'])
         : userData?['usua_IdPersona'];
 
-    // Crear objeto de pedido para guardar offline
-    final pedidoOffline = {
-      'clienteId': widget.clienteId,
-      'vendedorId': vendedorId,
-      'fechaPedido': DateTime.now().toIso8601String(),
-      'fechaEntrega': _fechaEntrega!.toIso8601String(),
-      'direccionId': _direccionSeleccionada['diCl_Id'],
-      'total': totalPedido,
-      'estado': isOnline ? 'Pendiente' : 'Pendiente Sincronización',
-      'detalles': detallesPedido,
-    };
 
-    // Si no hay conexión, guardar el pedido localmente
+    // Si no hay conexión, guardar el pedido localmente y terminar
     if (!isOnline) {
       try {
-        await PedidosScreenOffline.guardarPedidoPendiente(pedidoOffline);
+        // Crear pedido offline con estructura similar a recargas
+        final pedidoOfflineCompleto = {
+          'id': DateTime.now().microsecondsSinceEpoch,
+          'clienteId': widget.clienteId,
+          'vendedorId': vendedorId,
+          'fechaPedido': DateTime.now().toIso8601String(),
+          'fechaEntrega': _fechaEntrega!.toIso8601String(),
+          'direccionId': _direccionSeleccionada['diCl_Id'],
+          'total': totalPedido,
+          'estado': 'Pendiente Sincronización',
+          'detalles': detallesPedido,
+          'offline': true,
+          'local_signature': 'pedido_${DateTime.now().microsecondsSinceEpoch}',
+        };
+
+        // Guardar usando el método simple como recargas
+        final raw = await PedidosScreenOffline.leerJson('pedidos_pendientes.json');
+        List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+        pendientes.add(pedidoOfflineCompleto);
+        await PedidosScreenOffline.guardarJson('pedidos_pendientes.json', pendientes);
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Pedido guardado localmente. Se sincronizará cuando haya conexión.',
-              ),
-              duration: Duration(seconds: 2),
+              content: Text('Pedido guardado en modo offline. Se enviará cuando haya conexión.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
             ),
           );
-          // NO hacer return aquí, continuar al flujo de confirmación
+          
+          // Regresar a la pantalla anterior (como hace recargas)
+          Navigator.of(context).pop(true);
         }
+        return; // Terminar aquí en modo offline
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error al guardar el pedido: $e'),
+              content: Text('Error al guardar el pedido offline: $e'),
               backgroundColor: Colors.red,
             ),
           );

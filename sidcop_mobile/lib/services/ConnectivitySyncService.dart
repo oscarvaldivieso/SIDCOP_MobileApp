@@ -45,38 +45,39 @@ class ConnectivitySyncService {
     try {
       print('ConnectivitySyncService: Conectividad restaurada, sincronizando pedidos offline...');
       
-      // Check if there are pending orders to sync
-      final pedidosPendientes = await PedidosScreenOffline.obtenerPedidosPendientes();
+      // Check if there are pending orders to sync using simple method
+      final pendientesRaw = await PedidosScreenOffline.leerJson('pedidos_pendientes.json');
       
-      if (pedidosPendientes.isNotEmpty) {
-        print('ConnectivitySyncService: Encontrados ${pedidosPendientes.length} pedidos pendientes para sincronizar');
+      if (pendientesRaw != null && pendientesRaw.isNotEmpty) {
+        final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+        print('ConnectivitySyncService: Encontrados ${pendientes.length} pedidos pendientes para sincronizar');
         
         // Show sync notification
         if (_context != null && _context!.mounted) {
           ScaffoldMessenger.of(_context!).showSnackBar(
             SnackBar(
-              content: Text('Sincronizando ${pedidosPendientes.length} pedidos offline...'),
+              content: Text('Sincronizando ${pendientes.length} pedidos offline...'),
               backgroundColor: Colors.blue,
               duration: const Duration(seconds: 2),
             ),
           );
         }
         
-        // Sync the orders
-        await PedidosScreenOffline.sincronizarPedidosPendientes();
+        // Sync the orders using simple method
+        final sincronizadas = await PedidosScreenOffline.sincronizarPendientes();
         
         // Show success notification
-        if (_context != null && _context!.mounted) {
+        if (_context != null && _context!.mounted && sincronizadas > 0) {
           ScaffoldMessenger.of(_context!).showSnackBar(
-            const SnackBar(
-              content: Text('¡Pedidos sincronizados exitosamente!'),
+            SnackBar(
+              content: Text('¡$sincronizadas pedidos sincronizados exitosamente!'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
         
-        print('ConnectivitySyncService: Sincronización de pedidos completada');
+        print('ConnectivitySyncService: Sincronización de pedidos completada - $sincronizadas sincronizados');
       } else {
         print('ConnectivitySyncService: No hay pedidos pendientes para sincronizar');
       }

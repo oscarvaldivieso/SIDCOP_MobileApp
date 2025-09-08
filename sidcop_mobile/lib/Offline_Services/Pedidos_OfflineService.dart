@@ -14,6 +14,29 @@ class PedidosScreenOffline {
   static const String _pedidosKey = 'pedidos_list';
   static const String _pedidoDetalleKey = 'pedido_detalle_';
   static const String _pedidosPendientesKey = 'pedidos_pendientes';
+  
+  /// Guarda cualquier objeto JSON-serializable (similar a recargas)
+  static Future<void> guardarJson(String nombreArchivo, Object objeto) async {
+    try {
+      final contenido = jsonEncode(objeto);
+      final key = 'json:$nombreArchivo';
+      await _storage.write(key: key, value: contenido);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Lee y decodifica JSON desde archivo (similar a recargas)
+  static Future<dynamic> leerJson(String nombreArchivo) async {
+    try {
+      final key = 'json:$nombreArchivo';
+      final s = await _storage.read(key: key);
+      if (s == null) return null;
+      return jsonDecode(s);
+    } catch (e) {
+      rethrow;
+    }
+  }
 
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
@@ -661,7 +684,53 @@ class PedidosScreenOffline {
     }
   }
 
-  /// Sincroniza los pedidos pendientes con el servidor
+  /// Sincroniza pedidos pendientes simples (estilo recargas)
+  static Future<int> sincronizarPendientes() async {
+    try {
+      final pendientesRaw = await leerJson('pedidos_pendientes.json');
+      if (pendientesRaw == null || pendientesRaw.isEmpty) return 0;
+
+      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
+      final pedidosService = PedidosService();
+
+      int sincronizadas = 0;
+      final pedidosNoSincronizados = <Map<String, dynamic>>[];
+
+      for (final pedido in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(pedido['detalles']);
+          
+          final resultado = await pedidosService.insertarPedido(
+            diClId: pedido['direccionId'],
+            vendId: pedido['vendedorId'],
+            pediCodigo: pedido['local_signature'] ?? 'PED-${pedido['id']}',
+            fechaPedido: DateTime.parse(pedido['fechaPedido']),
+            fechaEntrega: DateTime.parse(pedido['fechaEntrega']),
+            usuaCreacion: pedido['vendedorId'],
+            clieId: pedido['clienteId'],
+            detalles: detalles,
+          );
+
+          if (resultado != null) {
+            sincronizadas++;
+          } else {
+            pedidosNoSincronizados.add(pedido);
+          }
+        } catch (e) {
+          pedidosNoSincronizados.add(pedido);
+          print('Error al sincronizar pedido: $e');
+        }
+      }
+
+      await guardarJson('pedidos_pendientes.json', pedidosNoSincronizados);
+      return sincronizadas;
+    } catch (e) {
+      print('Error en sincronizarPendientes: $e');
+      return 0;
+    }
+  }
+
+  /// Sincroniza los pedidos pendientes con el servidor (método original)
   static Future<void> sincronizarPedidosPendientes() async {
     try {
       final pedidosService = PedidosService();
