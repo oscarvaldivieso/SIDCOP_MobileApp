@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 
 import '../../widgets/custom_input.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/loading_overlay.dart';
 import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
@@ -14,7 +15,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
-  const LoginScreen({super.key, this.scrollController});
+  final Function(bool, String)? onLoadingChanged;
+  const LoginScreen({super.key, this.scrollController, this.onLoadingChanged});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -42,6 +44,16 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _generalError;
   bool _isLoading = false;
   String _syncStatus = '';
+  
+  void _updateLoadingState(bool isLoading, [String status = '']) {
+    setState(() {
+      _isLoading = isLoading;
+      _syncStatus = status;
+    });
+    
+    // Notificar al padre si existe el callback
+    widget.onLoadingChanged?.call(isLoading, status);
+  }
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
 
@@ -61,10 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final connectivityResult = await Connectivity().checkConnectivity();
       final hasConnection = connectivityResult != ConnectivityResult.none;
       
-      setState(() {
-        _isLoading = true;
-        _syncStatus = hasConnection ? 'Restaurando sesión...' : 'Restaurando sesión offline...';
-      });
+      _updateLoadingState(true, hasConnection ? 'Restaurando sesión...' : 'Restaurando sesión offline...');
       
       try {
         Map<String, dynamic>? result;
@@ -108,17 +117,13 @@ class _LoginScreenState extends State<LoginScreen> {
           
           if (hasConnection && result['offline_login'] != true) {
             // Sincronización rápida para login online
-            setState(() {
-              _syncStatus = 'Sincronizando...';
-            });
+            _updateLoadingState(true, 'Sincronizando...');
             
             await SyncService.syncAfterLogin(
               immediate: false,
               onProgress: (status) {
                 if (mounted) {
-                  setState(() {
-                    _syncStatus = status;
-                  });
+                  _updateLoadingState(true, status);
                 }
               },
             );
@@ -138,10 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       // Si llegamos aquí, el auto-login falló, mostrar pantalla normal
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _syncStatus = '';
-        });
+        _updateLoadingState(false);
       }
     }
     
@@ -162,9 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Maneja el auto-login con soporte para modo offline
   Future<void> _handleAutoLogin() async {
-    setState(() {
-      _isLoading = true;
-    });
+    _updateLoadingState(true);
 
     try {
       // Verificar conectividad
@@ -176,9 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       if (hasConnection) {
         // Intentar auto-login online primero
-        setState(() {
-          _syncStatus = 'Restaurando sesión...';
-        });
+        _updateLoadingState(true, 'Restaurando sesión...');
         
         try {
           result = await _usuarioService.iniciarSesion(
@@ -203,18 +201,14 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } catch (e) {
           // Error de conexión - intentar auto-login offline
-          setState(() {
-            _syncStatus = 'Sin conexión, restaurando sesión offline...';
-          });
+          _updateLoadingState(true, 'Sin conexión, restaurando sesión offline...');
           
           result = await _attemptOfflineLogin();
           isOfflineLogin = true;
         }
       } else {
         // Sin conexión - usar auto-login offline directamente
-        setState(() {
-          _syncStatus = 'Modo offline - Restaurando sesión...';
-        });
+        _updateLoadingState(true, 'Modo offline - Restaurando sesión...');
         
         result = await _attemptOfflineLogin();
         isOfflineLogin = true;
@@ -225,25 +219,19 @@ class _LoginScreenState extends State<LoginScreen> {
         await _perfilUsuarioService.guardarDatosUsuario(result);
         
         if (isOfflineLogin) {
-          setState(() {
-            _syncStatus = 'Sesión restaurada (offline)';
-          });
+          _updateLoadingState(true, 'Sesión restaurada (offline)');
           
           // Pequeña pausa para mostrar el mensaje
           await Future.delayed(const Duration(milliseconds: 1500));
         } else {
           // Sincronización solo para auto-login online
-          setState(() {
-            _syncStatus = 'Sincronizando datos...';
-          });
+          _updateLoadingState(true, 'Sincronizando datos...');
           
           await SyncService.syncAfterLogin(
             immediate: false,
             onProgress: (status) {
               if (mounted) {
-                setState(() {
-                  _syncStatus = status;
-                });
+                _updateLoadingState(true, status);
               }
             },
           );
@@ -258,19 +246,13 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // Auto-login fallido - mostrar pantalla de login normal
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _syncStatus = '';
-          });
+          _updateLoadingState(false);
         }
       }
     } catch (e) {
       // Error en auto-login - mostrar pantalla de login normal
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _syncStatus = '';
-        });
+        _updateLoadingState(false);
       }
     }
   }
@@ -342,9 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Si hay errores de validación, no continuar
     if (hasError) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    _updateLoadingState(true);
 
     try {
       // Verificar conectividad
@@ -359,9 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       if (hasConnection) {
         // Intentar login online primero
-        setState(() {
-          _syncStatus = 'Conectando al servidor...';
-        });
+        _updateLoadingState(true, 'Conectando al servidor...');
         
         try {
           result = await _usuarioService.iniciarSesion(email, password);
@@ -379,18 +357,14 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } catch (e) {
           // Error de conexión - intentar login offline
-          setState(() {
-            _syncStatus = 'Sin conexión, intentando acceso offline...';
-          });
+          _updateLoadingState(true, 'Sin conexión, intentando acceso offline...');
           
           result = await _attemptOfflineLogin();
           isOfflineLogin = true;
         }
       } else {
         // Sin conexión - usar login offline directamente
-        setState(() {
-          _syncStatus = 'Modo offline - Verificando credenciales...';
-        });
+        _updateLoadingState(true, 'Modo offline - Verificando credenciales...');
         
         result = await _attemptOfflineLogin();
         isOfflineLogin = true;
@@ -401,25 +375,19 @@ class _LoginScreenState extends State<LoginScreen> {
         await _perfilUsuarioService.guardarDatosUsuario(result);
         
         if (isOfflineLogin) {
-          setState(() {
-            _syncStatus = 'Acceso offline exitoso';
-          });
+          _updateLoadingState(true, 'Acceso offline exitoso');
           
           // Pequeña pausa para mostrar el mensaje
           await Future.delayed(const Duration(milliseconds: 1500));
         } else {
           // Sincronización solo para login online
-          setState(() {
-            _syncStatus = 'Sincronizando...';
-          });
+          _updateLoadingState(true, 'Sincronizando...');
           
           await SyncService.syncAfterLogin(
             immediate: false,
             onProgress: (status) {
               if (mounted) {
-                setState(() {
-                  _syncStatus = status;
-                });
+                _updateLoadingState(true, status);
               }
             },
           );
@@ -450,9 +418,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        _updateLoadingState(false);
       }
     }
   }
@@ -659,105 +625,11 @@ const SizedBox(height: 30),
               );
             },
           ),
-          // Overlay de carga con animación - pantalla completa
-          if (_isLoading)
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0xFF181E34).withOpacity(0.95), // Azul oscuro
-                      const Color(0xFF06115B).withOpacity(0.95), // Azul más oscuro
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Contenedor con efecto glassmorphism
-                      Container(
-                        padding: const EdgeInsets.all(40),
-                        margin: const EdgeInsets.symmetric(horizontal: 40),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF98774A).withOpacity(0.3),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Indicador de carga circular con colores de marca
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF98774A), // Dorado
-                                    const Color(0xFFD6B68A), // Dorado claro
-                                  ],
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 3,
-                                  backgroundColor: Colors.white.withOpacity(0.3),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                            // Texto de carga
-                            const Text(
-                              'Cargando',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            // Indicador de puntos animados
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(3, (index) {
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFF98774A).withOpacity(0.7),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          // Overlay de carga con animación - solo cuando no hay callback padre
+          if (_isLoading && widget.onLoadingChanged == null)
+            LoadingOverlay(
+              message: 'Cargando',
+              status: _syncStatus,
             ),
         ],
       ),
