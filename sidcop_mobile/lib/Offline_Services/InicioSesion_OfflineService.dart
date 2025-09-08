@@ -121,7 +121,8 @@ class InicioSesionOfflineService {
   /// Cachea las direcciones de los clientes
   static Future<void> _cachearDireccionesClientes(List<dynamic> clientes) async {
     try {
-      print('Cacheando direcciones de clientes...');
+      print('=== INICIANDO CACHÉ DE DIRECCIONES DE CLIENTES ===');
+      print('Número de clientes a procesar: ${clientes.length}');
       
       final clientesService = ClientesService();
       final direccionesMap = <String, List<dynamic>>{};
@@ -129,11 +130,19 @@ class InicioSesionOfflineService {
       for (final cliente in clientes) {
         if (cliente is Map<String, dynamic>) {
           final clienteId = cliente['clie_Id'];
+          final clienteNombre = cliente['clie_Nombres'] ?? 'Sin nombre';
+          print('Procesando cliente ID: $clienteId - $clienteNombre');
+          
           if (clienteId != null) {
             try {
               final direcciones = await clientesService.getDireccionesCliente(clienteId);
+              print('Cliente $clienteId: ${direcciones.length} direcciones obtenidas');
+              
               if (direcciones.isNotEmpty) {
                 direccionesMap[clienteId.toString()] = direcciones;
+                print('Direcciones guardadas para cliente $clienteId');
+              } else {
+                print('Cliente $clienteId no tiene direcciones');
               }
             } catch (e) {
               print('Error obteniendo direcciones del cliente $clienteId: $e');
@@ -142,15 +151,21 @@ class InicioSesionOfflineService {
         }
       }
       
+      print('Total de clientes con direcciones: ${direccionesMap.length}');
+      print('Clientes con direcciones: ${direccionesMap.keys.toList()}');
+      
       if (direccionesMap.isNotEmpty) {
         await _secureStorage.write(
           key: _clientesDireccionesKey,
           value: jsonEncode(direccionesMap),
         );
-        print('Direcciones de clientes cacheadas: ${direccionesMap.length}');
+        print('=== DIRECCIONES CACHEADAS EXITOSAMENTE ===');
+        print('Clave utilizada: $_clientesDireccionesKey');
+      } else {
+        print('=== NO SE ENCONTRARON DIRECCIONES PARA CACHEAR ===');
       }
     } catch (e) {
-      print('Error cacheando direcciones de clientes: $e');
+      print('ERROR CRÍTICO cacheando direcciones de clientes: $e');
     }
   }
 
@@ -320,11 +335,25 @@ class InicioSesionOfflineService {
   /// Verifica si el caché ha expirado
   static Future<bool> _cacheHaExpirado() async {
     try {
+      print('=== VERIFICANDO EXPIRACIÓN DEL CACHÉ ===');
       final expiracionStr = await _secureStorage.read(key: _cacheExpirationKey);
-      if (expiracionStr == null) return true;
+      print('Fecha de expiración almacenada: $expiracionStr');
+      
+      if (expiracionStr == null) {
+        print('No hay fecha de expiración almacenada - caché considerado expirado');
+        return true;
+      }
       
       final expiracion = DateTime.fromMillisecondsSinceEpoch(int.parse(expiracionStr));
-      return DateTime.now().isAfter(expiracion);
+      final ahora = DateTime.now();
+      final haExpirado = ahora.isAfter(expiracion);
+      
+      print('Fecha de expiración: $expiracion');
+      print('Fecha actual: $ahora');
+      print('¿Ha expirado?: $haExpirado');
+      print('Tiempo restante: ${expiracion.difference(ahora)}');
+      
+      return haExpirado;
     } catch (e) {
       print('Error verificando expiración del caché: $e');
       return true;
@@ -369,23 +398,39 @@ class InicioSesionOfflineService {
   }
 
   /// Obtiene direcciones de clientes desde el caché
-  static Future<List<Map<String, dynamic>>> obtenerDireccionesClienteCache(int clienteId) async {
+  static Future<List<Map<String, dynamic>>> obtenerDireccionesClienteCache(int clienteId, {bool ignorarExpiracion = false}) async {
     try {
-      if (await _cacheHaExpirado()) {
-        print('Caché de direcciones expirado');
+      print('=== OBTENIENDO DIRECCIONES DESDE CACHÉ ===');
+      print('Cliente ID solicitado: $clienteId');
+      print('Ignorar expiración: $ignorarExpiracion');
+      
+      if (!ignorarExpiracion && await _cacheHaExpirado()) {
+        print('Caché de direcciones expirado - intentando usar datos expirados como fallback');
+        // No retornar vacío inmediatamente, intentar leer los datos aunque estén expirados
+      }
+      
+      print('Caché no expirado, leyendo direcciones...');
+      final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
+      print('Datos leídos del storage: ${direccionesStr != null ? "Datos encontrados" : "NULL"}');
+      
+      if (direccionesStr == null) {
+        print('No hay direcciones cacheadas');
         return [];
       }
       
-      final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
-      if (direccionesStr == null) return [];
-      
       final direccionesMap = Map<String, dynamic>.from(jsonDecode(direccionesStr));
+      print('Clientes con direcciones cacheadas: ${direccionesMap.keys.toList()}');
+      
       final direccionesCliente = direccionesMap[clienteId.toString()];
+      print('Direcciones para cliente $clienteId: ${direccionesCliente != null ? "Encontradas" : "No encontradas"}');
       
       if (direccionesCliente != null) {
-        return List<Map<String, dynamic>>.from(direccionesCliente);
+        final resultado = List<Map<String, dynamic>>.from(direccionesCliente);
+        print('Retornando ${resultado.length} direcciones');
+        return resultado;
       }
       
+      print('No hay direcciones para este cliente');
       return [];
     } catch (e) {
       print('Error obteniendo direcciones del cliente desde caché: $e');
