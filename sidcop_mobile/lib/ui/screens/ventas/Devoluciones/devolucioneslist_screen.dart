@@ -87,6 +87,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   Future<List<DevolucionesViewModel>> _loadDevoluciones() async {
     try {
+      print(
+        'Estado de conexión antes de cargar devoluciones: ${isOnline ? 'Online' : 'Offline'}',
+      );
+
       // Ya no verificamos la conexión aquí, usamos el estado actual de isOnline
       // que se actualiza mediante el método verificarConexion()
       List<DevolucionesViewModel> devoluciones = [];
@@ -98,6 +102,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         print(
           'DEBUG: devoluciones pendientes locales count: ${pendingLocal.length}',
         );
+        print('DEBUG: devoluciones pendientes locales (raw): $pendingLocal');
       } catch (debugErr) {
         print('DEBUG: error leyendo devoluciones locales: $debugErr');
       }
@@ -183,7 +188,9 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                     if (factId != null) factIdsSet.add(factId);
                   }
                 }
-              } catch (inner) {}
+              } catch (inner) {
+                print('Warning: error parsing factura entry: $inner');
+              }
             }
 
             // Usar todos los IDs deduplicados retornados por el endpoint

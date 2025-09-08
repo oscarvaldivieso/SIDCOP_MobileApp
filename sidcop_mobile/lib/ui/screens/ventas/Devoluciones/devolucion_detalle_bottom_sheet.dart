@@ -157,16 +157,36 @@ class _DevolucionDetalleBottomSheetState
             exitosos++;
           } catch (conversionError) {
             errores++;
+            print('❌ Error al convertir detalle #$i: $conversionError');
 
             // Mostrar información de diagnóstico
             try {
               final detalle = detallesData[i];
-            } catch (e) {}
+              print('Claves disponibles: ${detalle.keys.toList()}');
+              if (detalle.containsKey('prod_Id')) {
+                print('ID del producto: ${detalle['prod_Id']}');
+              }
+              if (detalle.containsKey('prod_Descripcion')) {
+                print(
+                  'Descripción del producto: ${detalle['prod_Descripcion']}',
+                );
+              }
+            } catch (e) {
+              print(
+                'Error al mostrar diagnóstico del detalle problemático: $e',
+              );
+            }
           }
         }
 
+        print('Resultado de conversión: $exitosos exitosos, $errores fallidos');
+
         // Recuperación en caso de no encontrar detalles
         if (detalles.isEmpty && tieneConexion) {
+          print(
+            '⚠ No se encontraron detalles utilizando el método principal. Intentando recuperación directa...',
+          );
+
           try {
             // Último intento de recuperación directamente del servidor
             final service = DevolucionesService();
@@ -175,6 +195,10 @@ class _DevolucionDetalleBottomSheetState
             );
 
             if (detallesServidor.isNotEmpty) {
+              print(
+                '✓ Recuperación exitosa: ${detallesServidor.length} detalles obtenidos directamente',
+              );
+
               // También guardarlos para futuras consultas
               final detallesMap = detallesServidor
                   .map((d) => d.toJson())
@@ -186,20 +210,36 @@ class _DevolucionDetalleBottomSheetState
 
               return detallesServidor;
             }
-          } catch (emergencyError) {}
+          } catch (emergencyError) {
+            print('❌ Error en recuperación directa: $emergencyError');
+          }
         }
 
+        print(
+          '✓ Cargados ${detalles.length} detalles de devolución para ID: $devolucionId',
+        );
         return detalles;
       } catch (syncError) {
+        print('❌ Error en el enfoque optimizado: $syncError');
+
+        // Plan B: Intentar directamente con los métodos individuales
+        print('🔄 Cambiando al enfoque de respaldo...');
+
         // Si estamos online, intentar sincronizar desde el servidor
         if (tieneConexion) {
           try {
+            print('Intentando obtener detalles directamente del servidor...');
+
             final service = DevolucionesService();
             final detallesServidor = await service.getDevolucionDetalles(
               devolucionId,
             );
 
             if (detallesServidor.isNotEmpty) {
+              print(
+                '✓ Se obtuvieron ${detallesServidor.length} detalles del servidor',
+              );
+
               // Convertir y guardar
               try {
                 final detallesMap = detallesServidor
@@ -209,15 +249,24 @@ class _DevolucionDetalleBottomSheetState
                   devolucionId,
                   detallesMap,
                 );
-              } catch (e) {}
+                print('✓ Detalles guardados localmente para uso futuro');
+              } catch (e) {
+                print('Error al guardar detalles localmente: $e');
+              }
 
               return detallesServidor;
-            } else {}
-          } catch (e) {}
+            } else {
+              print('El servidor no devolvió detalles para la devolución');
+            }
+          } catch (e) {
+            print('Error al obtener detalles del servidor: $e');
+          }
         }
 
         // Intentar cargar desde almacenamiento local como último recurso
         try {
+          print('Intentando cargar desde almacenamiento local...');
+
           final detallesData =
               await DevolucionesOffline.obtenerDetallesDevolucionLocal(
                 devolucionId,

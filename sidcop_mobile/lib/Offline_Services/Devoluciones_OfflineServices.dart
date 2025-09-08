@@ -37,7 +37,10 @@ class DevolucionesOffline {
   ) async {
     try {
       await guardarJson(_archivoFacturasCreate, facturas);
-    } catch (e) {}
+      print('Facturas para create guardadas localmente (${facturas.length})');
+    } catch (e) {
+      print('Error guardando facturas create: $e');
+    }
   }
 
   /// Obtiene la lista de facturas guardadas para la pantalla crear devolución
@@ -47,6 +50,7 @@ class DevolucionesOffline {
       if (raw == null) return [];
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
+      print('Error obteniendo facturas create local: $e');
       return [];
     }
   }
@@ -57,7 +61,12 @@ class DevolucionesOffline {
   ) async {
     try {
       await guardarJson(_archivoDireccionesCreate, direcciones);
-    } catch (e) {}
+      print(
+        'Direcciones para create guardadas localmente (${direcciones.length})',
+      );
+    } catch (e) {
+      print('Error guardando direcciones create: $e');
+    }
   }
 
   /// Obtiene las direcciones/clientes guardadas para la pantalla crear devolución
@@ -68,6 +77,7 @@ class DevolucionesOffline {
       if (raw == null) return [];
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
+      print('Error obteniendo direcciones create local: $e');
       return [];
     }
   }
@@ -115,6 +125,9 @@ class DevolucionesOffline {
                 processed.add(clone);
                 continue;
               } catch (imgErr) {
+                print(
+                  'Error descargando imagen para prod ${producto['prod_Id']}: $imgErr',
+                );
                 // continuar y guardar la referencia original
               }
             }
@@ -128,7 +141,11 @@ class DevolucionesOffline {
       // Guardar la lista de productos (serializable) bajo la clave facturaId
       map[facturaId.toString()] = processed;
       await _secureStorage.write(key: key, value: jsonEncode(map));
+      print(
+        'Productos guardados localmente para factura $facturaId (con imágenes procesadas si fue posible)',
+      );
     } catch (e) {
+      print('Error guardando productos por factura $facturaId: $e');
       rethrow;
     }
   }
@@ -155,6 +172,7 @@ class DevolucionesOffline {
 
       // Si el archivo ya existe, devolverlo inmediatamente (idempotencia)
       if (await file.exists()) {
+        print('Imagen local ya existe en $filePath - saltando descarga');
         return filePath;
       }
 
@@ -162,11 +180,14 @@ class DevolucionesOffline {
       if (response.statusCode == 200) {
         final bytes = response.bodyBytes;
         await file.writeAsBytes(bytes);
+        print('Imagen guardada localmente en $filePath');
         return filePath;
       } else {
+        print('Fallo al descargar imagen: ${response.statusCode}');
         return url;
       }
     } catch (e) {
+      print('Error descargando imagen $url: $e');
       return url;
     }
   }
@@ -189,8 +210,12 @@ class DevolucionesOffline {
       final List<Map<String, dynamic>> productos = rawList
           .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
           .toList();
+      print(
+        'Leídos ${productos.length} productos locales para factura $facturaId',
+      );
       return productos;
     } catch (e) {
+      print('Error leyendo productos locales para factura $facturaId: $e');
       return [];
     }
   }
@@ -237,6 +262,8 @@ class DevolucionesOffline {
   /// Escritura atómica: se guarda el JSON como string en secure storage bajo la clave "json:<nombreArchivo>".
   static Future<void> guardarJson(String nombreArchivo, Object objeto) async {
     try {
+      print("Guardando en $nombreArchivo...");
+
       // Intenta determinar el tipo de objeto que estamos guardando para mejorar la depuración
       String tipoObjeto = "desconocido";
       if (objeto is List) {
@@ -249,52 +276,91 @@ class DevolucionesOffline {
       } else {
         tipoObjeto = objeto.runtimeType.toString();
       }
+      print("Tipo de datos a guardar: $tipoObjeto");
 
       // Validación de tamaño para evitar errores de memoria
       final contenido = jsonEncode(objeto);
       final sizeInBytes = contenido.length * 2; // Aproximación para UTF-16
       final sizeInKB = sizeInBytes / 1024;
 
+      print("Tamaño de los datos: ${sizeInKB.toStringAsFixed(2)} KB");
+
       // Si los datos son grandes (más de 1MB), advertir
-      if (sizeInKB > 1024) {}
+      if (sizeInKB > 1024) {
+        print(
+          "⚠ ADVERTENCIA: Guardando un JSON muy grande (${(sizeInKB / 1024).toStringAsFixed(2)} MB)",
+        );
+      }
 
       final key = "json:$nombreArchivo";
       await _secureStorage.write(key: key, value: contenido);
-    } catch (e) {}
+      print("✓ Datos guardados exitosamente en $nombreArchivo");
+    } catch (e) {
+      print("❌ Error al guardar JSON $nombreArchivo: $e");
+      if (e.toString().contains("Exceeds maximum size")) {
+        print(
+          "El JSON es demasiado grande para FlutterSecureStorage. Considere dividirlo en fragmentos más pequeños.",
+        );
+      }
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+      rethrow;
+    }
   }
 
   /// Lee y decodifica JSON desde `nombreArchivo`. Devuelve null si no existe.
   static Future<dynamic> leerJson(String nombreArchivo) async {
     try {
+      print("Leyendo archivo $nombreArchivo...");
       final key = "json:$nombreArchivo";
       final s = await _secureStorage.read(key: key);
 
       if (s == null) {
+        print("❌ Archivo $nombreArchivo no encontrado en el almacenamiento");
         return null;
       }
 
       // Validación de tamaño para depuración
       final sizeInKB = (s.length * 2) / 1024; // Aproximación para UTF-16
+      print("Leyendo archivo de ${sizeInKB.toStringAsFixed(2)} KB");
 
       try {
         final decodedData = jsonDecode(s);
 
         // Determinar el tipo de datos leído para mejorar la depuración
         if (decodedData is List) {
-          if (decodedData.isNotEmpty) {}
+          print("✓ Leída lista con ${decodedData.length} elementos");
+          if (decodedData.isNotEmpty) {
+            print("  - Primer elemento tipo: ${decodedData.first.runtimeType}");
+          }
         } else if (decodedData is Map) {
-          if (decodedData.isNotEmpty) {}
-        } else {}
+          print("✓ Leído mapa con ${decodedData.length} claves");
+          if (decodedData.isNotEmpty) {
+            print(
+              "  - Claves disponibles: ${decodedData.keys.take(5).toList()}${decodedData.length > 5 ? '...' : ''}",
+            );
+          }
+        } else {
+          print("✓ Leído objeto de tipo ${decodedData.runtimeType}");
+        }
 
         return decodedData;
       } catch (decodeError) {
+        print("❌ Error al decodificar JSON desde $nombreArchivo: $decodeError");
+
         // Intentar ver qué está mal con los datos
         if (s.length > 100) {
-        } else {}
+          print(
+            "Primeros 100 caracteres de los datos: ${s.substring(0, 100)}...",
+          );
+        } else {
+          print("Datos completos: $s");
+        }
 
         rethrow;
       }
     } catch (e) {
+      print("❌ Error al leer JSON $nombreArchivo: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
       rethrow;
     }
   }
@@ -302,7 +368,7 @@ class DevolucionesOffline {
   /// Sincroniza las devoluciones con el servidor y guarda el resultado localmente
   static Future<List<Map<String, dynamic>>> sincronizarDevoluciones() async {
     try {
-      // Obtener devoluciones del servidor
+      print("Sincronizando devoluciones desde el servidor...");
       final service = DevolucionesService();
       final devoluciones = await service.listarDevoluciones();
 
@@ -311,24 +377,51 @@ class DevolucionesOffline {
           .map((dev) => dev.toJson())
           .toList();
 
-      // Guardar inmediatamente los datos para asegurar que están disponibles offline
+      print("Se sincronizaron ${devolucionesMap.length} devoluciones");
+
+      // Verificar que los datos se han sincronizado correctamente
       if (devolucionesMap.isNotEmpty) {
+        print("Primera devolución sincronizada: ${devolucionesMap.first}");
+
+        // Guardar inmediatamente los datos para asegurar que están disponibles offline
         try {
           await guardarDevolucionesHistorial(devolucionesMap);
+          print("Devoluciones guardadas localmente durante la sincronización");
         } catch (saveError) {
-          // Log mínimo para diagnóstico
+          print(
+            "Error al guardar devoluciones durante sincronización: $saveError",
+          );
         }
       }
 
       return devolucionesMap;
     } catch (e) {
-      // Solo loggear errores críticos
+      print("Error al sincronizar devoluciones: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+
+      // Guardar información del error de sincronización localmente para diagnóstico
+      try {
+        final errorEntry = {
+          'timestamp': DateTime.now().toIso8601String(),
+          'error': e.toString(),
+          'context': 'Devoluciones/Listar',
+        };
+        await guardarErrorSincronizacionDevoluciones(errorEntry);
+        print('✓ Error de sincronización guardado localmente');
+      } catch (saveErr) {
+        print('❌ No se pudo guardar el error de sincronización: $saveErr');
+      }
 
       // Si ocurre un error, intentar devolver lo que está guardado localmente
       try {
+        print("Intentando obtener devoluciones locales después del error...");
         final devolucionesLocales = await obtenerDevolucionesLocal();
+        print(
+          "Se encontraron ${devolucionesLocales.length} devoluciones locales después del error",
+        );
         return devolucionesLocales;
       } catch (localError) {
+        print("Error también al obtener devoluciones locales: $localError");
         return []; // Si todo falla, devolver una lista vacía
       }
     }
@@ -339,14 +432,24 @@ class DevolucionesOffline {
     List<Map<String, dynamic>> devoluciones,
   ) async {
     try {
+      print(
+        "Guardando ${devoluciones.length} devoluciones en almacenamiento local",
+      );
+
       if (devoluciones.isEmpty) {
+        print(
+          "ADVERTENCIA: Intentando guardar una lista vacía de devoluciones",
+        );
         return; // No guardar lista vacía
       }
 
       // Verificar que tenemos los campos necesarios en los objetos
       for (int i = 0; i < devoluciones.length; i++) {
         final devolucion = devoluciones[i];
-        if (!devolucion.containsKey('devo_Id')) {}
+        if (!devolucion.containsKey('devo_Id')) {
+          print("ADVERTENCIA: La devolución #$i no tiene devo_Id");
+          print("Claves disponibles: ${devolucion.keys.toList()}");
+        }
       }
 
       // Guardar los datos
@@ -357,11 +460,19 @@ class DevolucionesOffline {
       if (verificacion != null &&
           verificacion is List &&
           verificacion.isNotEmpty) {
-      } else {}
+        print(
+          "✓ Verificación: Se guardaron ${verificacion.length} devoluciones correctamente",
+        );
+      } else {
+        print(
+          "⚠ Verificación: Los datos guardados no se leyeron correctamente",
+        );
+      }
 
-      // Imprimir todos los IDs almacenados después de la sincronización
-      await imprimirDetallesDevolucionesGuardados();
+      print("Devoluciones guardadas exitosamente");
     } catch (e) {
+      print("Error al guardar devoluciones: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
       rethrow;
     }
   }
@@ -384,6 +495,7 @@ class DevolucionesOffline {
       list.add(errorEntry);
       await guardarJson(_archivoDevolucionesSyncErrors, list);
     } catch (e) {
+      print('Error guardando error de sincronizacion: $e');
       rethrow;
     }
   }
@@ -396,6 +508,7 @@ class DevolucionesOffline {
     try {
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
+      print('Error parseando errores de sincronizacion: $e');
       return [];
     }
   }
@@ -405,7 +518,9 @@ class DevolucionesOffline {
     try {
       final key = "json:$_archivoDevolucionesSyncErrors";
       await _secureStorage.delete(key: key);
+      print('Errores de sincronizacion limpiados');
     } catch (e) {
+      print('Error limpiando errores de sincronizacion: $e');
       rethrow;
     }
   }
@@ -413,9 +528,11 @@ class DevolucionesOffline {
   /// Obtiene las devoluciones guardadas localmente
   static Future<List<Map<String, dynamic>>> obtenerDevolucionesLocal() async {
     try {
+      print("Obteniendo devoluciones del almacenamiento local");
       final data = await leerJson(_archivoDevolucionesHistorial);
 
       if (data == null) {
+        print("No se encontraron devoluciones guardadas localmente");
         return [];
       }
 
@@ -441,14 +558,28 @@ class DevolucionesOffline {
                   devolucionMap['devo_Id'] = devolucionMap['devoId'];
                 } else if (devolucionMap.containsKey('id')) {
                   devolucionMap['devo_Id'] = devolucionMap['id'];
-                } else {}
+                } else {
+                  print(
+                    "⚠ ADVERTENCIA: La devolución #$i no tiene un ID reconocible",
+                  );
+                  print("Claves disponibles: ${devolucionMap.keys.toList()}");
+                }
               }
 
               devoluciones.add(devolucionMap);
-            } else {}
-          } catch (itemError) {}
+            } else {
+              print("⚠ Elemento #$i no es un mapa: ${item.runtimeType}");
+            }
+          } catch (itemError) {
+            print("❌ Error al procesar devolución #$i: $itemError");
+            print("Datos problemáticos: $item");
+          }
         }
       } else if (data is Map) {
+        print(
+          "⚠ ADVERTENCIA: Se esperaba una lista pero se recibió un mapa. Intentando procesar...",
+        );
+
         // Verificar si es un mapa de ID -> devolución
         bool esMapaDeDevoluciones = false;
         data.forEach((key, value) {
@@ -468,6 +599,9 @@ class DevolucionesOffline {
               devoluciones.add(devolucionMap);
             }
           });
+          print(
+            "✓ Convertido mapa de devoluciones a lista de ${devoluciones.length} elementos",
+          );
         } else {
           // Si solo es un objeto de devolución único
           Map<String, dynamic> devolucionMap = {};
@@ -475,15 +609,26 @@ class DevolucionesOffline {
             devolucionMap[key.toString()] = value;
           });
           devoluciones.add(devolucionMap);
+          print("✓ Convertido objeto único a lista con 1 elemento");
         }
-      } else {}
+      } else {
+        print("⚠ Tipo de datos no reconocido: ${data.runtimeType}");
+      }
+
+      print("Se encontraron ${devoluciones.length} devoluciones locales");
 
       // Registro detallado para depurar
       if (devoluciones.isNotEmpty) {
+        print("Primera devolución encontrada: ${devoluciones.first}");
+
         // Verificar estructura esperada
         final primeraDevolucion = devoluciones.first;
         if (primeraDevolucion['devo_Id'] != null) {
-        } else {}
+          print("ID de la primera devolución: ${primeraDevolucion['devo_Id']}");
+        } else {
+          print("ADVERTENCIA: La devolución no tiene un campo devo_Id");
+          print("Claves disponibles: ${primeraDevolucion.keys.toList()}");
+        }
 
         // Si tenemos devoluciones pero ninguna tiene devo_Id, puede ser un problema de formato
         bool algunaTieneId = false;
@@ -496,11 +641,23 @@ class DevolucionesOffline {
           }
         }
 
-        if (!algunaTieneId && devoluciones.length > 0) {}
-      } else {}
+        if (!algunaTieneId && devoluciones.length > 0) {
+          print(
+            "❌ ADVERTENCIA CRÍTICA: Ninguna devolución tiene un campo de ID reconocible.",
+          );
+          print(
+            "Esto puede indicar un problema con el formato de los datos almacenados.",
+          );
+        }
+      } else {
+        print("⚠ No se encontraron devoluciones locales válidas");
+      }
 
       return devoluciones;
     } catch (e) {
+      print("❌ Error al obtener devoluciones locales: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+
       // Intento de recuperación de emergencia
       try {
         print("🔄 Intentando método alternativo de lectura...");
@@ -508,6 +665,8 @@ class DevolucionesOffline {
         final String? rawData = await _secureStorage.read(key: key);
 
         if (rawData != null && rawData.isNotEmpty) {
+          print("Encontrados datos en bruto, intentando parseo manual...");
+
           // Intentar decodificar manualmente
           final jsonData = jsonDecode(rawData);
 
@@ -521,12 +680,17 @@ class DevolucionesOffline {
               }
             }
 
+            print(
+              "✓ Recuperadas ${devoluciones.length} devoluciones en modo de emergencia",
+            );
             return devoluciones;
           }
         }
 
+        print("❌ Recuperación de emergencia falló");
         return [];
       } catch (emergencyError) {
+        print("❌ Error en recuperación de emergencia: $emergencyError");
         return [];
       }
     }
@@ -541,32 +705,56 @@ class DevolucionesOffline {
       List<Map<String, dynamic>> devoluciones;
 
       if (isOnline) {
+        print("Modo ONLINE: Sincronizando devoluciones desde el servidor...");
         // Obtener devoluciones del servidor
         devoluciones = await sincronizarDevoluciones();
 
         // Guardar en almacenamiento local
         if (devoluciones.isNotEmpty) {
+          print(
+            "Guardando ${devoluciones.length} devoluciones en almacenamiento local",
+          );
           await guardarDevolucionesHistorial(devoluciones);
+          print("Devoluciones guardadas exitosamente en modo online");
+        } else {
+          print("No hay devoluciones para guardar en almacenamiento local");
         }
 
         // Si se solicita sincronización forzada de detalles
         if (forzarSincronizacionDetalles) {
+          print(
+            "Iniciando sincronización forzada de detalles para todas las devoluciones...",
+          );
           try {
             await sincronizarDetallesDeTodasLasDevoluciones();
-          } catch (e) {}
+            print("Sincronización forzada de detalles completada exitosamente");
+          } catch (e) {
+            print("Error en la sincronización forzada de detalles: $e");
+          }
         }
       } else {
+        print("Modo OFFLINE: Cargando devoluciones desde almacenamiento local");
         // En modo offline, obtener directamente del almacenamiento local
         devoluciones = await obtenerDevolucionesLocal();
+        print(
+          "Se cargaron ${devoluciones.length} devoluciones desde almacenamiento local",
+        );
       }
 
       return devoluciones;
     } catch (e) {
+      print("Error al sincronizar y guardar devoluciones: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+
       // Intentar devolver lo que está guardado localmente
       try {
         final devolucionesLocales = await obtenerDevolucionesLocal();
+        print(
+          "Recuperadas ${devolucionesLocales.length} devoluciones locales después del error",
+        );
         return devolucionesLocales;
       } catch (localError) {
+        print("Error también al obtener devoluciones locales: $localError");
         return []; // Si todo falla, devolver lista vacía
       }
     }
@@ -575,11 +763,16 @@ class DevolucionesOffline {
   /// Sincroniza y guarda los detalles de todas las devoluciones
   static Future<void> sincronizarDetallesDeTodasLasDevoluciones() async {
     try {
+      print("Iniciando sincronización de detalles para todas las devoluciones");
+
       // Primero obtenemos todas las devoluciones
       final devoluciones = await obtenerDevolucionesLocal();
       if (devoluciones.isEmpty) {
+        print("No hay devoluciones para sincronizar detalles");
         return;
       }
+
+      print("Sincronizando detalles para ${devoluciones.length} devoluciones");
 
       // Para cada devolución, sincronizamos sus detalles
       int contadorExitosos = 0;
@@ -592,11 +785,25 @@ class DevolucionesOffline {
         final int fin = (i + blockSize < devoluciones.length)
             ? i + blockSize
             : devoluciones.length;
+        print(
+          "Procesando bloque de devoluciones ${i + 1} a $fin de ${devoluciones.length}",
+        );
+
+        // Imprimir progreso después de cada bloque
+        print(
+          "Progreso: $contadorExitosos/${devoluciones.length} devoluciones procesadas (${(contadorExitosos * 100 / devoluciones.length).toStringAsFixed(1)}%)",
+        );
       }
+
+      print(
+        "Sincronización completa: $contadorExitosos/${devoluciones.length} devoluciones procesadas, $totalDetallesSincronizados detalles en total",
+      );
 
       // Imprimir todos los IDs almacenados después de la sincronización
       await imprimirDetallesDevolucionesGuardados();
-    } catch (e) {}
+    } catch (e) {
+      print("Error general en sincronizarDetallesDeTodasLasDevoluciones: $e");
+    }
   }
 
   /// Convierte una lista de Maps a una lista de DevolucionesViewModel
@@ -607,6 +814,13 @@ class DevolucionesOffline {
     List<Map<String, dynamic>> devoluciones,
   ) {
     try {
+      print("Convirtiendo ${devoluciones.length} devoluciones a modelos...");
+
+      if (devoluciones.isEmpty) {
+        print("Lista vacía, no hay nada que convertir");
+        return [];
+      }
+
       // Usar una conversión robusta que maneja errores individuales
       List<DevolucionesViewModel> modelos = [];
       int errores = 0;
@@ -623,11 +837,29 @@ class DevolucionesOffline {
           modelos.add(modelo);
         } catch (e) {
           errores++;
+          print("❌ Error al convertir devolución #$i: $e");
+
+          // Mostrar información de diagnóstico sobre el objeto problemático
+          try {
+            final devolucion = devoluciones[i];
+            print("Claves disponibles: ${devolucion.keys.toList()}");
+            print(
+              "Valores para diagnóstico: devo_Id=${devolucion['devo_Id']}, devoId=${devolucion['devoId']}, fecha=${devolucion['devo_Fecha'] ?? devolucion['devoFecha']}",
+            );
+          } catch (_) {
+            print("No se pudo mostrar diagnóstico del objeto");
+          }
         }
       }
 
+      // Mostrar resumen de la conversión
+      print(
+        "✓ Convertidos ${modelos.length} de ${devoluciones.length} objetos a modelos (${errores} errores)",
+      );
       return modelos;
     } catch (e) {
+      print("❌ Error general al convertir devoluciones a modelos: $e");
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
       return [];
     }
   }
@@ -641,26 +873,32 @@ class DevolucionesOffline {
     if (!devolucion.containsKey('devo_Id') &&
         devolucion.containsKey('devoId')) {
       devolucion['devo_Id'] = devolucion['devoId'];
+      print("Campo devo_Id corregido para devolución #$index");
     }
 
     // Verificar campo devo_Fecha / devoFecha
     if (!devolucion.containsKey('devo_Fecha') &&
         devolucion.containsKey('devoFecha')) {
       devolucion['devo_Fecha'] = devolucion['devoFecha'];
+      print("Campo devo_Fecha corregido para devolución #$index");
     }
 
     // Verificar campo devo_Motivo / devoMotivo
     if (!devolucion.containsKey('devo_Motivo') &&
         devolucion.containsKey('devoMotivo')) {
       devolucion['devo_Motivo'] = devolucion['devoMotivo'];
+      print("Campo devo_Motivo corregido para devolución #$index");
     }
 
     // Asegurar que los campos críticos existan (con valores por defecto si es necesario)
     if (!devolucion.containsKey('devo_Id') &&
-        !devolucion.containsKey('devoId')) {}
+        !devolucion.containsKey('devoId')) {
+      print("⚠ ADVERTENCIA: Devolución #$index no tiene campo ID");
+    }
 
     if (!devolucion.containsKey('devo_Fecha') &&
         !devolucion.containsKey('devoFecha')) {
+      print("⚠ ADVERTENCIA: Devolución #$index no tiene campo fecha");
       // Asignar fecha actual como fallback
       devolucion['devo_Fecha'] = DateTime.now().toIso8601String();
     }
@@ -670,11 +908,15 @@ class DevolucionesOffline {
     if (fechaValue is String &&
         !fechaValue.contains('T') &&
         !fechaValue.contains(' ')) {
+      print("⚠ Formato de fecha inválido para devolución #$index: $fechaValue");
       // Intentar convertir a formato ISO
       try {
         final DateTime fecha = DateTime.parse(fechaValue);
         devolucion['devo_Fecha'] = fecha.toIso8601String();
-      } catch (e) {}
+        print("✓ Fecha corregida a: ${devolucion['devo_Fecha']}");
+      } catch (e) {
+        print("❌ No se pudo corregir el formato de fecha: $e");
+      }
     }
   }
 
@@ -684,10 +926,31 @@ class DevolucionesOffline {
       final key = "json:$_archivoDetallesDevolucion";
       final String? existingData = await _secureStorage.read(key: key);
       if (existingData == null || existingData.isEmpty) {
+        print("[LOG] devoluciones_detalles.json está vacío o no existe");
         return;
       }
       final Map<String, dynamic> allDetalles = jsonDecode(existingData);
-    } catch (e) {}
+      print(
+        "[LOG] IDs presentes en devoluciones_detalles.json: ${allDetalles.keys.toList()}",
+      );
+
+      // Contar cuántos detalles hay en total y por ID
+      int totalDetalles = 0;
+      Map<String, int> detallesPorId = {};
+
+      allDetalles.forEach((key, value) {
+        if (value is List) {
+          int cantidadDetalles = value.length;
+          detallesPorId[key] = cantidadDetalles;
+          totalDetalles += cantidadDetalles;
+        }
+      });
+
+      print("[LOG] Detalles por ID: $detallesPorId");
+      print("[LOG] Total de detalles guardados: $totalDetalles");
+    } catch (e) {
+      print("[LOG] Error al imprimir devoluciones_detalles.json: $e");
+    }
   }
 
   /// Verifica si existen detalles para una devolución específica
@@ -705,6 +968,7 @@ class DevolucionesOffline {
 
       return detalles != null && (detalles as List).isNotEmpty;
     } catch (e) {
+      print("Error al verificar si existen detalles para ID $devolucionId: $e");
       return false;
     }
   }
@@ -714,7 +978,11 @@ class DevolucionesOffline {
     try {
       final key = "json:$_archivoDetallesDevolucion";
       await _secureStorage.delete(key: key);
+      print(
+        "Almacenamiento local de detalles de devoluciones limpiado correctamente",
+      );
     } catch (e) {
+      print("Error al limpiar el almacenamiento de detalles: $e");
       rethrow;
     }
   }
@@ -732,8 +1000,15 @@ class DevolucionesOffline {
     bool forceSync = false,
   }) async {
     try {
+      print(
+        "Sincronizando detalles de devolución ID: $devolucionId (Modo: ${isOnline ? 'Online' : 'Offline'})",
+      );
+
       // Si no estamos online, vamos directamente al almacenamiento local
       if (!isOnline) {
+        print(
+          "Modo offline: Obteniendo detalles locales para ID $devolucionId",
+        );
         return await obtenerDetallesDevolucionLocal(
           devolucionId,
           isOnline: false, // Forzar modo offline
@@ -744,6 +1019,9 @@ class DevolucionesOffline {
       if (!forceSync) {
         final tieneDetalles = await existenDetallesParaDevolicion(devolucionId);
         if (tieneDetalles) {
+          print(
+            "Ya existen detalles locales para ID $devolucionId. Usando versión en caché.",
+          );
           return await obtenerDetallesDevolucionLocal(
             devolucionId,
             isOnline: false, // No intentar sincronizar de nuevo
@@ -752,10 +1030,15 @@ class DevolucionesOffline {
       }
 
       // Si no hay detalles locales o se fuerza la sincronización, obtenerlos del servidor
+      print("Obteniendo detalles del servidor para ID $devolucionId");
       final detalles = await sincronizarDetallesDevolucion(devolucionId);
 
       // Verificar si realmente se obtuvieron detalles del servidor
       if (detalles.isEmpty) {
+        print(
+          "No se encontraron detalles en el servidor para ID $devolucionId",
+        );
+
         // Intentar obtener los detalles locales como último recurso
         return await obtenerDetallesDevolucionLocal(
           devolucionId,
@@ -764,17 +1047,27 @@ class DevolucionesOffline {
       }
 
       // Si hay detalles, guardarlos localmente
+      print(
+        "Guardando ${detalles.length} detalles del servidor para ID $devolucionId",
+      );
+
       // Antes de guardar, validar la estructura de los datos
       bool datosValidos = true;
       for (int i = 0; i < detalles.length; i++) {
         final detalle = detalles[i];
         if (!(detalle is Map)) {
+          print(
+            "⚠ ADVERTENCIA: Detalle #$i no es un mapa: ${detalle.runtimeType}",
+          );
           datosValidos = false;
           break;
         }
       }
 
       if (!datosValidos) {
+        print(
+          "❌ Los datos recibidos del servidor no tienen la estructura esperada",
+        );
         return await obtenerDetallesDevolucionLocal(
           devolucionId,
           isOnline: false,
@@ -798,15 +1091,27 @@ class DevolucionesOffline {
         }
       }
 
+      print(
+        "✓ Procesados ${detallesMapSeguro.length} detalles para ID $devolucionId",
+      );
       return detallesMapSeguro;
     } catch (e) {
+      print(
+        "❌ Error al sincronizar y guardar detalles de devolución ID $devolucionId: $e",
+      );
+      print("Stacktrace: ${e is Error ? e.stackTrace : ''}");
+
       // Intentar devolver lo que está guardado localmente como mecanismo de recuperación
       try {
+        print(
+          "🔄 Intentando recuperación de emergencia desde almacenamiento local...",
+        );
         return await obtenerDetallesDevolucionLocal(
           devolucionId,
           isOnline: false, // No intentar sincronizar de nuevo
         );
       } catch (localError) {
+        print("❌ Error también en la recuperación de emergencia: $localError");
         return []; // Devolver lista vacía si todo falla
       }
     }
@@ -817,19 +1122,33 @@ class DevolucionesOffline {
     int devolucionId,
   ) async {
     try {
+      print("Obteniendo detalles de devolución ID $devolucionId del servidor");
       final service = DevolucionesService();
       final detalles = await service.getDevolucionDetalles(devolucionId);
 
       // Verificar si la respuesta contiene datos
       if (detalles.isEmpty) {
+        print(
+          "El servidor devolvió 0 detalles para devolución ID $devolucionId",
+        );
         return [];
       }
 
       // Convertir a formato Map para almacenamiento
       final detallesMap = detalles.map((detalle) => detalle.toJson()).toList();
 
+      print(
+        "Se sincronizaron ${detallesMap.length} detalles para la devolución ID $devolucionId",
+      );
+
+      // Mostrar un ejemplo de los datos para diagnóstico
+      if (detallesMap.isNotEmpty) {
+        print("Ejemplo de detalle sincronizado: ${detallesMap.first}");
+      }
+
       return detallesMap;
     } catch (e) {
+      print("Error al sincronizar detalles de devolución ID $devolucionId: $e");
       return [];
     }
   }
@@ -873,7 +1192,15 @@ class DevolucionesOffline {
 
       // Guardamos el mapa completo actualizado
       await _secureStorage.write(key: key, value: jsonEncode(allDetalles));
+
+      print(
+        "Guardados ${detallesMapSeguro.length} detalles para devolución ID $devolucionId",
+      );
+
+      // Loggear el contenido completo después de guardar
+      await imprimirDetallesDevolucionesGuardados();
     } catch (e) {
+      print("Error al guardar detalles de devolución ID $devolucionId: $e");
       rethrow;
     }
   }
@@ -885,14 +1212,22 @@ class DevolucionesOffline {
     bool isOnline = false, // Por defecto, asumimos que estamos offline
   }) async {
     try {
+      print(
+        "Obteniendo detalles de devolución ID $devolucionId del almacenamiento local (Modo ${isOnline ? 'Online' : 'Offline'})",
+      );
       // Loggear el contenido completo antes de leer
       await imprimirDetallesDevolucionesGuardados();
       final key = "json:$_archivoDetallesDevolucion";
       final String? existingData = await _secureStorage.read(key: key);
 
       if (existingData == null || existingData.isEmpty) {
+        print("No hay datos de detalles almacenados localmente");
+
         // Solo intentar sincronizar si estamos online
         if (isOnline) {
+          print(
+            "Modo Online: Intentando sincronizar detalles para la devolución ID $devolucionId",
+          );
           try {
             final detallesServidor = await sincronizarDetallesDevolucion(
               devolucionId,
@@ -908,9 +1243,13 @@ class DevolucionesOffline {
             }
             return detallesMap;
           } catch (syncError) {
+            print("Error al intentar sincronizar detalles: $syncError");
             return [];
           }
         } else {
+          print(
+            "Modo Offline: No se pueden sincronizar detalles desde el servidor",
+          );
           return [];
         }
       }
@@ -922,8 +1261,15 @@ class DevolucionesOffline {
       final detallesDevolucion = allDetalles[devolucionId.toString()];
 
       if (detallesDevolucion == null) {
+        print(
+          "No hay detalles almacenados para la devolución ID $devolucionId",
+        );
+
         // Solo intentar sincronizar si estamos online
         if (isOnline) {
+          print(
+            "Modo Online: Intentando sincronizar detalles para la devolución ID $devolucionId",
+          );
           try {
             final detallesServidor = await sincronizarDetallesDevolucion(
               devolucionId,
@@ -939,9 +1285,13 @@ class DevolucionesOffline {
             }
             return detallesMap;
           } catch (syncError) {
+            print("Error al intentar sincronizar detalles: $syncError");
             return [];
           }
         } else {
+          print(
+            "Modo Offline: No se pueden sincronizar detalles desde el servidor",
+          );
           return [];
         }
       }
@@ -960,8 +1310,12 @@ class DevolucionesOffline {
         }
       }
 
+      print(
+        "Se encontraron ${detalles.length} detalles para la devolución ID $devolucionId",
+      );
       return detalles;
     } catch (e) {
+      print("Error al obtener detalles de devolución ID $devolucionId: $e");
       return [];
     }
   }
@@ -970,8 +1324,10 @@ class DevolucionesOffline {
   /// Devuelve un mapa con conteos de exito/fallo.
   static Future<Map<String, int>> sincronizarPendientesDevoluciones() async {
     try {
+      print('Iniciando sincronización de devoluciones pendientes...');
       final pendientes = await obtenerDevolucionesPendientesLocal();
       if (pendientes.isEmpty) {
+        print('No hay devoluciones pendientes para sincronizar');
         return {'success': 0, 'failed': 0};
       }
 
@@ -1001,6 +1357,10 @@ class DevolucionesOffline {
             }
           }
 
+          print(
+            'Enviando devolución pendiente: clieId=$clieId factId=$factId detalles=${(detalles as List).length}',
+          );
+
           // Ensure detalles is List<Map<String, dynamic>>
           List<Map<String, dynamic>> detallesCast = [];
           try {
@@ -1022,6 +1382,8 @@ class DevolucionesOffline {
             devoFecha: devoFecha,
             crearNuevaFactura: true,
           );
+
+          print('Respuesta al enviar pendiente: $response');
 
           if (response['success'] == true) {
             success++;
@@ -1085,24 +1447,43 @@ class DevolucionesOffline {
                 }
                 if (!already) {
                   histor.add(Map<String, dynamic>.from(created));
+                } else {
+                  print(
+                    'Creación ya existe en historial local, evitando duplicado',
+                  );
                 }
               }
-            } catch (histErr) {}
+            } catch (histErr) {
+              print(
+                'Error añadiendo devolución enviada al historial local: $histErr',
+              );
+            }
           } else {
             failed++;
+            print(
+              'Fallo al enviar devolución pendiente: ${response['message'] ?? response}',
+            );
           }
         } catch (e) {
           failed++;
+          print('Error enviando devolución pendiente: $e');
         }
       }
 
       // Guardar los pendientes que quedaron
       try {
         await guardarDevolucionesPendientes(remaining);
-      } catch (saveErr) {}
+        print('Pendientes restantes guardados: ${remaining.length}');
+      } catch (saveErr) {
+        print('Error guardando pendientes restantes: $saveErr');
+      }
 
+      print(
+        'Sincronización de pendientes completada. success=$success failed=$failed',
+      );
       return {'success': success, 'failed': failed};
     } catch (e) {
+      print('Error general sincronizando pendientes: $e');
       return {'success': 0, 'failed': 0};
     }
   }
