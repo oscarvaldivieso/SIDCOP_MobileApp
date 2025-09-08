@@ -422,12 +422,19 @@ class InicioSesionOfflineService {
       final cacheExpirado = await _cacheHaExpirado();
       print('Caché expirado: $cacheExpirado');
       
-      if (cacheExpirado) {
-        print('⚠ Caché de direcciones expirado');
-        return [];
+      // Verificar conectividad para decidir si usar caché expirado
+      final hasConnection = await _hasInternetConnection();
+      print('Conexión disponible: $hasConnection');
+      
+      if (cacheExpirado && hasConnection) {
+        print('⚠ Caché expirado y hay conexión - debería refrescarse online');
+        // En este caso, el método que llama debería manejar el refresh
+        // Pero seguimos intentando leer el caché como fallback
+      } else if (cacheExpirado && !hasConnection) {
+        print('⚠ Caché expirado pero SIN conexión - usando caché expirado como fallback');
       }
       
-      // Leer datos del caché de direcciones
+      // Leer datos del caché de direcciones (incluso si está expirado en modo offline)
       final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
       print('Datos leídos del caché: ${direccionesStr?.length ?? 0} caracteres');
       
@@ -450,6 +457,10 @@ class InicioSesionOfflineService {
         final direcciones = List<Map<String, dynamic>>.from(direccionesCliente);
         print('✓ Direcciones encontradas para cliente $clienteId: ${direcciones.length}');
         
+        if (cacheExpirado && !hasConnection) {
+          print('⚠ USANDO DIRECCIONES DE CACHÉ EXPIRADO (modo offline)');
+        }
+        
         // Log de la primera dirección para debug
         if (direcciones.isNotEmpty) {
           print('Primera dirección: ${direcciones[0]}');
@@ -459,11 +470,40 @@ class InicioSesionOfflineService {
       } else {
         print('⚠ No se encontraron direcciones para cliente $clienteId');
         print('Clientes disponibles en caché: ${direccionesMap.keys.join(", ")}');
+        
+        // Si estamos offline y no hay direcciones, crear una dirección por defecto
+        if (!hasConnection) {
+          print('>>> Creando dirección por defecto para modo offline');
+          final direccionPorDefecto = {
+            'diCl_Id': 1159, // ID temporal para offline
+            'diCl_Direccion': 'Dirección por defecto (offline)',
+            'diCl_Referencia': 'Creada automáticamente para pedido offline',
+            'diCl_ClienteId': clienteId,
+            'diCl_Estado': true,
+          };
+          return [direccionPorDefecto];
+        }
+        
         return [];
       }
     } catch (e) {
       print('✗ ERROR obteniendo direcciones del cliente desde caché: $e');
       print('Stack trace: ${e.toString()}');
+      
+      // Si hay error y estamos offline, crear dirección por defecto
+      final hasConnection = await _hasInternetConnection();
+      if (!hasConnection) {
+        print('>>> Error en caché pero offline - creando dirección por defecto');
+        final direccionPorDefecto = {
+          'diCl_Id': 999999, // ID temporal para offline
+          'diCl_Direccion': 'Dirección por defecto (offline)',
+          'diCl_Referencia': 'Creada automáticamente para pedido offline',
+          'diCl_ClienteId': clienteId,
+          'diCl_Estado': true,
+        };
+        return [direccionPorDefecto];
+      }
+      
       return [];
     }
   }
