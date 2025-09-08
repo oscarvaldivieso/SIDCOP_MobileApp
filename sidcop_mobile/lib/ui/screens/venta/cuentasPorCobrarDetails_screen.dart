@@ -27,6 +27,9 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   
   // Variable para el saldo actualizado dinámicamente
   double? _saldoActualizado;
+  
+  // Cache de saldos actualizados por cuenta específica
+  Map<int, double> _saldosActualizadosCache = {};
 
   @override
   void initState() {
@@ -111,6 +114,15 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
         setState(() {
           _timelineMovimientos = movimientos;
           _isLoading = false;
+        });
+        
+        // Actualizar cache de saldos para todas las cuentas por cobrar en background
+        Future.microtask(() async {
+          for (final movimiento in movimientos) {
+            if (movimiento.cpCo_Id != null) {
+              await _actualizarSaldoCuentaEnCache(movimiento.cpCo_Id!);
+            }
+          }
         });
       }
     } catch (e) {
@@ -488,6 +500,22 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   }
 
   Widget _buildMovimientoContent(CuentasXCobrar movimiento, Color primaryColor) {
+    // Obtener el saldo actualizado para mostrar información correcta
+    final saldoActualizado = _getSaldoActualizadoMovimiento(movimiento);
+    
+    // DEBUG: Logging detallado para diagnóstico
+    print('🔍 _buildMovimientoContent DEBUG para cuenta ${movimiento.cpCo_Id}:');
+    print('   - movimiento.totalPendiente: ${movimiento.totalPendiente}');
+    print('   - movimiento.cpCo_Saldo: ${movimiento.cpCo_Saldo}');
+    print('   - movimiento.monto: ${movimiento.monto}');
+    print('   - saldoActualizado (calculado): $saldoActualizado');
+    print('   - cache contiene cuenta: ${_saldosActualizadosCache.containsKey(movimiento.cpCo_Id)}');
+    if (movimiento.cpCo_Id != null && _saldosActualizadosCache.containsKey(movimiento.cpCo_Id!)) {
+      print('   - valor en cache: ${_saldosActualizadosCache[movimiento.cpCo_Id!]}');
+    }
+    print('   - Lógica de mostrar: saldoActualizado > 0 = ${saldoActualizado > 0}');
+    print('   - Condición PAGADO: saldoActualizado <= 0 Y totalPendiente > 0 = ${saldoActualizado <= 0 && (movimiento.totalPendiente ?? 0) > 0}');
+    
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -499,9 +527,14 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
                 child: _buildInfoBox('Monto', _formatCurrency(movimiento.monto), Icons.attach_money_rounded, primaryColor),
               ),
               const SizedBox(width: 8),
-              if (movimiento.totalPendiente != null && movimiento.totalPendiente! > 0)
+              if (saldoActualizado > 0)
                 Expanded(
-                  child: _buildInfoBox('Pendiente', _formatCurrency(movimiento.totalPendiente), Icons.pending_actions_rounded, Colors.orange.shade600),
+                  child: _buildInfoBox('Pendiente', _formatCurrency(saldoActualizado), Icons.pending_actions_rounded, Colors.orange.shade600),
+                )
+              else if (saldoActualizado <= 0 && (movimiento.totalPendiente ?? 0) > 0)
+                // Mostrar que ya está pagado solo si el saldo actualizado es 0 pero antes tenía saldo pendiente
+                Expanded(
+                  child: _buildInfoBox('Estado', 'PAGADO', Icons.check_circle_rounded, Colors.green.shade600),
                 ),
             ],
           ),
@@ -526,15 +559,80 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   // Determinar si debe mostrar el botón de pago
   bool _shouldShowPaymentButton(CuentasXCobrar movimiento) {
     // Mostrar si:
-    // - Tiene totalPendiente > 0
+    // - Tiene saldo pendiente actualizado > 0
     // - No está anulado ni saldado
     // - Tiene cpCo_Id (es una cuenta por cobrar)
-    final tienePendiente = (movimiento.totalPendiente ?? 0) > 0;
+    
+    // Intentar obtener el saldo actualizado dinámicamente
+    final saldoActualizado = _getSaldoActualizadoMovimiento(movimiento);
+    final tienePendiente = saldoActualizado > 0;
     final noEstaAnulado = movimiento.cpCo_Anulado != true;
     final noEstaSaldado = movimiento.cpCo_Saldada != true;
     final tieneCuentaId = movimiento.cpCo_Id != null;
     
+    print('🔍 _shouldShowPaymentButton para cpCo_Id: ${movimiento.cpCo_Id}');
+    print('   - Saldo actualizado: $saldoActualizado');
+    print('   - Tiene pendiente: $tienePendiente');
+    print('   - No anulado: $noEstaAnulado, No saldado: $noEstaSaldado');
+    print('   - Resultado: ${tienePendiente && noEstaAnulado && noEstaSaldado && tieneCuentaId}');
+    
     return tienePendiente && noEstaAnulado && noEstaSaldado && tieneCuentaId;
+  }
+
+  /// Obtiene el saldo actualizado de un movimiento específico
+  double _getSaldoActualizadoMovimiento(CuentasXCobrar movimiento) {
+    // Si es una cuenta por cobrar específica, verificar cache actualizado
+    if (movimiento.cpCo_Id != null) {
+      // Primero verificar si tenemos saldo actualizado en cache
+      final saldoEnCache = _saldosActualizadosCache[movimiento.cpCo_Id!];
+      if (saldoEnCache != null) {
+        print('💾 Usando saldo desde cache para cuenta ${movimiento.cpCo_Id}: $saldoEnCache');
+        return saldoEnCache;
+      }
+      
+      // Si no hay cache, intentar obtener el saldo más actualizado del servicio offline
+      Future.microtask(() async {
+        try {
+          final saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(movimiento.cpCo_Id!);
+          if (mounted) {
+            setState(() {
+              _saldosActualizadosCache[movimiento.cpCo_Id!] = saldoReal;
+            });
+          }
+        } catch (e) {
+          print('Error obteniendo saldo actualizado: $e');
+        }
+      });
+      
+      // Mientras tanto, usar valor original
+      return movimiento.totalPendiente ?? movimiento.cpCo_Saldo ?? 0;
+    }
+    
+    return movimiento.totalPendiente ?? 0;
+  }
+
+  /// Actualiza el cache de saldos para una cuenta específica
+  Future<void> _actualizarSaldoCuentaEnCache(int cpCoId) async {
+    try {
+      // Usar el método más actualizado del servicio offline
+      final saldoActualizado = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+      
+      // También obtener el saldo original para comparación
+      final saldoOriginal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuenta(cpCoId);
+      
+      print('📊 Cache update cuenta $cpCoId:');
+      print('   - Saldo original: ${_formatCurrency(saldoOriginal)}');
+      print('   - Saldo actualizado: ${_formatCurrency(saldoActualizado)}');
+      
+      if (mounted) {
+        setState(() {
+          _saldosActualizadosCache[cpCoId] = saldoActualizado;
+        });
+        print('🔄 Saldo actualizado en cache para cuenta $cpCoId: ${_formatCurrency(saldoActualizado)}');
+      }
+    } catch (e) {
+      print('❌ Error actualizando saldo en cache para cuenta $cpCoId: $e');
+    }
   }
 
   Widget _buildPaymentButton(CuentasXCobrar movimiento) {
@@ -634,11 +732,45 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
     if (result != null && result['pagoRegistrado'] == true) {
       print('✅ Pago registrado, recargando datos inmediatamente...');
       
+      // OPTIMIZACIÓN: Actualizar inmediatamente el cache local del saldo
+      if (movimiento.cpCo_Id != null && result['montoRegistrado'] != null) {
+        final montoRegistrado = result['montoRegistrado'] as double;
+        final saldoAnterior = _getSaldoActualizadoMovimiento(movimiento);
+        final nuevoSaldo = (saldoAnterior - montoRegistrado).clamp(0.0, double.infinity);
+        
+        if (mounted) {
+          setState(() {
+            _saldosActualizadosCache[movimiento.cpCo_Id!] = nuevoSaldo;
+          });
+        }
+        
+        print('🔄 Saldo actualizado inmediatamente en cache: $saldoAnterior -> $nuevoSaldo');
+      }
+      
       // Mostrar indicador de actualización rápida
       if (mounted) {
         setState(() {
           _isLoading = true;
         });
+      }
+      
+      // MEJORA: Forzar sincronización más agresiva de datos
+      try {
+        final clienteId = widget.cuentaResumen.clie_Id;
+        if (clienteId != null) {
+          // Intentar sincronizar datos específicos del cliente desde el servidor
+          await CuentasPorCobrarOfflineService.precargarDatosCliente(clienteId);
+          
+          // También sincronizar historial de pagos de la cuenta específica si se tiene el ID
+          if (movimiento.cpCo_Id != null) {
+            await CuentasPorCobrarOfflineService.sincronizarHistorialPagos(movimiento.cpCo_Id!);
+            
+            // Actualizar el saldo específico de esta cuenta en el cache
+            await _actualizarSaldoCuentaEnCache(movimiento.cpCo_Id!);
+          }
+        }
+      } catch (e) {
+        print('⚠️ Error en sincronización post-pago: $e');
       }
       
       // Ejecutar actualizaciones en paralelo para máxima velocidad
