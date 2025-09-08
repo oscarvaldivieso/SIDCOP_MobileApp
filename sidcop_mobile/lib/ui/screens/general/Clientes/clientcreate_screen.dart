@@ -240,32 +240,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       return;
     }
 
-    // Validar si hay al menos una dirección
     if (_direcciones.isEmpty) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Sin direcciones', style: _titleStyle),
-          content: Text(
-            '¿Desea continuar sin agregar una dirección al cliente?',
-            style: _labelStyle,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancelar', style: _buttonTextStyle),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Continuar', style: _buttonTextStyle),
-            ),
-          ],
+      print('Error: No se han agregado direcciones.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debe agregar al menos una dirección.'),
+          backgroundColor: Colors.red,
         ),
       );
-
-      if (confirm != true) {
-        return;
-      }
+      return;
     }
 
     if (!mounted) return;
@@ -314,29 +297,84 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         'clie_FechaCreacion': DateTime.now().toIso8601String(),
       };
 
+      print('Datos del cliente a enviar: ${jsonEncode(clienteData)}');
+
       if (isConnected) {
-        // Flujo online: subir imagen y enviar datos
+        // Subir imagen primero
         if (imageBytes != null) {
-          try {
-            final imageUrl = await _uploadImage();
-            if (imageUrl != null) {
-              clienteData['clie_ImagenDelNegocio'] = imageUrl; // Asignar la URL de la imagen
-              print('Imagen subida exitosamente: $imageUrl');
-            }
-          } catch (e) {
-            print('Error al subir la imagen: $e');
-            // Continuar sin imagen si la subida falla
+          final imageUrl = await _uploadImage();
+          if (imageUrl != null) {
+            clienteData['clie_ImagenDelNegocio'] = imageUrl; // Asignar la URL de la imagen
           }
         }
 
         // Enviar datos del cliente
-        print('Enviando datos del cliente al servidor: $clienteData');
         final response = await _dropdownService.insertCliente(clienteData);
 
         if (response['success'] == true) {
+          // Extraer el clientId de la respuesta
+          final clientData = response['data'];
+          if (clientData == null || clientData['data'] == null) {
+            throw Exception('No se recibió un ID de cliente válido del servidor');
+          }
+
+          final clientId = clientData['data'] is String
+              ? int.tryParse(clientData['data'])
+              : (clientData['data'] as num?)?.toInt();
+
+          if (clientId == null) {
+            throw Exception(
+              'Formato de ID de cliente inválido: ${clientData['data']}',
+            );
+          }
+
+          print('Client ID extraído: $clientId (${clientId.runtimeType})');
+
+          // Enviar direcciones al servidor
+          int successfulAddresses = 0;
+
+          for (var direccion in _direcciones) {
+            try {
+              // Actualizar el ID del cliente en cada dirección
+              final direccionData = direccion.copyWith(clie_id: clientId);
+
+              print('=== Enviando dirección para cliente $clientId ===');
+              print('Datos completos: ${direccionData.toJson()}');
+
+              final result = await _direccionClienteService.insertDireccionCliente(direccionData);
+
+              print('Respuesta del servidor para dirección: $result');
+
+              if (result['success'] == true) {
+                successfulAddresses++;
+                print('✅ Dirección guardada exitosamente');
+              } else {
+                print('❌ Error al guardar dirección: ${result['message']}');
+              }
+            } catch (e) {
+              print('Excepción al guardar dirección: $e');
+            }
+          }
+
+          if (successfulAddresses < _direcciones.length) {
+            print(
+              'Advertencia: No todas las direcciones se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+            );
+          }
+
+          // Mostrar mensaje de éxito
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Cliente creado exitosamente')),
+              SnackBar(
+                content: Text(
+                  successfulAddresses == _direcciones.length
+                      ? 'Cliente y direcciones creados exitosamente'
+                      : 'Cliente creado, pero algunas direcciones no se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
+                ),
+                backgroundColor: successfulAddresses == _direcciones.length
+                    ? Colors.green
+                    : Colors.orange,
+              ),
             );
             Navigator.pop(context, true);
           }
@@ -362,11 +400,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }
       }
     } catch (e) {
-      print('Error al guardar el cliente: $e');
+      print('Error en _submitForm: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error al crear el cliente: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
