@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
-import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/detailsCxC_screen.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class CuentasPorCobrarDetailsScreen extends StatefulWidget {
   final int cuentaId;
@@ -23,15 +21,20 @@ class CuentasPorCobrarDetailsScreen extends StatefulWidget {
 }
 
 class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsScreen> {
-  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   List<CuentasXCobrar> _timelineMovimientos = [];
   bool _isLoading = true;
   String? _errorMessage;
+  
+  // Variable para el saldo actualizado dinámicamente
+  double? _saldoActualizado;
 
   @override
   void initState() {
     super.initState();
     _loadTimelineCliente();
+    
+    // Cargar el saldo actualizado inmediatamente
+    _actualizarInformacionCuenta();
     
     // Pre-cargar datos del cliente en background si es necesario
     if (widget.cuentaResumen.clie_Id != null) {
@@ -54,42 +57,16 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
         throw Exception('ID de cliente no disponible');
       }
 
-      // Verificar conectividad
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isConnected = connectivityResult != ConnectivityResult.none;
-
       List<dynamic> response;
       
-      if (isConnected) {
-        try {
-          // Intentar cargar desde el servidor y sincronizar
-          response = await _cuentasService.getTimelineCliente(clienteId);
-          
-          // Guardar en cache offline para uso posterior
-          await CuentasPorCobrarOfflineService.sincronizarTimelineCliente(clienteId);
-          
-          print('✅ Timeline cliente $clienteId sincronizado desde servidor (${response.length} elementos)');
-        } catch (e) {
-          print('⚠️ Error cargando timeline desde servidor, intentando datos offline: $e');
-          // Si falla el servidor, usar datos offline
-          response = await CuentasPorCobrarOfflineService.obtenerTimelineClienteLocal(clienteId);
-          
-          // Si no hay datos offline, intentar cargar datos generales del cliente
-          if (response.isEmpty) {
-            print('📄 No hay timeline offline, buscando en resumen general...');
-            response = await _buscarMovimientosClienteEnResumenGeneral(clienteId);
-          }
-        }
-      } else {
-        // Sin conexión, cargar datos offline
-        print('📱 Sin conexión, cargando timeline offline para cliente $clienteId');
-        response = await CuentasPorCobrarOfflineService.obtenerTimelineClienteLocal(clienteId);
-        
-        // Si no hay timeline específico offline, buscar en datos generales
-        if (response.isEmpty) {
-          print('📄 No hay timeline offline, buscando en datos generales offline...');
-          response = await _buscarMovimientosClienteEnResumenGeneral(clienteId);
-        }
+      // MODO OFFLINE PRIORITARIO - Siempre usar datos offline para reflejo inmediato
+      print('📱 Cargando timeline offline actualizado para cliente $clienteId');
+      response = await CuentasPorCobrarOfflineService.obtenerTimelineClienteLocal(clienteId);
+      
+      // Si no hay datos offline, intentar cargar datos generales del cliente
+      if (response.isEmpty) {
+        print('📄 No hay timeline offline, buscando en resumen general...');
+        response = await _buscarMovimientosClienteEnResumenGeneral(clienteId);
       }
       final List<CuentasXCobrar> movimientos = response
           .map((item) {
@@ -380,7 +357,7 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildSummaryItem('Total Pendiente', _formatCurrency(widget.cuentaResumen.totalPendiente), Icons.account_balance_wallet_rounded)),
+              Expanded(child: _buildSummaryItem('Total Pendiente', _formatCurrency(_saldoPendienteActual), Icons.account_balance_wallet_rounded)),
               const SizedBox(width: 12),
               Expanded(child: _buildSummaryItem('Facturas', '${widget.cuentaResumen.facturasPendientes ?? 0}', Icons.receipt_rounded)),
             ],
@@ -655,17 +632,24 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
     
     // Si el pago fue exitoso, recargar el timeline y notificar a la pantalla anterior
     if (result != null && result['pagoRegistrado'] == true) {
-      print('✅ Pago registrado, recargando datos...');
+      print('✅ Pago registrado, recargando datos inmediatamente...');
       
-      // Recargar inmediatamente el timeline y actualizar la cuenta
-      await _loadTimelineCliente();
+      // Mostrar indicador de actualización rápida
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
       
-      // Actualizar también la información de la cuenta desde los datos offline actualizados
-      await _actualizarInformacionCuenta();
+      // Ejecutar actualizaciones en paralelo para máxima velocidad
+      await Future.wait([
+        _loadTimelineCliente(),
+        _actualizarInformacionCuenta(),
+      ]);
       
       // Notificar a la pantalla anterior que hubo cambios (sin delay para inmediatez)
       if (mounted) {
-        Navigator.of(context).pop({'pagoRegistrado': true});
+        Navigator.of(context).pop({'pagoRegistrado': true, 'recargarDatos': true});
       }
     }
   }
@@ -703,29 +687,27 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
     );
   }
 
-  /// Actualiza la información de la cuenta desde los datos offline actualizados
+  /// Actualiza la información de la cuenta desde los datos offline actualizados de forma optimizada
   Future<void> _actualizarInformacionCuenta() async {
     try {
-      // Buscar la cuenta actualizada en el resumen de clientes offline
-      final resumenClientes = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      print('🔄 Actualizando información de cuenta ${widget.cuentaId}...');
       
-      for (final item in resumenClientes) {
-        if (item['cpCo_Id'] == widget.cuentaResumen.cpCo_Id) {
-          // Crear una nueva instancia de la cuenta con los datos actualizados
-          final cuentaActualizada = CuentasXCobrar.fromJson(item);
-          
-          // Como no puedo modificar el widget.cuentaResumen directamente, 
-          // simplemente forzar un rebuild del UI que mostrará los nuevos datos
-          setState(() {
-            // Solo hacer un setState para refrescar la UI
-          });
-          
-          print('✅ Información de cuenta actualizada: Nuevo saldo ${cuentaActualizada.totalPendiente}');
-          break;
-        }
+      // Usar el método optimizado para obtener saldo actualizado
+      final saldoActualizado = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(widget.cuentaId);
+      
+      if (mounted) {
+        setState(() {
+          _saldoActualizado = saldoActualizado;
+        });
+        print('✅ Saldo actualizado: ${_formatCurrency(saldoActualizado)}');
       }
     } catch (e) {
-      print('Error actualizando información de cuenta: $e');
+      print('❌ Error actualizando información de la cuenta: $e');
     }
+  }
+
+  /// Obtiene el saldo pendiente actual (actualizado o original)
+  double get _saldoPendienteActual {
+    return _saldoActualizado ?? widget.cuentaResumen.totalPendiente ?? 0;
   }
 }

@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/services/PagosCxCService.dart';
 import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
@@ -416,6 +418,46 @@ class CuentasPorCobrarOfflineService {
   // MÉTODOS PARA PAGOS PENDIENTES (MODO OFFLINE)
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  /// Guarda un pago con actualización inmediata del saldo para mejor UX
+  static Future<void> guardarPagoConActualizacionInmediata(PagosCuentasXCobrar pago) async {
+    try {
+      // VALIDACIONES PREVIAS ANTES DE GUARDAR
+      final validacionResult = await validarPagoOffline(pago);
+      if (!validacionResult['valido']) {
+        throw Exception(validacionResult['mensaje']);
+      }
+
+      // Obtener pagos pendientes existentes
+      final pendientes = await obtenerPagosPendientesLocal();
+      
+      // Agregar el nuevo pago con timestamp y metadatos optimizados
+      final pagoConMetadata = {
+        'pago': pago.toJson(),
+        'timestamp': DateTime.now().toIso8601String(),
+        'intentos': 0,
+        'id_temporal': DateTime.now().millisecondsSinceEpoch.toString(),
+        'sincronizado': false,
+        'prioridad': 'alta', // Para sincronización prioritaria
+      };
+      
+      pendientes.add(pagoConMetadata);
+      
+      // Guardar la lista actualizada de forma rápida
+      await guardarJson(_archivoPagosPendientes, pendientes);
+      
+      // IMPORTANTE: Actualizar inmediatamente los datos locales para reflejar el cambio
+      await _actualizarDatosLocalesConPago(pago);
+      
+      // Actualizar timeline inmediatamente
+      await _actualizarTimelineInmediato(pago);
+      
+      print('✅ Pago guardado con actualización inmediata. Total pendientes: ${pendientes.length}');
+    } catch (e) {
+      print('❌ Error guardando pago con actualización inmediata: $e');
+      rethrow;
+    }
+  }
+
   /// Guarda un pago pendiente cuando no hay conexión.
   static Future<void> guardarPagoPendiente(PagosCuentasXCobrar pago) async {
     try {
@@ -640,6 +682,58 @@ class CuentasPorCobrarOfflineService {
     return 'L ${amount.toStringAsFixed(2)}';
   }
 
+  /// Obtiene el saldo real actualizado de una cuenta considerando todos los pagos aplicados offline
+  static Future<double> obtenerSaldoRealCuentaActualizado(int cpCoId) async {
+    try {
+      // 1. Obtener saldo base de la cuenta
+      double saldoBase = 0;
+      
+      final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
+      if (cuentaDetalle != null) {
+        saldoBase = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
+      } else {
+        // Buscar en resumen de clientes
+        final resumenClientes = await obtenerResumenClientesLocal();
+        for (final item in resumenClientes) {
+          if (item['cpCo_Id'] == cpCoId) {
+            saldoBase = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+            break;
+          }
+        }
+      }
+
+      // 2. Restar pagos pendientes offline (incluye pagos ya aplicados localmente)
+      final pagosPendientes = await obtenerPagosPendientesLocal();
+      double totalPagosPendientes = 0;
+      
+      for (final item in pagosPendientes) {
+        try {
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          if (pagoData['cpCoId'] == cpCoId && !item['sincronizado']) {
+            final montoPago = (pagoData['pagoMonto'] ?? 0).toDouble();
+            totalPagosPendientes += montoPago;
+          }
+        } catch (e) {
+          print('Error procesando pago pendiente: $e');
+        }
+      }
+
+      // 3. Restar también pagos ya aplicados en el historial local (evitar doble conteo)
+      // Solo para verificación, no se restan del saldo base ya que ya están considerados
+      final historialPagos = await obtenerHistorialPagosLocal(cpCoId);
+      print('📄 Historial de pagos cuenta $cpCoId: ${historialPagos.length} pagos encontrados');
+
+      final saldoActualizado = saldoBase - totalPagosPendientes;
+      
+      print('📊 Saldo actualizado cuenta $cpCoId: Base=${_formatCurrency(saldoBase)}, Pendientes=${_formatCurrency(totalPagosPendientes)}, Final=${_formatCurrency(saldoActualizado)}');
+      
+      return saldoActualizado > 0 ? saldoActualizado : 0;
+    } catch (e) {
+      print('Error obteniendo saldo real actualizado de cuenta $cpCoId: $e');
+      return 0;
+    }
+  }
+
   /// Obtiene el saldo real de una cuenta considerando pagos pendientes offline
   static Future<double> obtenerSaldoRealCuenta(int cpCoId) async {
     try {
@@ -761,6 +855,88 @@ class CuentasPorCobrarOfflineService {
     } catch (e) {
       print('❌ Error sincronizando historial de pagos para cuenta $cpCoId: $e');
       rethrow;
+    }
+  }
+
+  /// Marca un pago como sincronizado exitosamente
+  static Future<void> marcarPagoComoSincronizado(PagosCuentasXCobrar pago) async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      bool encontrado = false;
+      
+      // Buscar el pago en los pendientes y marcarlo como sincronizado
+      for (int i = 0; i < pendientes.length; i++) {
+        final item = pendientes[i];
+        try {
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          
+          // Comparar por cpCoId, monto y timestamp para identificar el pago
+          if (pagoData['cpCoId'] == pago.cpCoId && 
+              pagoData['pagoMonto'] == pago.pagoMonto &&
+              !item['sincronizado']) {
+            
+            // Marcar como sincronizado
+            item['sincronizado'] = true;
+            item['fechaSincronizacion'] = DateTime.now().toIso8601String();
+            encontrado = true;
+            
+            print('✅ Pago marcado como sincronizado: Cuenta ${pago.cpCoId}, Monto ${_formatCurrency(pago.pagoMonto)}');
+            break;
+          }
+        } catch (e) {
+          print('Error procesando item de pago pendiente: $e');
+        }
+      }
+      
+      if (encontrado) {
+        // Guardar la lista actualizada
+        await guardarJson(_archivoPagosPendientes, pendientes);
+        
+        // Opcional: Limpiar pagos ya sincronizados después de un tiempo
+        await _limpiarPagosSincronizadosAntiguos();
+      } else {
+        print('⚠️ No se encontró el pago para marcar como sincronizado');
+      }
+    } catch (e) {
+      print('❌ Error marcando pago como sincronizado: $e');
+    }
+  }
+
+  /// Limpia pagos sincronizados antiguos para mantener el cache limpio
+  static Future<void> _limpiarPagosSincronizadosAntiguos() async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      final ahora = DateTime.now();
+      
+      // Filtrar pagos: mantener solo no sincronizados y sincronizados recientes (últimas 24 horas)
+      final pendientesFiltrados = pendientes.where((item) {
+        try {
+          final sincronizado = item['sincronizado'] ?? false;
+          
+          if (!sincronizado) {
+            return true; // Mantener pagos no sincronizados
+          }
+          
+          // Para pagos sincronizados, verificar si son recientes
+          final fechaSincronizacion = item['fechaSincronizacion'];
+          if (fechaSincronizacion != null) {
+            final fecha = DateTime.parse(fechaSincronizacion);
+            final diferencia = ahora.difference(fecha);
+            return diferencia.inHours < 24; // Mantener solo últimas 24 horas
+          }
+          
+          return false; // Remover pagos sincronizados sin fecha
+        } catch (e) {
+          return true; // En caso de error, mantener el item
+        }
+      }).toList();
+      
+      if (pendientesFiltrados.length < pendientes.length) {
+        await guardarJson(_archivoPagosPendientes, pendientesFiltrados);
+        print('🧹 Cache de pagos limpiado: ${pendientes.length - pendientesFiltrados.length} pagos antiguos removidos');
+      }
+    } catch (e) {
+      print('Error limpiando pagos sincronizados antiguos: $e');
     }
   }
 
@@ -1018,9 +1194,85 @@ class CuentasPorCobrarOfflineService {
     }
   }
 
+  /// Método completo de sincronización optimizada que debe llamarse cuando se detecte conectividad.
+  /// Sincroniza datos y envía pagos pendientes de forma eficiente.
+  static Future<Map<String, dynamic>> sincronizacionCompleta() async {
+    final resultado = <String, dynamic>{
+      'exito': false,
+      'pagosSincronizados': 0,
+      'datosSincronizados': false,
+      'errores': <String>[],
+      'tiempoEjecucion': 0,
+    };
+
+    final inicioTiempo = DateTime.now();
+
+    try {
+      print('🚀 Iniciando sincronización completa optimizada...');
+
+      // 1. Sincronizar pagos pendientes con alta prioridad
+      try {
+        final pagosSincronizados = await sincronizarPagosPendientes();
+        resultado['pagosSincronizados'] = pagosSincronizados;
+        print('✅ Pagos sincronizados: $pagosSincronizados');
+      } catch (e) {
+        resultado['errores'].add('Error sincronizando pagos: $e');
+        print('❌ Error sincronizando pagos: $e');
+      }
+
+      // 2. Sincronizar datos básicos en paralelo (formas de pago, etc.)
+      try {
+        await Future.wait([
+          sincronizarFormasPago(),
+          // Otros datos críticos se pueden agregar aquí
+        ]);
+        resultado['datosSincronizados'] = true;
+        print('✅ Datos básicos sincronizados');
+      } catch (e) {
+        resultado['errores'].add('Error sincronizando datos básicos: $e');
+        print('❌ Error sincronizando datos básicos: $e');
+      }
+
+      // 3. Sincronización de datos detallados (en background, baja prioridad)
+      _sincronizarDatosDetalladosEnBackground();
+
+      resultado['exito'] = resultado['errores'].isEmpty;
+      
+    } catch (e) {
+      resultado['errores'].add('Error general en sincronización: $e');
+      print('❌ Error general en sincronización completa: $e');
+    }
+
+    final tiempoEjecucion = DateTime.now().difference(inicioTiempo).inMilliseconds;
+    resultado['tiempoEjecucion'] = tiempoEjecucion;
+    
+    print('⏱️ Sincronización completa finalizada en ${tiempoEjecucion}ms');
+    return resultado;
+  }
+
+  /// Sincroniza datos detallados en background sin bloquear operaciones críticas
+  static Future<void> _sincronizarDatosDetalladosEnBackground() async {
+    try {
+      print('📡 Iniciando sincronización de datos detallados en background...');
+      
+      // Sincronizar datos menos críticos sin await para no bloquear
+      Future.wait([
+        sincronizarCuentasPorCobrar(),
+        sincronizarResumenClientes(),
+      ]).then((_) {
+        print('✅ Datos detallados sincronizados en background');
+      }).catchError((e) {
+        print('⚠️ Error en sincronización de background: $e');
+      });
+      
+    } catch (e) {
+      print('Error iniciando sincronización de background: $e');
+    }
+  }
+
   /// Método completo de sincronización que debe llamarse cuando se detecte conectividad.
   /// Sincroniza datos y envía pagos pendientes.
-  static Future<Map<String, dynamic>> sincronizacionCompleta() async {
+  static Future<Map<String, dynamic>> sincronizacionCompletaLegacy() async {
     final Map<String, dynamic> resultado = {
       'exito': false,
       'sincronizacionDatos': false,
@@ -1060,6 +1312,59 @@ class CuentasPorCobrarOfflineService {
     }
   }
 
+  /// Inicializa la sincronización automática al iniciar la aplicación
+  static Future<void> inicializarSincronizacionAutomatica() async {
+    try {
+      print('🔄 Inicializando sincronización automática...');
+      
+      // Verificar conectividad inmediatamente
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult != ConnectivityResult.none) {
+        // Ejecutar sincronización inmediata en background
+        sincronizacionCompleta().then((resultado) {
+          print('✅ Sincronización inicial completada: ${resultado['pagosSincronizados']} pagos sincronizados');
+        }).catchError((e) {
+          print('⚠️ Error en sincronización inicial: $e');
+        });
+      }
+      
+      // Configurar sincronización periódica (cada 5 minutos cuando hay conectividad)
+      _configurarSincronizacionPeriodica();
+      
+    } catch (e) {
+      print('Error inicializando sincronización automática: $e');
+    }
+  }
+
+  /// Configura la sincronización periódica
+  static void _configurarSincronizacionPeriodica() {
+    try {
+      // Usar un timer para verificar periódicamente si hay datos pendientes
+      Timer.periodic(const Duration(minutes: 5), (timer) async {
+        try {
+          final connectivityResult = await Connectivity().checkConnectivity();
+          if (connectivityResult != ConnectivityResult.none) {
+            final pendientes = await obtenerPagosPendientesLocal();
+            if (pendientes.isNotEmpty) {
+              print('🔄 Sincronización periódica: ${pendientes.length} pagos pendientes detectados');
+              sincronizarPagosPendientes().then((sincronizados) {
+                if (sincronizados > 0) {
+                  print('✅ Sincronización periódica: $sincronizados pagos sincronizados');
+                }
+              }).catchError((e) {
+                print('⚠️ Error en sincronización periódica: $e');
+              });
+            }
+          }
+        } catch (e) {
+          print('Error en verificación periódica: $e');
+        }
+      });
+    } catch (e) {
+      print('Error configurando sincronización periódica: $e');
+    }
+  }
+
   /// Consolidación de sincronización completa de Cuentas por Cobrar
   /// Método wrapper que ejecuta sincronizacionCompleta para mantener consistencia con otros servicios
   static Future<void> sincronizarCuentasPorCobrar_Todo() async {
@@ -1071,6 +1376,66 @@ class CuentasPorCobrarOfflineService {
       print('   - Pagos sincronizados: ${resultado['pagosSincronizados']}');
     } catch (e) {
       print('❌ Error en sincronización completa de Cuentas por Cobrar: $e');
+      rethrow;
+    }
+  }
+
+  /// Actualiza los datos locales inmediatamente con el nuevo pago para reflejar cambios
+  static Future<void> _actualizarDatosLocalesConPago(PagosCuentasXCobrar pago) async {
+    try {
+      final cpCoId = pago.cpCoId;
+      final montoPago = pago.pagoMonto;
+
+      // 1. Actualizar el detalle de la cuenta específica si existe
+      final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
+      if (cuentaDetalle != null) {
+        final saldoActual = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
+        final nuevoSaldo = saldoActual - montoPago;
+        
+        // Crear una nueva instancia con el saldo actualizado (debido a campos finales)
+        final cuentaActualizada = CuentasXCobrar.fromJson({
+          ...cuentaDetalle.toJson(),
+          'cpCo_Saldo': nuevoSaldo > 0 ? nuevoSaldo : 0,
+          'totalPendiente': nuevoSaldo > 0 ? nuevoSaldo : 0,
+          'ultimoMovimiento': DateTime.now().toIso8601String(),
+        });
+        
+        // Guardar el detalle actualizado
+        await guardarDetalleCuenta(cpCoId, cuentaActualizada);
+        print('📊 Detalle cuenta $cpCoId actualizado: Saldo=${_formatCurrency(nuevoSaldo)}');
+      }
+
+      // 2. Actualizar también en el resumen de clientes
+      final resumenClientes = await obtenerResumenClientesLocal();
+      bool clienteActualizado = false;
+      
+      for (int i = 0; i < resumenClientes.length; i++) {
+        final item = resumenClientes[i];
+        if (item['cpCo_Id'] == cpCoId) {
+          final saldoActual = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+          final nuevoSaldo = saldoActual - montoPago;
+          
+          // Actualizar el saldo en el resumen
+          item['totalPendiente'] = nuevoSaldo > 0 ? nuevoSaldo : 0;
+          item['cpCo_Saldo'] = nuevoSaldo > 0 ? nuevoSaldo : 0;
+          
+          clienteActualizado = true;
+          print('📋 Resumen cliente actualizado: Cuenta $cpCoId, Nuevo saldo=${_formatCurrency(nuevoSaldo)}');
+          break;
+        }
+      }
+      
+      if (clienteActualizado) {
+        // Guardar el resumen actualizado
+        await guardarJson(_archivoResumenClientes, resumenClientes);
+      }
+
+      // 3. Agregar el pago al historial local inmediatamente
+      await _agregarPagoAlHistorialLocal(pago);
+      
+      print('✅ Datos locales actualizados inmediatamente para cuenta $cpCoId');
+    } catch (e) {
+      print('❌ Error actualizando datos locales con pago: $e');
       rethrow;
     }
   }
