@@ -9,6 +9,8 @@ import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
 import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
   final List<ProductoConfirmacion> productosSeleccionados;
@@ -166,6 +168,16 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     }
     if (widget.clienteId == 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se seleccionó cliente.')));
+      return;
+    }
+    
+    // Verificar conexión a internet
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final bool isOnline = connectivityResult != ConnectivityResult.none;
+    
+    // Si está offline, manejar de forma diferente
+    if (!isOnline) {
+      await _confirmarPedidoOffline();
       return;
     }
     
@@ -470,6 +482,138 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       print('Error completo al crear pedido: $e');
     }
   }
+
+  Future<void> _confirmarPedidoOffline() async {
+    try {
+      print('🔧 DEBUG OFFLINE - Iniciando confirmación de pedido offline...');
+      
+      // Obtener datos del usuario actual
+      final perfilService = PerfilUsuarioService();
+      final userData = await perfilService.obtenerDatosUsuario();
+      
+      print('👤 DEBUG OFFLINE - Datos del usuario:');
+      print('   - userData completo: $userData');
+      print('   - usua_IdPersona: ${userData?['usua_IdPersona']}');
+      print('   - usua_Id: ${userData?['usua_Id']}');
+      print('   - usua_EsVendedor: ${userData?['usua_EsVendedor']}');
+      
+      final int? vendedorId = userData?['usua_IdPersona'] is String
+          ? int.tryParse(userData?['usua_IdPersona'])
+          : userData?['usua_IdPersona'];
+      
+      print('   - vendedorId procesado: $vendedorId');
+
+      // Debug de productos editables
+      print('📦 DEBUG OFFLINE - Productos editables:');
+      for (int i = 0; i < _productosEditables.length; i++) {
+        final p = _productosEditables[i];
+        print('   Producto $i:');
+        print('     - prodId: ${p.prodId}');
+        print('     - nombre: ${p.nombre}');
+        print('     - cantidad: ${p.cantidad}');
+        print('     - precioBase: ${p.precioBase}');
+        print('     - precioFinal: ${p.precioFinal}');
+        print('     - descuento por unidad: ${p.precioBase - p.precioFinal}');
+        print('     - subtotal: ${p.precioFinal * p.cantidad}');
+      }
+
+      // Preparar detalles del pedido para guardar offline
+      final detallesPedido = _productosEditables.map((p) {
+        final detalle = {
+          'prodId': p.prodId,
+          'cantidad': p.cantidad,
+          'precioUnitario': p.precioFinal,
+          'descuento': (p.precioBase - p.precioFinal) * p.cantidad,
+          'subtotal': p.precioFinal * p.cantidad,
+        };
+        return detalle;
+      }).toList();
+
+      print('📋 DEBUG OFFLINE - Detalles del pedido preparados:');
+      for (int i = 0; i < detallesPedido.length; i++) {
+        print('   Detalle $i: ${detallesPedido[i]}');
+      }
+
+      // Debug de dirección seleccionada
+      print('📍 DEBUG OFFLINE - Dirección seleccionada:');
+      print('   - direccionSeleccionada completa: ${widget.direccionSeleccionada}');
+      print('   - claves disponibles: ${widget.direccionSeleccionada.keys.toList()}');
+      
+      final direccionId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                         widget.direccionSeleccionada['DiCl_Id'] ?? 
+                         widget.clienteId;
+      print('   - direccionId final: $direccionId');
+
+      // Debug de totales
+      print('💰 DEBUG OFFLINE - Totales calculados:');
+      print('   - _total: $_total');
+      print('   - _subtotal: $_subtotal');
+      print('   - _cantidadTotal: $_cantidadTotal');
+
+      // Crear objeto de pedido offline
+      final pedidoOffline = {
+        'id': DateTime.now().microsecondsSinceEpoch,
+        'clienteId': widget.clienteId,
+        'vendedorId': vendedorId,
+        'fechaPedido': DateTime.now().toIso8601String(),
+        'fechaEntrega': widget.fechaEntrega.toIso8601String(),
+        'direccionId': direccionId,
+        'total': _total,
+        'estado': 'Pendiente Sincronización',
+        'detalles': detallesPedido,
+        'offline': true,
+        'local_signature': 'PED_OFF_${DateTime.now().microsecondsSinceEpoch}',
+        'created_at': DateTime.now().toIso8601String(),
+        'sync_attempts': 0,
+      };
+
+      print('💾 DEBUG OFFLINE - Objeto pedido offline completo:');
+      print('$pedidoOffline');
+
+      // Guardar el pedido localmente
+      print('💾 DEBUG OFFLINE - Guardando pedido offline...');
+      await PedidosScreenOffline.guardarPedidoOffline(pedidoOffline);
+      print('✅ DEBUG OFFLINE - Pedido guardado exitosamente');
+
+      // Generar número de pedido temporal
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final numeroPedidoTemporal = 'PED-OFFLINE-${widget.clienteId}-$timestamp';
+
+      // Mostrar mensaje de éxito
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡Pedido guardado offline! Número: $numeroPedidoTemporal'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Mostrar mensaje de confirmación y navegar de vuelta
+      if (mounted) {
+        // Navegar de vuelta a la pantalla principal después de un breve delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        });
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al confirmar pedido offline: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      print('Error en _confirmarPedidoOffline: $e');
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {

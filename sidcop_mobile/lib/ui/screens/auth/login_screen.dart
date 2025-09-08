@@ -7,10 +7,12 @@ import '../../../services/UsuarioService.dart';
 import '../../../services/PerfilUsuarioService.Dart';
 import '../../../services/SyncService.dart';
 import '../../../services/OfflineAuthService.dart';
-import '../../../Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../../screens/auth/forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -44,11 +46,84 @@ class _LoginScreenState extends State<LoginScreen> {
   String _syncStatus = '';
   bool _rememberMe = false;
   bool _obscurePassword = true; // true = oculto, false = visible
+  
+  // Connectivity listener
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
     _checkSavedSession();
+    _setupConnectivityListener();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  void _setupConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+      if (result != ConnectivityResult.none) {
+        // Connectivity restored, sync offline orders
+        _syncOfflineOrders();
+      }
+    });
+  }
+
+  Future<void> _syncOfflineOrders() async {
+    try {
+      print('Conectividad restaurada, sincronizando pedidos offline...');
+      
+      // Check if there are pending orders to sync
+      final pedidosPendientes = await PedidosScreenOffline.obtenerPedidosPendientes();
+      
+      if (pedidosPendientes.isNotEmpty) {
+        print('Encontrados ${pedidosPendientes.length} pedidos pendientes para sincronizar');
+        
+        // Show sync notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sincronizando ${pedidosPendientes.length} pedidos offline...'),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        
+        // Sync the orders
+        await PedidosScreenOffline.sincronizarPedidosPendientes();
+        
+        // Show success notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Pedidos sincronizados exitosamente!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        
+        print('Sincronización de pedidos completada');
+      } else {
+        print('No hay pedidos pendientes para sincronizar');
+      }
+    } catch (e) {
+      print('Error sincronizando pedidos offline: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sincronizando pedidos: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   // Verificar si hay una sesión guardada

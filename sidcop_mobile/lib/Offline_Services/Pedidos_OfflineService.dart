@@ -14,6 +14,44 @@ class PedidosScreenOffline {
   static const String _pedidosKey = 'pedidos_list';
   static const String _pedidoDetalleKey = 'pedido_detalle_';
   static const String _pedidosPendientesKey = 'pedidos_pendientes';
+  
+  /// Guarda cualquier objeto JSON-serializable (similar a recargas)
+  static Future<void> guardarJson(String nombreArchivo, Object objeto) async {
+    try {
+      final contenido = jsonEncode(objeto);
+      final key = 'json:$nombreArchivo';
+      print('DEBUG guardarJson: Guardando en clave: $key');
+      print('DEBUG guardarJson: Contenido: $contenido');
+      await _storage.write(key: key, value: contenido);
+      
+      // Verificar que se guardó correctamente
+      final verificacion = await _storage.read(key: key);
+      print('DEBUG guardarJson: Verificación - contenido guardado: $verificacion');
+    } catch (e) {
+      print('DEBUG guardarJson: Error: $e');
+      rethrow;
+    }
+  }
+
+  /// Lee y decodifica JSON desde archivo (similar a recargas)
+  static Future<dynamic> leerJson(String nombreArchivo) async {
+    try {
+      final key = 'json:$nombreArchivo';
+      print('DEBUG leerJson: Buscando clave: $key');
+      final s = await _storage.read(key: key);
+      print('DEBUG leerJson: Contenido raw: $s');
+      if (s == null) {
+        print('DEBUG leerJson: No se encontró contenido para $key');
+        return null;
+      }
+      final decoded = jsonDecode(s);
+      print('DEBUG leerJson: Contenido decodificado: $decoded');
+      return decoded;
+    } catch (e) {
+      print('DEBUG leerJson: Error: $e');
+      rethrow;
+    }
+  }
 
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
@@ -661,7 +699,274 @@ class PedidosScreenOffline {
     }
   }
 
-  /// Sincroniza los pedidos pendientes con el servidor
+  /// Guarda un pedido offline siguiendo el patrón de recargas
+  static Future<void> guardarPedidoOffline(Map<String, dynamic> pedidoData) async {
+    try {
+      print('💾 DEBUG SAVE - Iniciando guardado de pedido offline...');
+      print('💾 DEBUG SAVE - Datos a guardar: $pedidoData');
+      
+      // Leer pedidos pendientes existentes
+      final raw = await leerJson('pedidos_pendientes.json');
+      List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+      
+      print('💾 DEBUG SAVE - Pedidos existentes: ${pendientes.length}');
+      
+      // Agregar el nuevo pedido
+      pendientes.add(pedidoData);
+      
+      print('💾 DEBUG SAVE - Total después de agregar: ${pendientes.length}');
+      
+      // Guardar la lista actualizada
+      await guardarJson('pedidos_pendientes.json', pendientes);
+      
+      print('✅ DEBUG SAVE - Pedido offline guardado: ${pedidoData['local_signature']}');
+      
+      // Verificar que se guardó correctamente
+      await mostrarPedidosOfflineGuardados();
+      
+    } catch (e) {
+      print('❌ DEBUG SAVE - Error guardando pedido offline: $e');
+      rethrow;
+    }
+  }
+
+  /// Método de debugging para mostrar todos los pedidos offline guardados
+  static Future<void> mostrarPedidosOfflineGuardados() async {
+    try {
+      print('🔍 DEBUG VIEW - Mostrando todos los pedidos offline guardados...');
+      
+      final raw = await leerJson('pedidos_pendientes.json');
+      if (raw == null) {
+        print('🔍 DEBUG VIEW - No hay archivo de pedidos pendientes');
+        return;
+      }
+      
+      if (raw is! List) {
+        print('🔍 DEBUG VIEW - El archivo no contiene una lista válida: ${raw.runtimeType}');
+        return;
+      }
+      
+      final pedidos = List<Map<String, dynamic>>.from(raw);
+      print('🔍 DEBUG VIEW - Total de pedidos offline: ${pedidos.length}');
+      
+      if (pedidos.isEmpty) {
+        print('🔍 DEBUG VIEW - No hay pedidos offline guardados');
+        return;
+      }
+      
+      for (int i = 0; i < pedidos.length; i++) {
+        final pedido = pedidos[i];
+        print('🔍 DEBUG VIEW - Pedido $i:');
+        print('   📋 ID: ${pedido['id']}');
+        print('   📋 Local Signature: ${pedido['local_signature']}');
+        print('   👤 Cliente ID: ${pedido['clienteId']}');
+        print('   👨‍💼 Vendedor ID: ${pedido['vendedorId']}');
+        print('   📍 Dirección ID: ${pedido['direccionId']}');
+        print('   📅 Fecha Pedido: ${pedido['fechaPedido']}');
+        print('   📅 Fecha Entrega: ${pedido['fechaEntrega']}');
+        print('   💰 Total: ${pedido['total']}');
+        print('   📊 Estado: ${pedido['estado']}');
+        print('   🔄 Sync Attempts: ${pedido['sync_attempts'] ?? 0}');
+        print('   ⏰ Created At: ${pedido['created_at']}');
+        print('   📦 Detalles (${pedido['detalles']?.length ?? 0} productos):');
+        
+        if (pedido['detalles'] != null && pedido['detalles'] is List) {
+          final detalles = List.from(pedido['detalles']);
+          for (int j = 0; j < detalles.length; j++) {
+            final detalle = detalles[j];
+            print('      Producto $j:');
+            print('        - ID: ${detalle['prodId']}');
+            print('        - Cantidad: ${detalle['cantidad']}');
+            print('        - Precio Unitario: ${detalle['precioUnitario']}');
+            print('        - Descuento: ${detalle['descuento']}');
+            print('        - Subtotal: ${detalle['subtotal']}');
+          }
+        }
+        print('   ─────────────────────────────────────');
+      }
+      
+    } catch (e) {
+      print('❌ DEBUG VIEW - Error mostrando pedidos offline: $e');
+    }
+  }
+
+  /// Obtiene pedidos pendientes simples (estilo recargas)
+  static Future<List<Map<String, dynamic>>> obtenerPedidosPendientesSimple() async {
+    try {
+      final raw = await leerJson('pedidos_pendientes.json');
+      if (raw == null) return [];
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('Error obteniendo pedidos pendientes simples: $e');
+      return [];
+    }
+  }
+
+  /// Verifica si hay pedidos pendientes
+  static Future<bool> hayPedidosPendientes() async {
+    try {
+      final pendientes = await obtenerPedidosPendientesSimple();
+      return pendientes.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Cuenta pedidos pendientes
+  static Future<int> contarPedidosPendientes() async {
+    try {
+      final pendientes = await obtenerPedidosPendientesSimple();
+      return pendientes.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Sincroniza pedidos pendientes offline con el servidor
+  static Future<int> sincronizarPedidosPendientesOffline() async {
+    try {
+      print('🔄 Iniciando sincronización de pedidos pendientes...');
+      
+      final pendientes = await obtenerPedidosPendientesSimple();
+      if (pendientes.isEmpty) {
+        print('✅ No hay pedidos pendientes para sincronizar');
+        return 0;
+      }
+
+      final pedidosService = PedidosService();
+      int sincronizadas = 0;
+      final pedidosNoSincronizados = <Map<String, dynamic>>[];
+
+      print('📋 Sincronizando ${pendientes.length} pedidos pendientes...');
+
+      for (final pedido in pendientes) {
+        try {
+          print('🔄 Sincronizando pedido: ${pedido['local_signature']}');
+          print('📋 DEBUG - Datos completos del pedido offline:');
+          print('   - clienteId: ${pedido['clienteId']}');
+          print('   - vendedorId: ${pedido['vendedorId']}');
+          print('   - direccionId: ${pedido['direccionId']}');
+          print('   - fechaPedido: ${pedido['fechaPedido']}');
+          print('   - fechaEntrega: ${pedido['fechaEntrega']}');
+          print('   - total: ${pedido['total']}');
+          print('   - detalles count: ${pedido['detalles']?.length ?? 0}');
+          
+          final detalles = List<Map<String, dynamic>>.from(pedido['detalles']);
+          print('📦 DEBUG - Detalles de productos:');
+          for (int i = 0; i < detalles.length; i++) {
+            print('   Producto $i: ${detalles[i]}');
+            print('   ⚠️  CRÍTICO - Prod_Id que se enviará: ${detalles[i]['prodId']}');
+            print('   ⚠️  CRÍTICO - Tipo de Prod_Id: ${detalles[i]['prodId'].runtimeType}');
+          }
+          
+          // Verificar que todos los Prod_Id sean válidos
+          print('🔍 VERIFICACIÓN DE PROD_IDs:');
+          bool hayProductosInvalidos = false;
+          for (int i = 0; i < detalles.length; i++) {
+            final prodId = detalles[i]['prodId'];
+            if (prodId == null) {
+              print('   ❌ Producto $i tiene Prod_Id NULL');
+              hayProductosInvalidos = true;
+            } else if (prodId == 0) {
+              print('   ❌ Producto $i tiene Prod_Id = 0 (inválido)');
+              hayProductosInvalidos = true;
+            } else if (prodId is! int) {
+              print('   ⚠️  Producto $i tiene Prod_Id no entero: $prodId (${prodId.runtimeType})');
+              // Intentar convertir a int
+              try {
+                final convertido = int.parse(prodId.toString());
+                detalles[i]['prodId'] = convertido;
+                print('   ✅ Convertido a: $convertido');
+              } catch (e) {
+                print('   ❌ No se pudo convertir Prod_Id: $e');
+                hayProductosInvalidos = true;
+              }
+            } else {
+              print('   ✅ Producto $i tiene Prod_Id válido: $prodId');
+            }
+          }
+          
+          if (hayProductosInvalidos) {
+            print('❌ HAY PRODUCTOS CON IDs INVÁLIDOS - EL PEDIDO FALLARÁ');
+            throw Exception('Productos con IDs inválidos detectados');
+          }
+          
+          print('🌐 DEBUG - Parámetros que se enviarán a la API:');
+          print('   - diClId: ${pedido['direccionId']}');
+          print('   - vendId: ${pedido['vendedorId']}');
+          print('   - pediCodigo: ${pedido['local_signature'] ?? 'PED-${pedido['id']}'}');
+          print('   - fechaPedido: ${DateTime.parse(pedido['fechaPedido'])}');
+          print('   - fechaEntrega: ${DateTime.parse(pedido['fechaEntrega'])}');
+          print('   - usuaCreacion: 7 (fijo)');
+          print('   - clieId: ${pedido['clienteId']}');
+          print('   - detalles: $detalles');
+          
+          // Transformar detalles al formato exacto que espera el backend
+          final detallesParaAPI = detalles.map((detalle) {
+            return {
+              "Prod_Id": detalle['prodId'], // Usar exactamente "Prod_Id" como espera el backend
+              "PeDe_Cantidad": detalle['cantidad'],
+              "PeDe_ProdPrecio": detalle['precioUnitario'],
+              "PeDe_Impuesto": 0.0, // Por ahora 0, ajustar si es necesario
+              "PeDe_Descuento": detalle['descuento'] ?? 0.0,
+              "PeDe_Subtotal": detalle['subtotal'],
+              "PeDe_ProdPrecioFinal": detalle['precioUnitario'],
+            };
+          }).toList();
+          
+          print('🔧 DEBUG - Detalles transformados para API:');
+          for (int i = 0; i < detallesParaAPI.length; i++) {
+            print('   Detalle API $i: ${detallesParaAPI[i]}');
+            print('   ⚠️  CRÍTICO - Prod_Id final: ${detallesParaAPI[i]['Prod_Id']}');
+          }
+          
+          final resultado = await pedidosService.insertarPedido(
+            diClId: pedido['direccionId'],
+            vendId: pedido['vendedorId'],
+            pediCodigo: pedido['local_signature'] ?? 'PED-${pedido['id']}',
+            fechaPedido: DateTime.parse(pedido['fechaPedido']),
+            fechaEntrega: DateTime.parse(pedido['fechaEntrega']),
+            usuaCreacion: 7, // Usuario fijo que existe en la base de datos
+            clieId: pedido['clienteId'],
+            detalles: detallesParaAPI, // Usar detalles transformados
+          );
+          
+          print('📡 DEBUG - Respuesta de la API:');
+          print('   - success: ${resultado['success']}');
+          print('   - message: ${resultado['message']}');
+          print('   - data: ${resultado['data']}');
+
+          if (resultado != null && resultado['success'] == true) {
+            sincronizadas++;
+            print('✅ Pedido sincronizado: ${pedido['local_signature']}');
+          } else {
+            pedidosNoSincronizados.add(pedido);
+            print('⚠️ Pedido no sincronizado: ${pedido['local_signature']}');
+          }
+        } catch (e) {
+          pedidosNoSincronizados.add(pedido);
+          print('❌ Error sincronizando pedido ${pedido['local_signature']}: $e');
+        }
+      }
+
+      // Guardar solo los pedidos que no se pudieron sincronizar
+      await guardarJson('pedidos_pendientes.json', pedidosNoSincronizados);
+      
+      print('🎉 Sincronización completada: $sincronizadas/${pendientes.length} pedidos sincronizados');
+      return sincronizadas;
+    } catch (e) {
+      print('❌ Error en sincronizarPedidosPendientesOffline: $e');
+      return 0;
+    }
+  }
+
+  /// Sincroniza pedidos pendientes simples (estilo recargas) - método legacy
+  static Future<int> sincronizarPendientes() async {
+    // Usar el nuevo método mejorado
+    return await sincronizarPedidosPendientesOffline();
+  }
+
+  /// Sincroniza los pedidos pendientes con el servidor (método original)
   static Future<void> sincronizarPedidosPendientes() async {
     try {
       final pedidosService = PedidosService();
@@ -807,14 +1112,59 @@ class PedidosScreenOffline {
     }
   }
 
+  /// Lista todas las claves en el almacenamiento para debug
+  static Future<void> listarTodasLasClaves() async {
+    try {
+      final todasLasClaves = await _storage.readAll();
+      print('=== TODAS LAS CLAVES EN STORAGE ===');
+      for (final entry in todasLasClaves.entries) {
+        print('Clave: ${entry.key}');
+        if (entry.key.startsWith('json:')) {
+          try {
+            final decoded = jsonDecode(entry.value);
+            if (decoded is List) {
+              print('  Contenido: Lista con ${decoded.length} elementos');
+            } else {
+              print('  Contenido: ${decoded.runtimeType}');
+            }
+          } catch (e) {
+            print('  Contenido: ${entry.value.length} caracteres (no JSON válido)');
+          }
+        } else {
+          print('  Contenido: ${entry.value.length} caracteres');
+        }
+      }
+      print('=== FIN LISTADO CLAVES ===');
+    } catch (e) {
+      print('Error listando claves: $e');
+    }
+  }
+
   /// Método auxiliar para limpiar y reinicializar el almacenamiento (usar solo para debug)
   static Future<void> limpiarDatosDebug() async {
     try {
       await _storage.delete(key: _pedidosKey);
       await _storage.delete(key: _pedidosPendientesKey);
+      await _storage.delete(key: 'json:pedidos_pendientes.json');
       print('Datos limpiados para debug');
     } catch (e) {
       print('Error limpiando datos: $e');
+    }
+  }
+
+  /// Método para debug - mostrar pedidos pendientes
+  static Future<void> mostrarPedidosPendientesDebug() async {
+    try {
+      final pendientes = await obtenerPedidosPendientesSimple();
+      print('=== PEDIDOS PENDIENTES DEBUG ===');
+      print('Total: ${pendientes.length}');
+      for (int i = 0; i < pendientes.length; i++) {
+        final pedido = pendientes[i];
+        print('Pedido $i: ${pedido['local_signature']} - Cliente: ${pedido['clienteId']} - Total: ${pedido['total']}');
+      }
+      print('=== FIN DEBUG ===');
+    } catch (e) {
+      print('Error en debug: $e');
     }
   }
 }

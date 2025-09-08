@@ -7,6 +7,7 @@ import '../widgets/appBackground.dart';
 
 import '../../services/PerfilUsuarioService.Dart';
 import 'dart:convert';
+import '../../services/ConnectivitySyncService.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -46,6 +47,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
     _loadPermisos();
     _loadUserName();
+    
+    // Initialize the global connectivity sync service
+    ConnectivitySyncService.instance.initialize(context);
   }
 
   @override
@@ -53,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _gaugeAnimationController.dispose();
     super.dispose();
   }
+
 
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
