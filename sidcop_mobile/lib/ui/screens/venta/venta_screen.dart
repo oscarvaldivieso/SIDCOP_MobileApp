@@ -13,6 +13,8 @@ import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/utils/error_handler.dart';
 import 'dart:math';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -218,27 +220,37 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     }
 
     setState(() => _isLoadingProducts = true);
+
     try {
-      // Load products with client/vendor specific discounts
-      _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
-        widget.clienteId!,
-        widget.vendedorId!,
-      );
-      
-      // Sort products with prod_Impulsado first
+      final hasConnection = await SyncService.hasInternetConnection();
+
+      if (hasConnection) {
+        _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
+          widget.clienteId!,
+          widget.vendedorId!,
+        );
+      } else {
+        _allProducts = await VentasOfflineService.cargarProductosConDescuentoOffline(
+          1158,
+          13,
+        );
+        if (_allProducts.isEmpty) {
+          ErrorHandler.showErrorToast('No hay productos disponibles offline');
+        }
+      }
+
       _allProducts.sort((a, b) {
         if (a.prod_Impulsado == b.prod_Impulsado) return 0;
         return a.prod_Impulsado ? -1 : 1;
       });
-      
+
       _filteredProducts = List.from(_allProducts);
-      
-      // Store products in the map for easy access
+
       _productosConDescuento.clear();
       for (var producto in _allProducts) {
         _productosConDescuento[producto.prodId] = producto;
       }
-      
+
       debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
     } catch (e) {
       debugPrint('Error cargando productos con descuento: $e');
