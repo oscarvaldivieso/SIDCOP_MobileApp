@@ -47,23 +47,26 @@ class PagosCuentasXCobrar {
     required this.factNumero,
   });
 
-  // Constructor para crear desde JSON - CORREGIDO para manejar nulls
+  // Constructor para crear desde JSON - MEJORADO para manejar ambos formatos (servidor y cache)
   factory PagosCuentasXCobrar.fromJson(Map<String, dynamic> json) {
+    // Debug: Mostrar qué campos están disponibles
+    print('🔧 fromJson recibido: ${json.keys.toList()}');
+    
     return PagosCuentasXCobrar(
       pagoId: json['pago_Id'] ?? 0,
-      cpCoId: json['cpCo_Id'] ?? 0,
+      cpCoId: json['cpCo_Id'] ?? json['CPCo_Id'] ?? 0, // Formato server vs cache
       pagoFecha: json['pago_Fecha'] != null ? DateTime.parse(json['pago_Fecha']) : DateTime.now(),
-      pagoMonto: (json['pago_Monto'] ?? 0.0).toDouble(),
-      pagoFormaPago: json['pago_FormaPago'] ?? json['foPa_Descripcion'] ?? 'N/A', // Priorizar foPa_Descripcion si existe
-      pagoNumeroReferencia: json['pago_NumeroReferencia'] ?? '',
-      pagoObservaciones: json['pago_Observaciones'] ?? '', // CORREGIDO: Manejar null
-      usuaCreacion: json['usua_Creacion'] ?? 0,
+      pagoMonto: (json['pago_Monto'] ?? json['Pago_Monto'] ?? 0.0).toDouble(), // Formato server vs cache - CORREGIDO
+      pagoFormaPago: json['pago_FormaPago'] ?? json['foPa_Descripcion'] ?? json['FoPa_Descripcion'] ?? 'Efectivo', // Múltiples formatos, default "Efectivo" - CORREGIDO
+      pagoNumeroReferencia: json['pago_NumeroReferencia'] ?? json['Pago_NumeroReferencia'] ?? '', // Formato server vs cache
+      pagoObservaciones: json['pago_Observaciones'] ?? json['Pago_Observaciones'] ?? '', // Formato server vs cache
+      usuaCreacion: json['usua_Creacion'] ?? json['Usua_Creacion'] ?? 1, // Formato server vs cache, default 1
       pagoFechaCreacion: json['pago_FechaCreacion'] != null ? DateTime.parse(json['pago_FechaCreacion']) : DateTime.now(),
       usuaModificacion: json['usua_Modificacion'] ?? 0,
-      pagoFechaModificacion: json['pago_FechaModificacion'] != null ? DateTime.parse(json['pago_FechaModificacion']) : null, // CORREGIDO: Puede ser null
-      pagoEstado: json['pago_Estado'] ?? false,
+      pagoFechaModificacion: json['pago_FechaModificacion'] != null ? DateTime.parse(json['pago_FechaModificacion']) : null,
+      pagoEstado: json['pago_Estado'] ?? true, // Por defecto activo
       pagoAnulado: json['pago_Anulado'] ?? false,
-      foPaId: json['foPa_Id'] ?? 0, // CORREGIDO: Manejar null
+      foPaId: json['foPa_Id'] ?? json['FoPa_Id'] ?? 1, // Formato server vs cache, default 1 para Efectivo
       usuarioCreacion: json['usuarioCreacion'] ?? '',
       usuarioModificacion: json['usuarioModificacion'] ?? '',
       clieId: json['clie_Id'] ?? 0,
