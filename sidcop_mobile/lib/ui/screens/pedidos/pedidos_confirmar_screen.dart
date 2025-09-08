@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
   final List<ProductoConfirmacion> productosSeleccionados;
@@ -221,6 +222,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           "prod_Id": p.prodId ?? 0, // Necesitamos agregar este campo
           "peDe_Cantidad": p.cantidad,
           "peDe_ProdPrecio": p.precioBase,
+          "peDe_Impuesto": p.productoOriginal?.impuValor??0*p.precioFinal,
+          "peDe_ProdDescuento": (p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal,
+          "peDe_Subtotal": p.cantidad * p.precioBase,
           "peDe_ProdPrecioFinal": p.precioFinal,
         };
       }).toList();
@@ -229,33 +233,101 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
       print('Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}');
       
-      final int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
-                       widget.direccionSeleccionada['DiCl_Id'] ?? 
-                       widget.direccionSeleccionada['dicl_Id'] ?? 
-                       widget.direccionSeleccionada['Id'] ?? 
-                       widget.direccionSeleccionada['id'] ?? 
-                       widget.direccionSeleccionada['ID'] ?? 0;
+      int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                   widget.direccionSeleccionada['DiCl_Id'] ?? 
+                   widget.direccionSeleccionada['dicl_Id'] ?? 
+                   widget.direccionSeleccionada['Id'] ?? 
+                   widget.direccionSeleccionada['id'] ?? 
+                   widget.direccionSeleccionada['ID'] ?? 0;
       
       print('DiCl_Id obtenido: $diClId');
       
+      // Validar el ID de dirección
       if (diClId == 0) {
-        throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        // Si es una dirección de sesión, usar el ID del cliente como fallback
+        if (widget.direccionSeleccionada['esDeSesion'] == true) {
+          print('Usando dirección de sesión del vendedor, usando ID del cliente como referencia');
+          diClId = widget.clienteId; // Usar el ID del cliente como referencia para direcciones de sesión
+        } else {
+          throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        }
       }
+      
+      print('DiCl_Id final a usar: $diClId');
 
       // Obtener datos necesarios para generar el código del pedido
       final clienteService = ClientesService();
-      final direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
-      final clientes = await clienteService.getClientes();
+      List<dynamic> direcciones = [];
+      List<dynamic> clientes = [];
+      
+      try {
+        direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
+        print('Direcciones obtenidas: ${direcciones.length}');
+      } catch (e) {
+        print('Error obteniendo direcciones: $e');
+        // Intentar desde caché offline
+        try {
+          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
+          direcciones = direccionesCache;
+          print('Direcciones desde caché: ${direcciones.length}');
+        } catch (cacheError) {
+          print('Error obteniendo direcciones desde caché: $cacheError');
+        }
+      }
+      
+      try {
+        clientes = await clienteService.getClientes();
+        print('Clientes obtenidos: ${clientes.length}');
+      } catch (e) {
+        print('Error obteniendo clientes: $e');
+        // Intentar desde caché offline
+        try {
+          final clientesCache = await InicioSesionOfflineService.obtenerClientesRutaCache();
+          clientes = clientesCache;
+          print('Clientes desde caché: ${clientes.length}');
+        } catch (cacheError) {
+          print('Error obteniendo clientes desde caché: $cacheError');
+        }
+      }
+      
+      // Si es una dirección de sesión, agregarla a la lista de direcciones
+      List<dynamic> direccionesCompletas = List.from(direcciones);
+      if (widget.direccionSeleccionada['esDeSesion'] == true) {
+        // Crear una dirección temporal para la generación del código
+        final direccionTemporal = {
+          'diCl_Id': diClId,
+          'clie_Id': widget.clienteId,
+          'diCl_DireccionExacta': widget.direccionSeleccionada['diCl_DireccionExacta'] ?? 
+                                 widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? 
+                                 'Dirección del vendedor',
+          'diCl_EsPrincipal': true,
+        };
+        direccionesCompletas.add(direccionTemporal);
+        print('Agregada dirección de sesión temporal: $direccionTemporal');
+      }
       
       // Generar el código del pedido
       final pedidosService = PedidosService();
-      final pediCodigo = await pedidosService.generarSiguienteCodigo(
-        diClId: diClId,
-        direcciones: direcciones,
-        clientes: clientes,
-      );
+      String pediCodigo = '';
       
-      print('Código de pedido generado: $pediCodigo');
+      try {
+        pediCodigo = await pedidosService.generarSiguienteCodigo(
+          diClId: diClId,
+          direcciones: direccionesCompletas,
+          clientes: clientes,
+        );
+        print('Código de pedido generado: $pediCodigo');
+      } catch (e) {
+        print('Error generando código con método normal: $e');
+      }
+      
+      // Si no se pudo generar el código, usar un código de fallback
+      if (pediCodigo.isEmpty) {
+        print('Generando código de fallback...');
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        pediCodigo = 'PED-TEMP-${widget.clienteId}-$timestamp';
+        print('Código de fallback generado: $pediCodigo');
+      }
       
       if (pediCodigo.isEmpty) {
         throw Exception('No se pudo generar el código del pedido');
@@ -382,7 +454,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e) 
+    {
       // Cerrar loading si hay error
       if (context.mounted) {
         Navigator.of(context).pop();
@@ -476,6 +549,20 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
             ..._productosEditables.asMap().entries.map((entry) {
               final index = entry.key;
               final p = entry.value;
+              // print(p.prodId);
+              // print(p.nombre);
+              // print(p.cantidad);
+              // print(p.precioFinal);
+              // print(p.precioBase);
+              print(p.productoOriginal?.toJson());
+              print(p.productoOriginal?.prodPagaImpuesto);
+              if(p.productoOriginal?.descuentosEscala != null){
+                for(int i = 0; i < p.productoOriginal!.descuentosEscala!.length; i++){
+                  print(p.productoOriginal?.descuentosEscala![i].toJson());
+                }
+              }
+              // print(p.productoOriginal?.descuentosEscala?.toJson());
+
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 child: Dismissible(
@@ -514,48 +601,423 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                       SnackBar(content: Text('"${p.nombre}" eliminado')),
                     );
                   },
-                  child: ListTile( //Cambiar por diseño de ventas WARD
-                    title: Text(p.nombre),
-                    subtitle: Column(
+                  // child: ListTile( //Cambiar por diseño de ventas WARD
+                  //   title: Text(p.nombre),
+                  //   subtitle: Column(
+                  //     crossAxisAlignment: CrossAxisAlignment.start,
+                  //     children: [
+                  //       Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
+                  //       Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
+                  //     ],
+                  //   ),
+                  //   trailing: SizedBox(
+                  //     width: 110,
+                  //     child: Row(
+                  //       mainAxisSize: MainAxisSize.min,
+                  //       children: [
+                  //         SizedBox(
+                  //           width: 32,
+                  //           child: IconButton(
+                  //             padding: EdgeInsets.zero,
+                  //             constraints: const BoxConstraints(),
+                  //             icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+                  //             onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
+                  //           ),
+                  //         ),
+                  //         Container(
+                  //           width: 30,
+                  //           child: Text(
+                  //             '${p.cantidad}',
+                  //             textAlign: TextAlign.center,
+                  //             style: const TextStyle(fontWeight: FontWeight.bold),
+                  //           ),
+                  //         ),
+                  //         SizedBox(
+                  //           width: 32,
+                  //           child: IconButton(
+                  //             padding: EdgeInsets.zero,
+                  //             constraints: const BoxConstraints(),
+                  //             icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
+                  //             onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
+                  //           ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: const Color(0xFFF0F0F0),
+                        width: 1,
+                      ),
+                    ),
+                    
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
-                        Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
+                        // Header con información del producto
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Información del producto
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.nombre ?? 'Producto sin nombre',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF141A2F),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3F4F6),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Código: ${p.prodId ?? 'N/A'}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 11,
+                                        color: Color(0xFF6B7280),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Precio unitario y cantidad
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFF3B82F6), width: 1),
+                                        ),
+                                        child: Text(
+                                          'L. ${p.productoOriginal?.prodPrecioUnitario?.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1D4ED8),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '× ${p.cantidad.toStringAsFixed(p.cantidad.truncateToDouble() == p.cantidad ? 0 : 1)}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Controles de cantidad
+                            Column(
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Botón disminuir cantidad
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (p.cantidad > 1) {
+                                          _actualizarCantidad(index, p.cantidad - 1);
+                                        } 
+                                        else {
+                                          _actualizarCantidad(index, 0);
+                                        }
+                                      },
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF3F4F6),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                                        ),
+                                        child: const Icon(
+                                          Icons.remove,
+                                          size: 18,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      width: 48,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(color: const Color(0xFF141A2F), width: 1.5),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          p.cantidad.toInt().toString(),
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF141A2F),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Botón aumentar cantidad
+                                    GestureDetector(
+                                      onTap: () {
+                                        _actualizarCantidad(index, p.cantidad + 1);
+                                      },
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF141A2F),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.add,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                          
+                          
+                        ), //WARD ROW
+
+                        const SizedBox(height: 16), //WARD
+        
+                        // Separador
+                        Container(
+                          height: 1,
+                          color: const Color(0xFFF0F0F0),
+                        ),
+                        
+                        const SizedBox(height: 16),
+
+                        //calculos
+                          Column(
+                            children: [
+                              // Subtotal
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF6B7280),
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Subtotal',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    'L. ${((p.productoOriginal?.prodPrecioUnitario??0)*p.cantidad).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              // Descuento (si aplica)
+                              if (p.precioFinal != (p.productoOriginal?.prodPrecioUnitario??0)) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 4,
+                                          height: 16,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981),
+                                            borderRadius: BorderRadius.circular(2),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Descuento L. (${((p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal).toStringAsFixed(0)})',
+                                          style: const TextStyle(
+                                            fontFamily: 'Satoshi',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF374151),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      '-L. ${(((p.productoOriginal?.prodPrecioUnitario??0) - p.precioFinal)*p.cantidad).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF374151),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
+                              const SizedBox(height: 8),
+            
+                              // ISV
+                              
+                              if((p.productoOriginal?.prodPagaImpuesto??"N") == "S")
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 4,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFF374151),
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'ISV (${(((p.productoOriginal?.impuValor??0)*100).toInt()).toStringAsFixed(0)}%)',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '+L. ${(((p.productoOriginal?.impuValor??0)*p.precioFinal)*p.cantidad).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 12),
+            
+                              // Separador para el total
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFE5E7EB),
+                              ),
+                              
+                              const SizedBox(height: 12),
+
+                              // Total del producto
+                              
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF141A2F),
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Total producto',
+                                        style: TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF141A2F),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF141A2F),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'L. ${(p.precioFinal*p.cantidad + (((p.productoOriginal?.impuValor??0)*p.precioFinal)*p.cantidad) ).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        //ward
+                                        fontFamily: 'Satoshi',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+
+                            ],
+                          ),
+
+
                       ],
-                    ),
-                    trailing: SizedBox(
-                      width: 110,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 32,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
-                              onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
-                            ),
-                          ),
-                          Container(
-                            width: 30,
-                            child: Text(
-                              '${p.cantidad}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 32,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
-                              onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),

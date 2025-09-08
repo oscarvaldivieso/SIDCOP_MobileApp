@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
+import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
@@ -53,6 +57,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   // Form values
   int? _selectedClienteId;
   int? _selectedFacturaId;
+  int? usuaIdPersona;
+  bool? esAdmin;
+  int? usuaId;
 
   // Services are already declared above
 
@@ -77,8 +84,11 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   @override
   void initState() {
     super.initState();
-    _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _fechaController.text = DateFormat(
+      'yyyy-MM-dd-HH:mm:ss',
+    ).format(DateTime.now());
     _loadData();
+    _loadAllClientData();
   }
 
   Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
@@ -93,7 +103,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
+            _formatClienteName(direccion),
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
           if (direccion.clie_NombreNegocio?.isNotEmpty == true) ...[
@@ -115,25 +125,57 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     );
   }
 
-  Future<void> _loadData() async {
-    try {
-      final direccionesData = await _direccionClienteService
-          .getDireccionesPorCliente();
-      final facturasData = await _facturaService.getFacturas();
+  String _formatClienteName(DireccionCliente direccion) {
+    final nombre = (direccion.clie_Nombres ?? '').trim();
+    final apellido = (direccion.clie_Apellidos ?? '').trim();
+    final negocio = (direccion.clie_NombreNegocio ?? '').trim();
+    final codigo = (direccion.clie_Codigo ?? '').trim();
 
-      if (!mounted) return;
+    if (nombre.isNotEmpty || apellido.isNotEmpty) {
+      final parts = [
+        if (nombre.isNotEmpty) nombre,
+        if (apellido.isNotEmpty) apellido,
+      ];
+      return parts.join(' ');
+    }
 
-      setState(() {
-        _direcciones = direccionesData;
-        _facturas = List<Map<String, dynamic>>.from(facturasData);
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Error al cargar los datos: $e';
-        _isLoading = false;
-      });
+    if (negocio.isNotEmpty) return negocio;
+    if (codigo.isNotEmpty) return codigo;
+    return 'Cliente sin nombre';
+  }
+
+  Future<void> _loadAllClientData() async {
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+
+    // Extraer rutasDelDiaJson y Ruta_Id
+
+    usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+    usuaId = userData?['usua_Id'] as int?;
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    // lista de clientes se obtiene según permisos; variable local removida si no se usa
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      print('DEBUG: No se cargaron clientes (vendedor sin usua_IdPersona)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      print('DEBUG: Solicitando lista de clientes por permisos');
     }
   }
 
@@ -148,16 +190,120 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       _filteredFacturas = direccion != null
           ? _facturas
                 .where((factura) => factura['diCl_Id'] == direccion.dicl_id)
+                .where(
+                  (factura) =>
+                      esAdmin == true || factura['vend_Id'] == usuaIdPersona,
+                )
                 .toList()
           : [];
       // Actualizar el texto del controlador para reflejar la selección
       if (direccion != null) {
-        _clienteController.text =
-            '${direccion.clie_Nombres} ${direccion.clie_Apellidos}';
+        // Usar el formateador seguro para evitar 'null null' cuando falten campos
+        _clienteController.text = _formatClienteName(direccion);
       } else {
         _clienteController.clear();
       }
     });
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final isOnline = await VerificarService.verificarConexion();
+
+      if (!isOnline) {
+        // Cargar desde almacenamiento local si existe
+        try {
+          final localFacturas =
+              await DevolucionesOffline.obtenerFacturasCreateLocal();
+          final localDirecciones =
+              await DevolucionesOffline.obtenerDireccionesCreateLocal();
+
+          final direccionesList = localDirecciones
+              .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
+              .toList();
+
+          if (!mounted) return;
+          setState(() {
+            _direcciones = direccionesList
+                .where(
+                  (direccion) =>
+                      esAdmin == true || direccion.usua_creacion == usuaId,
+                )
+                .toList();
+            _facturas = List<Map<String, dynamic>>.from(localFacturas);
+            _isLoading = false;
+          });
+          return;
+        } catch (localErr) {
+          print('Error cargando datos locales para create: $localErr');
+          // Continuar y tratar de cargar online a continuación
+        }
+      }
+
+      // Si estamos online, intentar cargar desde servicios remotos
+      final direccionesData = await _direccionClienteService
+          .getDireccionesPorCliente();
+      final facturasData = await _facturaService
+          .getFacturasDevolucionesLimite();
+
+      // Guardar versiones offline de facturas y direcciones para permitir crear devoluciones offline
+      try {
+        await DevolucionesOffline.guardarFacturasCreate(
+          List<Map<String, dynamic>>.from(facturasData),
+        );
+
+        final direccionesMap = direccionesData
+            .map<Map<String, dynamic>>((d) => d.toJson())
+            .toList();
+        await DevolucionesOffline.guardarDireccionesCreate(direccionesMap);
+      } catch (e) {
+        print('Error guardando datos create en offline: $e');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _direcciones = direccionesData
+            .where(
+              (direccion) =>
+                  esAdmin == true || direccion.usua_creacion == usuaId,
+            )
+            .toList();
+        _facturas = List<Map<String, dynamic>>.from(facturasData);
+        _isLoading = false;
+      });
+    } catch (e) {
+      // En caso de fallo online, intentar cargar desde almacenamiento local
+      print('Error al cargar datos online, intentando fallback local: $e');
+      try {
+        final localFacturas =
+            await DevolucionesOffline.obtenerFacturasCreateLocal();
+        final localDirecciones =
+            await DevolucionesOffline.obtenerDireccionesCreateLocal();
+
+        final direccionesList = localDirecciones
+            .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
+            .toList();
+
+        if (!mounted) return;
+        setState(() {
+          _direcciones = direccionesList
+              .where(
+                (direccion) =>
+                    esAdmin == true || direccion.usua_creacion == usuaId,
+              )
+              .toList();
+          _facturas = List<Map<String, dynamic>>.from(localFacturas);
+          _isLoading = false;
+        });
+      } catch (localErr) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Error al cargar los datos: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _onFacturaChanged(int? facturaId) async {
@@ -170,9 +316,32 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
     if (facturaId != null) {
       try {
-        final productos = await _productosService.getProductosPorFactura(
-          facturaId,
-        );
+        // Intentar leer productos prefetcheados primero
+        final cachedProductos =
+            await DevolucionesOffline.obtenerProductosPorFacturaLocal(
+              facturaId,
+            );
+        List<dynamic> productos;
+        if (cachedProductos.isNotEmpty) {
+          productos = cachedProductos;
+          print(
+            'Usando productos prefetcheados locales para factura $facturaId',
+          );
+        } else {
+          productos = await _productosService.getProductosPorFactura(facturaId);
+        }
+
+        // Guardar productos offline para que estén disponibles sin conexión
+        try {
+          await DevolucionesOffline.guardarProductosPorFactura(
+            facturaId,
+            productos,
+          );
+        } catch (e) {
+          print(
+            'Error guardando productos offline para factura $facturaId: $e',
+          );
+        }
 
         // Mapear los productos al formato esperado por la UI
         final productosMapeados = productos
@@ -182,7 +351,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 'prod_Codigo': producto['prod_Codigo'],
                 'prod_Descripcion': producto['prod_Descripcion'],
                 'prod_DescripcionCorta': producto['prod_DescripcionCorta'],
-                'prod_Imagen': producto['prod_Imagen'],
+                'prod_Imagen':
+                    producto['prod_Imagen'], // puede ser URL o ruta local
                 'subc_Descripcion': producto['subc_Descripcion'],
                 'marc_Descripcion': producto['marc_Descripcion'],
                 'cantidadVendida':
@@ -203,6 +373,46 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           _isLoadingProducts = false;
         });
       } catch (e) {
+        // Intentar cargar productos desde cache local si falla la petición online
+        print('Error al cargar los productos online: $e');
+        try {
+          final cached =
+              await DevolucionesOffline.obtenerProductosPorFacturaLocal(
+                facturaId,
+              );
+          if (cached.isNotEmpty) {
+            final productosMapeados = cached
+                .map(
+                  (producto) => {
+                    'prod_Id': producto['prod_Id'],
+                    'prod_Codigo': producto['prod_Codigo'],
+                    'prod_Descripcion': producto['prod_Descripcion'],
+                    'prod_DescripcionCorta': producto['prod_DescripcionCorta'],
+                    'prod_Imagen': producto['prod_Imagen'],
+                    'subc_Descripcion': producto['subc_Descripcion'],
+                    'marc_Descripcion': producto['marc_Descripcion'],
+                    'cantidadVendida':
+                        producto['cantidadVendida'] ??
+                        producto['fade_Cantidad'],
+                    'fade_Precio': producto['fade_Precio'],
+                    'fade_Descuento': producto['fade_Descuento'] ?? 0.0,
+                    'fade_ISV': producto['fade_ISV'] ?? 0.0,
+                    'cantidadDevolver': 0,
+                    'prod_PagaImpuesto': producto['prod_PagaImpuesto'] ?? 'No',
+                  },
+                )
+                .toList();
+
+            setState(() {
+              _productosFactura = productosMapeados;
+              _isLoadingProducts = false;
+            });
+            return;
+          }
+        } catch (localErr) {
+          print('Error cargando productos desde cache local: $localErr');
+        }
+
         setState(() {
           _productosError = 'Error al cargar los productos: $e';
           _isLoadingProducts = false;
@@ -266,110 +476,93 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Crear la devolución con factura ajustada
       try {
-        final response = await _devolucionesService
-            .insertarDevolucionConFacturaAjustada(
-              clieId: _selectedClienteId!,
-              factId: _selectedFacturaId!,
-              devoMotivo: _motivoController.text,
-              usuaCreacion:
-                  1, // TODO: Reemplazar con el ID del usuario autenticado
-              detalles: productosADevolver,
-              devoFecha: DateTime.tryParse(_fechaController.text),
-              crearNuevaFactura: true,
+        final isOnline = await VerificarService.verificarConexion();
+
+        if (isOnline) {
+          // Enviar devolución online
+          final response = await _devolucionesService
+              .insertarDevolucionConFacturaAjustada(
+                clieId: _selectedClienteId!,
+                factId: _selectedFacturaId!,
+                devoMotivo: _motivoController.text,
+                usuaCreacion: usuaId!,
+                detalles: productosADevolver,
+                devoFecha: DateTime.tryParse(_fechaController.text),
+                crearNuevaFactura: true,
+              );
+
+          Navigator.pop(context); // Cerrar el diálogo de carga
+
+          // Print para verificar la respuesta del endpoint
+          print('Respuesta del endpoint:');
+          print(response);
+
+          if (response['success'] == true) {
+            // Mostrar éxito
+            final modalData = {
+              'devoId': response['devolucion']?['data']?['devo_Id'] ?? 'N/A',
+              'facturaNumero': response['facturaAjustada']?['facturaNumero'],
+              'productosDevueltos': productosADevolver.length,
+              'facturaCreada':
+                  response['facturaAjustada']?['facturaCreada'] == true,
+            };
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => _buildReturnSuccessDialog(context, modalData),
             );
+          } else {
+            // Mostrar error
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(response['message'] ?? 'Error desconocido'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          // Guardar devolución offline
+          final pending = {
+            'clie_Id': _selectedClienteId,
+            'fact_Id': _selectedFacturaId,
+            'devo_Motivo': _motivoController.text,
+            'usua_Creacion': usuaId ?? 0,
+            'devo_Fecha': _fechaController.text,
+            'detalles': productosADevolver,
+            'pendiente_Creacion': DateTime.now().toIso8601String(),
+          };
 
-        // Cerrar el diálogo de carga
-        if (!mounted) return;
-        Navigator.pop(context);
+          // Print para verificar la devolución guardada offline
+          print('Devolución guardada offline:');
+          print(pending);
 
-        // DEBUG: Imprimir toda la respuesta para entender la estructura
-        print('🔍 DEBUGGING - Respuesta completa del servicio:');
-        print(response);
+          final added =
+              await DevolucionesOffline.agregarDevolucionPendienteLocal(
+                pending,
+              );
 
-        // VALIDACIÓN CRÍTICA: Verificar si el proceso fue exitoso
-        final success = response['success'] == true;
-        final hasError = response['error'] == true;
+          Navigator.pop(context); // Cerrar el diálogo de carga
 
-        print('🔍 DEBUG - success: $success, hasError: $hasError');
-
-        if (!success || hasError) {
-          // El proceso falló - mostrar error
-          final errorMessage =
-              response['message'] ??
-              'Error desconocido en el proceso de devolución';
-          print('❌ MOSTRANDO ERROR: $errorMessage');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $errorMessage'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
+              content: Text(
+                added
+                    ? 'Sin conexión: devolución guardada como pendiente'
+                    : 'Sin conexión: ya existe una devolución pendiente similar',
+              ),
+              backgroundColor: Colors.orange,
             ),
           );
-          return; // Salir sin mostrar modal de éxito
+
+          _navigateToReturnsList();
         }
-
-        // Extraer datos de la respuesta SOLO si fue exitoso
-        final devoId = response['devolucion']?['data']?['devo_Id'] ?? 'N/A';
-        final facturaAjustada = response['facturaAjustada'];
-        final facturaCreada = facturaAjustada?['facturaCreada'] == true;
-        final facturaNumero = facturaAjustada?['facturaNumero'];
-
-        // Extraer datos de la respuesta del VentaService
-        final ventaServiceResponse = facturaAjustada?['ventaServiceResponse'];
-        final ventaServiceData = ventaServiceResponse?['data'];
-
-        print(
-          '✅ Proceso exitoso - devoId: $devoId, facturaCreada: $facturaCreada',
-        );
-        print('facturaNumero: $facturaNumero');
-        print('ventaServiceData: $ventaServiceData');
-
-        // VALIDACIÓN ADICIONAL: Verificar que el proceso de factura fue exitoso
-        // Nota: facturaCreada puede ser false en devoluciones completas (válido)
-        if (facturaAjustada == null) {
-          print('❌ ERROR: No se recibió respuesta de factura ajustada');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: No se pudo procesar la factura ajustada'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-          return;
-        }
-
-        // Mostrar modal de éxito SOLO si todo fue exitoso
-        if (!mounted) return;
-
-        // Preparar datos para el modal (manejar devoluciones completas y parciales)
-        final modalData = {
-          'devoId': devoId,
-          'facturaNumero': facturaNumero,
-          'facturaData':
-              ventaServiceData, // Puede ser null en devoluciones completas
-          'productosDevueltos': productosADevolver.length,
-          'facturaCreada': facturaCreada, // Indicar si se creó nueva factura
-        };
-
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => _buildReturnSuccessDialog(context, modalData),
-        );
       } catch (e) {
-        // Cerrar diálogo de carga
-        if (!mounted) return;
-        Navigator.pop(context);
-
-        // Mostrar error
-        if (!mounted) return;
+        Navigator.pop(context); // Cerrar el diálogo de carga
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al crear devolución: $e'),
+            content: Text('Error al procesar la devolución: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -450,7 +643,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                         });
                       },
                       displayStringForOption: (DireccionCliente direccion) =>
-                          '${direccion.clie_Nombres} ${direccion.clie_Apellidos}',
+                          _formatClienteName(direccion),
                       fieldViewBuilder:
                           (
                             BuildContext context,
@@ -462,8 +655,9 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                             if (_selectedDireccion == null) {
                               textEditingController.clear();
                             } else {
-                              textEditingController.text =
-                                  '${_selectedDireccion!.clie_Nombres} ${_selectedDireccion!.clie_Apellidos}';
+                              textEditingController.text = _formatClienteName(
+                                _selectedDireccion!,
+                              );
                             }
 
                             return Container(
@@ -829,19 +1023,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     );
   }
 
-  /// Resetea el formulario para una nueva devolución
-  void _resetForm() {
-    setState(() {
-      _selectedDireccion = null;
-      _selectedClienteId = null;
-      _selectedFacturaId = null;
-      _filteredFacturas = [];
-      _productosFactura = [];
-      _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      _motivoController.clear();
-      _clienteController.clear();
-    });
-  }
+  // _resetForm removed (unused)
 
   /// Extrae el ID de la factura del mensaje de respuesta del backend
   /// El mensaje tiene formato: "Venta insertada correctamente. ID: 62. Factura creada exitosamente. Total: -4880.00"
@@ -1223,322 +1405,398 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
             // Products list with fixed height to prevent overflow
             Expanded(
-              child: _productosFactura.isEmpty
-                  ? const Center(child: Text('No hay productos disponibles'))
-                  : ListView.builder(
-                      key: const PageStorageKey('productos-list'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 12.0,
-                      ),
-                      itemCount: _productosFactura.length,
-                      itemBuilder: (context, index) {
-                        final producto = _productosFactura[index];
-                        // Parse quantities once and cache them
-                        final cantidadVendida =
-                            producto['cantidadVendida'] is int
-                            ? producto['cantidadVendida']
-                            : (producto['cantidadVendida'] is double
-                                  ? (producto['cantidadVendida'] as double)
-                                        .toInt()
-                                  : int.tryParse(
-                                          producto['cantidadVendida']
-                                                  ?.toString() ??
-                                              '0',
-                                        ) ??
-                                        0);
+              child: Builder(
+                builder: (context) {
+                  if (_isLoadingProducts) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (_productosError != null) {
+                    return Center(child: Text(_productosError!));
+                  }
+                  if (_productosFactura.isEmpty) {
+                    return const Center(
+                      child: Text('No hay productos disponibles'),
+                    );
+                  }
 
-                        final precio = (producto['fade_Precio'] ?? 0.0)
-                            .toDouble();
+                  return ListView.builder(
+                    key: const PageStorageKey('productos-list'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 12.0,
+                    ),
+                    itemCount: _productosFactura.length,
+                    itemBuilder: (context, index) {
+                      final producto = _productosFactura[index];
+                      // Parse quantities once and cache them
+                      final cantidadVendida = producto['cantidadVendida'] is int
+                          ? producto['cantidadVendida']
+                          : (producto['cantidadVendida'] is double
+                                ? (producto['cantidadVendida'] as double)
+                                      .toInt()
+                                : int.tryParse(
+                                        producto['cantidadVendida']
+                                                ?.toString() ??
+                                            '0',
+                                      ) ??
+                                      0);
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.grey.shade200,
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.shade200,
+                            width: 1,
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Product info row
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Product image
-                                    if (producto['prod_Imagen'] != null) ...[
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          producto['prod_Imagen'],
-                                          width: 70,
-                                          height: 70,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  Container(
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Product info row
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Product image
+                                  if (producto['prod_Imagen'] != null) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Builder(
+                                        builder: (context) {
+                                          final imgRef =
+                                              producto['prod_Imagen']
+                                                  ?.toString() ??
+                                              '';
+                                          // Si parece una ruta local a archivo, intentar Image.file
+                                          if (imgRef.isNotEmpty &&
+                                              (imgRef.startsWith('/') ||
+                                                  imgRef.startsWith('C:') ||
+                                                  imgRef.startsWith('\\'))) {
+                                            final file = File(imgRef);
+                                            return FutureBuilder<bool>(
+                                              future: file.exists(),
+                                              builder: (context, snap) {
+                                                if (snap.connectionState ==
+                                                    ConnectionState.waiting) {
+                                                  return Container(
                                                     width: 70,
                                                     height: 70,
-                                                    padding:
-                                                        const EdgeInsets.all(8),
                                                     color: Colors.grey[100],
-                                                    child: const Icon(
-                                                      Icons.image_not_supported,
-                                                      size: 24,
-                                                      color: Colors.grey,
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                          ),
                                                     ),
+                                                  );
+                                                }
+                                                if (snap.hasData &&
+                                                    snap.data == true) {
+                                                  return Image.file(
+                                                    file,
+                                                    width: 70,
+                                                    height: 70,
+                                                    fit: BoxFit.cover,
+                                                  );
+                                                }
+                                                // Fallback a network si el archivo no existe
+                                                return Image.network(
+                                                  imgRef,
+                                                  width: 70,
+                                                  height: 70,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder:
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) => Container(
+                                                        width: 70,
+                                                        height: 70,
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              8,
+                                                            ),
+                                                        color: Colors.grey[100],
+                                                        child: const Icon(
+                                                          Icons
+                                                              .image_not_supported,
+                                                          size: 24,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      ),
+                                                );
+                                              },
+                                            );
+                                          }
+
+                                          // Si no es ruta local, usar directamente Image.network
+                                          return Image.network(
+                                            imgRef,
+                                            width: 70,
+                                            height: 70,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) => Container(
+                                                  width: 70,
+                                                  height: 70,
+                                                  padding: const EdgeInsets.all(
+                                                    8,
                                                   ),
-                                        ),
+                                                  color: Colors.grey[100],
+                                                  child: const Icon(
+                                                    Icons.image_not_supported,
+                                                    size: 24,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                          );
+                                        },
                                       ),
-                                      const SizedBox(width: 12),
-                                    ],
-                                    // Product details
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            producto['prod_DescripcionCorta'] ??
-                                                producto['prod_Descripcion'] ??
-                                                'Producto sin nombre',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(width: 12),
+                                  ],
+                                  // Product details
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          producto['prod_DescripcionCorta'] ??
+                                              producto['prod_Descripcion'] ??
+                                              'Producto sin nombre',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
                                           ),
-                                          if (producto['marc_Descripcion'] !=
-                                              null) ...[
-                                            const SizedBox(height: 4),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (producto['marc_Descripcion'] !=
+                                            null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Marca: ${producto['marc_Descripcion']}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
                                             Text(
-                                              'Marca: ${producto['marc_Descripcion']}',
+                                              'Código: ${producto['prod_Codigo'] ?? 'N/A'}',
                                               style: TextStyle(
                                                 fontSize: 12,
                                                 color: Colors.grey[600],
                                               ),
                                             ),
-                                          ],
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                'Código: ${producto['prod_Codigo'] ?? 'N/A'}',
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue[50],
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                '$cantidadVendida disponibles',
                                                 style: TextStyle(
-                                                  fontSize: 12,
+                                                  fontSize: 11,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).primaryColor,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              // Quantity controls with better spacing
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Cantidad disponible: $cantidadVendida',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[700],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Cantidad a devolver:',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Container(
+                                          width: 120,
+                                          child: TextFormField(
+                                            controller: TextEditingController(
+                                              text:
+                                                  (_productosFactura[index]['cantidadDevolver'] ??
+                                                          0)
+                                                      .toString(),
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Theme.of(
+                                                context,
+                                              ).primaryColor,
+                                            ),
+                                            decoration: InputDecoration(
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    vertical: 10,
+                                                    horizontal: 8,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[300]!,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[300]!,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).primaryColor,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              hintText: '0',
+                                              isDense: true,
+                                              suffix: Text(
+                                                'de $cantidadVendida',
+                                                style: TextStyle(
+                                                  fontSize: 11,
                                                   color: Colors.grey[600],
                                                 ),
                                               ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.blue[50],
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Text(
-                                                  '$cantidadVendida disponibles',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: Theme.of(
-                                                      context,
-                                                    ).primaryColor,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
+                                            onChanged: (value) {
+                                              if (value.isEmpty) {
+                                                setState(
+                                                  () =>
+                                                      _productosFactura[index]['cantidadDevolver'] =
+                                                          0,
+                                                );
+                                                return;
+                                              }
+
+                                              final cantidad =
+                                                  int.tryParse(value) ?? 0;
+                                              final maxCantidad =
+                                                  _productosFactura[index]['cantidadVendida']
+                                                      is int
+                                                  ? _productosFactura[index]['cantidadVendida']
+                                                  : (_productosFactura[index]['cantidadVendida']
+                                                            as double)
+                                                        .toInt();
+
+                                              if (cantidad > maxCantidad) {
+                                                setState(
+                                                  () =>
+                                                      _productosFactura[index]['cantidadDevolver'] =
+                                                          maxCantidad,
+                                                );
+                                              } else if (cantidad >= 0) {
+                                                setState(
+                                                  () =>
+                                                      _productosFactura[index]['cantidadDevolver'] =
+                                                          cantidad,
+                                                );
+                                              }
+                                            },
+                                            onEditingComplete: () {
+                                              final currentValue =
+                                                  _productosFactura[index]['cantidadDevolver'] ??
+                                                  0;
+                                              setState(() {
+                                                _productosFactura[index]['cantidadDevolver'] =
+                                                    currentValue;
+                                              });
+                                            },
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
+                              ),
 
-                                const SizedBox(height: 12),
-
-                                // Quantity controls with better spacing
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[50],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Cantidad disponible: $cantidadVendida',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[700],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text(
-                                            'Cantidad a devolver:',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Container(
-                                            width: 120,
-                                            child: TextFormField(
-                                              controller: TextEditingController(
-                                                text:
-                                                    (_productosFactura[index]['cantidadDevolver'] ??
-                                                            0)
-                                                        .toString(),
-                                              ),
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: Theme.of(
-                                                  context,
-                                                ).primaryColor,
-                                              ),
-                                              decoration: InputDecoration(
-                                                contentPadding:
-                                                    EdgeInsets.symmetric(
-                                                      vertical: 10,
-                                                      horizontal: 8,
-                                                    ),
-                                                border: OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  borderSide: BorderSide(
-                                                    color: Colors.grey[300]!,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
-                                                enabledBorder:
-                                                    OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      borderSide: BorderSide(
-                                                        color:
-                                                            Colors.grey[300]!,
-                                                        width: 1.5,
-                                                      ),
-                                                    ),
-                                                focusedBorder:
-                                                    OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      borderSide: BorderSide(
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).primaryColor,
-                                                        width: 1.5,
-                                                      ),
-                                                    ),
-                                                hintText: '0',
-                                                isDense: true,
-                                                suffix: Text(
-                                                  'de $cantidadVendida',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                ),
-                                              ),
-                                              onChanged: (value) {
-                                                if (value.isEmpty) {
-                                                  setState(
-                                                    () =>
-                                                        _productosFactura[index]['cantidadDevolver'] =
-                                                            0,
-                                                  );
-                                                  return;
-                                                }
-
-                                                final cantidad =
-                                                    int.tryParse(value) ?? 0;
-                                                final maxCantidad =
-                                                    _productosFactura[index]['cantidadVendida']
-                                                        is int
-                                                    ? _productosFactura[index]['cantidadVendida']
-                                                    : (_productosFactura[index]['cantidadVendida']
-                                                              as double)
-                                                          .toInt();
-
-                                                if (cantidad > maxCantidad) {
-                                                  setState(
-                                                    () =>
-                                                        _productosFactura[index]['cantidadDevolver'] =
-                                                            maxCantidad,
-                                                  );
-                                                } else if (cantidad >= 0) {
-                                                  setState(
-                                                    () =>
-                                                        _productosFactura[index]['cantidadDevolver'] =
-                                                            cantidad,
-                                                  );
-                                                }
-                                              },
-                                              onEditingComplete: () {
-                                                // Ensure the value is saved when done editing
-                                                final currentValue =
-                                                    _productosFactura[index]['cantidadDevolver'] ??
-                                                    0;
-                                                setState(() {
-                                                  _productosFactura[index]['cantidadDevolver'] =
-                                                      currentValue;
-                                                });
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Total to return
-                                const SizedBox(height: 8),
-                              ],
-                            ),
+                              // Total to return
+                              const SizedBox(height: 8),
+                            ],
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
 
             // Bottom action buttons

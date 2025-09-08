@@ -5,9 +5,12 @@ import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:flutter/material.dart' show showMenu, RelativeRect;
 import 'package:flutter/rendering.dart' show TextOverflow;
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 // Text style constants for consistent typography
 final TextStyle _titleStyle = const TextStyle(
@@ -49,6 +52,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   Colonia? _selectedColonia;
   bool _isLoading = true;
   bool _isSubmitting = false;
+  int? usuaIdPersona;
+  bool? esAdmin;
+  int? usuaId;
+
 
   // Map variables
   LatLng _selectedLocation = const LatLng(
@@ -60,14 +67,21 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   void initState() {
     super.initState();
     _loadColonias();
+    _loadAllClientData();
   }
 
   Future<void> _loadColonias() async {
     try {
-      final colonias = await _direccionClienteService.getColonias();
+      final coloniasMap = await ClientesOfflineService.manejarColoniasOffline(
+        () async => (await _direccionClienteService.getColonias())
+            .map((colonia) => colonia.toJson())
+            .toList(),
+      );
+
+      final colonias = coloniasMap.map((map) => Colonia.fromJson(map)).toList();
+
       setState(() {
         _colonias = colonias;
-        // Don't set a default colonia
         _isLoading = false;
       });
     } catch (e) {
@@ -77,6 +91,46 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       _showError('Error al cargar las colonias: $e');
     }
   }
+
+  Future<void> _loadAllClientData() async {
+
+    // Obtener el usua_IdPersona del usuario logueado
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+
+    print('DEBUG: userData completo = $userData');
+    print('DEBUG: userData keys = ${userData?.keys}');
+    
+    // Extraer rutasDelDiaJson y Ruta_Id
+
+    usuaIdPersona = userData?['usua_IdPersona'] as int?;
+    final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
+    esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
+    usuaId = userData?['usua_Id'] as int?;
+
+    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    List<dynamic> clientes = [];
+
+    if (esVendedor && usuaIdPersona != null) {
+      print(
+        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
+      );
+    } else if (esVendedor && usuaIdPersona == null) {
+      print(
+        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
+      );
+      clientes = [];
+      print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
+    } else {
+      print(
+        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
+      );
+      clientes = await SyncService.getClients();
+      print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
+    }
+    }
+    
+
 
   Future<void> _showMapModal() async {
     final newLocation = await MapWidget.showAsDialog(
@@ -112,7 +166,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         dicl_observaciones: _observacionesController.text.trim(),
         dicl_latitud: _selectedLocation.latitude,
         dicl_longitud: _selectedLocation.longitude,
-        usua_creacion: 1, // TODO: Replace with actual user ID
+        usua_creacion: usuaId!, // TODO: Replace with actual user ID
         dicl_fechacreacion: DateTime.now(),
         muni_descripcion: '',
         depa_descripcion: '',

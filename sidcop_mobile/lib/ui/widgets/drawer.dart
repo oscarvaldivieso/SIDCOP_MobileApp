@@ -79,7 +79,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
       // Obtener usuaIdPersona desde los datos guardados
       final userData = await _perfilUsuarioService.obtenerDatosUsuario();
       print("userData drawer para inve: $userData");
-      final usuaIdPersona = userData?['usua_IdPersona'] as int?;
+      // Priorizar personaId del endpoint sobre usua_IdPersona
+      final usuaIdPersona = (userData?['personaId'] as int?) ?? (userData?['usua_IdPersona'] as int?);
       final imagenVendedor = userData?['imagen'] as String?;
       final usuaCreacion = userData?['usua_Id'] as int?;
 
@@ -187,10 +188,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
-                        // Limpiar credenciales guardadas de "Remember me"
+                        // Solo desactivamos el "Remember me" sin borrar las credenciales
                         await LoginScreen.clearSavedCredentials();
-                        // Limpiar credenciales offline
-                        await OfflineAuthService.clearOfflineCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(

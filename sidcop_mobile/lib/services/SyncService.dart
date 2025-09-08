@@ -7,6 +7,7 @@ import 'package:sidcop_mobile/services/CacheService.dart';
 import 'package:sidcop_mobile/services/OfflineDatabaseService.dart';
 import 'package:sidcop_mobile/services/OfflineConfigService.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 
 /// Servicio para manejar la sincronización entre datos offline y online
 class SyncService {
@@ -254,9 +255,9 @@ class SyncService {
         }
 
         print(
-          'Productos obtenidos en modo offline: ${products.length ?? 0} registros',
+          'Productos obtenidos en modo offline: ${products.length} registros',
         );
-        return products ?? [];
+        return products;
       } else {
         // Modo online: obtener desde servidor y actualizar caché/CSV
         try {
@@ -284,9 +285,11 @@ class SyncService {
 
         // Fallback a datos offline si falla la conexión
         var products = await CacheService.getCachedProductsData();
-        products ??= await OfflineDatabaseService.loadProductsData();
+        if (products == null || products.isEmpty) {
+          products = await OfflineDatabaseService.loadProductsData();
+        }
 
-        return products ?? [];
+        return products.isEmpty ? [] : products;
       }
     } catch (e) {
       print('Error obteniendo productos: $e');
@@ -325,6 +328,17 @@ class SyncService {
         }
       } catch (e) {
         errors.add('Productos: $e');
+      }
+      
+      // Sincronizar visitas pendientes
+      try {
+        final visitasSync = await SincronizacionService.sincronizarVisitasPendientes();
+        if (visitasSync > 0) {
+          syncedItems++;
+          print('Visitas sincronizadas: $visitasSync');
+        }
+      } catch (e) {
+        errors.add('Visitas: $e');
       }
 
       if (syncedItems > 0) {

@@ -498,19 +498,19 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Sección Cuenta alineada a la izquierda
-                      const Text(
-                        'Cuenta',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF666666),
-                          fontFamily: 'Satoshi',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      // const Text(
+                      //   'Cuenta',
+                      //   style: TextStyle(
+                      //     fontSize: 16,
+                      //     fontWeight: FontWeight.w600,
+                      //     color: Color(0xFF666666),
+                      //     fontFamily: 'Satoshi',
+                      //   ),
+                      // ),
+                     // const SizedBox(height: 12),
                       
                       // Widget de configuración offline
-                      const OfflineConfigWidget(),
+                      //const OfflineConfigWidget(),
                       
                       const SizedBox(height: 24),
                       

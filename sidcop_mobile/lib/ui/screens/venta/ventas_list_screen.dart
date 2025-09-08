@@ -3,7 +3,9 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
+import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
 import 'dart:convert';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 
 class VentasListScreen extends StatefulWidget {
   const VentasListScreen({super.key, this.vendedorId});
@@ -51,28 +53,57 @@ class _VentasListScreenState extends State<VentasListScreen> {
       _error = null;
     });
 
-    try {
+    // Usar el vendedorId pasado o el globalVendId, nunca el 13 por defecto
+    final vendedorId = widget.vendedorId ?? globalVendId;
+    if (vendedorId == null || vendedorId == 0) {
+      setState(() {
+        _error = 'No se pudo identificar el vendedor. Inicie sesión nuevamente.';
+        _isLoading = false;
+      });
+      return;
+    }
 
-      final response = await _ventaService.listarVentasPorVendedor(
-        widget.vendedorId ?? 13
-      );
+    try {
+      final response = await _ventaService.listarVentasPorVendedor(vendedorId);
 
       if (response != null && response['success'] == true) {
         setState(() {
           _ventas = response['data'] ?? [];
           _isLoading = false;
         });
+        // Guardar ventas offline para acceso sin conexión
+        await VentasOfflineService.guardarVentasOffline(_ventas);
+      } else {
+        // Si falla la consulta online, intentar leer ventas offline
+        final ventasOffline = await VentasOfflineService.obtenerVentasOffline();
+        if (ventasOffline.isNotEmpty) {
+          setState(() {
+            _ventas = ventasOffline;
+            _isLoading = false;
+            _error = null;
+          });
+        } else {
+          setState(() {
+            _error = response?['message'] ?? 'Error al cargar las ventas';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      // Si hay error de conexión, intentar leer ventas offline
+      final ventasOffline = await VentasOfflineService.obtenerVentasOffline();
+      if (ventasOffline.isNotEmpty) {
+        setState(() {
+          _ventas = ventasOffline;
+          _isLoading = false;
+          _error = null;
+        });
       } else {
         setState(() {
-          _error = response?['message'] ?? 'Error al cargar las ventas';
+          _error = 'Error de conexión: $e';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Error de conexión: $e';
-        _isLoading = false;
-      });
     }
   }
 
@@ -80,7 +111,10 @@ class _VentasListScreenState extends State<VentasListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => InvoiceDetailScreen(facturaId: factId, facturaNumero: 'N/A'),
+        builder: (context) => InvoiceDetailScreen(
+          facturaId: factId,
+          facturaNumero: 'N/A',
+        ),
       ),
     );
   }

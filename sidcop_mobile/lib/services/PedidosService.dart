@@ -14,10 +14,7 @@ class PedidosService {
     try {
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
       print('Get Pedidos Response Status: \\${response.statusCode}');
       print('Get Pedidos Response Body: \\${response.body}');
@@ -33,25 +30,27 @@ class PedidosService {
     }
   }
 
-
-  Future<List<ProductosPedidosViewModel>> getProductosConListaPrecio(int clienteId) async {
+  Future<List<ProductosPedidosViewModel>> getProductosConListaPrecio(
+    int clienteId,
+  ) async {
     print('Get Productos ListaPrecio clienteId: $clienteId');
     final url = Uri.parse('$_apiServer/Productos/ListaPrecio/$clienteId');
     try {
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
-      print('Get Productos ListaPrecio Response Status: ${response.statusCode}');
+      print(
+        'Get Productos ListaPrecio Response Status: ${response.statusCode}',
+      );
       print('Get Productos ListaPrecio Response Body: ${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         print('Get Productos ListaPrecio Response Data: ${data}');
 
-        final List<ProductosPedidosViewModel> productos = data.map((json)=> ProductosPedidosViewModel.fromJson(json)).toList();
+        final List<ProductosPedidosViewModel> productos = data
+            .map((json) => ProductosPedidosViewModel.fromJson(json))
+            .toList();
         final ProdList = productos.map((p) => p.toJson()).toList();
         print('Get Productos ListaPrecio Response Productos: ${ProdList}');
         return productos;
@@ -74,10 +73,19 @@ class PedidosService {
     required int clieId,
     required List<Map<String, dynamic>> detalles,
   }) async {
-    print('Insertando pedido - Cliente: $clieId, DiCl: $diClId, Vendedor: $vendId');
+    print(
+      'Insertando pedido - Cliente: $clieId, DiCl: $diClId, Vendedor: $vendId',
+    );
     final url = Uri.parse('$_apiServer/Pedido/Insertar');
-    
+
     final body = {
+      "coFa_NombreEmpresa": "",
+      "coFa_DireccionEmpresa": "",
+      "coFa_RTN": "",
+      "coFa_Correo": "",
+      "coFa_Telefono1": "",
+      "coFa_Telefono2": "",
+      "coFa_Logo": "",
       "secuencia": 0,
       "pedi_Id": 0,
       "pedi_Codigo": pediCodigo,
@@ -108,35 +116,32 @@ class PedidosService {
       "peDe_ProdPrecio": 0,
       "peDe_Cantidad": 0,
       "detalles": detalles,
-      "detallesJson": ""
+      "detallesJson": "",
     };
 
     try {
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
         body: json.encode(body),
       );
-      
+
       print('Insertar Pedido Response Status: ${response.statusCode}');
       print('Insertar Pedido Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = json.decode(response.body);
         print('DEBUG API: Respuesta completa del servidor: $responseData');
         return {
           'success': true,
           'data': responseData,
-          'message': 'Pedido creado exitosamente'
+          'message': 'Pedido creado exitosamente',
         };
       } else {
         return {
           'success': false,
           'error': 'Error del servidor: ${response.statusCode}',
-          'message': 'No se pudo crear el pedido'
+          'message': 'No se pudo crear el pedido ${response.body}',
         };
       }
     } catch (e) {
@@ -144,7 +149,7 @@ class PedidosService {
       return {
         'success': false,
         'error': e.toString(),
-        'message': 'Error de conexión'
+        'message': 'Error de conexión',
       };
     }
   }
@@ -155,15 +160,12 @@ class PedidosService {
     try {
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
-      
+
       print('Get Ruta Response Status: ${response.statusCode}');
       print('Get Ruta Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -188,46 +190,50 @@ class PedidosService {
         (d) => d['diCl_Id'] == diClId,
         orElse: () => null,
       );
-      
+
       if (direccionSeleccionada == null) {
         print('Dirección no encontrada para diCl_Id: $diClId');
         return '';
       }
-      
+
       final clienteId = direccionSeleccionada['clie_Id'];
-      
+
       // 2. Encontrar el cliente
       final cliente = clientes.firstWhere(
         (c) => c['clie_Id'] == clienteId,
         orElse: () => null,
       );
-      
+
       if (cliente == null || cliente['ruta_Id'] == null) {
         print('Cliente no encontrado o sin ruta_Id para clie_Id: $clienteId');
         return '';
       }
-      
+
       final rutaId = cliente['ruta_Id'];
-      
+
       // 3. Obtener información de la ruta
       final ruta = await getRutaById(rutaId);
       if (ruta == null || ruta['ruta_Codigo'] == null) {
         print('Ruta no encontrada para ruta_Id: $rutaId');
         return '';
       }
-      
+
       final rutaCodigo = ruta['ruta_Codigo'] as String; // ej: RT-012
       final rutaCodigoNumerico = rutaCodigo.split('-')[1]; // extrae "012"
-      
+
       // 4. Obtener todos los pedidos para filtrar códigos existentes
       final pedidos = await getPedidos();
-      
+
       // 5. Filtrar códigos existentes de esta ruta
       final codigosRuta = pedidos
           .map((p) => p.pedi_Codigo ?? '')
-          .where((c) => c.isNotEmpty && RegExp(r'^PED-' + rutaCodigoNumerico + r'-\d{7}$').hasMatch(c))
+          .where(
+            (c) =>
+                c.isNotEmpty &&
+                RegExp(r'^PED-' + rutaCodigoNumerico + r'-\d{7}$').hasMatch(c),
+          )
           .toList();
-      
+
       // 6. Calcular el siguiente número
       int siguienteNumero = 1;
       if (codigosRuta.isNotEmpty) {
@@ -236,16 +242,41 @@ class PedidosService {
         final numero = int.parse(ultimoCodigo.split('-')[2]);
         siguienteNumero = numero + 1;
       }
-      
+
       // 7. Generar el nuevo código
-      final nuevoCodigo = 'PED-$rutaCodigoNumerico-${siguienteNumero.toString().padLeft(7, '0')}';
+      final nuevoCodigo =
+          'PED-$rutaCodigoNumerico-${siguienteNumero.toString().padLeft(7, '0')}';
       print('Código generado: $nuevoCodigo');
-      
+
       return nuevoCodigo;
-      
     } catch (e) {
       print('Error generando código de pedido: ${e.toString()}');
       return '';
+    }
+  }
+
+  // Método para obtener el detalle de un pedido
+  Future<PedidosViewModel?> getPedidoDetalle(int pedidoId) async {
+    final url = Uri.parse('$_apiServer/Pedido/Detalle/$pedidoId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      print('Get Pedido Detalle Response Status: ${response.statusCode}');
+      print('Get Pedido Detalle Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null) {
+          return PedidosViewModel.fromJson(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching pedido detalle: ${e.toString()}');
+      return null;
     }
   }
 }

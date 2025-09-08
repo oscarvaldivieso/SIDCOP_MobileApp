@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:sidcop_mobile/services/RutasService.dart';
+import 'package:sidcop_mobile/services/RecargasService.dart';
 import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
@@ -18,7 +18,7 @@ import 'package:sidcop_mobile/services/GlobalService.Dart';
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //RUTAS SCREEN TY RUTAS DETAILS
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class RutasScreenOffline {
+class RecargasScreenOffline {
   // Carpeta raíz dentro de documents para los archivos offline
   static const String _carpetaOffline = 'offline';
   // Devuelve el directorio de documents
@@ -257,254 +257,33 @@ class RutasScreenOffline {
   // Helpers específicos para 'details' de ruta
   // -----------------------------
   /// Guarda los detalles de una ruta en secure storage bajo la clave 'details_ruta_<id>'
-  // Detalles de ruta: funcionalidad removida intencionalmente.
-  // Se conserva la firma como stub para evitar romper llamadas externas.
   static Future<void> guardarDetallesRuta(
     int rutaId,
     Map<String, dynamic> detalles,
   ) async {
-    try {
-      final key = 'details_ruta_$rutaId';
-      await guardarJsonSeguro(key, detalles);
-    } catch (e) {
-      // No interrumpir el flujo de sincronización si falla el guardado local
-      print('WARN: guardarDetallesRuta failed for ruta $rutaId: $e');
-    }
+    final key = 'details_ruta_$rutaId';
+    await guardarJsonSeguro(key, detalles);
   }
 
   /// Lee los detalles de una ruta desde secure storage; devuelve null si no existe
   static Future<Map<String, dynamic>?> leerDetallesRuta(int rutaId) async {
+    final key = 'details_ruta_$rutaId';
+    final raw = await leerJsonSeguro(key);
+    if (raw == null) return null;
     try {
-      // Primero intentar leer detalles específicos por ruta (si fueron guardados antes)
-      final key = 'details_ruta_$rutaId';
-      final detallesRaw = await leerJsonSeguro(key);
-
-      List<Map<String, dynamic>> clientesJson = [];
-      List<Map<String, dynamic>> direccionesJson = [];
-      String? staticMapUrl;
-      String? staticMapLocalPath;
-
-      if (detallesRaw != null) {
-        // Aceptar estructuras flexibles
-        try {
-          clientesJson = List<Map<String, dynamic>>.from(
-            detallesRaw['clientes'] as List? ?? [],
-          );
-        } catch (_) {
-          clientesJson = [];
-        }
-        try {
-          direccionesJson = List<Map<String, dynamic>>.from(
-            detallesRaw['direcciones'] as List? ?? [],
-          );
-        } catch (_) {
-          direccionesJson = [];
-        }
-
-        // Si los datos guardados tienen 0 direcciones, borrarlos y usar fallback
-        if (direccionesJson.isEmpty) {
-          print(
-            'DEBUG: leerDetallesRuta - stored details have 0 direcciones, deleting and using fallback',
-          );
-          await borrarDetallesRuta(rutaId);
-          // Usar fallback inmediatamente
-          clientesJson = await cargarClientes();
-          final rawDirs = await obtenerDireccionesLocal();
-          print(
-            'DEBUG: leerDetallesRuta - fallback after delete: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-          );
-          try {
-            direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
-          } catch (_) {
-            direccionesJson = [];
-          }
-        }
-
-        staticMapUrl = detallesRaw['staticMapUrl']?.toString();
-        staticMapLocalPath = detallesRaw['staticMapLocalPath']?.toString();
-      } else {
-        print(
-          'DEBUG: leerDetallesRuta - no stored details, using fallback JSONs for ruta $rutaId',
-        );
-        // Fallback: usar los JSON locales sincronizados (clientes.json / direcciones.json)
-        clientesJson = await cargarClientes();
-        final rawDirs = await obtenerDireccionesLocal();
-        print(
-          'DEBUG: leerDetallesRuta - fallback: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-        );
-        try {
-          direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
-        } catch (_) {
-          // Si no se puede convertir, dejar vacío
-          direccionesJson = [];
-        }
-        // si existe imagen local para la ruta, devolver su path
-        try {
-          final localPath = await rutaEnDocuments('map_static_$rutaId.png');
-          final f = File(localPath);
-          if (await f.exists()) staticMapLocalPath = localPath;
-        } catch (_) {}
-      }
-
-      // Aplicar filtrado: clientes por ruta_Id, direcciones por clie_id
-      final clientesFiltrados = clientesJson
-          .where((c) => (c['ruta_Id'] ?? c['rutaId']) == rutaId)
-          .toList();
-
-      final clienteIds = clientesFiltrados
-          .map((c) => c['clie_Id'] ?? c['clieId'] ?? c['id'])
-          .where((id) => id != null)
-          .toSet();
-
-      final direccionesFiltradas = direccionesJson
-          .where(
-            (d) => clienteIds.contains(
-              d['clie_id'] ??
-                  d['clieId'] ??
-                  d['clie_Id'] ??
-                  d['clieId'] ??
-                  d['clieId'],
-            ),
-          )
-          .toList();
-
-      // Normalizar claves para asegurar compatibilidad con fromJson de los modelos
-      List<Map<String, dynamic>> clientesNorm = clientesFiltrados.map((c) {
-        final map = Map<String, dynamic>.from(c as Map);
-        return {
-          'clie_Id': map['clie_Id'] ?? map['clieId'] ?? map['id'],
-          'clie_Codigo':
-              map['clie_Codigo'] ?? map['clieCodigo'] ?? map['codigo'],
-          'clie_Nombres':
-              map['clie_Nombres'] ?? map['nombre'] ?? map['clieNombres'],
-          'clie_Apellidos':
-              map['clie_Apellidos'] ?? map['apellidos'] ?? map['clieApellidos'],
-          'clie_NombreNegocio':
-              map['clie_NombreNegocio'] ??
-              map['nombreNegocio'] ??
-              map['negocio'],
-          'clie_ImagenDelNegocio':
-              map['clie_ImagenDelNegocio'] ?? map['imagen'] ?? map['foto'],
-          'clie_DireccionExacta':
-              map['clie_DireccionExacta'] ??
-              map['direccionExacta'] ??
-              map['direccion'],
-          'ruta_Id': map['ruta_Id'] ?? map['rutaId'] ?? map['ruta'],
-          // Passthrough: incluir cualquier key adicional para que fromJson pueda usarla
-          ...map,
-        };
-      }).toList();
-
-      List<Map<String, dynamic>> direccionesNorm = direccionesFiltradas.map((
-        d,
-      ) {
-        final map = Map<String, dynamic>.from(d as Map);
-        // Helper para obtener valor original (convirtiendo tipos simples a lo esperado)
-        dynamic get(List<String> keys) {
-          for (final k in keys) {
-            if (map.containsKey(k) && map[k] != null) return map[k];
-          }
-          return null;
-        }
-
-        return {
-          'diCl_Id': get(['diCl_Id', 'diClId', 'dicl_id', 'diclId', 'id']),
-          'clie_Id': get(['clie_Id', 'clieId', 'clie_id']),
-          'colo_Id': get(['colo_Id', 'coloId']),
-          'diCl_DireccionExacta': get([
-            'diCl_DireccionExacta',
-            'diCl_Direccion',
-            'dicl_direccionexacta',
-            'direccion',
-          ]),
-          'diCl_Observaciones': get([
-            'diCl_Observaciones',
-            'dicl_observaciones',
-            'observaciones',
-          ]),
-          'diCl_Latitud': get([
-            'diCl_Latitud',
-            'dicl_latitud',
-            'latitud',
-            'diclLatitud',
-          ]),
-          'diCl_Longitud': get([
-            'diCl_Longitud',
-            'dicl_longitud',
-            'longitud',
-            'diclLongitud',
-          ]),
-          'muni_Descripcion': get([
-            'muni_Descripcion',
-            'muni_descripcion',
-            'muniDescripcion',
-          ]),
-          'depa_Descripcion': get([
-            'depa_Descripcion',
-            'depa_descripcion',
-            'depaDescripcion',
-          ]),
-          'usua_Creacion': get(['usua_Creacion', 'usua_creacion']),
-          'diCl_FechaCreacion': get([
-            'diCl_FechaCreacion',
-            'diCl_Fecha',
-            'dicl_fechacreacion',
-          ]),
-          'usua_Modificacion': get(['usua_Modificacion', 'usua_modificacion']),
-          'diCl_FechaModificacion': get([
-            'diCl_FechaModificacion',
-            'diCl_FechaMod',
-            'dicl_fechamodificacion',
-          ]),
-          // copiar campos del cliente si están presentes
-          'clie_Nombres': get(['clie_Nombres', 'clieNombres', 'nombre']),
-          'clie_Apellidos': get(['clie_Apellidos', 'apellido', 'apellidos']),
-          'clie_NombreNegocio': get([
-            'clie_NombreNegocio',
-            'negocio',
-            'nombreNegocio',
-          ]),
-          'clie_Codigo': get(['clie_Codigo', 'clieCodigo', 'codigo']),
-          // Passthrough de resto
-          ...map,
-        };
-      }).toList();
-
-      return {
-        'clientes': clientesNorm,
-        'direcciones': direccionesNorm,
-        'staticMapUrl': staticMapUrl,
-        'staticMapLocalPath': staticMapLocalPath,
-      };
-    } catch (e) {
-      // en caso de fallo, devolver null para que el llamador tome la ruta online
+      return Map<String, dynamic>.from(raw as Map);
+    } catch (_) {
       return null;
     }
   }
 
   /// Borra los detalles de una ruta de secure storage (si existen)
   static Future<void> borrarDetallesRuta(int rutaId) async {
+    final key = 'details_ruta_$rutaId';
     try {
-      final key = 'details_ruta_$rutaId';
       await _secureStorage.delete(key: key);
     } catch (e) {
-      print('WARN: borrarDetallesRuta failed for ruta $rutaId: $e');
-    }
-  }
-
-  /// Borra todos los detalles de rutas guardados para forzar regeneración
-  static Future<void> limpiarTodosLosDetalles() async {
-    try {
-      final allKeys = await _secureStorage.readAll();
-      for (final key in allKeys.keys) {
-        if (key.startsWith('details_ruta_')) {
-          await _secureStorage.delete(key: key);
-          print('DEBUG: deleted obsolete key: $key');
-        }
-      }
-      print('DEBUG: limpiarTodosLosDetalles completed');
-    } catch (e) {
-      print('WARN: limpiarTodosLosDetalles failed: $e');
+      rethrow;
     }
   }
 
@@ -540,8 +319,9 @@ class RutasScreenOffline {
   /// Sincroniza las rutas desde el endpoint y las guarda en 'rutas.json'.
   static Future<List<dynamic>> sincronizarRutas() async {
     try {
-      final servicio = RutasService();
-      final data = await servicio.getRutas();
+      final servicio = RecargasService();
+      // Replace 'yourUserId' with the actual userId or required argument
+      final data = await servicio.getRecargas(57);
       // Log para diagnosticar respuesta remota
       try {
         final lista = List.from(data);
@@ -550,7 +330,7 @@ class RutasScreenOffline {
         print('SYNC: sincronizarRutas fetched (unknown count)');
       }
       // Guardar la respuesta tal cual (normalmente es List)
-      await guardarJson('rutas.json', data);
+      await guardarJson('recargas.json', data);
       return data;
     } catch (e) {
       rethrow;
@@ -650,38 +430,17 @@ class RutasScreenOffline {
   /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.
   static Future<List<dynamic>> sincronizarDirecciones() async {
     try {
-      print('DEBUG: sincronizarDirecciones - starting...');
       final servicio = DireccionClienteService();
       final data = await servicio.getDireccionesPorCliente();
-      print(
-        'DEBUG: sincronizarDirecciones - received data type: ${data.runtimeType}',
-      );
       try {
         final lista = List.from(data);
         print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
-        if (lista.isNotEmpty) {
-          print(
-            'DEBUG: sincronizarDirecciones - sample direccion: ${lista.first}',
-          );
-        }
       } catch (_) {
         print('SYNC: sincronizarDirecciones fetched (unknown count)');
       }
-
-      // Convertir objetos DireccionCliente a JSON maps antes de guardar
-      List<Map<String, dynamic>> direccionesJson = [];
-      for (final item in data) {
-        direccionesJson.add(item.toJson());
-      }
-
-      print(
-        'DEBUG: sincronizarDirecciones - converted to ${direccionesJson.length} JSON maps',
-      );
-      await guardarJson('direcciones.json', direccionesJson);
-      print('DEBUG: sincronizarDirecciones - saved to direcciones.json');
-      return direccionesJson;
+      await guardarJson('direcciones.json', data);
+      return data as List<dynamic>;
     } catch (e) {
-      print('ERROR: sincronizarDirecciones failed: $e');
       rethrow;
     }
   }
@@ -691,7 +450,7 @@ class RutasScreenOffline {
   static Future<List<dynamic>> sincronizarVisitasHistorial() async {
     try {
       final servicio = ClientesVisitaHistorialService();
-      final data = await servicio.listarPorVendedor();
+      final data = await servicio.listar();
       try {
         final lista = List.from(data);
         print(
@@ -737,18 +496,8 @@ class RutasScreenOffline {
       } catch (_) {
         print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
       }
-
-      // Convertir objetos VendedoresPorRutaModel a JSON
-      final vendedoresJson = <Map<String, dynamic>>[];
-      for (final item in data) {
-        vendedoresJson.add(item.toJson());
-      }
-      print(
-        'SYNC: sincronizarVendedoresPorRutas converted ${vendedoresJson.length} objects to JSON',
-      );
-
-      await guardarJson('vendedores_por_rutas.json', vendedoresJson);
-      return vendedoresJson;
+      await guardarJson('vendedores_por_rutas.json', data);
+      return data as List<dynamic>;
     } catch (e) {
       rethrow;
     }
@@ -797,7 +546,6 @@ class RutasScreenOffline {
         sincronizarRutas(),
         sincronizarClientes(),
         sincronizarDirecciones(),
-        sincronizarVisitasHistorial(),
         sincronizarVendedores(),
       ]);
       try {
@@ -915,62 +663,152 @@ class RutasScreenOffline {
   // -----------------------------
   /// Devuelve las rutas almacenadas localmente (rutas.json) o lista vacía.
   static Future<List<dynamic>> obtenerRutasLocal() async {
-    final raw = await RutasScreenOffline.leerJson('rutas.json');
+    final raw = await RecargasScreenOffline.leerJson('recargas.json');
     if (raw == null) return [];
     return List.from(raw as List);
   }
 
   /// Fuerza sincronización remota y devuelve los datos.
   static Future<List<dynamic>> leerRutas() async {
-    return await RutasScreenOffline.leerRutas();
+    return await RecargasScreenOffline.leerRutas();
   }
 
   /// Clientes locales (clientes.json)
   static Future<List<Map<String, dynamic>>> obtenerClientesLocal() async {
-    final raw = await RutasScreenOffline.leerJson(
-      RutasScreenOffline._archivoClientes,
+    final raw = await RecargasScreenOffline.leerJson(
+      RecargasScreenOffline._archivoClientes,
     );
     if (raw == null) return [];
     return List<Map<String, dynamic>>.from(raw as List);
   }
 
   static Future<List<Map<String, dynamic>>> leerClientes() async {
-    return await RutasScreenOffline.leerClientes();
+    return await RecargasScreenOffline.leerClientes();
   }
 
   /// Direcciones locales
   static Future<List<dynamic>> obtenerDireccionesLocal() async {
-    final raw = await RutasScreenOffline.leerJson('direcciones.json');
+    final raw = await RecargasScreenOffline.leerJson('direcciones.json');
     if (raw == null) return [];
     return List.from(raw as List);
   }
 
   static Future<List<dynamic>> leerDirecciones() async {
-    return await RutasScreenOffline.leerDirecciones();
+    return await RecargasScreenOffline.leerDirecciones();
   }
 
   /// Vendedores locales
   static Future<List<dynamic>> obtenerVendedoresLocal() async {
-    final raw = await RutasScreenOffline.leerJson('vendedores.json');
+    final raw = await RecargasScreenOffline.leerJson('vendedores.json');
     if (raw == null) return [];
     return List.from(raw as List);
   }
 
   static Future<List<dynamic>> leerVendedores() async {
-    return await RutasScreenOffline.leerVendedores();
+    return await RecargasScreenOffline.leerVendedores();
   }
 
-  /// Sincroniza toda la información relevante de rutas offline.
-  static Future<void> sincronizarTodo() async {
-    final rutas = await sincronizarRutas();
-    final clientes = await sincronizarClientes();
-    final direcciones = await sincronizarDirecciones();
-    final vendedores = await sincronizarVendedores();
-    await guardarClientes(List<Map<String, dynamic>>.from(clientes));
-    await guardarJson('direcciones.json', direcciones);
-    await guardarJson('vendedores.json', vendedores);
-    await guardarJson('rutas.json', rutas);
-    await sincronizarVisitasHistorial();
-    await sincronizarVendedoresPorRutas();
+  /// Sincroniza las recargas pendientes desde el almacenamiento local
+  /// (recargas_pendientes.json) e intenta enviarlas al servidor.
+  /// Devuelve la cantidad de recargas sincronizadas exitosamente.
+  static Future<int> sincronizarPendientes() async {
+    final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
+    if (raw == null) return 0;
+    List<dynamic> pendientes = List.from(raw as List);
+    if (pendientes.isEmpty) return 0;
+    final recargaService = RecargasService();
+    int sincronizadas = 0;
+    List<dynamic> restantes = List.from(pendientes);
+    for (final recarga in pendientes) {
+      try {
+        final detalles = recarga['detalles'] ?? [];
+        final usuaId = recarga['usua_Id'] ?? 0;
+        final ok = await recargaService.insertarRecarga(
+          usuaCreacion: usuaId,
+          detalles: detalles,
+        );
+        if (ok) {
+          // Eliminar por id único
+          restantes.removeWhere((r) => r['id'] == recarga['id']);
+          sincronizadas++;
+        }
+      } catch (_) {}
+    }
+    await RecargasScreenOffline.guardarJson('recargas_pendientes.json', restantes);
+    return sincronizadas;
+  }
+
+  /// Consolidación de sincronización de recargas pendientes
+  static Future<void> sincronizarRecargasPendientes() async {
+    const String archivoPendientes = 'recargas_pendientes.json';
+    try {
+      // Leer recargas pendientes
+      final pendientes = await leerJson(archivoPendientes) as List<dynamic>?;
+      if (pendientes == null || pendientes.isEmpty) {
+        print('No hay recargas pendientes para sincronizar.');
+        return;
+      }
+
+      final recargaService = RecargasService();
+      final noSincronizadas = <Map<String, dynamic>>[];
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (!success) {
+            noSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          noSincronizadas.add(recarga);
+          print('Error al sincronizar recarga: $e');
+        }
+      }
+
+      // Guardar las recargas no sincronizadas
+      await guardarJson(archivoPendientes, noSincronizadas);
+      print('Sincronización completada.');
+    } catch (e) {
+      print('Error durante la sincronización de recargas pendientes: $e');
+    }
+  }
+
+  /// Sincroniza las recargas pendientes y las guarda en 'recargas_pendientes.json'.
+  static Future<void> sincronizarRecargasPendientesOffline() async {
+    try {
+      final pendientes = await leerJson('recargas_pendientes.json') ?? [];
+      final recargaService = RecargasService();
+
+      final noSincronizadas = <Map<String, dynamic>>[];
+
+      for (final recarga in pendientes) {
+        try {
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          final usuaId = recarga['usua_Id'];
+
+          final success = await recargaService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+
+          if (!success) {
+            noSincronizadas.add(recarga);
+          }
+        } catch (e) {
+          noSincronizadas.add(recarga);
+          print('Error al sincronizar recarga: $e');
+        }
+      }
+
+      await guardarJson('recargas_pendientes.json', noSincronizadas);
+    } catch (e) {
+      print('Error al sincronizar recargas pendientes: $e');
+    }
   }
 }

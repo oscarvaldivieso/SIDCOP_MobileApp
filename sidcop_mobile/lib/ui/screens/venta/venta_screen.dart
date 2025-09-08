@@ -2394,7 +2394,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
           ],
         ),
         
-        const SizedBox(height: 16),
+        const SizedBox(height: 16), //WARD
         
         // Separador
         Container(
@@ -2582,7 +2582,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
             ),
           ],
         ),
-      ],
+      ], //WARD FINAL
     ),
   );
 }
