@@ -1,107 +1,47 @@
 import 'package:flutter/material.dart';
 import '../../widgets/auth_background.dart';
-import '../../widgets/loading_overlay.dart';
 import '../auth/login_screen.dart';
 
-class _LoginBottomSheetWrapper extends StatefulWidget {
-  final Function(bool) onLoadingChanged;
-  
-  const _LoginBottomSheetWrapper({required this.onLoadingChanged});
-
-  @override
-  State<_LoginBottomSheetWrapper> createState() => _LoginBottomSheetWrapperState();
-}
-
-class _LoginBottomSheetWrapperState extends State<_LoginBottomSheetWrapper> {
-  bool _isLoading = false;
-  String _syncStatus = '';
-
-  void _handleLoadingChange(bool isLoading, [String status = '']) {
-    if (mounted) {
-      setState(() {
-        _isLoading = isLoading;
-        _syncStatus = status;
-      });
-      // Notificar al padre sobre el cambio de estado de carga
-      widget.onLoadingChanged(isLoading);
-    }
-  }
+class _LoginBottomSheet extends StatelessWidget {
+  const _LoginBottomSheet();
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
-      maxChildSize: _isLoading ? 0.7 : 0.7, // Mantener tamaño fijo durante carga
-      minChildSize: _isLoading ? 0.7 : 0.5, // Bloquear arrastre durante carga
+      maxChildSize: 0.7,
+      minChildSize: 0.5,
       expand: false,
       builder: (_, controller) {
-        return Stack(
-          children: [
-            // Absorber gestos durante carga para bloquear interacción
-            if (_isLoading)
-              Positioned.fill(
-                child: AbsorbPointer(
-                  child: Container(
-                    color: Colors.transparent,
-                  ),
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color.fromARGB(255, 254, 247, 255),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 30),
+              Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
-            Container(
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 254, 247, 255),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 30),
-                  Container(
-                    width: 40,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: _isLoading ? Colors.grey[300] : Colors.grey[400], // Indicador visual de bloqueo
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: LoginScreen(
-                      scrollController: controller,
-                      onLoadingChanged: _handleLoadingChange,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Loading overlay que cubre toda la pantalla
-            if (_isLoading)
-              LoadingOverlay(
-                message: 'Cargando',
-                status: _syncStatus,
-              ),
-          ],
+              const SizedBox(height: 18),
+              Expanded(child: LoginScreen(scrollController: controller)),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
-
-  @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  bool _isModalLoading = false;
-
-  void _handleModalLoadingChange(bool isLoading) {
-    setState(() {
-      _isModalLoading = isLoading;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,12 +93,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               true, // ← importante para altura completa
                           backgroundColor:
                               Colors.transparent, // Para bordes redondeados
-                          isDismissible: !_isModalLoading, // No se puede cerrar durante carga
-                          enableDrag: !_isModalLoading, // No se puede arrastrar durante carga
                           builder: (context) {
-                            return _LoginBottomSheetWrapper(
-                              onLoadingChanged: _handleModalLoadingChange,
-                            );
+                            return const _LoginBottomSheet(); // Creamos este widget abajo
                           },
                         );
                       },

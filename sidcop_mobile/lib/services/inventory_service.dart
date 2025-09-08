@@ -285,37 +285,22 @@ class InventoryService {
   /// Sincroniza datos de inventario cuando hay conexión
   Future<bool> syncInventoryData(int vendorId) async {
     try {
-      debugPrint('🔄 Iniciando sincronización de inventario para vendorId: $vendorId');
-      
       final hasConnection = await _hasInternetConnection();
       if (!hasConnection) {
-        debugPrint('❌ No hay conexión para sincronizar inventario');
+        debugPrint('No hay conexión para sincronizar inventario');
         return false;
       }
 
-      // Sincronizar inventario - esto automáticamente guarda los datos offline
-      debugPrint('📦 Sincronizando datos de inventario...');
-      final inventoryData = await getInventoryByVendor(vendorId);
-      debugPrint('✅ Inventario sincronizado: ${inventoryData.length} productos');
+      // Sincronizar inventario
+      await getInventoryByVendor(vendorId);
       
       // Sincronizar jornada activa
-      debugPrint('📋 Sincronizando jornada activa...');
       await getJornadaActiva(vendorId);
-      debugPrint('✅ Jornada activa sincronizada');
       
-      // Verificar que los datos se guardaron correctamente
-      final hasOfflineData = await hasOfflineInventoryData();
-      debugPrint('🔍 Verificación final - Datos offline disponibles: $hasOfflineData');
-      
-      if (!hasOfflineData) {
-        debugPrint('⚠️ ADVERTENCIA: Los datos no se guardaron correctamente offline');
-        return false;
-      }
-      
-      debugPrint('✅ Sincronización de inventario completada exitosamente');
+      debugPrint('Sincronización de inventario completada exitosamente');
       return true;
     } catch (e) {
-      debugPrint('❌ Error durante la sincronización de inventario: $e');
+      debugPrint('Error durante la sincronización de inventario: $e');
       return false;
     }
   }
@@ -323,11 +308,9 @@ class InventoryService {
   /// Verifica si hay datos offline disponibles
   Future<bool> hasOfflineInventoryData() async {
     try {
-      debugPrint('🔍 Verificando disponibilidad de datos offline...');
       final inventoryData = await OfflineDatabaseService.loadInventoryData();
-      final hasData = inventoryData.isNotEmpty;
-      debugPrint('📊 Datos offline encontrados: ${inventoryData.length} productos - Disponible: $hasData');
-      return hasData;
+      debugPrint('🔍 Verificando datos offline: ${inventoryData.length} productos encontrados');
+      return inventoryData.isNotEmpty;
     } catch (e) {
       debugPrint('❌ Error checking offline inventory data: $e');
       return false;

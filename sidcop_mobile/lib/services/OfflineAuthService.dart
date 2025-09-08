@@ -68,17 +68,9 @@ class OfflineAuthService {
         
         // Obtener servicio de inventario y sincronizar datos automáticamente
         final inventoryService = _getInventoryService();
-        
-        // Usar un delay para asegurar que la base de datos esté lista
-        await Future.delayed(const Duration(milliseconds: 500));
-        
         final success = await inventoryService.syncInventoryData(vendorId);
         if (success) {
           developer.log('OfflineAuthService: Datos de inventario sincronizados exitosamente para uso offline');
-          
-          // Verificar que los datos se guardaron correctamente
-          final hasData = await inventoryService.hasOfflineInventoryData();
-          developer.log('OfflineAuthService: Verificación post-sync - Datos offline disponibles: $hasData');
         } else {
           developer.log('OfflineAuthService: Error al sincronizar datos de inventario');
         }

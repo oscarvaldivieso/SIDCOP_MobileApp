@@ -192,29 +192,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    print('🚀 InventoryScreen: Iniciando carga de datos iniciales...');
-    print('📱 Estado de conexión: ${_isConnected ? "ONLINE" : "OFFLINE"}');
-    
-    // Verificar si hay datos offline disponibles antes de cargar
-    final hasOfflineData = await _inventoryService.hasOfflineInventoryData();
-    print('💾 Datos offline disponibles: $hasOfflineData');
-    
-    await Future.wait([
-      _checkActiveJornada(),
-      _loadInventoryData(),
-      _loadSellerName(),
-    ]);
-    
-    print('✅ InventoryScreen: Carga inicial completada');
-  }
+      await Future.wait([
+        _checkActiveJornada(),
+        _loadInventoryData(),
+        _loadSellerName(),
+      ]);
+    }
 
-  Future<void> _checkActiveJornada() async {
-    try {
-      print('_checkActiveJornada called with usuaIdPersona: ${widget.usuaIdPersona}');
-      
-      setState(() {
-        _isCheckingJornada = true;
-      });
+    Future<void> _checkActiveJornada() async {
+      try {
+        print('_checkActiveJornada called with usuaIdPersona: ${widget.usuaIdPersona}');
+        
         setState(() {
           _isCheckingJornada = true;
         });
@@ -1083,20 +1071,15 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         _errorMessage = null;
       });
 
-      print('🔄 InventoryScreen: Cargando inventario para usuaIdPersona: ${widget.usuaIdPersona}');
-      
       final items = await InventoryService().getInventoryByVendor(
         widget.usuaIdPersona,
       );
-
-      print('✅ InventoryScreen: Inventario cargado exitosamente: ${items.length} productos');
 
       setState(() {
         _inventoryItems = items;
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ InventoryScreen: Error al cargar inventario: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -2435,4 +2418,12 @@ Widget _buildSummaryItem(String label, String value, Color color) {
     ),
   );
 }
+
+
+  
 }
+
+
+
+
+

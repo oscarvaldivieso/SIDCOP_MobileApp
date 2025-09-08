@@ -311,22 +311,9 @@ class OfflineDatabaseService {
   static Future<bool> saveInventoryData(List<Map<String, dynamic>> inventory) async {
     try {
       print('🔄 Guardando ${inventory.length} productos de inventario...');
-      
-      // Verificar que la base de datos esté inicializada
-      await database;
-      print('📊 Base de datos inicializada correctamente');
-      
       final result = await _saveEncryptedData('inventario', inventory, 'Inventario');
-      
-      if (result) {
-        // Verificar inmediatamente que los datos se guardaron
-        final savedData = await loadInventoryData();
-        print('✅ Inventario guardado exitosamente - Verificación: ${savedData.length} productos guardados');
-        return savedData.isNotEmpty;
-      } else {
-        print('❌ Error al guardar inventario');
-        return false;
-      }
+      print(result ? '✅ Inventario guardado exitosamente' : '❌ Error al guardar inventario');
+      return result;
     } catch (e) {
       print('❌ Excepción al guardar inventario: $e');
       return false;
