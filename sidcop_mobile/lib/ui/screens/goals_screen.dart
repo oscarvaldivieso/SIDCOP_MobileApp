@@ -73,14 +73,14 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             debugPrint('[_loadGoals] Metas actualizadas en el estado: ${_goals.length}');
             _errorMessage = '';
           } else {
-            _errorMessage = 'No hay metas disponibles offline. Conéctate a una red para sincronizar tus metas.';
+            _errorMessage = 'Conéctate a una red para sincronizar tus metas.';
             debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
         });
       }
     } catch (e, stackTrace) {
-      debugPrint('[_loadGoals] Error al cargar metas: $e');
+      debugPrint('[_loadGoals] No hay metas disponibles offline: $e');
       debugPrint('Stack trace: $stackTrace');
       // Si hay error, intentar cargar offline
       final offlineMetas = await MetasOffline.obtenerMetasLocal();
@@ -90,7 +90,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             _goals = offlineMetas;
             _errorMessage = '';
           } else {
-            _errorMessage = 'No hay metas disponibles offline. Conéctate a una red para sincronizar tus metas.';
+            _errorMessage = 'Conéctate a una red para sincronizar tus metas.';
             debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
@@ -504,7 +504,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             ),
             const SizedBox(height: 16),
             Text(
-              'Error al cargar las metas',
+              'No hay metas disponibles offline',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[800],
