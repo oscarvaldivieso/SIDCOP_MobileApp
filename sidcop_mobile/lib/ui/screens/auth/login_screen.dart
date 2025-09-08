@@ -19,11 +19,11 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 
   // Método estático para limpiar credenciales guardadas (accesible desde otras clases)
+  // No limpia las credenciales offline para permitir el inicio de sesión offline permanente
   static Future<void> clearSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('remember_me');
-    await prefs.remove('saved_email');
-    await prefs.remove('saved_password');
+    // Solo eliminamos la bandera de recordar, no las credenciales guardadas
+    await prefs.setBool('remember_me', false);
   }
 }
 
@@ -262,20 +262,39 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Guardar credenciales si "Remember me" está activado
+  // Guardar credenciales para acceso offline y preferencia de "Remember me"
   Future<void> _saveCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
     
+    // Guardar credenciales para acceso offline
+    await prefs.setString('saved_email', email);
+    await prefs.setString('saved_password', password);
+    
+    // Actualizar la preferencia de "Remember me"
+    await prefs.setBool('remember_me', _rememberMe);
+    
+    // Si está marcado "Recordar sesión", guardar credenciales para autenticación offline
     if (_rememberMe) {
-      await prefs.setBool('remember_me', true);
-      await prefs.setString('saved_email', _emailController.text.trim());
-      await prefs.setString('saved_password', _passwordController.text);
-    } else {
-      await prefs.remove('remember_me');
-      await prefs.remove('saved_email');
-      await prefs.remove('saved_password');
-      // NO limpiar credenciales offline aquí - solo limpiar "Remember me"
-      // Las credenciales offline deben persistir para permitir login offline
+      try {
+        // Usar el método iniciarSesion para obtener los datos del usuario
+        final userData = await _usuarioService.iniciarSesion(email, password);
+        if (userData != null && userData['error'] != true) {
+          // Guardar credenciales offline completas
+          await OfflineAuthService.saveOfflineCredentials(
+            username: email,
+            password: password,
+            userData: userData,
+          );
+        }
+      } catch (e) {
+        // Si falla, guardar solo las credenciales básicas
+        await OfflineAuthService.saveBasicOfflineCredentials(
+          username: email,
+          password: password,
+        );
+      }
     }
   }
 
@@ -290,15 +309,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Validar campos individualmente
     bool hasError = false;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-    if (_emailController.text.isEmpty) {
+    if (email.isEmpty) {
       setState(() {
         _emailError = 'El campo Usuario es requerido';
       });
       hasError = true;
     }
 
-    if (_passwordController.text.isEmpty) {
+    if (password.isEmpty) {
       setState(() {
         _passwordError = 'El campo Contraseña es requerido';
       });
@@ -320,6 +341,9 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, dynamic>? result;
       bool isOfflineLogin = false;
       
+      // Guardar credenciales para acceso offline (incluso antes de intentar login)
+      await _saveCredentials();
+      
       if (hasConnection) {
         // Intentar login online primero
         setState(() {
@@ -327,16 +351,13 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         
         try {
-          result = await _usuarioService.iniciarSesion(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+          result = await _usuarioService.iniciarSesion(email, password);
           
           if (result != null && result['error'] != true) {
-            // Login online exitoso - SIEMPRE guardar credenciales offline
+            // Login online exitoso - actualizar credenciales offline
             await OfflineAuthService.saveOfflineCredentials(
-              username: _emailController.text.trim(),
-              password: _passwordController.text,
+              username: email,
+              password: password,
               userData: result,
             );
             
@@ -366,19 +387,6 @@ class _LoginScreenState extends State<LoginScreen> {
         // Login exitoso (online u offline)
         await _perfilUsuarioService.guardarDatosUsuario(result);
         
-        // Si fue login online exitoso, asegurar que se guarden credenciales offline
-        if (!isOfflineLogin) {
-          await OfflineAuthService.saveOfflineCredentials(
-            username: _emailController.text.trim(),
-            password: _passwordController.text,
-            userData: result,
-          );
-          await OfflineAuthService.updateLastOnlineLogin();
-        }
-        
-        // Guardar credenciales si "Remember me" está activado
-        await _saveCredentials();
-        
         if (isOfflineLogin) {
           setState(() {
             _syncStatus = 'Acceso offline exitoso';
@@ -389,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           // Sincronización solo para login online
           setState(() {
-            _syncStatus = 'Ingresando';
+            _syncStatus = 'Sincronizando...';
           });
           
           await SyncService.syncAfterLogin(
@@ -411,8 +419,14 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        // Login fallido
-        final errorMessage = result?['message'] ?? "Usuario y/o contraseña incorrectos";
+        // Login fallido - verificar si hay credenciales offline
+        final hasOfflineCredentials = await OfflineAuthService.hasOfflineCredentials();
+        String errorMessage = result?['message'] ?? "Usuario y/o contraseña incorrectos";
+        
+        if (hasOfflineCredentials) {
+          errorMessage += "\n\nTienes credenciales guardadas para acceso offline.";
+        }
+        
         setState(() {
           _generalError = errorMessage;
         });
@@ -433,35 +447,19 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Intenta realizar login offline
   Future<Map<String, dynamic>?> _attemptOfflineLogin() async {
     try {
-      // Verificar si hay credenciales offline disponibles
-      final hasOfflineCredentials = await OfflineAuthService.hasOfflineCredentials();
-      
-      if (!hasOfflineCredentials) {
-        return {
-          'error': true,
-          'message': 'No hay credenciales guardadas para acceso offline. Necesitas conectarte a internet para el primer login.',
-        };
-      }
-      
-      // Verificar si las credenciales han expirado (opcional)
-      final areExpired = await OfflineAuthService.areCredentialsExpired(maxDaysOffline: 30);
-      if (areExpired) {
-        return {
-          'error': true,
-          'message': 'Las credenciales offline han expirado. Conecta a internet para renovar el acceso.',
-        };
-      }
-      
-      // Intentar autenticación offline
-      return await OfflineAuthService.authenticateOffline(
+      final result = await OfflineAuthService.authenticateOffline(
         username: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      
+      // Si el login offline fue exitoso, actualizar el timestamp de última sesión
+      if (result != null && result['error'] != true) {
+        await OfflineAuthService.updateLastSessionTimestamp();
+      }
+      
+      return result;
     } catch (e) {
-      return {
-        'error': true,
-        'message': 'Error en autenticación offline: $e',
-      };
+      return {'error': true, 'message': 'Error al intentar autenticar offline: $e'};
     }
   }
 
@@ -713,26 +711,14 @@ const SizedBox(height: 30),
                               ),
                             ),
                             const SizedBox(height: 30),
-                            // Texto principal
-                            Text(
-                              _syncStatus.isNotEmpty ? _syncStatus : 'Iniciando sesión...',
-                              style: const TextStyle(
+                            // Texto de carga
+                            const Text(
+                              'Cargando',
+                              style: TextStyle(
                                 fontFamily: 'Satoshi',
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            // Texto secundario
-                            Text(
-                              'Por favor espere',
-                              style: TextStyle(
-                                fontFamily: 'Satoshi',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: const Color(0xFFD6B68A), // Dorado claro
                               ),
                               textAlign: TextAlign.center,
                             ),

@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
 
 class UsuarioService {
