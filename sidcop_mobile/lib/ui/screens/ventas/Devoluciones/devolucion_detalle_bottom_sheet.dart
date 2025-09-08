@@ -1,30 +1,142 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/models/devolucion_detalle_model.dart';
-import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
 class DevolucionDetalleBottomSheet extends StatefulWidget {
   final DevolucionesViewModel devolucion;
 
-  const DevolucionDetalleBottomSheet({
-    Key? key,
-    required this.devolucion,
-  }) : super(key: key);
+  const DevolucionDetalleBottomSheet({Key? key, required this.devolucion})
+    : super(key: key);
 
   @override
-  _DevolucionDetalleBottomSheetState createState() => _DevolucionDetalleBottomSheetState();
+  _DevolucionDetalleBottomSheetState createState() =>
+      _DevolucionDetalleBottomSheetState();
 }
 
-class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSheet> {
-  late final DevolucionesService _devolucionesService;
-  late Future<List<DevolucionDetalleModel>> _detallesFuture;
+class _DevolucionDetalleBottomSheetState
+    extends State<DevolucionDetalleBottomSheet> {
+  // Inicializando con un Future vacío para evitar problemas de late initialization
+  Future<List<DevolucionDetalleModel>> _detallesFuture = Future.value([]);
+  bool isOnline = true;
 
   @override
   void initState() {
     super.initState();
-    _devolucionesService = DevolucionesService();
-    _detallesFuture = _devolucionesService.getDevolucionDetalles(widget.devolucion.devoId);
+    // Cargar los datos inmediatamente
+    _cargarDatos();
+  }
+
+  // Verificar conexión a internet
+  Future<bool> verificarConexion() async {
+    try {
+      final tieneConexion = await VerificarService.verificarConexion();
+      setState(() {
+        isOnline = tieneConexion;
+      });
+      print(
+        'Estado de conexión en detalles: ${tieneConexion ? 'Online' : 'Offline'}',
+      );
+      return tieneConexion;
+    } catch (e) {
+      print('Error al verificar la conexión en detalles: $e');
+      setState(() {
+        isOnline = false;
+      });
+      return false;
+    }
+  }
+
+  // Cargar datos con manejo de modo offline
+  Future<void> _cargarDatos() async {
+    // Verificar conexión primero
+    isOnline = await verificarConexion();
+
+    // Usar setState para actualizar la UI cuando la conexión cambia
+    setState(() {
+      // Inicializar _detallesFuture para evitar errores
+      _detallesFuture = _cargarDetallesDevolucion();
+    });
+  }
+
+  // Método para cargar detalles con manejo online/offline
+  Future<List<DevolucionDetalleModel>> _cargarDetallesDevolucion() async {
+    try {
+      // Asegurarnos de que tenemos un ID válido
+      int devolucionId = widget.devolucion.devoId;
+      print('Intentando cargar detalles para devolución ID: $devolucionId');
+
+      List<DevolucionDetalleModel> detalles = [];
+
+      if (isOnline) {
+        try {
+          print('Cargando detalles de devolución online ID: $devolucionId');
+          // Si hay conexión, obtenemos datos del servidor y los guardamos localmente
+          final detallesData =
+              await DevolucionesOffline.sincronizarYGuardarDetallesDevolucion(
+                devolucionId,
+              );
+
+          // Convertimos a modelos con manejo de errores para cada elemento
+          for (final detalle in detallesData) {
+            try {
+              detalles.add(DevolucionDetalleModel.fromJson(detalle));
+            } catch (conversionError) {
+              print('Error al convertir detalle: $conversionError');
+              // Continuar con el siguiente elemento
+            }
+          }
+
+          print(
+            'Cargados ${detalles.length} detalles de devolución del servidor',
+          );
+          if (detalles.isNotEmpty) {
+            return detalles;
+          }
+        } catch (e) {
+          print('Error al cargar detalles online: $e');
+          // Continuar con el fallback a datos locales
+        }
+      }
+
+      // Si no hay conexión o falló la carga online, intentar con datos locales
+      try {
+        print('Cargando detalles de devolución offline ID: $devolucionId');
+        final detallesData =
+            await DevolucionesOffline.obtenerDetallesDevolucionLocal(
+              devolucionId,
+            );
+
+        // Convertimos a modelos con manejo de errores para cada elemento
+        detalles = [];
+        for (final detalle in detallesData) {
+          try {
+            detalles.add(DevolucionDetalleModel.fromJson(detalle));
+          } catch (conversionError) {
+            print('Error al convertir detalle local: $conversionError');
+            // Continuar con el siguiente elemento
+          }
+        }
+
+        print(
+          'Cargados ${detalles.length} detalles de devolución del almacenamiento local',
+        );
+        return detalles;
+      } catch (localError) {
+        print('Error al cargar datos locales: $localError');
+      }
+
+      // Si todo falló, devolver lista vacía
+      print(
+        'No se pudieron cargar detalles para la devolución ID: $devolucionId',
+      );
+      return [];
+    } catch (e) {
+      print('Error general en _cargarDetallesDevolucion: $e');
+      return []; // Devolver lista vacía en caso de cualquier error no manejado
+    }
   }
 
   @override
@@ -60,10 +172,64 @@ class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSh
                 Text(
                   'Detalles de la Devolución',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontFamily: 'Satoshi',
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF141A2F),
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF141A2F),
+                  ),
+                ),
+                // Pequeño indicador de offline/online y botón de recargar
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isOnline
+                              ? Colors.green.shade200
+                              : Colors.red.shade200,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        isOnline ? "Online" : "Offline",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: isOnline
+                              ? Colors.green.shade800
+                              : Colors.red.shade800,
+                          fontFamily: 'Satoshi',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          // Reintentar carga de datos
+                          _cargarDatos();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Icon(
+                          Icons.refresh,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -82,19 +248,34 @@ class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSh
                     widget.devolucion.clieNombreNegocio ?? 'N/A',
                     Icons.business,
                   ),
-                  const Divider(height: 20, thickness: 1, indent: 40, endIndent: 10),
+                  const Divider(
+                    height: 20,
+                    thickness: 1,
+                    indent: 40,
+                    endIndent: 10,
+                  ),
                   _buildModernDetailRow(
                     'Solicitada Por',
                     widget.devolucion.nombreCompleto ?? 'N/A',
                     Icons.person_outline,
                   ),
-                  const Divider(height: 20, thickness: 1, indent: 40, endIndent: 10),
+                  const Divider(
+                    height: 20,
+                    thickness: 1,
+                    indent: 40,
+                    endIndent: 10,
+                  ),
                   _buildModernDetailRow(
                     'Motivo',
                     widget.devolucion.devoMotivo,
                     Icons.receipt_long_outlined,
                   ),
-                  const Divider(height: 20, thickness: 1, indent: 40, endIndent: 10),
+                  const Divider(
+                    height: 20,
+                    thickness: 1,
+                    indent: 40,
+                    endIndent: 10,
+                  ),
                   _buildModernDetailRow(
                     'Fecha',
                     _formatDate(widget.devolucion.devoFecha),
@@ -126,11 +307,70 @@ class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSh
                 future: _detallesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 12),
+                          Text(
+                            'Cargando productos...',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
                   } else if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 36,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Error al cargar productos',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '${snapshot.error}',
+                            style: TextStyle(fontSize: 12, color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    );
                   } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('No hay productos para esta devolución'));
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            color: Colors.grey,
+                            size: 36,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'No hay productos para esta devolución',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   final detalles = snapshot.data!;
@@ -143,7 +383,10 @@ class _DevolucionDetalleBottomSheetState extends State<DevolucionDetalleBottomSh
                         margin: const EdgeInsets.only(bottom: 8),
                         elevation: 1,
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           title: Text(
                             detalle.prod_Descripcion,
                             style: const TextStyle(

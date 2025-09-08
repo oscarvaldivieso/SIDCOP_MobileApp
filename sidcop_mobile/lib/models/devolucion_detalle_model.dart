@@ -23,9 +23,22 @@ class DevolucionDetalleModel {
       devo_Id: json['devo_Id'] as int,
       prod_Id: json['prod_Id'] as int,
       cate_Descripcion: json['cate_Descripcion'] as String? ?? 'Sin categoría',
-      prod_Descripcion: json['prod_Descripcion'] as String? ?? 'Producto sin nombre',
+      prod_Descripcion:
+          json['prod_Descripcion'] as String? ?? 'Producto sin nombre',
       prod_DescripcionCorta: json['prod_DescripcionCorta'] as String? ?? '',
       secuencia: json['secuencia'] as int? ?? 0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'devD_Id': devD_Id,
+      'devo_Id': devo_Id,
+      'prod_Id': prod_Id,
+      'cate_Descripcion': cate_Descripcion,
+      'prod_Descripcion': prod_Descripcion,
+      'prod_DescripcionCorta': prod_DescripcionCorta,
+      'secuencia': secuencia,
+    };
   }
 }
