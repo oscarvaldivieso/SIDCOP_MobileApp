@@ -187,10 +187,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
-                        // Limpiar credenciales guardadas de "Remember me"
+                        // Solo desactivamos el "Remember me" sin borrar las credenciales
                         await LoginScreen.clearSavedCredentials();
-                        // Limpiar credenciales offline
-                        await OfflineAuthService.clearOfflineCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
