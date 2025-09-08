@@ -15,6 +15,8 @@ class SincronizacionService {
       await VisitasOffline.sincronizarTodo();
       if (vendedorId != null) {
         await VentasOfflineService.sincronizarTodo(vendedorId);
+        // Precargar productos con descuento para cliente 1158 y vendedor 13
+        await VentasOfflineService.descargarYGuardarProductosConDescuentoOffline(1158, 13);
       }
       print('Sincronización offline completada.');
     } catch (e) {

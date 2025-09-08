@@ -1,12 +1,19 @@
+
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
-import 'package:sidcop_mobile/services/ClientesService.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
-import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_confirmar_screen.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
+import 'dart:async';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -34,6 +41,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   List<dynamic> _direcciones = [];
   dynamic _direccionSeleccionada;
   bool _loadingDirecciones = false;
+  
+  // Variables para conectividad y sincronización
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  bool _isConnected = true;
 
   @override
   void initState() {
@@ -41,11 +52,13 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     _fetchProductos();
     _fetchDirecciones();
     _searchController.addListener(_onSearchChanged);
+    _initConnectivityListener();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -210,21 +223,235 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      final productos = await PedidosService().getProductosConListaPrecio(
-        widget.clienteId,
-      );
-      print(productos[3].toJson());
-      //print(productos[3].descuentosEscala![0].toJson());
+      // Verificar conexión a internet
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOnline = connectivityResult != ConnectivityResult.none;
+
+      if (isOnline) {
+        // Si hay conexión, cargar desde el servidor
+        try {
+          final productos = await PedidosService().getProductosConListaPrecio(
+            widget.clienteId,
+          );
+          print('Productos cargados desde servidor: ${productos.length}');
+
+          setState(() {
+            _productos = productos;
+            _filteredProductos = List.from(_productos);
+            _isLoading = false;
+          });
+          return;
+        } catch (e) {
+          print('Error cargando productos desde servidor: $e');
+          // Continuar con fallback offline
+        }
+      }
+
+      // Fallback offline: Intentar cargar productos cacheados
+      print('Cargando productos desde cache offline...');
+
+      // Obtener datos del usuario para el vendedor ID
+      final perfilService = PerfilUsuarioService();
+      final userData = await perfilService.obtenerDatosUsuario();
+      final vendedorId = userData?['usua_IdPersona'] as int?;
+
+      if (vendedorId != null) {
+        // Intentar cargar productos con descuento específicos para este cliente y vendedor
+        try {
+          final productosConDescuento =
+              await ProductosOffline.obtenerProductosConDescuentoLocal(
+                widget.clienteId,
+                vendedorId,
+              );
+
+          if (productosConDescuento.isNotEmpty) {
+            // Convertir ProductoConDescuento a ProductosPedidosViewModel
+            final productosConvertidos = productosConDescuento.map((prod) {
+              return ProductosPedidosViewModel(
+                prodId: prod.prodId,
+                prodCodigo: '', // No disponible en ProductoConDescuento
+                prodDescripcionCorta: prod.prodDescripcionCorta,
+                prodDescripcion: prod
+                    .prodDescripcionCorta, // Usar descripción corta como descripción
+                prodPrecioUnitario: prod.prodPrecioUnitario,
+                prodImagen: prod.prodImagen,
+                prod_Impulsado: prod.prod_Impulsado,
+                prodEstado: true, // Valor por defecto
+                // Agregar otros campos necesarios con valores por defecto
+                listasPrecio: prod.listasPrecio
+                    .map(
+                      (lp) => ListaPrecioModel(
+                        prePListaPrecios: lp.prePListaPrecios,
+                        prePPrecioContado: lp.prePPrecioContado,
+                        prePPrecioCredito: lp.prePPrecioCredito,
+                        prePInicioEscala: lp.prePInicioEscala,
+                        prePFinEscala: lp.prePFinEscala,
+                      ),
+                    )
+                    .toList(),
+                descuentosEscala: prod.descuentosEscala
+                    .map(
+                      (de) => DescuentoEscalaModel(
+                        deEsInicioEscala: de.deEsInicioEscala,
+                        deEsFinEscala: de.deEsFinEscala,
+                        deEsValor: de.deEsValor,
+                      ),
+                    )
+                    .toList(),
+                descEspecificaciones: null,
+              );
+            }).toList();
+
+            print(
+              'Productos con descuento cargados desde cache: ${productosConvertidos.length}',
+            );
+            setState(() {
+              _productos = productosConvertidos;
+              _filteredProductos = List.from(_productos);
+              _isLoading = false;
+            });
+            return;
+          }
+        } catch (e) {
+          print('Error cargando productos con descuento desde cache: $e');
+        }
+      }
+
+      // Segundo fallback: Productos básicos cacheados
+      try {
+        final productosBasicos = await ProductosOffline.obtenerProductosLocal();
+        if (productosBasicos.isNotEmpty) {
+          // Convertir Productos a ProductosPedidosViewModel
+          final productosConvertidos = productosBasicos.map((prod) {
+            return ProductosPedidosViewModel(
+              prodId: prod.prod_Id,
+              prodCodigo: prod.prod_Codigo ?? '',
+              prodDescripcionCorta: prod.prod_DescripcionCorta ?? '',
+              prodDescripcion: prod.prod_Descripcion ?? '',
+              prodPrecioUnitario: prod.prod_PrecioUnitario,
+              prodImagen: prod.prod_Imagen,
+              prod_Impulsado: false, // Valor por defecto
+              prodEstado: true, // Valor por defecto
+              // Agregar otros campos necesarios con valores por defecto
+              listasPrecio: null,
+              descuentosEscala: null,
+              descEspecificaciones: null,
+            );
+          }).toList();
+
+          print(
+            'Productos básicos cargados desde cache: ${productosConvertidos.length}',
+          );
+          setState(() {
+            _productos = productosConvertidos;
+            _filteredProductos = List.from(_productos);
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        print('Error cargando productos básicos desde cache: $e');
+      }
+
+      // Tercer fallback: Productos cacheados durante el login
+      try {
+        print('Intentando cargar productos desde caché de login...');
+        final productosLogin = await InicioSesionOfflineService.obtenerProductosBasicosCache();
+        print('Productos encontrados en caché de login: ${productosLogin.length}');
+        
+        if (productosLogin.isNotEmpty) {
+          print('Productos del login cargados desde cache: ${productosLogin.length}');
+          // Agregar debug para ver los primeros productos
+          if (productosLogin.isNotEmpty) {
+            print('Primer producto del login cache: ${productosLogin.first.prodDescripcionCorta}');
+          }
+          
+          setState(() {
+            _productos = productosLogin;
+            _filteredProductos = List.from(_productos);
+            _isLoading = false;
+          });
+          return;
+        } else {
+          print('No se encontraron productos en el caché de login');
+          
+          // Último intento: forzar refresco del caché si hay conexión
+          final connectivityResult = await Connectivity().checkConnectivity();
+          final bool hasConnection = connectivityResult != ConnectivityResult.none;
+          
+          if (hasConnection) {
+            print('Hay conexión, intentando refrescar caché de productos...');
+            try {
+              // Mostrar indicador de carga
+              setState(() {
+                _isLoading = true;
+              });
+              
+              await InicioSesionOfflineService.refrescarCacheProductos();
+              final productosRefrescados = await InicioSesionOfflineService.obtenerProductosBasicosCache();
+              
+              if (productosRefrescados.isNotEmpty) {
+                print('Productos refrescados exitosamente: ${productosRefrescados.length}');
+                setState(() {
+                  _productos = productosRefrescados;
+                  _filteredProductos = List.from(_productos);
+                  _isLoading = false;
+                });
+                return;
+              } else {
+                print('Intentando cargar productos directamente desde API...');
+                // Último recurso: cargar directamente desde API
+                final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
+                if (productos.isNotEmpty) {
+                  print('Productos cargados directamente desde API: ${productos.length}');
+                  setState(() {
+                    _productos = productos;
+                    _filteredProductos = List.from(_productos);
+                    _isLoading = false;
+                  });
+                  return;
+                }
+              }
+            } catch (refreshError) {
+              print('Error refrescando caché: $refreshError');
+              
+              // Último intento directo con API
+              try {
+                print('Último intento: carga directa desde API...');
+                final productos = await PedidosService().getProductosConListaPrecio(widget.clienteId);
+                if (productos.isNotEmpty) {
+                  print('Productos cargados en último intento: ${productos.length}');
+                  setState(() {
+                    _productos = productos;
+                    _filteredProductos = List.from(_productos);
+                    _isLoading = false;
+                  });
+                  return;
+                }
+              } catch (apiError) {
+                print('Error en último intento con API: $apiError');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('Error cargando productos del login desde cache: $e');
+        print('Stack trace: ${e.toString()}');
+      }
+
+      // Si no hay productos en ningún cache
       setState(() {
-        _productos = productos;
-        _filteredProductos = List.from(_productos);
         _isLoading = false;
+        _error = isOnline
+            ? 'Error al cargar productos del servidor'
+            : 'No hay productos disponibles offline. Conéctate a internet para cargar productos.';
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _error = 'Error al cargar productos $e';
+        _error = 'Error al cargar productos: $e';
       });
     }
   }
@@ -233,34 +460,53 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     setState(() {
       _loadingDirecciones = true;
     });
+
     try {
-      final direcciones = await ClientesService().getDireccionesCliente(
+      print('🏠 Cargando direcciones para cliente: ${widget.clienteId}');
+      
+      // Usar el nuevo método offline-first
+      final direcciones = await ClientesOfflineService.getDireccionesClienteOfflineFirst(
         widget.clienteId,
       );
-
-      // Debug: Imprimir estructura de direcciones
-      print('Direcciones obtenidas: $direcciones');
-      if (direcciones.isNotEmpty) {
-        print('Primera dirección: ${direcciones[0]}');
-        print('Claves de primera dirección: ${direcciones[0].keys.toList()}');
-      }
-
+      
       setState(() {
         _direcciones = direcciones;
         _loadingDirecciones = false;
+
         // Seleccionar la primera dirección por defecto si existe
         if (_direcciones.isNotEmpty) {
           _direccionSeleccionada = _direcciones[0];
-          print('Dirección seleccionada por defecto: $_direccionSeleccionada');
+          print('✅ Dirección seleccionada por defecto: ${_direccionSeleccionada['diCl_DireccionExacta']}');
+        } else {
+          print('⚠️ No se encontraron direcciones para el cliente ${widget.clienteId}');
         }
       });
+      
+      // Mostrar mensaje informativo si hay direcciones
+      if (mounted && direcciones.isNotEmpty) {
+        final hasOfflineData = await ClientesOfflineService.hasOfflineDireccionesData(widget.clienteId);
+        if (hasOfflineData) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Direcciones cargadas (${direcciones.length} encontradas)'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
     } catch (e) {
       setState(() {
         _loadingDirecciones = false;
       });
+
+      print('❌ Error cargando direcciones: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar direcciones: $e')),
+          SnackBar(
+            content: Text('Error al cargar direcciones. Verifica tu conexión.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
     }
@@ -388,21 +634,24 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       );
       return;
     }
+
     // 4. Preparar productos para confirmación
     final productosSeleccionadosList = _cantidades.entries
         .where((e) => e.value > 0)
         .toList();
+
+    // Continuar con el flujo normal hacia confirmación (tanto online como offline)
     final productosConfirmacion = productosSeleccionadosList.map((e) {
       final producto = _productos.firstWhere((p) => p.prodId == e.key);
       final precioFinal = _getPrecioPorCantidad(producto, e.value);
       return ProductoConfirmacion(
-        prodId: producto.prodId, // Agregar el ID del producto
+        prodId: producto.prodId,
         nombre: producto.prodDescripcionCorta ?? '',
         cantidad: e.value,
         precioBase: producto.prodPrecioUnitario ?? 0,
         precioFinal: precioFinal,
         imagen: producto.prodImagen,
-        productoOriginal: producto, // Pasar el producto original para cálculos
+        productoOriginal: producto,
       );
     }).toList();
 
@@ -421,20 +670,22 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
 
     // 6. Navegar a pantalla de confirmación
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PedidoConfirmarScreen(
-          productosSeleccionados: productosConfirmacion,
-          cantidadTotal: cantidadTotal,
-          subtotal: subtotal,
-          total: total,
-          clienteId: widget.clienteId,
-          fechaEntrega: _fechaEntrega!,
-          direccionSeleccionada: _direccionSeleccionada!,
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PedidoConfirmarScreen(
+            productosSeleccionados: productosConfirmacion,
+            cantidadTotal: cantidadTotal,
+            subtotal: subtotal,
+            total: total,
+            clienteId: widget.clienteId,
+            fechaEntrega: _fechaEntrega!,
+            direccionSeleccionada: _direccionSeleccionada!,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildDescuentosItem(
@@ -1350,5 +1601,57 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ),
       ),
     );
+  }
+
+  /// Inicializa el listener de conectividad para sincronización automática
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (ConnectivityResult result) {
+        final wasConnected = _isConnected;
+        _isConnected = result != ConnectivityResult.none;
+        
+        // Si se recuperó la conexión, intentar sincronizar pedidos pendientes
+        if (!wasConnected && _isConnected) {
+          print('🔄 Conexión restaurada, sincronizando pedidos pendientes...');
+          _sincronizarPedidosPendientes();
+        }
+      },
+    );
+  }
+
+  /// Sincroniza pedidos pendientes en background
+  Future<void> _sincronizarPedidosPendientes() async {
+    try {
+      final pedidosPendientes = await PedidosScreenOffline.contarPedidosPendientes();
+      
+      if (pedidosPendientes > 0) {
+        print('📋 Encontrados $pedidosPendientes pedidos pendientes para sincronizar');
+        
+        final sincronizados = await PedidosScreenOffline.sincronizarPedidosPendientesOffline();
+        
+        if (mounted && sincronizados > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.sync, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '✅ $sincronizados pedido(s) sincronizado(s) automáticamente',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green[700],
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error sincronizando pedidos pendientes: $e');
+    }
   }
 }

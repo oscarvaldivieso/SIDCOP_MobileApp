@@ -911,11 +911,11 @@ totalY += 10; // Espacio adicional para el total en letras
     currentFooterY += 25;
 
     // 3. Desde (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDDesde: 111-004-01-0000$desde^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDDesde: $desde^FS\n';
     currentFooterY += 25;
 
     // 4. Hasta (1 línea, centrado)
-    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDHasta: 111-004-01-0000$hasta^FS\n';
+    footerZPL += '^FO0,$currentFooterY^FB$anchoEtiqueta,1,0,C,0^CF0,22,24^FDHasta: $hasta^FS\n';
     currentFooterY += 25;
 
     // 5. Espacio adicional antes del texto de copias

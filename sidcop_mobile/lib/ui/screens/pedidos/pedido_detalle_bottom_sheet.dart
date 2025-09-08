@@ -203,14 +203,37 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildDetalleItem(dynamic item) {
-    final String descripcion = item['descripcion']?.toString() ?? '';
-    final String imagen = item['imagen']?.toString() ?? '';
-    final int cantidad = item['cantidad'] is int
-        ? item['cantidad']
-        : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
-    final double precio = item['precio'] is double
-        ? item['precio']
-        : double.tryParse(item['precio']?.toString() ?? '') ?? 0.0;
+    // Handle different possible field names for product details
+    final Map<String, dynamic> itemMap = item is Map ? Map<String, dynamic>.from(item) : {};
+    
+    // Try different possible field names for description
+    final String descripcion = itemMap['descripcion']?.toString() ?? 
+                             itemMap['prod_Descripcion']?.toString() ?? 
+                             itemMap['producto']?.toString() ?? 
+                             'Producto sin nombre';
+    
+    // Try different possible field names for image
+    final String imagen = itemMap['imagen']?.toString() ?? 
+                        itemMap['prod_Imagen']?.toString() ?? 
+                        '';
+    
+    // Try different possible field names for quantity
+    final int cantidad = _parseIntFromDynamic(
+      itemMap['cantidad'] ?? 
+      itemMap['peDe_Cantidad'] ?? 
+      itemMap['cantidadProducto']
+    );
+    
+    // Try different possible field names for price
+    final double precio = _parseDoubleFromDynamic(
+      itemMap['precio'] ?? 
+      itemMap['peDe_Precio'] ?? 
+      itemMap['peDe_ProdPrecio'] ?? 
+      itemMap['precioProducto']
+    );
+    
+    // Debug print to see the actual item structure
+    print('Detalle del ítem: $itemMap');
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,6 +266,22 @@ Widget build(BuildContext context) {
         ),
       ],
     );
+  }
+
+  // Helper method to parse int from dynamic value
+  int _parseIntFromDynamic(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
+  }
+  
+  // Helper method to parse double from dynamic value
+  double _parseDoubleFromDynamic(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0.0;
   }
 
   String _formatFecha(dynamic fecha) {

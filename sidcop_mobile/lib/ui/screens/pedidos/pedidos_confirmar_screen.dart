@@ -8,6 +8,9 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:sidcop_mobile/services/EmpresaService.dart';
+import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 
 class PedidoConfirmarScreen extends StatefulWidget {
   final List<ProductoConfirmacion> productosSeleccionados;
@@ -168,6 +171,16 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       return;
     }
     
+    // Verificar conexión a internet
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final bool isOnline = connectivityResult != ConnectivityResult.none;
+    
+    // Si está offline, manejar de forma diferente
+    if (!isOnline) {
+      await _confirmarPedidoOffline();
+      return;
+    }
+    
     // Mostrar loading
     showDialog(
       context: context,
@@ -232,33 +245,101 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
       print('Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}');
       
-      final int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
-                       widget.direccionSeleccionada['DiCl_Id'] ?? 
-                       widget.direccionSeleccionada['dicl_Id'] ?? 
-                       widget.direccionSeleccionada['Id'] ?? 
-                       widget.direccionSeleccionada['id'] ?? 
-                       widget.direccionSeleccionada['ID'] ?? 0;
+      int diClId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                   widget.direccionSeleccionada['DiCl_Id'] ?? 
+                   widget.direccionSeleccionada['dicl_Id'] ?? 
+                   widget.direccionSeleccionada['Id'] ?? 
+                   widget.direccionSeleccionada['id'] ?? 
+                   widget.direccionSeleccionada['ID'] ?? 0;
       
       print('DiCl_Id obtenido: $diClId');
       
+      // Validar el ID de dirección
       if (diClId == 0) {
-        throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        // Si es una dirección de sesión, usar el ID del cliente como fallback
+        if (widget.direccionSeleccionada['esDeSesion'] == true) {
+          print('Usando dirección de sesión del vendedor, usando ID del cliente como referencia');
+          diClId = widget.clienteId; // Usar el ID del cliente como referencia para direcciones de sesión
+        } else {
+          throw Exception('ID de dirección no válido. Dirección: ${widget.direccionSeleccionada}');
+        }
       }
+      
+      print('DiCl_Id final a usar: $diClId');
 
       // Obtener datos necesarios para generar el código del pedido
       final clienteService = ClientesService();
-      final direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
-      final clientes = await clienteService.getClientes();
+      List<dynamic> direcciones = [];
+      List<dynamic> clientes = [];
+      
+      try {
+        direcciones = await clienteService.getDireccionesCliente(widget.clienteId);
+        print('Direcciones obtenidas: ${direcciones.length}');
+      } catch (e) {
+        print('Error obteniendo direcciones: $e');
+        // Intentar desde caché offline
+        try {
+          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
+          direcciones = direccionesCache;
+          print('Direcciones desde caché: ${direcciones.length}');
+        } catch (cacheError) {
+          print('Error obteniendo direcciones desde caché: $cacheError');
+        }
+      }
+      
+      try {
+        clientes = await clienteService.getClientes();
+        print('Clientes obtenidos: ${clientes.length}');
+      } catch (e) {
+        print('Error obteniendo clientes: $e');
+        // Intentar desde caché offline
+        try {
+          final clientesCache = await InicioSesionOfflineService.obtenerClientesRutaCache();
+          clientes = clientesCache;
+          print('Clientes desde caché: ${clientes.length}');
+        } catch (cacheError) {
+          print('Error obteniendo clientes desde caché: $cacheError');
+        }
+      }
+      
+      // Si es una dirección de sesión, agregarla a la lista de direcciones
+      List<dynamic> direccionesCompletas = List.from(direcciones);
+      if (widget.direccionSeleccionada['esDeSesion'] == true) {
+        // Crear una dirección temporal para la generación del código
+        final direccionTemporal = {
+          'diCl_Id': diClId,
+          'clie_Id': widget.clienteId,
+          'diCl_DireccionExacta': widget.direccionSeleccionada['diCl_DireccionExacta'] ?? 
+                                 widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? 
+                                 'Dirección del vendedor',
+          'diCl_EsPrincipal': true,
+        };
+        direccionesCompletas.add(direccionTemporal);
+        print('Agregada dirección de sesión temporal: $direccionTemporal');
+      }
       
       // Generar el código del pedido
       final pedidosService = PedidosService();
-      final pediCodigo = await pedidosService.generarSiguienteCodigo(
-        diClId: diClId,
-        direcciones: direcciones,
-        clientes: clientes,
-      );
+      String pediCodigo = '';
       
-      print('Código de pedido generado: $pediCodigo');
+      try {
+        pediCodigo = await pedidosService.generarSiguienteCodigo(
+          diClId: diClId,
+          direcciones: direccionesCompletas,
+          clientes: clientes,
+        );
+        print('Código de pedido generado: $pediCodigo');
+      } catch (e) {
+        print('Error generando código con método normal: $e');
+      }
+      
+      // Si no se pudo generar el código, usar un código de fallback
+      if (pediCodigo.isEmpty) {
+        print('Generando código de fallback...');
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        pediCodigo = 'PED-TEMP-${widget.clienteId}-$timestamp';
+        print('Código de fallback generado: $pediCodigo');
+      }
       
       if (pediCodigo.isEmpty) {
         throw Exception('No se pudo generar el código del pedido');
@@ -401,6 +482,138 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       print('Error completo al crear pedido: $e');
     }
   }
+
+  Future<void> _confirmarPedidoOffline() async {
+    try {
+      print('🔧 DEBUG OFFLINE - Iniciando confirmación de pedido offline...');
+      
+      // Obtener datos del usuario actual
+      final perfilService = PerfilUsuarioService();
+      final userData = await perfilService.obtenerDatosUsuario();
+      
+      print('👤 DEBUG OFFLINE - Datos del usuario:');
+      print('   - userData completo: $userData');
+      print('   - usua_IdPersona: ${userData?['usua_IdPersona']}');
+      print('   - usua_Id: ${userData?['usua_Id']}');
+      print('   - usua_EsVendedor: ${userData?['usua_EsVendedor']}');
+      
+      final int? vendedorId = userData?['usua_IdPersona'] is String
+          ? int.tryParse(userData?['usua_IdPersona'])
+          : userData?['usua_IdPersona'];
+      
+      print('   - vendedorId procesado: $vendedorId');
+
+      // Debug de productos editables
+      print('📦 DEBUG OFFLINE - Productos editables:');
+      for (int i = 0; i < _productosEditables.length; i++) {
+        final p = _productosEditables[i];
+        print('   Producto $i:');
+        print('     - prodId: ${p.prodId}');
+        print('     - nombre: ${p.nombre}');
+        print('     - cantidad: ${p.cantidad}');
+        print('     - precioBase: ${p.precioBase}');
+        print('     - precioFinal: ${p.precioFinal}');
+        print('     - descuento por unidad: ${p.precioBase - p.precioFinal}');
+        print('     - subtotal: ${p.precioFinal * p.cantidad}');
+      }
+
+      // Preparar detalles del pedido para guardar offline
+      final detallesPedido = _productosEditables.map((p) {
+        final detalle = {
+          'prodId': p.prodId,
+          'cantidad': p.cantidad,
+          'precioUnitario': p.precioFinal,
+          'descuento': (p.precioBase - p.precioFinal) * p.cantidad,
+          'subtotal': p.precioFinal * p.cantidad,
+        };
+        return detalle;
+      }).toList();
+
+      print('📋 DEBUG OFFLINE - Detalles del pedido preparados:');
+      for (int i = 0; i < detallesPedido.length; i++) {
+        print('   Detalle $i: ${detallesPedido[i]}');
+      }
+
+      // Debug de dirección seleccionada
+      print('📍 DEBUG OFFLINE - Dirección seleccionada:');
+      print('   - direccionSeleccionada completa: ${widget.direccionSeleccionada}');
+      print('   - claves disponibles: ${widget.direccionSeleccionada.keys.toList()}');
+      
+      final direccionId = widget.direccionSeleccionada['diCl_Id'] ?? 
+                         widget.direccionSeleccionada['DiCl_Id'] ?? 
+                         widget.clienteId;
+      print('   - direccionId final: $direccionId');
+
+      // Debug de totales
+      print('💰 DEBUG OFFLINE - Totales calculados:');
+      print('   - _total: $_total');
+      print('   - _subtotal: $_subtotal');
+      print('   - _cantidadTotal: $_cantidadTotal');
+
+      // Crear objeto de pedido offline
+      final pedidoOffline = {
+        'id': DateTime.now().microsecondsSinceEpoch,
+        'clienteId': widget.clienteId,
+        'vendedorId': vendedorId,
+        'fechaPedido': DateTime.now().toIso8601String(),
+        'fechaEntrega': widget.fechaEntrega.toIso8601String(),
+        'direccionId': direccionId,
+        'total': _total,
+        'estado': 'Pendiente Sincronización',
+        'detalles': detallesPedido,
+        'offline': true,
+        'local_signature': 'PED_OFF_${DateTime.now().microsecondsSinceEpoch}',
+        'created_at': DateTime.now().toIso8601String(),
+        'sync_attempts': 0,
+      };
+
+      print('💾 DEBUG OFFLINE - Objeto pedido offline completo:');
+      print('$pedidoOffline');
+
+      // Guardar el pedido localmente
+      print('💾 DEBUG OFFLINE - Guardando pedido offline...');
+      await PedidosScreenOffline.guardarPedidoOffline(pedidoOffline);
+      print('✅ DEBUG OFFLINE - Pedido guardado exitosamente');
+
+      // Generar número de pedido temporal
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final numeroPedidoTemporal = 'PED-OFFLINE-${widget.clienteId}-$timestamp';
+
+      // Mostrar mensaje de éxito
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡Pedido guardado offline! Número: $numeroPedidoTemporal'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Mostrar mensaje de confirmación y navegar de vuelta
+      if (mounted) {
+        // Navegar de vuelta a la pantalla principal después de un breve delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        });
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al confirmar pedido offline: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      print('Error en _confirmarPedidoOffline: $e');
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
