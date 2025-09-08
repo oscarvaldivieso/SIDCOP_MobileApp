@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
@@ -9,7 +11,6 @@ import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_confirmar_screen.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
-import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -236,21 +237,59 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     setState(() {
       _loadingDirecciones = true;
     });
+    
     try {
+      // Primero intentamos obtener la dirección de la sesión del usuario
+      final perfilService = PerfilUsuarioService();
+      final userData = await perfilService.obtenerDatosUsuario();
+      
+      if (userData != null && userData['datosVendedor'] != null) {
+        final vendedorData = userData['datosVendedor'];
+        
+        // Verificar si vendedorData es un String y convertirlo a Map si es necesario
+        Map<String, dynamic> vendedorMap = {};
+        if (vendedorData is String) {
+          try {
+            final decoded = json.decode(vendedorData);
+            if (decoded is Map) {
+              vendedorMap = Map<String, dynamic>.from(decoded);
+            }
+          } catch (e) {
+            print('Error al convertir vendedorData a Map: $e');
+          }
+        } else if (vendedorData is Map) {
+          vendedorMap = Map<String, dynamic>.from(vendedorData);
+        }
+        
+        if (vendedorMap['vend_DireccionExacta'] != null) {
+          // Creamos un mapa con la dirección del usuario
+          final direccionUsuario = {
+            'diCl_Id': 0, // ID temporal para la dirección de la sesión
+            'diCl_DireccionExacta': vendedorMap['vend_DireccionExacta'],
+            'diCl_EsPrincipal': true,
+            'esDeSesion': true // Bandera para identificar que viene de la sesión
+          };
+          
+          setState(() {
+            _direcciones = [direccionUsuario];
+            _direccionSeleccionada = direccionUsuario;
+            _loadingDirecciones = false;
+          });
+          return;
+        }
+      }
+      
+      // Si no hay dirección en la sesión, intentamos cargar desde la API
       final direcciones = await ClientesService().getDireccionesCliente(
         widget.clienteId,
       );
 
-      // Debug: Imprimir estructura de direcciones
       print('Direcciones obtenidas: $direcciones');
-      if (direcciones.isNotEmpty) {
-        print('Primera dirección: ${direcciones[0]}');
-        print('Claves de primera dirección: ${direcciones[0].keys.toList()}');
-      }
-
+      
       setState(() {
         _direcciones = direcciones;
         _loadingDirecciones = false;
+        
         // Seleccionar la primera dirección por defecto si existe
         if (_direcciones.isNotEmpty) {
           _direccionSeleccionada = _direcciones[0];
@@ -261,6 +300,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       setState(() {
         _loadingDirecciones = false;
       });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al cargar direcciones: $e')),
