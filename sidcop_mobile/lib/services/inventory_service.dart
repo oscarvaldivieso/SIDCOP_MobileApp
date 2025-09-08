@@ -21,11 +21,13 @@ class InventoryService {
   }
 
   Future<List<Map<String, dynamic>>> getInventoryByVendor(int vendorId) async {
-    // Verificar conexión a internet
+    // Primero verificar si hay datos offline disponibles
+    final hasOfflineData = await hasOfflineInventoryData();
     final hasConnection = await _hasInternetConnection();
     
+    // Si tenemos conexión, intentar actualizar datos online
     if (hasConnection) {
-      // Modo online: obtener datos del servidor
+      debugPrint('🌐 Conexión disponible, actualizando inventario desde servidor...');
       final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
       try {
         final response = await http.get(
@@ -41,13 +43,13 @@ class InventoryService {
           final List<dynamic> jsonData = json.decode(response.body);
           final inventoryData = List<Map<String, dynamic>>.from(jsonData);
           
-          // Guardar datos en caché offline
+          // SIEMPRE guardar datos actualizados en caché offline para uso futuro
           try {
             final saved = await OfflineDatabaseService.saveInventoryData(inventoryData);
             if (saved) {
-              debugPrint('✅ Inventario guardado en caché offline: ${inventoryData.length} productos');
+              debugPrint('✅ Inventario actualizado y guardado offline: ${inventoryData.length} productos');
             } else {
-              debugPrint('❌ Error al guardar inventario en caché offline');
+              debugPrint('❌ Error al guardar inventario actualizado offline');
             }
           } catch (e) {
             debugPrint('❌ Excepción al guardar inventario offline: $e');
@@ -58,22 +60,25 @@ class InventoryService {
           throw Exception('Failed to load inventory: ${response.statusCode}');
         }
       } catch (e) {
-        debugPrint('Error fetching inventory online: $e');
-        // Solo hacer fallback a offline si realmente hay datos offline disponibles
-        final hasOfflineData = await hasOfflineInventoryData();
+        debugPrint('❌ Error al obtener inventario online: $e');
+        // Si hay datos offline, usarlos como fallback
         if (hasOfflineData) {
-          debugPrint('Fallback to offline data');
+          debugPrint('📦 Usando datos offline como fallback');
           return await _getOfflineInventoryData();
         } else {
-          // Si no hay datos offline, relanzar el error original
-          debugPrint('No offline data available, rethrowing original error');
-          rethrow;
+          // Si no hay datos offline, mostrar error específico
+          throw Exception('No se pudo conectar al servidor y no hay datos offline disponibles. Conecta a internet para sincronizar por primera vez.');
         }
       }
     } else {
-      // Modo offline: usar datos en caché
-      debugPrint('Sin conexión, usando datos offline de inventario');
-      return await _getOfflineInventoryData();
+      // Sin conexión: usar datos offline si están disponibles
+      if (hasOfflineData) {
+        debugPrint('📱 Sin conexión, usando inventario offline');
+        return await _getOfflineInventoryData();
+      } else {
+        // Sin conexión y sin datos offline
+        throw Exception('Sin conexión a internet y no hay datos offline disponibles. Conecta a internet para sincronizar por primera vez.');
+      }
     }
   }
 
@@ -97,11 +102,13 @@ class InventoryService {
     }
   }
 
-  // Nuevo método para obtener jornada detallada con soporte offline
+  // Método para obtener jornada detallada con soporte offline persistente
   Future<Map<String, dynamic>> getJornadaDetallada(int vendorId) async {
+    final hasOfflineData = await _hasOfflineJornadaDetalladaData();
     final hasConnection = await _hasInternetConnection();
     
     if (hasConnection) {
+      debugPrint('🌐 Actualizando jornada detallada desde servidor...');
       final url = Uri.parse('$_apiServer/InventarioBodegas/JornadaDetallada/$vendorId');
       try {
         final response = await http.get(
@@ -114,48 +121,48 @@ class InventoryService {
         );
 
         if (response.statusCode == 200) {
-          final Map<String, dynamic> jsonData = json.decode(response.body);
+          final Map<String, dynamic> jornadaData = json.decode(response.body);
           
-          // Verificar que la respuesta sea exitosa
-          if (jsonData['success'] == true && jsonData['data'] != null) {
-            final jornadaData = jsonData['data'] as Map<String, dynamic>;
-            
-            // Guardar en caché offline
-            await OfflineDatabaseService.saveJornadaDetalladaData(jornadaData);
-            debugPrint('Jornada detallada guardada en caché offline');
-            
-            return jornadaData;
-          } else {
-            throw Exception('API returned unsuccessful response: ${jsonData['message'] ?? 'Unknown error'}');
-          }
+          // SIEMPRE guardar datos actualizados para uso offline futuro
+          await OfflineDatabaseService.saveJornadaDetalladaData(jornadaData);
+          debugPrint('✅ Jornada detallada actualizada y guardada offline');
+          
+          return jornadaData;
         } else {
           throw Exception('Failed to load jornada detallada: ${response.statusCode}');
         }
       } catch (e) {
-        debugPrint('Error fetching jornada detallada online, fallback to offline: $e');
-        return await _getOfflineJornadaDetallada();
+        debugPrint('❌ Error al obtener jornada detallada online: $e');
+        if (hasOfflineData) {
+          debugPrint('📦 Usando jornada detallada offline como fallback');
+          final offlineData = await OfflineDatabaseService.loadJornadaDetalladaData();
+          return offlineData!;
+        } else {
+          throw Exception('No se pudo conectar al servidor y no hay datos offline de jornada detallada. Conecta a internet para sincronizar por primera vez.');
+        }
       }
     } else {
-      debugPrint('Sin conexión, usando datos offline de jornada detallada');
-      return await _getOfflineJornadaDetallada();
+      // Sin conexión: usar datos offline si están disponibles
+      if (hasOfflineData) {
+        debugPrint('📱 Sin conexión, usando jornada detallada offline');
+        final offlineData = await OfflineDatabaseService.loadJornadaDetalladaData();
+        return offlineData!;
+      } else {
+        throw Exception('Sin conexión a internet y no hay datos offline de jornada detallada. Conecta a internet para sincronizar por primera vez.');
+      }
     }
   }
 
-  /// Obtiene jornada detallada desde el almacenamiento offline
-  Future<Map<String, dynamic>> _getOfflineJornadaDetallada() async {
+  /// Verifica si hay datos offline de jornada detallada
+  Future<bool> _hasOfflineJornadaDetalladaData() async {
     try {
-      final offlineData = await OfflineDatabaseService.loadJornadaDetalladaData();
-      if (offlineData != null) {
-        debugPrint('Jornada detallada cargada desde offline');
-        return offlineData;
-      } else {
-        throw Exception('No hay datos de jornada detallada disponibles offline. Conecta a internet para sincronizar.');
-      }
+      final data = await OfflineDatabaseService.loadJornadaDetalladaData();
+      return data != null;
     } catch (e) {
-      debugPrint('Error loading offline jornada detallada: $e');
-      throw Exception('Error al cargar datos offline de jornada detallada: $e');
+      return false;
     }
   }
+
 
 
     Future<Map<String, dynamic>?> startJornada(int vendorId, int usuaCreacion) async {
