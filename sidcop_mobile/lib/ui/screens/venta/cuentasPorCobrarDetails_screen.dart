@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 import 'package:sidcop_mobile/ui/screens/venta/detailsCxC_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class CuentasPorCobrarDetailsScreen extends StatefulWidget {
   final int cuentaId;
@@ -30,6 +32,13 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   void initState() {
     super.initState();
     _loadTimelineCliente();
+    
+    // Pre-cargar datos del cliente en background si es necesario
+    if (widget.cuentaResumen.clie_Id != null) {
+      Future.microtask(() => 
+        CuentasPorCobrarOfflineService.precargarDatosCliente(widget.cuentaResumen.clie_Id!)
+      );
+    }
   }
 
   Future<void> _loadTimelineCliente() async {
@@ -45,13 +54,50 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
         throw Exception('ID de cliente no disponible');
       }
 
-      final response = await _cuentasService.getTimelineCliente(clienteId);
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+
+      List<dynamic> response;
+      
+      if (isConnected) {
+        try {
+          // Intentar cargar desde el servidor y sincronizar
+          response = await _cuentasService.getTimelineCliente(clienteId);
+          
+          // Guardar en cache offline para uso posterior
+          await CuentasPorCobrarOfflineService.sincronizarTimelineCliente(clienteId);
+          
+          print('✅ Timeline cliente $clienteId sincronizado desde servidor (${response.length} elementos)');
+        } catch (e) {
+          print('⚠️ Error cargando timeline desde servidor, intentando datos offline: $e');
+          // Si falla el servidor, usar datos offline
+          response = await CuentasPorCobrarOfflineService.obtenerTimelineClienteLocal(clienteId);
+          
+          // Si no hay datos offline, intentar cargar datos generales del cliente
+          if (response.isEmpty) {
+            print('📄 No hay timeline offline, buscando en resumen general...');
+            response = await _buscarMovimientosClienteEnResumenGeneral(clienteId);
+          }
+        }
+      } else {
+        // Sin conexión, cargar datos offline
+        print('📱 Sin conexión, cargando timeline offline para cliente $clienteId');
+        response = await CuentasPorCobrarOfflineService.obtenerTimelineClienteLocal(clienteId);
+        
+        // Si no hay timeline específico offline, buscar en datos generales
+        if (response.isEmpty) {
+          print('📄 No hay timeline offline, buscando en datos generales offline...');
+          response = await _buscarMovimientosClienteEnResumenGeneral(clienteId);
+        }
+      }
       final List<CuentasXCobrar> movimientos = response
           .map((item) {
             try {
               return CuentasXCobrar.fromJson(item);
             } catch (e) {
               print('❌ Error parseando movimiento: $e');
+              print('   Datos del item: $item');
               return null;
             }
           })
@@ -69,6 +115,21 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
         return fechaB.compareTo(fechaA);
       });
 
+      print('📊 Timeline cliente $clienteId: ${movimientos.length} movimientos procesados exitosamente');
+      
+      // Log adicional para debug
+      if (movimientos.isNotEmpty) {
+        print('   📋 Tipos de movimientos encontrados:');
+        final tiposMovimientos = <String, int>{};
+        for (final mov in movimientos) {
+          final tipo = mov.tipo ?? (mov.referencia?.contains('F') == true ? 'FACTURA' : 'OTRO');
+          tiposMovimientos[tipo] = (tiposMovimientos[tipo] ?? 0) + 1;
+        }
+        tiposMovimientos.forEach((tipo, cantidad) {
+          print('      - $tipo: $cantidad');
+        });
+      }
+
       if (mounted) {
         setState(() {
           _timelineMovimientos = movimientos;
@@ -82,6 +143,61 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Busca movimientos de un cliente específico en los datos generales de cuentas por cobrar
+  Future<List<dynamic>> _buscarMovimientosClienteEnResumenGeneral(int clienteId) async {
+    try {
+      // Intentar obtener datos del resumen general de clientes
+      final resumenClientes = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      final cuentasGenerales = await CuentasPorCobrarOfflineService.obtenerCuentasPorCobrarLocal();
+      
+      // Filtrar movimientos del cliente específico
+      final movimientosCliente = <dynamic>[];
+      
+      // Buscar en resumen de clientes
+      for (final item in resumenClientes) {
+        try {
+          final cuenta = CuentasXCobrar.fromJson(item);
+          if (cuenta.clie_Id == clienteId) {
+            movimientosCliente.add(item);
+          }
+        } catch (e) {
+          print('Error parseando item del resumen: $e');
+        }
+      }
+      
+      // Buscar en cuentas generales
+      for (final item in cuentasGenerales) {
+        try {
+          final cuenta = CuentasXCobrar.fromJson(item);
+          if (cuenta.clie_Id == clienteId) {
+            // Evitar duplicados
+            bool yaExiste = movimientosCliente.any((existente) {
+              try {
+                final cuentaExistente = CuentasXCobrar.fromJson(existente);
+                return cuentaExistente.cpCo_Id == cuenta.cpCo_Id;
+              } catch (_) {
+                return false;
+              }
+            });
+            
+            if (!yaExiste) {
+              movimientosCliente.add(item);
+            }
+          }
+        } catch (e) {
+          print('Error parseando item de cuentas generales: $e');
+        }
+      }
+      
+      print('🔍 Encontrados ${movimientosCliente.length} movimientos para cliente $clienteId en datos generales');
+      return movimientosCliente;
+      
+    } catch (e) {
+      print('Error buscando movimientos en datos generales: $e');
+      return [];
     }
   }
 
@@ -104,7 +220,13 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
       body: AppBackground(
         title: 'Timeline Cliente',
         icon: Icons.timeline,
-        onRefresh: _loadTimelineCliente,
+        onRefresh: () async {
+          // Sincronizar datos específicos del cliente antes de recargar
+          if (widget.cuentaResumen.clie_Id != null) {
+            await CuentasPorCobrarOfflineService.precargarDatosCliente(widget.cuentaResumen.clie_Id!);
+          }
+          await _loadTimelineCliente();
+        },
         child: _buildContent(),
       ),
     );
@@ -177,6 +299,27 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
           Text('No hay registros para este cliente', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey, fontFamily: 'Satoshi')),
           const SizedBox(height: 8),
           Text('El cliente no tiene movimientos registrados', style: TextStyle(color: Colors.grey, fontFamily: 'Satoshi')),
+          const SizedBox(height: 16),
+          // Agregar botón para intentar recargar
+          ElevatedButton.icon(
+            onPressed: () async {
+              // Intentar sincronizar datos específicos del cliente
+              if (widget.cuentaResumen.clie_Id != null) {
+                try {
+                  await CuentasPorCobrarOfflineService.precargarDatosCliente(widget.cuentaResumen.clie_Id!);
+                  await _loadTimelineCliente();
+                } catch (e) {
+                  print('Error en recarga manual: $e');
+                }
+              }
+            },
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            label: const Text('Intentar recargar', style: TextStyle(color: Colors.white, fontFamily: 'Satoshi')),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1E3A8A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ],
       ),
     );
@@ -510,9 +653,19 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
       ),
     );
     
-    // Si el pago fue exitoso, recargar el timeline
-    if (result == true) {
+    // Si el pago fue exitoso, recargar el timeline y notificar a la pantalla anterior
+    if (result != null && result['pagoRegistrado'] == true) {
+      print('✅ Pago registrado, recargando timeline...');
       _loadTimelineCliente();
+      
+      // Notificar a la pantalla anterior que hubo cambios
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.of(context).pop({'pagoRegistrado': true});
+          }
+        });
+      }
     }
   }
 

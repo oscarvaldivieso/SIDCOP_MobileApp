@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
-import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 //import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 
 
@@ -15,7 +16,6 @@ class CxCScreen extends StatefulWidget {
 }
 
 class _CxCScreenState extends State<CxCScreen> {
-  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   List<CuentasXCobrar> _cuentasPorCobrar = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -24,6 +24,57 @@ class _CxCScreenState extends State<CxCScreen> {
   void initState() {
     super.initState();
     _loadCuentasPorCobrar();
+    // Sincronizar pagos pendientes en background
+    _sincronizarPagosPendientesEnBackground();
+    // Realizar sincronización inicial completa en background
+    _sincronizacionInicialCompleta();
+  }
+
+  /// Sincroniza pagos pendientes en background sin bloquear la UI
+  Future<void> _sincronizarPagosPendientesEnBackground() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+      
+      if (isConnected) {
+        final sincronizados = await CuentasPorCobrarOfflineService.sincronizarPagosPendientes();
+        if (sincronizados > 0) {
+          print('✅ $sincronizados pagos sincronizados automáticamente');
+          // Recargar datos después de sincronizar
+          _loadCuentasPorCobrar();
+        }
+      }
+    } catch (e) {
+      print('Error en sincronización automática de pagos: $e');
+    }
+  }
+
+  /// Realiza una sincronización completa inicial si hay conectividad
+  Future<void> _sincronizacionInicialCompleta() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+      
+      if (isConnected) {
+        print('🔄 Realizando sincronización inicial completa...');
+        // Ejecutar sincronización completa en paralelo sin bloquear la UI
+        CuentasPorCobrarOfflineService.sincronizacionCompleta().then((resultado) {
+          print('✅ Sincronización inicial completa:');
+          print('   - Éxito: ${resultado['exito']}');
+          print('   - Datos sincronizados: ${resultado['sincronizacionDatos']}');
+          print('   - Pagos sincronizados: ${resultado['pagosSincronizados']}');
+          if ((resultado['errores'] as List?)?.isNotEmpty == true) {
+            print('   - Errores: ${resultado['errores']}');
+          }
+        }).catchError((error) {
+          print('⚠️ Error en sincronización inicial completa: $error');
+        });
+      } else {
+        print('📱 Sin conexión, omitiendo sincronización inicial');
+      }
+    } catch (e) {
+      print('Error en sincronización inicial: $e');
+    }
   }
 
   Future<void> _loadCuentasPorCobrar() async {
@@ -33,8 +84,43 @@ class _CxCScreenState extends State<CxCScreen> {
         _errorMessage = null;
       });
 
-      // Usar el nuevo endpoint de resumen por cliente
-      final response = await _cuentasService.getResumenCliente();
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+
+      List<dynamic> response;
+      
+      if (isConnected) {
+        try {
+          // Sincronizar todos los datos de Cuentas por Cobrar de manera completa
+          print('🔄 Iniciando sincronización completa de Cuentas por Cobrar...');
+          final resultadosSincronizacion = await CuentasPorCobrarOfflineService.sincronizarTodo();
+          
+          // Usar los datos del resumen de clientes de la sincronización
+          response = resultadosSincronizacion['resumenClientes'] ?? [];
+          
+          print('✅ Sincronización completa exitosa:');
+          print('   - Cuentas por cobrar: ${(resultadosSincronizacion['cuentasPorCobrar'] as List?)?.length ?? 0}');
+          print('   - Formas de pago: ${(resultadosSincronizacion['formasPago'] as List?)?.length ?? 0}');
+          print('   - Resumen de clientes: ${response.length}');
+          
+        } catch (e) {
+          print('⚠️ Error en sincronización completa, intentando datos offline: $e');
+          // Si falla la sincronización, usar datos offline
+          response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+        }
+      } else {
+        // Sin conexión, cargar datos offline
+        print('📱 Sin conexión, cargando datos offline');
+        response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+        
+        if (response.isEmpty) {
+          print('⚠️ No hay datos offline disponibles');
+        } else {
+          print('✅ Cargados ${response.length} registros desde cache offline');
+        }
+      }
+
       final List<CuentasXCobrar> cuentas = response
           .map((item) {
             try {
@@ -55,6 +141,7 @@ class _CxCScreenState extends State<CxCScreen> {
         });
       }
     } catch (e) {
+      print('❌ Error general en _loadCuentasPorCobrar: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Error al cargar datos: ${e.toString()}';
@@ -358,9 +445,9 @@ class _CxCScreenState extends State<CxCScreen> {
     );
   }
 
-  void _navigateToDetail(CuentasXCobrar cuenta) {
+  void _navigateToDetail(CuentasXCobrar cuenta) async {
     if (cuenta.cpCo_Id != null) {
-      Navigator.push(
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => CuentasPorCobrarDetailsScreen(
@@ -369,6 +456,12 @@ class _CxCScreenState extends State<CxCScreen> {
           ),
         ),
       );
+      
+      // Si hubo cambios (como pagos), recargar los datos
+      if (result != null && result['pagoRegistrado'] == true) {
+        print('✅ Cambios detectados, recargando cuentas por cobrar...');
+        _loadCuentasPorCobrar();
+      }
     }
   }
 

@@ -5,7 +5,9 @@ import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 import 'package:sidcop_mobile/models/ventas/PagosCXCViewModel.dart';
 import 'package:sidcop_mobile/models/FormasDePagoViewModel.dart';
 import 'package:sidcop_mobile/services/PagosCxCService.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class PagoCuentaPorCobrarScreen extends StatefulWidget {
   final CuentasXCobrar cuentaResumen;
@@ -43,6 +45,25 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
     _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
     // Cargar formas de pago
     _loadFormasPago();
+    // Intentar sincronizar pagos pendientes en background
+    _sincronizarPagosPendientesEnBackground();
+  }
+
+  /// Sincroniza pagos pendientes en background sin bloquear la UI
+  Future<void> _sincronizarPagosPendientesEnBackground() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+      
+      if (isConnected) {
+        final sincronizados = await CuentasPorCobrarOfflineService.sincronizarPagosPendientes();
+        if (sincronizados > 0) {
+          print('✅ $sincronizados pagos sincronizados automáticamente');
+        }
+      }
+    } catch (e) {
+      print('Error en sincronización automática de pagos: $e');
+    }
   }
 
   Future<void> _loadFormasPago() async {
@@ -51,7 +72,31 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
         _isLoadingFormasPago = true;
       });
 
-      final formas = await _pagoService.getFormasPago();
+      // Verificar conectividad
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+
+      List<FormaPago> formas;
+
+      if (isConnected) {
+        try {
+          // Intentar cargar desde el servidor y sincronizar
+          formas = await _pagoService.getFormasPago();
+          
+          // Guardar en cache offline para uso posterior
+          await CuentasPorCobrarOfflineService.sincronizarFormasPago();
+          
+          print('✅ Formas de pago sincronizadas desde servidor');
+        } catch (e) {
+          print('⚠️ Error cargando formas de pago desde servidor, intentando datos offline: $e');
+          // Si falla el servidor, usar datos offline
+          formas = await CuentasPorCobrarOfflineService.obtenerFormasPagoLocal();
+        }
+      } else {
+        // Sin conexión, cargar datos offline
+        print('📱 Sin conexión, cargando formas de pago offline');
+        formas = await CuentasPorCobrarOfflineService.obtenerFormasPagoLocal();
+      }
       
       if (mounted) {
         setState(() {
@@ -64,6 +109,7 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
         });
       }
     } catch (e) {
+      print('❌ Error general en _loadFormasPago: $e');
       if (mounted) {
         setState(() {
           _isLoadingFormasPago = false;
@@ -191,13 +237,33 @@ Future<void> _registrarPago() async {
 
     
 
-    // Enviar al servicio
-    final resultado = await _pagoService.insertarPago(pago);
+    // Verificar conectividad para decidir si enviar inmediatamente o guardar offline
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final isConnected = connectivityResult != ConnectivityResult.none;
 
-    if (resultado['success']) {
-      _showSuccessDialog();
+    if (isConnected) {
+      try {
+        // Intentar enviar al servicio inmediatamente
+        final resultado = await _pagoService.insertarPago(pago);
+
+        if (resultado['success']) {
+          _showSuccessDialog();
+        } else {
+          // Si falla el envío, guardar offline
+          await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
+          _showSuccessDialog();
+        }
+      } catch (e) {
+        // Error de conexión durante el envío, guardar offline
+        print('⚠️ Error enviando pago, guardando offline: $e');
+        await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
+        _showSuccessDialog();
+      }
     } else {
-      _showErrorDialog(resultado['message'] ?? 'Error desconocido al registrar el pago');
+      // Sin conexión, guardar offline directamente
+      print('📱 Sin conexión, guardando pago offline');
+      await CuentasPorCobrarOfflineService.guardarPagoPendiente(pago);
+      _showSuccessDialog();
     }
   } catch (e) {
     _showErrorDialog('Error de conexión: ${e.toString()}');
@@ -229,7 +295,7 @@ Future<void> _registrarPago() async {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // Cerrar diálogo
-              Navigator.of(context).pop(true); // Regresar a la pantalla anterior con resultado
+              Navigator.of(context).pop({'pagoRegistrado': true, 'recargarDatos': true}); // Regresar con señal de recarga
             },
             child: const Text('Aceptar', style: TextStyle(color: Color(0xFF1E3A8A), fontFamily: 'Satoshi')),
           ),
