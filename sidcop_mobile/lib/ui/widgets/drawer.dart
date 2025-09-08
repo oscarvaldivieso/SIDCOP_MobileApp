@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sidcop_mobile/ui/screens/goals_screen.dart';
 import 'package:sidcop_mobile/ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/ui/screens/recharges/recharges_screen.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.Dart';
@@ -78,7 +79,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
       // Obtener usuaIdPersona desde los datos guardados
       final userData = await _perfilUsuarioService.obtenerDatosUsuario();
       print("userData drawer para inve: $userData");
-      final usuaIdPersona = userData?['usua_IdPersona'] as int?;
+      // Priorizar personaId del endpoint sobre usua_IdPersona
+      final usuaIdPersona = (userData?['personaId'] as int?) ?? (userData?['usua_IdPersona'] as int?);
       final imagenVendedor = userData?['imagen'] as String?;
       final usuaCreacion = userData?['usua_Id'] as int?;
 
@@ -186,10 +188,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
-                        // Limpiar credenciales guardadas de "Remember me"
+                        // Solo desactivamos el "Remember me" sin borrar las credenciales
                         await LoginScreen.clearSavedCredentials();
-                        // Limpiar credenciales offline
-                        await OfflineAuthService.clearOfflineCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
@@ -279,7 +279,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
             ),
             onTap: () {
-              // Navegar a MMetas
+              // Navegar a Metas
+                Navigator.pop(context);
+                if (_usuaIdPersona != null) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          GoalsScreen(usuaIdPersona: _usuaIdPersona!),
+                    ),
+                    (route) => false,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo obtener el id del vendedor para Metas.',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
             },
           ),
           if (tienePermiso(57)) // MVentas

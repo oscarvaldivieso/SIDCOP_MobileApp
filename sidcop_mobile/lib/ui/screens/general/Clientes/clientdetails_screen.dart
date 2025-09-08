@@ -1,4 +1,3 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
@@ -8,6 +7,8 @@ import 'package:sidcop_mobile/ui/screens/general/Clientes/client_location_screen
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
@@ -47,14 +48,24 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
 
   Future<void> _loadCliente() async {
     try {
-      final cliente = await _clientesService.getClienteById(widget.clienteId);
+      final hasConnection = await SyncService.hasInternetConnection();
+      Map<String, dynamic>? cliente;
+
+      if (hasConnection) {
+        cliente = await _clientesService.getClienteById(widget.clienteId);
+        // Guardar cliente en almacenamiento local
+        await ClientesOfflineService.guardarDetalleCliente(cliente);
+      } else {
+        // Cargar cliente desde almacenamiento local
+        cliente = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId);
+      }
+
       setState(() {
         _cliente = cliente;
-      });
-      await _loadDireccionesCliente();
-      setState(() {
         _isLoading = false;
       });
+
+      await _loadDireccionesCliente();
     } catch (e) {
       setState(() {
         _errorMessage = 'Error al cargar los datos del cliente';
@@ -67,7 +78,18 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     if (!mounted) return;
 
     try {
-      final direcciones = await _clientesService.getDireccionesPorCliente();
+      final hasConnection = await SyncService.hasInternetConnection();
+      List<dynamic> direcciones;
+
+      if (hasConnection) {
+        direcciones = await _clientesService.getDireccionesPorCliente();
+        // Guardar direcciones en almacenamiento local
+        await ClientesOfflineService.guardarJson('direcciones.json', direcciones);
+      } else {
+        // Cargar direcciones desde almacenamiento local
+        final raw = await ClientesOfflineService.leerJson('direcciones.json');
+        direcciones = raw != null ? List<dynamic>.from(raw) : [];
+      }
 
       final direccionesFiltradas = direcciones.where((dir) {
         final clienteId = dir['clie_Id'];
@@ -428,11 +450,10 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   }
 
   Widget _buildDefaultAvatar() {
-    return Container(
-      color: Colors.grey[200],
-      child: const Center(
-        child: Icon(Icons.person, size: 80, color: Colors.grey),
-      ),
+    return const Icon(
+      Icons.person,
+      size: 50,
+      color: Colors.grey,
     );
   }
 }

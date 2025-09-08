@@ -157,7 +157,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
     try {
       final servicio = ClientesVisitaHistorialService();
       // Usar el endpoint general y filtrar localmente por vendedor global
-      final historial = await servicio.listar();
+      final historial = await servicio.listarPorVendedor();
       // Filtrar historial por los clientes que pertenecen a la ruta
       // y por el vendedor actual (globalVendId)
       final visitasFiltradasModel = historial
@@ -585,9 +585,15 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                           children: [
                                             Expanded(
                                               child: OutlinedButton.icon(
-                                                icon: const Icon(Icons.map),
+                                                icon: const Icon(
+                                                  Icons.map,
+                                                  color: _gold,
+                                                ),
                                                 label: const Text(
                                                   'Google Maps',
+                                                  style: TextStyle(
+                                                    color: _gold,
+                                                  ),
                                                 ),
                                                 onPressed: () {
                                                   Navigator.of(context).pop();
@@ -625,8 +631,14 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
                                               child: OutlinedButton.icon(
                                                 icon: const Icon(
                                                   Icons.navigation,
+                                                  color: _gold,
                                                 ),
-                                                label: const Text('Waze'),
+                                                label: const Text(
+                                                  'Waze',
+                                                  style: TextStyle(
+                                                    color: _gold,
+                                                  ),
+                                                ),
                                                 onPressed: () {
                                                   Navigator.of(context).pop();
                                                   DireccionCliente? direccion;

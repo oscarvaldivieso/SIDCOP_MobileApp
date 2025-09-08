@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
+import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_details.dart';
+import 'dart:developer' as developer;
 import 'dart:convert';
+import 'dart:math';
 
 class VendedorVisitasScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -16,14 +19,15 @@ class VendedorVisitasScreen extends StatefulWidget {
 }
 
 class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
-  final ClientesVisitaHistorialService _service = ClientesVisitaHistorialService();
+  final ClientesVisitaHistorialService _service =
+      ClientesVisitaHistorialService();
   List<VisitasViewModel> _visitas = [];
   List<VisitasViewModel> _filteredVisitas = [];
   bool _isLoading = true;
   bool _isLoadingEstados = false;
   String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
-  
+
   // Estados para el filtro
   List<Map<String, dynamic>> _estadosVisita = [];
   Set<String> _selectedStatuses = {};
@@ -55,6 +59,46 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       await VisitasOffline.sincronizarDirecciones();
     } catch (_) {}
 
+    // Verificar cuántas visitas pendientes hay al iniciar la pantalla
+    try {
+      final pendientes = await VisitasOffline.obtenerVisitasPendientesLocal();
+
+      print(
+        '\n===== VISITAS PENDIENTES AL INICIAR: ${pendientes.length} =====',
+      );
+      if (pendientes.isNotEmpty) {
+        // Mostrar información detallada de cada visita pendiente
+        for (int i = 0; i < pendientes.length; i++) {
+          print('\n----- VISITA PENDIENTE #${i + 1} -----');
+          try {
+            print('Cliente ID: ${pendientes[i]['clie_Id']}');
+            print('Dirección ID: ${pendientes[i]['diCl_Id']}');
+            print('Estado Visita ID: ${pendientes[i]['esVi_Id']}');
+            print('Usuario Creación: ${pendientes[i]['usua_Creacion']}');
+            print('Fecha: ${pendientes[i]['clVi_Fecha']}');
+            print('Firma: ${pendientes[i]['local_signature'] ?? 'sin firma'}');
+
+            // Si hay origen, mostrarlo (para las visitas de maps)
+            if (pendientes[i]['origen'] != null) {
+              print('Origen: ${pendientes[i]['origen']}');
+            }
+
+            // Mostrar estructura completa para la primera visita
+            if (i == 0) {
+              print(
+                '\nEstructura JSON completa de la primera visita pendiente:',
+              );
+              print(const JsonEncoder.withIndent('  ').convert(pendientes[i]));
+            }
+          } catch (e) {
+            print('Error al mostrar detalles de visita pendiente: $e');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error al verificar visitas pendientes: $e');
+    }
+
     // Intentar enviar visitas pendientes guardadas en modo offline.
     try {
       final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
@@ -73,6 +117,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       // No interrumpir la carga si falla la sincronización de pendientes
     }
 
+    // Iniciar sincronización de imágenes en segundo plano
+    _sincronizarImagenesEnSegundoPlano();
+
     try {
       final visitas = await _service.listarPorVendedor();
 
@@ -80,18 +127,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       try {
         final visitasJson = visitas.map((v) => v.toJson()).toList();
 
-        // Fusionar con visitas locales pendientes (offline == true) para no
-        // sobrescribir visitas guardadas en modo offline cuando la API
-        // devuelva una lista vacía o parcial.
+        // Fusionar con visitas pendientes para no sobrescribir visitas guardadas
+        // en modo offline cuando la API devuelva una lista vacía o parcial.
         try {
-          final localRaw = await VisitasOffline.obtenerVisitasHistorialLocal();
-          final pendientes = localRaw.where((e) {
-            try {
-              return e is Map && (e['offline'] == true);
-            } catch (_) {
-              return false;
-            }
-          }).toList();
+          final pendientes =
+              await VisitasOffline.obtenerVisitasPendientesLocal();
 
           if (pendientes.isNotEmpty) {
             // Evitar duplicados simples: si la entrada pendiente tiene
@@ -121,7 +161,21 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
           }
         } catch (_) {}
 
+        // Guardar las visitas en el historial
         await VisitasOffline.guardarVisitasHistorial(visitasJson);
+
+        // Verificamos las visitas pendientes para no perderlas
+        try {
+          final pendientes =
+              await VisitasOffline.obtenerVisitasPendientesLocal();
+          if (pendientes.isNotEmpty) {
+            print(
+              'Preservando ${pendientes.length} visitas pendientes durante guardado de historial',
+            );
+          }
+        } catch (e) {
+          print('Error al verificar visitas pendientes: $e');
+        }
       } catch (_) {
         // Si falla el guardado local, no interrumpir la carga en pantalla
       }
@@ -134,14 +188,49 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     } catch (e) {
       // Si hay error al obtener remoto, intentar cargar la copia local
       try {
-        final raw = await VisitasOffline.obtenerVisitasHistorialLocal();
+        // Combinar datos históricos y pendientes
+        final raw = await VisitasOffline.obtenerTodasLasVisitas();
         if (raw.isNotEmpty) {
+          // Obtener la fecha actual para filtrar solo visitas de hoy
+          final now = DateTime.now();
+          final hoy = DateTime(now.year, now.month, now.day);
+
           final localVisitas = raw
               .map((m) => VisitasViewModel.fromJson(m as Map<String, dynamic>))
               .toList();
+
+          // Filtrar solo las visitas de hoy (mismo filtro que en modo online)
+          final visitasHoy = localVisitas.where((visita) {
+            try {
+              if (visita.clVi_Fecha == null) return false;
+
+              final fechaVisitaSinHora = DateTime(
+                visita.clVi_Fecha!.year,
+                visita.clVi_Fecha!.month,
+                visita.clVi_Fecha!.day,
+              );
+
+              return fechaVisitaSinHora.isAtSameMomentAs(hoy);
+            } catch (e) {
+              print('Error al procesar fecha de visita offline: $e');
+              return false;
+            }
+          }).toList();
+
+          // Ordenar por fecha de creación (más reciente primero)
+          visitasHoy.sort((a, b) {
+            try {
+              final fechaA = a.clVi_FechaCreacion ?? DateTime(1900);
+              final fechaB = b.clVi_FechaCreacion ?? DateTime(1900);
+              return fechaB.compareTo(fechaA); // Orden descendente
+            } catch (e) {
+              return 0;
+            }
+          });
+
           setState(() {
-            _visitas = localVisitas;
-            _filteredVisitas = List.from(localVisitas);
+            _visitas = visitasHoy;
+            _filteredVisitas = List.from(visitasHoy);
             _isLoading = false;
             _errorMessage = '';
           });
@@ -158,20 +247,41 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
   Future<void> _loadEstadosVisita() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoadingEstados = true;
     });
 
     try {
-      final estados = await _service.obtenerEstadosVisita();
+      // Primero intentar cargar estados desde el almacenamiento local
+      List<Map<String, dynamic>> estados = [];
+
+      try {
+        // Intentar sincronizar estados desde el servidor
+        estados = await VisitasOffline.sincronizarEstadosVisita();
+        developer.log('✅ Estados de visita sincronizados correctamente');
+      } catch (syncError) {
+        developer.log(
+          '⚠️ Error sincronizando estados: $syncError. Intentando usar caché local...',
+        );
+
+        // Si falla la sincronización, intentar obtener del almacenamiento local
+        try {
+          estados = await VisitasOffline.obtenerEstadosVisitaLocal();
+        } catch (localError) {
+          developer.log('❌ Error obteniendo estados locales: $localError');
+          throw localError; // Propagar el error para usar valores por defecto
+        }
+      }
+
       if (!mounted) return;
-      
+
       setState(() {
         _estadosVisita = estados;
       });
     } catch (e) {
-      // Si falla, usar estados por defecto
+      // Si fallan todos los intentos, usar estados por defecto
+      developer.log('❌ Usando estados por defecto debido a: $e');
       _estadosVisita = [
         {'esVi_Id': 1, 'esVi_Descripcion': 'Pendiente'},
         {'esVi_Id': 2, 'esVi_Descripcion': 'Venta realizada'},
@@ -184,6 +294,39 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         });
       }
     }
+  }
+
+  /// Método para sincronizar imágenes de todas las visitas en segundo plano
+  /// Esta función no bloquea la interfaz de usuario y muestra una notificación al finalizar
+  Future<void> _sincronizarImagenesEnSegundoPlano() async {
+    // Iniciar la sincronización en una tarea separada para no bloquear la UI
+    Future.microtask(() async {
+      try {
+        developer.log(
+          '🔄 Iniciando sincronización de imágenes en segundo plano',
+        );
+
+        // Usar el servicio de sincronización para descargar todas las imágenes
+        final resultado =
+            await SincronizacionService.sincronizarImagenesVisitas();
+
+        // Solo registrar en log, no mostrar notificación al usuario
+        if (resultado['imagenesDescargadas'] > 0) {
+          developer.log(
+            '✅ Sincronización de imágenes completada: ${resultado['imagenesDescargadas']} imágenes de ${resultado['visitasConImagenes']} visitas descargadas',
+          );
+        } else {
+          developer.log(
+            'ℹ️ Sincronización de imágenes completada: no hay nuevas imágenes para descargar',
+          );
+        }
+      } catch (e) {
+        developer.log(
+          '❌ Error en sincronización de imágenes en segundo plano: $e',
+        );
+        // No mostrar error al usuario para no interrumpir su experiencia
+      }
+    });
   }
 
   String normalizeAndClean(String str) {
@@ -218,20 +361,28 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
 
     setState(() {
       _filteredVisitas = _visitas.where((visita) {
-        final clienteNombre = normalizeAndClean('${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}');
+        final clienteNombre = normalizeAndClean(
+          '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}',
+        );
         final negocio = normalizeAndClean(visita.clie_NombreNegocio ?? '');
-        final observaciones = normalizeAndClean(visita.clVi_Observaciones ?? '');
+        final observaciones = normalizeAndClean(
+          visita.clVi_Observaciones ?? '',
+        );
         final estado = normalizeAndClean(visita.esVi_Descripcion ?? '');
-        
-        final matchesSearch = searchTerm.isEmpty ||
+
+        final matchesSearch =
+            searchTerm.isEmpty ||
             clienteNombre.contains(searchTerm) ||
             negocio.contains(searchTerm) ||
             observaciones.contains(searchTerm) ||
             estado.contains(searchTerm);
-        
-        final matchesStatus = _selectedStatuses.isEmpty || 
-            _selectedStatuses.any((status) => normalizeAndClean(status) == estado);
-        
+
+        final matchesStatus =
+            _selectedStatuses.isEmpty ||
+            _selectedStatuses.any(
+              (status) => normalizeAndClean(status) == estado,
+            );
+
         return matchesSearch && matchesStatus;
       }).toList();
     });
@@ -335,9 +486,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         _buildSearchBar(),
         const SizedBox(height: 12),
         _buildFilterAndCount(),
-        const SizedBox(height: 16),
-        
-        // Visitas List
+        const SizedBox(height: 16), // Visitas List
         _filteredVisitas.isEmpty
             ? _buildEmptyWidget()
             : ListView.builder(
@@ -492,11 +641,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: Colors.white,
-              ),
+              Icon(icon, size: 20, color: Colors.white),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -516,16 +661,16 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             runSpacing: 4,
             children: items.map((item) {
               final description = item['esVi_Descripcion'] as String;
-              final isSelected = selectedValues.contains(description.toLowerCase());
+              final isSelected = selectedValues.contains(
+                description.toLowerCase(),
+              );
 
               return ChoiceChip(
                 label: Text(
                   description,
                   style: TextStyle(
                     fontFamily: 'Satoshi',
-                    color: isSelected
-                        ? const Color(0xFF141A2F)
-                        : Colors.white,
+                    color: isSelected ? const Color(0xFF141A2F) : Colors.white,
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     letterSpacing: -0.1,
@@ -537,9 +682,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected
-                        ? Colors.white
-                        : const Color(0xFFD6B68A),
+                    color: isSelected ? Colors.white : const Color(0xFFD6B68A),
                   ),
                 ),
                 onSelected: (selected) {
@@ -677,17 +820,23 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                         _applyFilters();
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF141A2F),
+                                        backgroundColor: const Color(
+                                          0xFF141A2F,
+                                        ),
                                         side: const BorderSide(
                                           color: Color(0xFFD6B68A),
                                         ),
                                         elevation: 0,
-                                        foregroundColor: const Color(0xFFD6B68A),
+                                        foregroundColor: const Color(
+                                          0xFFD6B68A,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 16,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                         ),
                                       ),
                                       child: const Text(
@@ -700,7 +849,11 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                                     ),
                                   ),
                                   SizedBox(
-                                    height: MediaQuery.of(context).viewInsets.bottom + 16,
+                                    height:
+                                        MediaQuery.of(
+                                          context,
+                                        ).viewInsets.bottom +
+                                        16,
                                   ),
                                 ],
                               ),
@@ -720,6 +873,9 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   }
 
   Widget _buildVisitaCard(VisitasViewModel visita) {
+    // Verificar si es una visita offline (aún no insertada)
+    final bool esVisitaOffline = visita.clVi_Id == null || visita.clVi_Id == 0;
+
     final clienteNombre =
         '${visita.clie_Nombres ?? ''} ${visita.clie_Apellidos ?? ''}'.trim();
     final negocio = visita.clie_NombreNegocio ?? 'Negocio no disponible';
@@ -728,9 +884,14 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     final fecha =
         visita.clVi_Fecha?.toLocal().toString().split(' ')[0] ??
         'Fecha no disponible';
-    final vendedor =
-        '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
-    final ruta = visita.ruta_Descripcion ?? 'Ruta no disponible';
+
+    // Para visitas offline, no mostrar vendedor ni ruta
+    final vendedor = esVisitaOffline
+        ? 'No disponible - Visita pendiente'
+        : '${visita.vend_Nombres ?? ''} ${visita.vend_Apellidos ?? ''}'.trim();
+    final ruta = esVisitaOffline
+        ? 'No disponible - Visita pendiente'
+        : visita.ruta_Descripcion ?? 'Ruta no disponible';
 
     // COLORES Y ETIQUETA DE ESTADO
     Color primaryColor;
@@ -823,14 +984,31 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            clienteNombre,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                              fontFamily: 'Satoshi',
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                clienteNombre,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              // Indicador si es visita offline
+                              if (esVisitaOffline)
+                                Text(
+                                  'Sincronización pendiente',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    fontFamily: 'Satoshi',
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
@@ -846,10 +1024,13 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                   children: [
                     _infoRow(Icons.storefront_rounded, 'Negocio', negocio),
                     const SizedBox(height: 16),
-                    _infoRow(Icons.person_rounded, 'Vendedor', vendedor),
-                    const SizedBox(height: 16),
-                    _infoRow(Icons.route, 'Ruta', ruta),
-                    const SizedBox(height: 16),
+                    // Mostrar vendedor y ruta solo si no es una visita offline
+                    if (!esVisitaOffline) ...[
+                      _infoRow(Icons.person_rounded, 'Vendedor', vendedor),
+                      const SizedBox(height: 16),
+                      _infoRow(Icons.route, 'Ruta', ruta),
+                      const SizedBox(height: 16),
+                    ],
                     _infoRow(
                       Icons.notes_rounded,
                       'Observaciones',
@@ -859,41 +1040,42 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
                     _infoRow(Icons.calendar_today_rounded, 'Fecha', fecha),
                     const SizedBox(height: 16),
 
-                    // Botón para ver imágenes
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => VisitaDetailsScreen(
-                                visitaId: visita.clVi_Id ?? 0,
-                                clienteNombre: clienteNombre,
+                    // Botón para ver imágenes - solo si no es una visita offline
+                    if (!esVisitaOffline)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VisitaDetailsScreen(
+                                  visitaId: visita.clVi_Id ?? 0,
+                                  clienteNombre: clienteNombre,
+                                ),
                               ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor.withOpacity(0.1),
+                            foregroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(color: primaryColor),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor.withOpacity(0.1),
-                          foregroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: primaryColor),
+                            elevation: 0,
                           ),
-                          elevation: 0,
-                        ),
-                        icon: const Icon(Icons.photo_library, size: 20),
-                        label: const Text(
-                          'Ver Imágenes',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontWeight: FontWeight.w600,
+                          icon: const Icon(Icons.photo_library, size: 20),
+                          label: const Text(
+                            'Ver Imágenes',
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),

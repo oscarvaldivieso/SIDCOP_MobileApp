@@ -4,6 +4,11 @@ import 'package:intl/intl.dart' as intl;
 import 'package:sidcop_mobile/models/DevolucionesViewModel.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/services/ProductosService.Dart';
+import 'package:sidcop_mobile/services/FacturaService.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
+import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
@@ -16,16 +21,51 @@ class DevolucioneslistScreen extends StatefulWidget {
 }
 
 class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
-  final DevolucionesService _devolucionesService = DevolucionesService();
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
   List<dynamic> permisos = [];
+  bool isOnline = true; // Indicador de estado de conexión
+  bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
+
+  // Método para verificar la conexión a internet
+  Future<bool> verificarConexion() async {
+    try {
+      final tieneConexion = await VerificarService.verificarConexion();
+      setState(() {
+        isOnline = tieneConexion;
+      });
+      print('Estado de conexión: ${tieneConexion ? 'Online' : 'Offline'}');
+      return tieneConexion;
+    } catch (e) {
+      print('Error al verificar la conexión: $e');
+      setState(() {
+        isOnline = false;
+      });
+      return false;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _loadPermisos();
+    // Inicializar _devolucionesFuture inmediatamente para evitar LateInitializationError
     _devolucionesFuture = _loadDevoluciones();
+    // Luego actualizar después de verificar conexión
+    _actualizarDatosSegunConexion();
     print('DevolucioneslistScreen initialized');
+  }
+
+  // Método para actualizar los datos según la conexión
+  Future<void> _actualizarDatosSegunConexion() async {
+    // Verificar si hay conexión a internet
+    await verificarConexion();
+
+    // Solo actualizar si la pantalla sigue montada
+    if (mounted) {
+      setState(() {
+        _devolucionesFuture = _loadDevoluciones();
+      });
+    }
   }
 
   Future<void> _loadPermisos() async {
@@ -47,17 +87,305 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
   Future<List<DevolucionesViewModel>> _loadDevoluciones() async {
     try {
-      final devoluciones = await _devolucionesService.listarDevoluciones();
-      print('Successfully loaded ${devoluciones.length} devoluciones');
-      if (devoluciones.isEmpty) {
-        print('No devoluciones found in the response');
-      } else {
-        print('First devolucion: ${devoluciones.first.toJson()}');
+      // Ya no verificamos la conexión aquí, usamos el estado actual de isOnline
+      // que se actualiza mediante el método verificarConexion()
+      List<DevolucionesViewModel> devoluciones = [];
+
+      // Debug: verificar si hay devoluciones pendientes locales antes de sincronizar
+      try {
+        final pendingLocal =
+            await DevolucionesOffline.obtenerDevolucionesLocal();
+        print(
+          'DEBUG: devoluciones pendientes locales count: ${pendingLocal.length}',
+        );
+      } catch (debugErr) {
+        print('DEBUG: error leyendo devoluciones locales: $debugErr');
       }
+
+      // Sincronizar y guardar devoluciones pasando el estado de conexión actual
+      final devolucionesData =
+          await DevolucionesOffline.sincronizarYGuardarDevoluciones(
+            forzarSincronizacionDetalles:
+                isOnline, // Solo sincronizar detalles si estamos online
+            isOnline:
+                isOnline, // Pasar el estado de conexión para que el método sepa si debe obtener del servidor o localmente
+          );
+
+      // Convertir a modelos con manejo mejorado de errores
+      try {
+        devoluciones = DevolucionesOffline.convertirAModelos(devolucionesData);
+        print(
+          '${isOnline ? 'Online' : 'Offline'}: Successfully loaded ${devoluciones.length} devoluciones',
+        );
+      } catch (conversionError) {
+        print('Error al convertir devoluciones a modelos: $conversionError');
+
+        // Intentar conversión manual
+        devoluciones = [];
+        for (var devData in devolucionesData) {
+          try {
+            devoluciones.add(DevolucionesViewModel.fromJson(devData));
+          } catch (e) {
+            print('Error al convertir una devolución específica: $e');
+            print('Datos problemáticos: $devData');
+          }
+        }
+        print(
+          'Se pudieron convertir ${devoluciones.length} devoluciones después del manejo de errores',
+        );
+      }
+
+      // If online, attempt to sync pending devoluciones that were saved offline
+      if (isOnline) {
+        try {
+          final resultadoPendientes =
+              await DevolucionesOffline.sincronizarPendientesDevoluciones();
+          print(
+            'DEBUG: Resultado sincronización pendientes: $resultadoPendientes',
+          );
+        } catch (e) {
+          print('DEBUG: Error sincronizando pendientes: $e');
+        }
+      }
+
+      if (isOnline) {
+        // Si estamos online, sincronizar detalles para todas las devoluciones
+        print(
+          'Modo online: Sincronizando detalles para todas las devoluciones...',
+        );
+
+        // Obtener facturas por límite de devoluciones, filtrar por vendedor
+        // actual (GlobalService.globalVendId), deduplicar fact_Id, comprobar
+        // caché y prefetch con concurrencia limitada y tope (top-N).
+        // Ejecutar prefetch una sola vez por instancia de pantalla
+        if (!_prefetchCompleted) {
+          _prefetchCompleted = true;
+          try {
+            final facturaService = FacturaService();
+            final facturasData = await facturaService
+                .getFacturasDevolucionesLimite();
+
+            final int? vendIdActual = globalVendId; // desde GlobalService
+            final Set<int> factIdsSet = {};
+
+            for (var f in facturasData) {
+              try {
+                final dynamic vendVal = f['vend_Id'] ?? f['vendId'];
+                final int? vend = vendVal != null
+                    ? int.tryParse(vendVal.toString())
+                    : null;
+                if (vend != null &&
+                    vendIdActual != null &&
+                    vend == vendIdActual) {
+                  final dynamic fid = f['fact_Id'] ?? f['factId'];
+                  if (fid != null) {
+                    final int? factId = int.tryParse(fid.toString());
+                    if (factId != null) factIdsSet.add(factId);
+                  }
+                }
+              } catch (inner) {}
+            }
+
+            // Usar todos los IDs deduplicados retornados por el endpoint
+            final List<int> factIdsToConsider = factIdsSet.toList();
+
+            // Filtrar facturas que ya están cacheadas
+            final List<int> toFetch = [];
+            for (final id in factIdsToConsider) {
+              try {
+                final cached =
+                    await DevolucionesOffline.obtenerProductosPorFacturaLocal(
+                      id,
+                    );
+                // Si la caché está vacía, considerarla no cacheada
+                if (cached.isEmpty) {
+                  toFetch.add(id);
+                }
+              } catch (cacheErr) {
+                print('Error comprobando cache para factura $id: $cacheErr');
+                toFetch.add(id); // si falla la comprobación, intentar descargar
+              }
+            }
+
+            // Descarga con concurrencia limitada
+            final int concurrency = 5;
+            final productosService = ProductosService();
+            for (int i = 0; i < toFetch.length; i += concurrency) {
+              final batch = toFetch.sublist(
+                i,
+                (i + concurrency) > toFetch.length
+                    ? toFetch.length
+                    : (i + concurrency),
+              );
+              await Future.wait(
+                batch.map((factId) async {
+                  try {
+                    print(
+                      'Obteniendo productos para factura $factId (prefetch)',
+                    );
+                    final productosPorFactura = await productosService
+                        .getProductosPorFactura(factId);
+                    if (productosPorFactura.isNotEmpty) {
+                      await DevolucionesOffline.guardarProductosPorFactura(
+                        factId,
+                        productosPorFactura,
+                      );
+                    }
+                  } catch (err) {
+                    print('Error prefetch productos factura $factId: $err');
+                  }
+                }),
+              );
+            }
+          } catch (e) {
+            print('Error general al prefetch productos por factura: $e');
+          }
+        }
+
+        // Imprimir el estado actual del almacenamiento local de detalles
+        await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
+
+        if (devoluciones.isEmpty) {
+          print('No devoluciones found in the server response');
+        } else {
+          // Sincronizar detalles para todas las devoluciones que aún no los tienen
+          for (final devolucion in devoluciones) {
+            final tieneDetalles =
+                await DevolucionesOffline.existenDetallesParaDevolicion(
+                  devolucion.devoId,
+                );
+
+            if (!tieneDetalles) {
+              print(
+                'La devolución ID ${devolucion.devoId} no tiene detalles. Sincronizando...',
+              );
+
+              try {
+                // Intentar sincronizar los detalles para esta devolución específica
+                final service = DevolucionesService();
+                final detallesServidor = await service.getDevolucionDetalles(
+                  devolucion.devoId,
+                );
+
+                if (detallesServidor.isNotEmpty) {
+                  // Convertir a formato Map para almacenamiento
+                  final detallesMap = detallesServidor
+                      .map((d) => d.toJson())
+                      .toList();
+
+                  await DevolucionesOffline.guardarDetallesDevolucion(
+                    devolucion.devoId,
+                    detallesMap,
+                  );
+
+                  print(
+                    '✓ Sincronizados ${detallesMap.length} detalles para ID ${devolucion.devoId}',
+                  );
+                } else {
+                  print(
+                    '⚠ No se encontraron detalles en el servidor para ID ${devolucion.devoId}',
+                  );
+                }
+              } catch (detalleError) {
+                print(
+                  'Error al sincronizar detalles para ID ${devolucion.devoId}: $detalleError',
+                );
+              }
+            }
+
+            // Asegurar que los productos de la factura asociada a esta devolución
+            // estén guardados localmente (incluye descargar imágenes).
+            try {
+              final factId = devolucion.factId;
+              if (factId != null) {
+                final cachedProducts =
+                    await DevolucionesOffline.obtenerProductosPorFacturaLocal(
+                      factId,
+                    );
+                if (cachedProducts.isEmpty) {
+                  try {
+                    final productosService = ProductosService();
+                    final productosPorFactura = await productosService
+                        .getProductosPorFactura(factId);
+                    if (productosPorFactura.isNotEmpty) {
+                      await DevolucionesOffline.guardarProductosPorFactura(
+                        factId,
+                        productosPorFactura,
+                      );
+                      print(
+                        'Productos (y sus imágenes) guardados para factura $factId desde la lista de devoluciones',
+                      );
+                    }
+                  } catch (prodErr) {
+                    print(
+                      'Error obteniendo productos para factura $factId: $prodErr',
+                    );
+                  }
+                }
+              }
+            } catch (ensureErr) {
+              print(
+                'Error asegurando productos para devolucion ${devolucion.devoId}: $ensureErr',
+              );
+            }
+          }
+
+          // Verificar el estado final del almacenamiento
+          await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
+        }
+      } else {
+        print('Modo offline: Usando datos almacenados localmente');
+
+        // Imprimir los detalles disponibles en modo offline para diagnóstico
+        await DevolucionesOffline.imprimirDetallesDevolucionesGuardados();
+
+        if (devoluciones.isEmpty) {
+          print('⚠ No se encontraron devoluciones en el almacenamiento local');
+
+          // Intentar cargar directamente desde el almacenamiento como último recurso
+          try {
+            print(
+              'Intentando cargar devoluciones directamente del almacenamiento...',
+            );
+            final devolucionesDirectas =
+                await DevolucionesOffline.obtenerDevolucionesLocal();
+            if (devolucionesDirectas.isNotEmpty) {
+              devoluciones = DevolucionesOffline.convertirAModelos(
+                devolucionesDirectas,
+              );
+              print(
+                '✓ Recuperadas ${devoluciones.length} devoluciones directamente del almacenamiento',
+              );
+            }
+          } catch (e) {
+            print('Error en la recuperación directa: $e');
+          }
+        }
+      }
+
       return devoluciones;
     } catch (e) {
-      print('Error loading devoluciones: $e');
-      rethrow;
+      print('Error general al cargar devoluciones: $e');
+      print('Stacktrace: ${e is Error ? e.stackTrace : ''}');
+
+      // Si ocurre un error, intentar cargar desde almacenamiento local como último recurso
+      try {
+        print(
+          '🔄 Intentando recuperación de emergencia desde almacenamiento local...',
+        );
+        final devolucionesData =
+            await DevolucionesOffline.obtenerDevolucionesLocal();
+        final localDevoluciones = DevolucionesOffline.convertirAModelos(
+          devolucionesData,
+        );
+        print(
+          '✓ Recuperadas ${localDevoluciones.length} devoluciones en modo de emergencia',
+        );
+        return localDevoluciones;
+      } catch (localError) {
+        print('❌ Error también en la recuperación de emergencia: $localError');
+        return []; // Devolver lista vacía en lugar de relanzar el error para evitar un crash
+      }
     }
   }
 
@@ -65,10 +393,14 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
+        onPressed: () async {
+          // Actualizar el estado de conexión en background y navegar automáticamente.
+          await verificarConexion();
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const DevolucioncrearScreen()),
+            MaterialPageRoute(
+              builder: (context) => const DevolucioncrearScreen(),
+            ),
           );
         },
         backgroundColor: const Color(0xFF141A2F),
@@ -81,13 +413,19 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         icon: Icons.restart_alt,
         permisos: permisos,
         onRefresh: () async {
+          // Verificar conexión antes de recargar
+          await verificarConexion();
+
           setState(() {
             _devolucionesFuture = _loadDevoluciones();
           });
         },
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -106,92 +444,96 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                     ),
                   ],
                 ),
-              const SizedBox(height: 15),
-              FutureBuilder<List<DevolucionesViewModel>>(
-                future: _devolucionesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 50.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 50.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error al cargar las devoluciones',
-                              style: TextStyle(
-                                color: Colors.grey[800],
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Satoshi',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              snapshot.error.toString(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontFamily: 'Satoshi',
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _devolucionesFuture = _loadDevoluciones();
-                                });
-                              },
-                              child: const Text(
-                                'Reintentar',
-                                style: TextStyle(fontFamily: 'Satoshi'),
-                              ),
-                            ),
-                          ],
+                const SizedBox(height: 15),
+                FutureBuilder<List<DevolucionesViewModel>>(
+                  future: _devolucionesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 50.0),
+                          child: CircularProgressIndicator(),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 50.0),
-                        child: Text(
-                          'No hay devoluciones registradas',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontFamily: 'Satoshi',
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 50.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error al cargar las devoluciones',
+                                style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Satoshi',
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                snapshot.error.toString(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontFamily: 'Satoshi',
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _devolucionesFuture = _loadDevoluciones();
+                                  });
+                                },
+                                child: const Text(
+                                  'Reintentar',
+                                  style: TextStyle(fontFamily: 'Satoshi'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  final devoluciones = snapshot.data!;
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: devoluciones.length,
-                    itemBuilder: (context, index) {
-                      final devolucion = devoluciones[index];
-                      return _buildDevolucionCard(devolucion);
-                    },
-                  );
-                },
-              ),
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 50.0),
+                          child: Text(
+                            'No hay devoluciones registradas',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontFamily: 'Satoshi',
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final devoluciones = snapshot.data!;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: devoluciones.length,
+                      itemBuilder: (context, index) {
+                        final devolucion = devoluciones[index];
+                        return _buildDevolucionCard(devolucion);
+                      },
+                    );
+                  },
+                ),
                 const SizedBox(height: 20),
               ],
             ),
@@ -208,14 +550,13 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   Widget _buildDevolucionCard(DevolucionesViewModel devolucion) {
     // Color principal del proyecto (usando el mismo que en el drawer y otros componentes)
     final primaryColor = const Color(0xFF141A2F); // Azul oscuro principal
-    final secondaryColor = const Color(0xFF1E2746); // Tono ligeramente más claro para gradiente
+    final secondaryColor = const Color(
+      0xFF1E2746,
+    ); // Tono ligeramente más claro para gradiente
     final backgroundColor = const Color(0xFFF5F5F7); // Fondo gris claro
-    
+
     // Usar el ícono original de devolución
     final iconoDevolucion = Icons.assignment_return;
-    
-    // Obtener el estado como texto
-    final estado = devolucion.devoEstado.toString();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -345,11 +686,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: const Color(0xFF8E8E93),
-        ),
+        Icon(icon, size: 20, color: const Color(0xFF8E8E93)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -382,10 +719,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
     );
   }
 
-  void _showDevolucionDetails(BuildContext context, DevolucionesViewModel devolucion) {
-    showDevolucionDetalleBottomSheet(
-      context: context,
-      devolucion: devolucion,
-    );
+  void _showDevolucionDetails(
+    BuildContext context,
+    DevolucionesViewModel devolucion,
+  ) {
+    showDevolucionDetalleBottomSheet(context: context, devolucion: devolucion);
   }
 }

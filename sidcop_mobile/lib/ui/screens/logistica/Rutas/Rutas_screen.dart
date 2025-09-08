@@ -102,6 +102,11 @@ class _RutasScreenState extends State<RutasScreen> {
     // Establecer isOnline = true por defecto para permitir intentos de conexión
     isOnline = true;
 
+    // Inmediatamente establecer _isLoading en true para mostrar indicador de carga
+    setState(() {
+      _isLoading = true;
+    });
+
     // On entering the Rutas screen we must persist all remote data locally
     // (rutas, clientes, direcciones, vendedores, visitas_historial, etc).
     // Run startup sync then load rutas. Use a microtask to avoid making
@@ -109,14 +114,37 @@ class _RutasScreenState extends State<RutasScreen> {
     // necessary persistence operations.
     Future.microtask(() async {
       try {
-        // Intentar sincronización sin verificar conexión previamente
-        // El método _syncAllOnEntry ya maneja errores internamente
-        print('DEBUG: Iniciando sincronización en _initState');
+        // Intentar sincronización forzada - siempre intentamos sincronizar
+        // todos los datos independientemente del estado de conexión previo
+        print('DEBUG: Iniciando sincronización FORZADA en _initState');
         await _syncAllOnEntry();
+        print('DEBUG: Sincronización FORZADA completada');
       } catch (e) {
-        print('SYNC: startup full sync failed: $e');
+        print('SYNC: forced full sync failed: $e');
         // Si falla la sincronización, asumimos que estamos offline
         isOnline = false;
+
+        // Notificar al usuario sobre el error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al sincronizar datos: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+
+      // Notificar que la sincronización se ha completado
+      if (mounted && isOnline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Datos sincronizados correctamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
 
       // After attempting to persist all data, load rutas for the UI.
@@ -126,34 +154,54 @@ class _RutasScreenState extends State<RutasScreen> {
 
   Future<void> _syncAllOnEntry() async {
     try {
-      print('SYNC: starting full startup sync...');
+      print('SYNC: starting FORCED full startup sync...');
 
-      // Verificar conexión para actualizar estado
+      // Verificar conexión para actualizar estado - solo para mostrar en logs
       await verificarconexion();
       print('DEBUG _syncAllOnEntry: Estado de conexión verificada: $isOnline');
 
-      if (!isOnline) {
-        print('SYNC: Cancelando sincronización porque estamos offline');
-        return;
-      }
+      // IMPORTANTE: Ya no verificamos si estamos online,
+      // siempre intentamos sincronizar para forzar actualización
+      // de todos los datos incluyendo visitas
 
-      await RutasScreenOffline.sincronizarRutas_Todo();
-      print('SYNC: sincronizarRutas_Todo completed');
+      print(
+        'SYNC: Forzando sincronización completa independientemente del estado de conexión',
+      );
 
+      // Limpiar datos obsoletos antes de obtener nuevos datos
+      await RutasScreenOffline.limpiarTodosLosDetalles();
+      print('SYNC: limpiarTodosLosDetalles completed');
+
+      // Sincronizar todos los datos en orden para asegurar consistencia
+      await RutasScreenOffline.sincronizarRutas();
+      print('SYNC: sincronizarRutas completed');
+
+      await RutasScreenOffline.sincronizarClientes();
+      print('SYNC: sincronizarClientes completed');
+
+      await RutasScreenOffline.sincronizarDirecciones();
+      print('SYNC: sincronizarDirecciones completed');
+
+      await RutasScreenOffline.sincronizarVendedores();
+      print('SYNC: sincronizarVendedores completed');
+
+      // Forzar actualización de visitas historial (lo más importante)
       await RutasScreenOffline.sincronizarVisitasHistorial();
-      print('SYNC: sincronizarVisitasHistorial completed');
+      print('SYNC: sincronizarVisitasHistorial FORCED completed');
 
       await RutasScreenOffline.sincronizarVendedoresPorRutas();
       print('SYNC: sincronizarVendedoresPorRutas completed');
 
-      // Limpiar detalles obsoletos antes de regenerar
-      await RutasScreenOffline.limpiarTodosLosDetalles();
-      print('SYNC: limpiarTodosLosDetalles completed');
+      // Regenerar los detalles de rutas con los datos actualizados
+      await RutasScreenOffline.guardarDetallesTodasRutas(forzar: true);
+      print('SYNC: guardarDetallesTodasRutas completed with force=true');
 
-      await RutasScreenOffline.guardarDetallesTodasRutas();
-      print('SYNC: full startup sync completed');
+      print('SYNC: forced full startup sync completed successfully!');
+
+      // Si llegamos aquí, la sincronización tuvo éxito, actualizar estado online
+      isOnline = true;
     } catch (e) {
-      print('SYNC: _syncAllOnEntry encountered error: $e');
+      print('SYNC: _syncAllOnEntry forced sync encountered error: $e');
       // No volver a lanzar el error para que el flujo continúe
       isOnline = false; // Si hay error, asumimos que estamos offline
     }
@@ -460,7 +508,27 @@ class _RutasScreenState extends State<RutasScreen> {
           await _fetchRutas();
         },
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFD6B68A),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        'Estamos actualizando información de rutas, clientes y visitas',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              )
             : _vendedorNoIdentificado
             ? const Center(
                 child: Text(

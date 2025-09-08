@@ -3,13 +3,16 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'dart:math';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sidcop_mobile/Offline_Services/Rutas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/visita_create.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Offline map viewer that serves tiles from a local .mbtiles file via a
 /// loopback HTTP server and uses flutter_map to render them.
@@ -76,17 +79,111 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     _setInitialPositionFromDevice();
     _initMbtilesServer();
     // Also load offline clients immediately so markers appear even without MBTiles
-    _loadClientesOffline();
+    _loadClientesOffline().then((_) {
+      // Depurar estado de las direcciones después de cargar
+      _depurarEstadoDirecciones();
+    });
   }
 
-  // Note: do not persist a separate visited_direcciones.json; visited state is
-  // derived from `visitas_historial.json` (local visitas) which is managed by
-  // the Visitas offline service. The copying/merging from visitas_historial.json
-  // into `_direccionesVisitadasOffline` happens in `_loadClientesOffline()`.
+  // Para abrir navegación en Google Maps
+  Future<void> _openExternalDirections(LatLng destino) async {
+    if (_centerLat == null || _centerLng == null) return;
+
+    final origin = '$_centerLat,$_centerLng';
+    final dest = '${destino.latitude},${destino.longitude}';
+
+    // Prefer Google Maps app scheme
+    final googleMapsUri = Uri.parse(
+      'google.navigation:q=${destino.latitude},${destino.longitude}&mode=d',
+    );
+
+    // Fallback to web directions
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving',
+    );
+
+    try {
+      if (await canLaunchUrl(googleMapsUri)) {
+        await launchUrl(googleMapsUri);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print('Error abriendo Google Maps: $e');
+    }
+  }
+
+  // Para abrir navegación en Waze
+  Future<void> _openExternalWaze(LatLng destino) async {
+    final lat = destino.latitude;
+    final lon = destino.longitude;
+    final wazeUri = Uri.parse('waze://?ll=$lat,$lon&navigate=yes');
+    final webUri = Uri.parse(
+      'https://www.waze.com/ul?ll=$lat,$lon&navigate=yes',
+    );
+
+    try {
+      if (await canLaunchUrl(wazeUri)) {
+        await launchUrl(wazeUri);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print('Error abriendo Waze: $e');
+    }
+  }
+
+  // Método para depurar el estado de las direcciones
+  void _depurarEstadoDirecciones() {
+    print('====== DEPURACIÓN ESTADO DE DIRECCIONES ======');
+    print('Ruta ID: ${widget.rutaId}');
+    print('Total clientes filtrados: ${_clientesFiltradosOffline.length}');
+    print(
+      'Total direcciones filtradas: ${_direccionesFiltradasOffline.length}',
+    );
+    print(
+      'Total direcciones visitadas: ${_direccionesVisitadasOffline.length}',
+    );
+
+    // Mostrar los primeros clientes para verificar
+    print('Primeros 5 clientes:');
+    for (int i = 0; i < min(5, _clientesFiltradosOffline.length); i++) {
+      final cliente = _clientesFiltradosOffline[i];
+      final nombre =
+          cliente['clie_NombreNegocio'] ??
+          cliente['clie_Nombres'] ??
+          'Sin nombre';
+      final id = cliente['clie_Id'] ?? cliente['clieId'] ?? 'desconocido';
+      print('  - $nombre (ID: $id)');
+    }
+
+    // Mostrar las primeras direcciones
+    print('Primeras 5 direcciones:');
+    for (int i = 0; i < min(5, _direccionesFiltradasOffline.length); i++) {
+      final dir = _direccionesFiltradasOffline[i];
+      final diclId = dir['dicl_id'] ?? dir['diCl_Id'] ?? 'desconocido';
+      final clieId = dir['clie_id'] ?? dir['clieId'] ?? 'desconocido';
+      final visitada = _direccionesVisitadasOffline.contains(diclId.toString());
+      print(
+        '  - Dirección ID: $diclId, Cliente ID: $clieId, Visitada: $visitada',
+      );
+    }
+
+    print('==========================================');
+  }
 
   Future<void> _setInitialPositionFromDevice() async {
     try {
-      // Try to seed fallback with last known position to center quicker
       try {
         final last = await Geolocator.getLastKnownPosition();
         if (last != null) {
@@ -109,13 +206,11 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       setState(() {
         _centerLat = pos.latitude;
         _centerLng = pos.longitude;
-        // update fallbacks so other parts of the UI use the device coords
+
         _fallbackLat = pos.latitude;
         _fallbackLng = pos.longitude;
       });
-    } catch (e) {
-      // ignore and fallback to defaults
-    }
+    } catch (e) {}
   }
 
   Future<void> _recenterToDevice() async {
@@ -149,8 +244,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       );
     }
   }
-
-  // ...existing code...
 
   Future<void> _initMbtilesServer() async {
     try {
@@ -251,6 +344,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           .map<Map<String, dynamic>>((c) => Map<String, dynamic>.from(c))
           .toList();
 
+      print(
+        'OFFLINE: Clientes filtrados para ruta ${widget.rutaId}: ${_clientesFiltradosOffline.length}',
+      );
+
       // Normalizar cliente IDs a String para evitar mismatches por tipo
       final clienteIds = _clientesFiltradosOffline
           .map(
@@ -260,6 +357,8 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           .where((id) => id != null && id.isNotEmpty)
           .map((s) => s!)
           .toSet();
+
+      print('OFFLINE: IDs de clientes encontrados: ${clienteIds.length}');
 
       // Build lookup map for quick access when creating marker tap handlers
       _clientesById = Map.fromEntries(
@@ -284,17 +383,42 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         return norm;
       }).toList();
 
+      // Filtrar direcciones que pertenezcan a los clientes de la ruta actual
       _direccionesFiltradasOffline = normDirecciones
           .where((d) {
             final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
             final clIdStr = rawClId == null ? null : rawClId.toString();
-            return clIdStr != null && clienteIds.contains(clIdStr);
+            final pertenece = clIdStr != null && clienteIds.contains(clIdStr);
+
+            // Obtener ID de dirección para diagnóstico
+            final diclIdRaw =
+                d['dicl_id'] ??
+                d['diCl_Id'] ??
+                d['diClId'] ??
+                d['di_cl_id'] ??
+                d['id'];
+            final diclIdStr = diclIdRaw == null
+                ? 'desconocido'
+                : diclIdRaw.toString();
+
+            if (pertenece) {
+              // Agregar log para direcciones incluidas
+              final clienteNombre =
+                  _clientesById[clIdStr]?['clie_NombreNegocio'] ??
+                  _clientesById[clIdStr]?['clie_Nombres'] ??
+                  'Sin nombre';
+              print(
+                'OFFLINE: Dirección ID $diclIdStr incluida, cliente: $clienteNombre',
+              );
+            }
+
+            return pertenece;
           })
           .map<Map<String, dynamic>>((d) => Map<String, dynamic>.from(d))
           .toList();
 
       print(
-        'OFFLINE: filtered clientes=${_clientesFiltradosOffline.length} direcciones=${_direccionesFiltradasOffline.length}',
+        'OFFLINE: Total - clientes=${_clientesFiltradosOffline.length} direcciones=${_direccionesFiltradasOffline.length}',
       );
 
       // Crear marcadores simples para cada dirección con coordenadas (soporta varias claves)
@@ -468,17 +592,35 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         });
       }
       _ordenParadasOffline = orden;
-      // Additionally, mark as visited any direcciones that already appear in the
-      // local visitas_historial.json. We only add those direcciones that belong
-      // to the current route (present in ordenParadasOffline) to avoid polluting
-      // other routes' visit state.
+      // Marcar como visitadas las direcciones que aparecen en visitas_historial.json
+      // pero asegurarnos de que todas las direcciones de la ruta se muestren,
+      // no solo las visitadas.
       try {
-        final visitasLocal =
+        // Obtener las visitas desde AMBAS fuentes: historial y pendientes
+        final visitasHistorial =
             await RutasScreenOffline.obtenerVisitasHistorialLocal();
+
+        // También cargar desde visitas_pendientes.json (nuevo)
+        final visitasPendientes =
+            await VisitasOffline.obtenerVisitasPendientesLocal();
+
+        print(
+          'OFFLINE: Visitas historial: ${visitasHistorial.length}, Visitas pendientes: ${visitasPendientes.length}',
+        );
+
+        // Combinar ambas fuentes para una lista completa
+        final visitasLocal = [...visitasHistorial, ...visitasPendientes];
+        print('OFFLINE: Total visitas combinadas: ${visitasLocal.length}');
+
+        // Obtener los IDs de todas las direcciones en la ruta actual
         final diclIdsInOrden = _ordenParadasOffline
             .map((e) => (e['dicl_id'] ?? '').toString())
             .where((s) => s.isNotEmpty)
             .toSet();
+
+        print('OFFLINE: Direcciones en orden: ${diclIdsInOrden.length}');
+
+        // Buscar las visitas que corresponden a direcciones de esta ruta
         final nuevos = <String>{};
         for (final v in visitasLocal) {
           try {
@@ -501,21 +643,32 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 }
               }
               if (found != null && found.isNotEmpty) {
-                // Only mark if the direccion id belongs to this route
+                // Solo marcar si la dirección pertenece a esta ruta
                 if (diclIdsInOrden.contains(found)) {
                   nuevos.add(found);
+                  // Depurar para ver qué visita está marcando esta dirección
+                  print(
+                    'OFFLINE: Marcando dirección ID $found como visitada. Tipo: ${v.containsKey('offline') ? 'Pendiente' : 'Historial'}',
+                  );
                 }
               }
             }
           } catch (_) {}
         }
+
+        print('OFFLINE: Direcciones visitadas encontradas: ${nuevos.length}');
+
         if (nuevos.isNotEmpty) {
           setState(() {
             _direccionesVisitadasOffline.addAll(nuevos);
           });
-          // Don't persist a separate visited file; visited state is sourced from visitas_historial.json
+          print(
+            'OFFLINE: Direcciones visitadas marcadas: ${_direccionesVisitadasOffline.length}',
+          );
+          // No persistir un archivo separado; el estado de visitas proviene de visitas_historial.json
         }
       } catch (e) {
+        print('OFFLINE: Error al cargar visitas: $e');
         // ignore
       }
       if (failures.isNotEmpty) {
@@ -792,8 +945,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     );
   }
 
-  // _showVisitasList removed — we use the endDrawer as canonical visitas UI
-
   Future<File?> _findFirstMbtilesFile() async {
     final docs = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(docs.path, 'maps'));
@@ -807,11 +958,15 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     return null;
   }
 
-  // Build the order list directly from offline addresses loaded into
-  // `_direccionesFiltradasOffline`. This ensures the drawer checkboxes are
-  // driven by the offline address data.
+  // Construye la lista de orden de paradas directamente desde las direcciones offline
+  // asegurándose de incluir TODAS las direcciones de la ruta
   List<Map<String, dynamic>> _construirOrdenDesdeOffline() {
     final orden = <Map<String, dynamic>>[];
+    print(
+      'OFFLINE: Construyendo orden de paradas. Direcciones disponibles: ${_direccionesFiltradasOffline.length}',
+    );
+
+    // Añadir ubicación del usuario como primer punto
     if (_centerLat != null && _centerLng != null) {
       orden.add({
         'tipo': 'origen',
@@ -1081,7 +1236,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Orden de visitas',
+                  'Visitas',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -1091,8 +1246,16 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 ),
               ),
               Expanded(
-                child: _construirOrdenDesdeOffline().isEmpty
-                    ? const Center(
+                child: Builder(
+                  builder: (context) {
+                    // Construir la lista una sola vez para evitar múltiples reconstrucciones
+                    final ordenParadas = _construirOrdenDesdeOffline();
+                    print(
+                      'OFFLINE DRAWER: Mostrando ${ordenParadas.length} paradas',
+                    );
+
+                    if (ordenParadas.isEmpty) {
+                      return const Center(
                         child: Text(
                           'No hay orden disponible',
                           style: TextStyle(
@@ -1100,232 +1263,464 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                             fontFamily: 'Satoshi',
                           ),
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: _construirOrdenDesdeOffline().length,
-                        itemBuilder: (context, idx) {
-                          final parada = _construirOrdenDesdeOffline()[idx];
-                          if (parada['tipo'] == 'origen') {
-                            return ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: _darkBg,
-                                child: Icon(
-                                  Icons.person_pin_circle,
-                                  color: _gold,
-                                ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: ordenParadas.length,
+                      itemBuilder: (context, idx) {
+                        final parada = ordenParadas[idx];
+                        if (parada['tipo'] == 'origen') {
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: _darkBg,
+                              child: Icon(
+                                Icons.person_pin_circle,
+                                color: _gold,
                               ),
-                              title: const Text(
-                                'Tu ubicación',
-                                style: TextStyle(
-                                  color: _body,
+                            ),
+                            title: const Text(
+                              'Tu ubicación',
+                              style: TextStyle(
+                                color: _body,
+                                fontFamily: 'Satoshi',
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              if (_centerLat != null) {
+                                try {
+                                  _mapController.move(
+                                    LatLng(_centerLat!, _centerLng!),
+                                    16.0,
+                                  );
+                                } catch (_) {}
+                              }
+                            },
+                          );
+                        }
+
+                        final cliente =
+                            parada['cliente'] as Map<String, dynamic>?;
+                        // Title: use cliente full name (nombre + apellidos) when available
+                        final titulo = cliente != null
+                            ? (((cliente['clie_Nombres'] ??
+                                              cliente['nombres'] ??
+                                              '')
+                                          .toString() +
+                                      ' ' +
+                                      (cliente['clie_Apellidos'] ??
+                                              cliente['apellidos'] ??
+                                              '')
+                                          .toString())
+                                  .trim())
+                            : (parada['nombre'] ?? '').toString();
+
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            dividerColor: Colors.transparent,
+                            splashColor: Colors.transparent,
+                            highlightColor: Colors.transparent,
+                          ),
+                          child: ExpansionTile(
+                            collapsedIconColor: _gold,
+                            iconColor: _gold,
+                            leading: CircleAvatar(
+                              backgroundColor: _darkBg,
+                              child: Text(
+                                '${idx + 1}',
+                                style: const TextStyle(
+                                  color: _gold,
+                                  fontWeight: FontWeight.bold,
                                   fontFamily: 'Satoshi',
                                 ),
                               ),
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                if (_centerLat != null) {
-                                  try {
-                                    _mapController.move(
-                                      LatLng(_centerLat!, _centerLng!),
-                                      16.0,
-                                    );
-                                  } catch (_) {}
-                                }
-                              },
-                            );
-                          }
-
-                          final cliente =
-                              parada['cliente'] as Map<String, dynamic>?;
-                          // Title: use cliente full name (nombre + apellidos) when available
-                          final titulo = cliente != null
-                              ? (((cliente['clie_Nombres'] ??
-                                                cliente['nombres'] ??
-                                                '')
-                                            .toString() +
-                                        ' ' +
-                                        (cliente['clie_Apellidos'] ??
-                                                cliente['apellidos'] ??
-                                                '')
-                                            .toString())
-                                    .trim())
-                              : (parada['nombre'] ?? '').toString();
-
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              dividerColor: Colors.transparent,
-                              splashColor: Colors.transparent,
-                              highlightColor: Colors.transparent,
                             ),
-                            child: ExpansionTile(
-                              collapsedIconColor: _gold,
-                              iconColor: _gold,
-                              leading: CircleAvatar(
-                                backgroundColor: _darkBg,
-                                child: Text(
-                                  '${idx + 1}',
-                                  style: const TextStyle(
-                                    color: _gold,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'Satoshi',
-                                  ),
-                                ),
-                              ),
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        titulo,
+                                        style: const TextStyle(
+                                          fontFamily: 'Satoshi',
+                                          color: _body,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      // Mostrar la dirección como campo informativo debajo del nombre
+                                      if (parada['direccion'] != null &&
+                                          (parada['direccion'] ?? '')
+                                              .toString()
+                                              .isNotEmpty)
                                         Text(
-                                          titulo,
+                                          parada['direccion'].toString(),
                                           style: const TextStyle(
                                             fontFamily: 'Satoshi',
-                                            color: _body,
+                                            color: _bodyDim,
+                                            fontSize: 12,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 4),
-                                        // Mostrar la dirección como campo informativo debajo del nombre
-                                        if (parada['direccion'] != null &&
-                                            (parada['direccion'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                          Text(
-                                            parada['direccion'].toString(),
-                                            style: const TextStyle(
-                                              fontFamily: 'Satoshi',
-                                              color: _bodyDim,
-                                              fontSize: 12,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
-                                  // Checkbox for marking visita (parity with online)
-                                  Builder(
-                                    builder: (ctx) {
-                                      final diclId = (parada['dicl_id'] ?? '')
-                                          .toString();
-                                      final visited =
-                                          diclId.isNotEmpty &&
-                                          _direccionesVisitadasOffline.contains(
-                                            diclId,
-                                          );
-                                      return Checkbox(
-                                        activeColor: _gold,
-                                        value: visited,
-                                        onChanged: (v) async {
-                                          if (diclId.isEmpty) return;
-                                          // Open visit create screen with preselected cliente & diclId
-                                          final clienteMap =
-                                              parada['cliente']
-                                                  as Map<String, dynamic>?;
-                                          final args = <String, dynamic>{
-                                            'clienteId': clienteMap != null
-                                                ? (clienteMap['clie_Id'] ??
-                                                      clienteMap['clieId'])
-                                                : null,
-                                            'diclId': int.tryParse(diclId),
-                                            'rutaId': widget.rutaId,
-                                          };
-                                          final result = await Navigator.of(ctx)
-                                              .push<bool>(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      const VisitaCreateScreen(),
-                                                  settings: RouteSettings(
-                                                    arguments: args,
-                                                  ),
-                                                ),
-                                              );
-                                          if (result == true) {
-                                            setState(() {
-                                              _direccionesVisitadasOffline.add(
-                                                diclId,
-                                              );
-                                            });
-                                            // refresh visited state from local visitas_historial
-                                            await _loadClientesOffline();
-                                          } else if (v == false) {
-                                            // allow unchecking manually (if UI ever allows)
-                                            setState(() {
-                                              _direccionesVisitadasOffline
-                                                  .remove(diclId);
-                                            });
-                                            // refresh visited state from local visitas_historial
-                                            await _loadClientesOffline();
-                                          }
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                              children: [
-                                // Mostrar Negocio y Teléfono (si existen)
-                                if (cliente != null &&
-                                    (cliente['clie_NombreNegocio'] ?? '')
-                                        .toString()
-                                        .isNotEmpty)
-                                  ListTile(
-                                    title: const Text(
-                                      'Negocio',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        color: _gold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      cliente['clie_NombreNegocio'].toString(),
-                                      style: const TextStyle(color: _body),
-                                    ),
-                                  ),
+                                ),
+                                // Checkbox for marking visita (parity with online)
+                                Builder(
+                                  builder: (ctx) {
+                                    final diclId = (parada['dicl_id'] ?? '')
+                                        .toString();
+                                    final visited =
+                                        diclId.isNotEmpty &&
+                                        _direccionesVisitadasOffline.contains(
+                                          diclId,
+                                        );
+                                    return Checkbox(
+                                      activeColor: _gold,
+                                      value: visited,
+                                      onChanged: (v) async {
+                                        if (diclId.isEmpty) return;
+                                        // Open visit create screen with preselected cliente & diclId
+                                        final clienteMap =
+                                            parada['cliente']
+                                                as Map<String, dynamic>?;
+                                        // Primero vamos a buscar si podemos obtener el veRu_Id para este cliente y ruta
+                                        final clienteId = clienteMap != null
+                                            ? (clienteMap['clie_Id'] ??
+                                                  clienteMap['clieId'])
+                                            : null;
 
-                                if (cliente != null &&
-                                    (cliente['clie_Telefono'] ?? '')
-                                        .toString()
-                                        .isNotEmpty)
-                                  ListTile(
-                                    title: const Text(
-                                      'Teléfono',
-                                      style: TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        color: _gold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      cliente['clie_Telefono'].toString(),
-                                      style: const TextStyle(color: _body),
-                                    ),
-                                  ),
-                                // Dirección (general)
-                                if (parada['direccion'] != null &&
-                                    (parada['direccion'] ?? '')
-                                        .toString()
-                                        .isNotEmpty)
-                                  ListTile(
-                                    title: const Text(
-                                      'Dirección',
-                                      style: TextStyle(
-                                        color: _gold,
-                                        fontFamily: 'Satoshi',
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      parada['direccion'].toString(),
-                                      style: const TextStyle(color: _body),
-                                    ),
-                                  ),
+                                        // Buscar veRu_Id si tenemos un clienteId y rutaId válidos
+                                        int? veRuId;
+                                        if (clienteId != null &&
+                                            widget.rutaId > 0) {
+                                          try {
+                                            final vendedoresPorRuta =
+                                                await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
+
+                                            // Convertir clienteId y rutaId a enteros para comparar
+                                            final clienteIdInt =
+                                                int.tryParse(
+                                                  clienteId.toString(),
+                                                ) ??
+                                                0;
+
+                                            for (final vpr
+                                                in vendedoresPorRuta) {
+                                              if (vpr is Map) {
+                                                final vprClienteId =
+                                                    vpr['clie_Id'] ?? 0;
+                                                final vprRutaId =
+                                                    vpr['ruta_Id'] ?? 0;
+                                                final vprVeRuId =
+                                                    vpr['veRu_Id'] ?? 0;
+
+                                                if (vprRutaId ==
+                                                    widget.rutaId) {
+                                                  // Si encontramos un vendedor para esta ruta, guardarlo
+                                                  veRuId = vprVeRuId;
+                                                  print(
+                                                    '✅ MAPA: Encontrado veRu_Id=$veRuId para ruta=${widget.rutaId}',
+                                                  );
+                                                  break;
+                                                }
+                                              }
+                                            }
+
+                                            if (veRuId == null || veRuId == 0) {
+                                              print(
+                                                '⚠️ MAPA: No se encontró veRu_Id para ruta=${widget.rutaId}',
+                                              );
+                                            }
+                                          } catch (e) {
+                                            print(
+                                              '❌ MAPA: Error buscando veRu_Id: $e',
+                                            );
+                                          }
+                                        }
+
+                                        final args = <String, dynamic>{
+                                          'clienteId': clienteId,
+                                          'diclId': int.tryParse(diclId),
+                                          'rutaId': widget.rutaId,
+                                          'origen':
+                                              'mapa_offline', // Añadir origen para depurar
+                                          'veRu_Id':
+                                              veRuId, // Pasar el veRu_Id si lo encontramos
+                                        };
+                                        final result = await Navigator.of(ctx)
+                                            .push<bool>(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const VisitaCreateScreen(),
+                                                settings: RouteSettings(
+                                                  arguments: args,
+                                                ),
+                                              ),
+                                            );
+                                        if (result == true) {
+                                          print(
+                                            'OFFLINE MAP: Visita creada desde el mapa. Actualizando estado...',
+                                          );
+                                          setState(() {
+                                            _direccionesVisitadasOffline.add(
+                                              diclId,
+                                            );
+                                          });
+                                          // refresh visited state from BOTH visitas_historial AND visitas_pendientes
+                                          await _loadClientesOffline();
+
+                                          // Verificar que la visita esté en pendientes
+                                          final pendientes =
+                                              await VisitasOffline.obtenerVisitasPendientesLocal();
+                                          print(
+                                            'OFFLINE MAP: Después de crear visita hay ${pendientes.length} visitas pendientes',
+                                          );
+
+                                          // Buscar si la visita está en pendientes (para depuración)
+                                          bool encontrada = false;
+                                          for (final v in pendientes) {
+                                            if (v is Map) {
+                                              final possibleKeys = [
+                                                'diCl_Id',
+                                                'diClId',
+                                                'dicl_id',
+                                              ];
+                                              for (final k in possibleKeys) {
+                                                if (v.containsKey(k) &&
+                                                    v[k] != null &&
+                                                    v[k].toString() == diclId) {
+                                                  encontrada = true;
+                                                  print(
+                                                    'OFFLINE MAP: Visita encontrada en pendientes con dirección ID: $diclId',
+                                                  );
+                                                  break;
+                                                }
+                                              }
+                                              if (encontrada) break;
+                                            }
+                                          }
+
+                                          if (!encontrada) {
+                                            print(
+                                              '⚠️ OFFLINE MAP: ADVERTENCIA - No se encontró la visita en pendientes con dirección ID: $diclId',
+                                            );
+                                          }
+                                        } else if (v == false) {
+                                          // allow unchecking manually (if UI ever allows)
+                                          setState(() {
+                                            _direccionesVisitadasOffline.remove(
+                                              diclId,
+                                            );
+                                          });
+                                          // refresh visited state
+                                          await _loadClientesOffline();
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
                               ],
                             ),
-                          );
-                        },
-                      ),
+                            children: [
+                              // Mostrar Negocio y Teléfono (si existen)
+                              if (cliente != null &&
+                                  (cliente['clie_NombreNegocio'] ?? '')
+                                      .toString()
+                                      .isNotEmpty)
+                                ListTile(
+                                  title: const Text(
+                                    'Negocio',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      color: _gold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    cliente['clie_NombreNegocio'].toString(),
+                                    style: const TextStyle(color: _body),
+                                  ),
+                                ),
+
+                              if (cliente != null &&
+                                  (cliente['clie_Telefono'] ?? '')
+                                      .toString()
+                                      .isNotEmpty)
+                                ListTile(
+                                  title: const Text(
+                                    'Teléfono',
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      color: _gold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    cliente['clie_Telefono'].toString(),
+                                    style: const TextStyle(color: _body),
+                                  ),
+                                ),
+                              // Dirección (general)
+                              if (parada['direccion'] != null &&
+                                  (parada['direccion'] ?? '')
+                                      .toString()
+                                      .isNotEmpty)
+                                ListTile(
+                                  title: const Text(
+                                    'Dirección',
+                                    style: TextStyle(
+                                      color: _gold,
+                                      fontFamily: 'Satoshi',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    parada['direccion'].toString(),
+                                    style: const TextStyle(color: _body),
+                                  ),
+                                ),
+
+                              // Añadir botones de ubicación y navegación
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _darkBg,
+                                    foregroundColor: _gold,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontFamily: 'Satoshi',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.location_on, size: 18),
+                                  label: const Text('Ubicación'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    final paradaLatLng =
+                                        parada['latlng'] as LatLng?;
+                                    if (paradaLatLng != null) {
+                                      try {
+                                        _mapController.move(paradaLatLng, 16.0);
+                                      } catch (_) {}
+                                    }
+                                  },
+                                ),
+                              ),
+
+                              // Abrir en... expandible
+                              Theme(
+                                data: Theme.of(
+                                  context,
+                                ).copyWith(dividerColor: Colors.transparent),
+                                child: ExpansionTile(
+                                  collapsedIconColor: _gold,
+                                  iconColor: _gold,
+                                  tilePadding: EdgeInsets.zero,
+                                  title: const Text(
+                                    'Abrir en...',
+                                    style: TextStyle(
+                                      color: _body,
+                                      fontFamily: 'Satoshi',
+                                    ),
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16.0,
+                                        vertical: 6.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.map,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Google Maps'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalDirections(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _darkBg,
+                                              foregroundColor: _gold,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: 'Satoshi',
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.navigation,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Waze'),
+                                            onPressed: () async {
+                                              Navigator.of(context).pop();
+                                              final paradaLatLng =
+                                                  parada['latlng'] as LatLng?;
+                                              if (paradaLatLng != null) {
+                                                await _openExternalWaze(
+                                                  paradaLatLng,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

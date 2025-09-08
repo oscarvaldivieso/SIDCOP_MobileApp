@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../../widgets/appBackground.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/PerfilUsuarioService.dart';
@@ -23,6 +25,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   int? _usuaIdPersona;
   int? _usuaCreacion;
 
+  // Connectivity and offline state
+  bool _isConnected = true;
+  bool _isSyncing = false;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
   
   final PrinterService _printerService = PrinterService();
   final InventoryService _inventoryService = InventoryService();
@@ -43,8 +49,146 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _usuaIdPersona = widget.usuaIdPersona;
     _usuaCreacion = widget.usuaCreacion;
     
+    // Inicializar conectividad
+    _initConnectivity();
+    _setupConnectivityListener();
+    
     // Cargar datos iniciales
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Inicializa el estado de conectividad
+  Future<void> _initConnectivity() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      setState(() {
+        _isConnected = connectivityResult != ConnectivityResult.none;
+      });
+    } catch (e) {
+      setState(() {
+        _isConnected = false;
+      });
+    }
+  }
+
+  /// Configura el listener de conectividad
+  void _setupConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (ConnectivityResult result) {
+        final wasConnected = _isConnected;
+        setState(() {
+          _isConnected = result != ConnectivityResult.none;
+        });
+
+        // Auto-sync cuando se recupera la conexión
+        if (!wasConnected && _isConnected) {
+          _autoSyncWhenConnected();
+        }
+      },
+    );
+  }
+
+  /// Sincronización automática cuando se recupera la conexión
+  Future<void> _autoSyncWhenConnected() async {
+    if (!_isConnected || _isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final success = await _inventoryService.syncInventoryData(widget.usuaIdPersona);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.sync, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Datos sincronizados automáticamente'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Recargar datos después de la sincronización
+        await _loadInventoryData();
+      }
+    } catch (e) {
+      print('Error en sincronización automática: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
+  /// Sincronización manual
+  Future<void> _manualSync() async {
+    if (!_isConnected || _isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final success = await _inventoryService.syncInventoryData(widget.usuaIdPersona);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  success ? Icons.check_circle : Icons.error,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Text(success 
+                  ? 'Sincronización completada' 
+                  : 'Error en la sincronización'),
+              ],
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        
+        if (success) {
+          await _loadInventoryData();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Error: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -1089,6 +1233,10 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Connection status indicator
+            _buildConnectionStatusCard(),
+            const SizedBox(height: 16),
+
             _buildPrintInventoryButton(),
 
             const SizedBox(height: 24),
@@ -1245,12 +1393,12 @@ Widget _buildSummaryItem(String label, String value, Color color) {
                                   Container(
                                     width: 8,
                                     height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF4CAF50),
+                                    decoration: BoxDecoration(
+                                      color: _isConnected ? const Color(0xFF4CAF50) : Colors.orange,
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Color(0xFF4CAF50),
+                                          color: _isConnected ? const Color(0xFF4CAF50) : Colors.orange,
                                           blurRadius: 4,
                                           spreadRadius: 1,
                                         ),
@@ -1259,7 +1407,9 @@ Widget _buildSummaryItem(String label, String value, Color color) {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'En línea • ${_getCurrentTime()}',
+                                    _isConnected 
+                                      ? 'En línea • ${_getCurrentTime()}'
+                                      : 'Offline • ${_getCurrentTime()}',
                                     style: TextStyle(
                                       color: Colors.white.withOpacity(0.7),
                                       fontFamily: 'Satoshi',
@@ -2179,6 +2329,82 @@ Widget _buildSummaryItem(String label, String value, Color color) {
   );
 }
 
+
+  /// Construye la tarjeta de estado de conexión
+  Widget _buildConnectionStatusCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isConnected ? Colors.green.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _isConnected ? Colors.green.shade200 : Colors.orange.shade200,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _isConnected ? Colors.green.shade100 : Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _isConnected ? Icons.wifi : Icons.wifi_off,
+              color: _isConnected ? Colors.green.shade700 : Colors.orange.shade700,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isConnected ? 'Conectado' : 'Sin conexión',
+                  style: TextStyle(
+                    color: _isConnected ? Colors.green.shade800 : Colors.orange.shade800,
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isConnected 
+                    ? 'Datos actualizados en tiempo real'
+                    : 'Usando datos guardados offline',
+                  style: TextStyle(
+                    color: _isConnected ? Colors.green.shade600 : Colors.orange.shade600,
+                    fontFamily: 'Satoshi',
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isConnected && !_isSyncing)
+            IconButton(
+              onPressed: _manualSync,
+              icon: const Icon(Icons.sync),
+              color: Colors.green.shade700,
+              tooltip: 'Sincronizar datos',
+            ),
+          if (_isSyncing)
+            Container(
+              width: 20,
+              height: 20,
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.green.shade700,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildPrintInventoryButton() {
   return ElevatedButton.icon(
