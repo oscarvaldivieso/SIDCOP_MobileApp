@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
@@ -25,17 +27,17 @@ class _PedidosScreenState extends State<PedidosScreen> {
     super.initState();
     // Cargar los pedidos al iniciar la pantalla
     _cargarPedidos();
-    
+
     // Escuchar cambios en la conectividad
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
-      (result) {
-        _handleConnectivityChange(result);
-        // Recargar los pedidos cuando cambia la conectividad
-        _cargarPedidos();
-      },
-    );
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      result,
+    ) {
+      _handleConnectivityChange(result);
+      // Recargar los pedidos cuando cambia la conectividad
+      _cargarPedidos();
+    });
   }
-  
+
   // Lista para almacenar los pedidos
   List<PedidosViewModel> _pedidos = [];
   bool _isLoading = true;
@@ -53,7 +55,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
     try {
       // Obtener los pedidos del vendedor
       final pedidos = await _getPedidosDelVendedor();
-      
+
       if (mounted) {
         setState(() {
           _pedidos = pedidos;
@@ -104,10 +106,11 @@ class _PedidosScreenState extends State<PedidosScreen> {
                     DateTime.now().add(const Duration(days: 1)),
                 usuaCreacion: pedido.usuaCreacion,
                 clieId: pedido.clieId ?? 0,
-                detalles: (pedido.detalles
-                            ?.map<Map<String, dynamic>>((d) => d.toMap())
-                            .toList() ??
-                        <Map<String, dynamic>>[]),
+                detalles:
+                    (pedido.detalles
+                        ?.map<Map<String, dynamic>>((d) => d.toMap())
+                        .toList() ??
+                    <Map<String, dynamic>>[]),
               );
 
               if (response['success'] == true) {
@@ -241,44 +244,44 @@ class _PedidosScreenState extends State<PedidosScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Error al cargar los pedidos',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _cargarPedidos,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Error al cargar los pedidos',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                )
-              : _pedidos.isEmpty
-                  ? const Center(child: Text('No hay pedidos disponibles'))
-                  : RefreshIndicator(
-                      onRefresh: _cargarPedidos,
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: _pedidos.length,
-                        itemBuilder: (context, index) {
-                          final pedido = _pedidos[index];
-                          return _buildPedidoCard(pedido);
-                        },
-                      ),
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _cargarPedidos,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            )
+          : _pedidos.isEmpty
+          ? const Center(child: Text('No hay pedidos disponibles'))
+          : RefreshIndicator(
+              onRefresh: _cargarPedidos,
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: _pedidos.length,
+                itemBuilder: (context, index) {
+                  final pedido = _pedidos[index];
+                  return _buildPedidoCard(pedido);
+                },
+              ),
+            ),
     );
   }
 
@@ -289,7 +292,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
   Widget _buildPedidoCard(PedidosViewModel pedido) {
     // Calcular la cantidad total de productos
     final int cantidadProductos = _calcularCantidadProductos(pedido);
-    
+
     return GestureDetector(
       onTap: () => _mostrarDetallePedido(pedido),
       child: Card(
@@ -309,7 +312,11 @@ class _PedidosScreenState extends State<PedidosScreen> {
                   color: const Color(0xFFE0C7A0).withOpacity(0.13),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.shopping_bag, color: Color(0xFFE0C7A0), size: 32),
+                child: const Icon(
+                  Icons.shopping_bag,
+                  color: Color(0xFFE0C7A0),
+                  size: 32,
+                ),
               ),
               const SizedBox(width: 16),
               // Información del pedido
@@ -328,7 +335,8 @@ class _PedidosScreenState extends State<PedidosScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Cliente: ${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}'.trim(),
+                      'Cliente: ${pedido.clieNombres ?? ''} ${pedido.clieApellidos ?? ''}'
+                          .trim(),
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
@@ -355,7 +363,11 @@ class _PedidosScreenState extends State<PedidosScreen> {
                 ),
               ),
               // Flecha de navegación
-              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFE0C7A0), size: 20),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Color(0xFFE0C7A0),
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -365,32 +377,54 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
   int _calcularCantidadProductos(PedidosViewModel pedido) {
     int cantidad = 0;
-    if (pedido.detalles.isNotEmpty) {
-      try {
-        for (final item in pedido.detalles) {
-          if (item is Map) {
-            // Verificar diferentes formatos posibles de los detalles
-            if (item.containsKey('peDe_Cantidad')) {
-              final cant = item['peDe_Cantidad'];
-              if (cant is int) {
-                cantidad += cant;
-              } else if (cant is String) {
-                cantidad += int.tryParse(cant) ?? 0;
-              }
-            } else if (item.containsKey('cantidad')) {
-              final cant = item['cantidad'];
-              if (cant is int) {
-                cantidad += cant;
-              } else if (cant is String) {
-                cantidad += int.tryParse(cant) ?? 0;
+
+    try {
+      // Primero intentar con detallesJson si está disponible
+      if (pedido.detallesJson != null && pedido.detallesJson!.isNotEmpty) {
+        try {
+          final detalles = jsonDecode(pedido.detallesJson!) as List;
+          for (final item in detalles) {
+            if (item is Map) {
+              final cant = item['peDe_Cantidad'] ?? item['cantidad'];
+              if (cant != null) {
+                cantidad += (cant is int)
+                    ? cant
+                    : int.tryParse(cant.toString()) ?? 0;
               }
             }
           }
+          return cantidad;
+        } catch (e) {
+          debugPrint('Error al parsear detallesJson: $e');
         }
-      } catch (e) {
-        debugPrint('Error al calcular cantidad de productos: $e');
       }
+
+      // Si no hay detallesJson o falló el parseo, intentar con la lista de detalles
+      if (pedido.detalles.isNotEmpty) {
+        for (final item in pedido.detalles) {
+          if (item is Map) {
+            // Intentar con diferentes formatos de clave
+            final cant =
+                item['peDe_Cantidad'] ??
+                item['cantidad'] ??
+                item['peDeCantidad'];
+            if (cant != null) {
+              cantidad += (cant is int)
+                  ? cant
+                  : int.tryParse(cant.toString()) ?? 0;
+            }
+          }
+        }
+      }
+
+      // Si aún no hay cantidad, usar el valor directo si está disponible
+      if (cantidad == 0 && pedido.peDeCantidad != null) {
+        cantidad = pedido.peDeCantidad!;
+      }
+    } catch (e) {
+      debugPrint('Error al calcular cantidad de productos: $e');
     }
+
     return cantidad;
   }
 
