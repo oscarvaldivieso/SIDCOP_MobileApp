@@ -7,6 +7,9 @@ import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_confirmar_screen.dart';
 import 'package:sidcop_mobile/utils/numero_en_letras.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
+import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -388,21 +391,93 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       );
       return;
     }
+
+    // Verificar conexión a internet
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final bool isOnline = connectivityResult != ConnectivityResult.none;
+
     // 4. Preparar productos para confirmación
     final productosSeleccionadosList = _cantidades.entries
         .where((e) => e.value > 0)
         .toList();
+
+    // Mapear productos seleccionados al formato requerido
+    final List<Map<String, dynamic>> detallesPedido = [];
+    double totalPedido = 0;
+
+    for (final entry in productosSeleccionadosList) {
+      final producto = _productos.firstWhere((p) => p.prodId == entry.key);
+      final cantidad = entry.value;
+      final precioUnitario = _getPrecioPorCantidad(producto, cantidad);
+      
+      detallesPedido.add({
+        'prodId': producto.prodId,
+        'cantidad': cantidad,
+        'precioUnitario': precioUnitario,
+        'descuento': 0, // Ajustar según sea necesario
+      });
+      
+      totalPedido += precioUnitario * cantidad;
+    }
+
+    // Obtener datos del usuario actual
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    final int? vendedorId = userData?['usua_IdPersona'] is String
+        ? int.tryParse(userData?['usua_IdPersona'])
+        : userData?['usua_IdPersona'];
+
+    // Crear objeto de pedido para guardar offline
+    final pedidoOffline = {
+      'clienteId': widget.clienteId,
+      'vendedorId': vendedorId,
+      'fechaPedido': DateTime.now().toIso8601String(),
+      'fechaEntrega': _fechaEntrega!.toIso8601String(),
+      'direccionId': _direccionSeleccionada['diCl_Id'],
+      'total': totalPedido,
+      'estado': isOnline ? 'Pendiente' : 'Pendiente Sincronización',
+      'detalles': detallesPedido,
+    };
+
+    // Si no hay conexión, guardar el pedido localmente
+    if (!isOnline) {
+      try {
+        await PedidosScreenOffline.guardarPedidoPendiente(pedidoOffline);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pedido guardado localmente. Se sincronizará cuando haya conexión.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          Navigator.of(context).pop(); // Volver a la pantalla anterior
+          return;
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al guardar el pedido: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // Si hay conexión o se está en modo offline, continuar con el flujo normal
     final productosConfirmacion = productosSeleccionadosList.map((e) {
       final producto = _productos.firstWhere((p) => p.prodId == e.key);
       final precioFinal = _getPrecioPorCantidad(producto, e.value);
       return ProductoConfirmacion(
-        prodId: producto.prodId, // Agregar el ID del producto
+        prodId: producto.prodId,
         nombre: producto.prodDescripcionCorta ?? '',
         cantidad: e.value,
         precioBase: producto.prodPrecioUnitario ?? 0,
         precioFinal: precioFinal,
         imagen: producto.prodImagen,
-        productoOriginal: producto, // Pasar el producto original para cálculos
+        productoOriginal: producto,
       );
     }).toList();
 
@@ -421,13 +496,14 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
 
     // 6. Navegar a pantalla de confirmación
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PedidoConfirmarScreen(
-          productosSeleccionados: productosConfirmacion,
-          cantidadTotal: cantidadTotal,
-          subtotal: subtotal,
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PedidoConfirmarScreen(
+            productosSeleccionados: productosConfirmacion,
+            cantidadTotal: cantidadTotal,
+            subtotal: subtotal,
           total: total,
           clienteId: widget.clienteId,
           fechaEntrega: _fechaEntrega!,
@@ -435,7 +511,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ),
       ),
     );
-  }
+  }}
 
   Widget _buildDescuentosItem(
     ProductosPedidosViewModel producto,

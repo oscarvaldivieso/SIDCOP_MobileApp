@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
@@ -18,6 +19,87 @@ class PedidosScreen extends StatefulWidget {
 class _PedidosScreenState extends State<PedidosScreen> {
   final PedidosService _service = PedidosService();
   final PerfilUsuarioService _perfilService = PerfilUsuarioService();
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Escuchar cambios en la conectividad
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      _handleConnectivityChange,
+    );
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  // Manejar cambios en la conectividad
+  Future<void> _handleConnectivityChange(ConnectivityResult result) async {
+    if (result != ConnectivityResult.none) {
+      // Hay conexión, intentar sincronizar pedidos pendientes
+      try {
+        final pedidosPendientes =
+            await PedidosScreenOffline.obtenerPedidosPendientes();
+        if (pedidosPendientes.isNotEmpty) {
+          print(
+            'Sincronizando ${pedidosPendientes.length} pedidos pendientes...',
+          );
+
+          for (final pedido in pedidosPendientes) {
+            try {
+              // Intentar enviar el pedido al servidor
+              final response = await _service.insertarPedido(
+                diClId: pedido.diClId,
+                vendId: pedido.vendId,
+                pediCodigo:
+                    pedido.pedi_Codigo ??
+                    'PED-${DateTime.now().millisecondsSinceEpoch}',
+                fechaPedido: pedido.pediFechaPedido,
+                fechaEntrega:
+                    pedido.pediFechaEntrega ??
+                    DateTime.now().add(const Duration(days: 1)),
+                usuaCreacion: pedido.usuaCreacion,
+                clieId: pedido.clieId ?? 0,
+                detalles:
+                    (pedido.detalles
+                                ?.map((d) => d.toMap() as Map<String, dynamic>)
+                                .toList() ??
+                            [])
+                        as List<Map<String, dynamic>>,
+              );
+
+              if (response['success'] == true) {
+                // Eliminar el pedido de la lista de pendientes
+                await PedidosScreenOffline.eliminarPedidoPendiente(
+                  pedido.pediId,
+                );
+              }
+            } catch (e) {
+              print('Error al sincronizar pedido ${pedido.pediId}: $e');
+            }
+          }
+
+          // Actualizar la lista de pedidos
+          if (mounted) {
+            setState(() {});
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${pedidosPendientes.length} pedidos sincronizados correctamente',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('Error en la sincronización de pedidos: $e');
+      }
+    }
+  }
 
   static const Color primaryColor = Color(0xFF141A2F); // Drawer principal
   static const Color goldColor = Color(0xFFE0C7A0); // Íconos y títulos
@@ -32,7 +114,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
 
       // Obtener datos del usuario actual para el filtrado
       final datosUsuario = await _perfilService.obtenerDatosUsuario();
-      
+
       // Obtener el ID del vendedor para el filtrado
       int vendedorId = 0;
       if (datosUsuario != null) {
@@ -54,10 +136,12 @@ class _PedidosScreenState extends State<PedidosScreen> {
             print('Actualizando caché local con ${pedidos.length} pedidos...');
             await PedidosScreenOffline.guardarPedidos(pedidos);
           }
-          
+
           // Si no hay pedidos, intentar cargar del caché
           if (pedidos.isEmpty) {
-            print('No se encontraron pedidos en línea, intentando cargar del caché...');
+            print(
+              'No se encontraron pedidos en línea, intentando cargar del caché...',
+            );
             pedidos = await PedidosScreenOffline.obtenerPedidos();
           }
         } catch (e) {
@@ -92,7 +176,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
       print(
         'Pedidos filtrados: ${pedidosFiltrados.length} de ${pedidos.length} totales',
       );
-      
+
       return pedidosFiltrados;
     } catch (e, stackTrace) {
       print('Error crítico en _getPedidosDelVendedor: $e');
