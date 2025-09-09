@@ -111,8 +111,8 @@ class UsuarioService {
         
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
-        await SincronizacionService.sincronizarTodoOffline(
-          vendedorId: globalVendId,
+        await SincronizacionService.sincronizarTodoOfflineConClientesAuto(
+          vendedorId: globalVendId ?? 0,
         );
         return data;
       } else {
