@@ -25,6 +25,9 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   List<dynamic> permisos = [];
   bool isOnline = true; // Indicador de estado de conexión
   bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
+  // Pendientes locales cargadas desde almacenamiento
+  final Set<int> _pendingDevolucionesIds = <int>{};
+  final Map<int, String> _pendingMessages = {};
 
   // Método para verificar la conexión a internet
   Future<bool> verificarConexion() async {
@@ -91,15 +94,49 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       // que se actualiza mediante el método verificarConexion()
       List<DevolucionesViewModel> devoluciones = [];
 
-      // Debug: verificar si hay devoluciones pendientes locales antes de sincronizar
+      // Cargar devoluciones pendientes locales y prepararlas para mostrarse
+      _pendingDevolucionesIds.clear();
+      _pendingMessages.clear();
       try {
         final pendingLocal =
-            await DevolucionesOffline.obtenerDevolucionesLocal();
-        print(
-          'DEBUG: devoluciones pendientes locales count: ${pendingLocal.length}',
-        );
+            await DevolucionesOffline.obtenerDevolucionesPendientesLocal();
+        if (pendingLocal.isNotEmpty) {
+          for (int i = 0; i < pendingLocal.length; i++) {
+            final pendingMap = Map<String, dynamic>.from(pendingLocal[i]);
+            // Si tiene un ID asignado por alguna razón, usarlo; si no, crear uno sintético negativo
+            int devoId = 0;
+            if (pendingMap['devo_Id'] != null) {
+              devoId = int.tryParse(pendingMap['devo_Id'].toString()) ?? 0;
+            } else if (pendingMap['devoId'] != null) {
+              devoId = int.tryParse(pendingMap['devoId'].toString()) ?? 0;
+            }
+            if (devoId == 0) {
+              // crear id sintético negativo para evitar colisiones
+              devoId = -(DateTime.now().millisecondsSinceEpoch + i);
+              pendingMap['devo_Id'] = devoId;
+            }
+
+            // Asegurar campos mínimos para convertir a modelo
+            if (!pendingMap.containsKey('devo_Fecha')) {
+              pendingMap['devo_Fecha'] = DateTime.now().toIso8601String();
+            }
+            if (!pendingMap.containsKey('devo_Motivo')) {
+              pendingMap['devo_Motivo'] =
+                  pendingMap['devo_Motivo'] ?? 'Devolución pendiente (offline)';
+            }
+
+            try {
+              final model = DevolucionesViewModel.fromJson(pendingMap);
+              devoluciones.add(model);
+              _pendingDevolucionesIds.add(model.devoId);
+              _pendingMessages[model.devoId] = 'Sincronización pendiente';
+            } catch (e) {
+              // si falla la conversión, omitir pero intentar conservar el registro en pendientes
+            }
+          }
+        }
       } catch (debugErr) {
-        print('DEBUG: error leyendo devoluciones locales: $debugErr');
+        // no bloquear si falla la lectura de pendientes
       }
 
       // Sincronizar y guardar devoluciones pasando el estado de conexión actual
@@ -363,6 +400,29 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         }
       }
 
+      // Si estamos online, filtrar devoluciones pendientes que ya fueron sincronizadas
+      if (isOnline && _pendingDevolucionesIds.isNotEmpty) {
+        final endpointIds = devoluciones.map((d) => d.devoId).toSet();
+        _pendingDevolucionesIds.removeWhere((id) => endpointIds.contains(id));
+      }
+
+      // Merge pending devoluciones into the final list
+      devoluciones.addAll(
+        _pendingDevolucionesIds.map(
+          (id) => devoluciones.firstWhere(
+            (d) => d.devoId == id,
+            orElse: () => DevolucionesViewModel(
+              devoId: id,
+              devoMotivo: 'Devolución pendiente (offline)',
+              devoFecha: DateTime.now(),
+              devoFechaCreacion: DateTime.now(),
+              devoEstado: false, // Assuming false indicates pending
+              usuaCreacion: 0, // Assuming 0 represents an offline user
+            ),
+          ),
+        ),
+      );
+
       return devoluciones;
     } catch (e) {
       print('Error general al cargar devoluciones: $e');
@@ -564,6 +624,15 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       child: GestureDetector(
         onTap: () {
+          if (devolucion.devoId < 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pendiente de sincronizar'),
+                backgroundColor: Color.fromARGB(255, 97, 97, 97),
+              ),
+            );
+            return;
+          }
           _showDevolucionDetails(context, devolucion);
         },
         child: Container(
@@ -629,15 +698,17 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Devolución #${devolucion.devoId}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  fontFamily: 'Satoshi',
+                              if (devolucion.devoId > 0)
+                                Text(
+                                  'Devolución #${devolucion.devoId}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    fontFamily: 'Satoshi',
+                                  ),
                                 ),
-                              ),
+                              // No mostrar el mensaje visual aquí
                             ],
                           ),
                         ),
