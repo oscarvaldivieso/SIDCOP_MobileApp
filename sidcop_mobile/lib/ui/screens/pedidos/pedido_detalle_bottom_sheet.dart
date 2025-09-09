@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
+import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
@@ -311,88 +314,16 @@ Widget build(BuildContext context) {
     });
 
     try {
-      // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
-      final double latitud = 0.0; // Idealmente obtener la ubicación actual
-      final double longitud = 0.0; // Idealmente obtener la ubicación actual
+      // Verificar conectividad
+      final hasConnection = await SyncService.hasInternetConnection();
+      print('[DEBUG] Conectividad disponible: $hasConnection');
 
-      // Parsear los detalles del pedido para obtener los productos
-      final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
-      
-      // Log para ver el contenido de detallesJson
-      print('DETALLES JSON: ${widget.pedido.detallesJson}');
-      print('DETALLES PARSEADOS: $detalles');
-      
-      // Crear la lista de detallesFacturaInput
-      final List<Map<String, dynamic>> detallesFactura = [];
-      
-      // Recorrer los productos y añadirlos al formato requerido
-      for (var item in detalles) {
-        // Log para ver cada item
-        print('ITEM: $item');
-        print('KEYS EN ITEM: ${item.keys.toList()}');
-        
-        // Extraer el ID del producto y la cantidad
-        final int prodId = item['id'] is int
-            ? item['id']
-            : int.tryParse(item['id']?.toString() ?? '') ?? 0;
-            
-        final int cantidad = item['cantidad'] is int
-            ? item['cantidad']
-            : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
-        
-        print('PROD_ID: $prodId, CANTIDAD: $cantidad');
-        
-        // Solo añadir productos con ID y cantidad válidos
-        if (prodId > 0 && cantidad > 0) {
-          detallesFactura.add({
-            'prod_Id': prodId,
-            'faDe_Cantidad': cantidad
-          });
-        }
-      }
-      
-      print('DETALLES FACTURA FINAL: $detallesFactura');
-
-      // Preparar los datos de la factura
-      final Map<String, dynamic> facturaData = {
-        'fact_Numero': widget.pedido.pedi_Codigo,
-        'fact_TipoDeDocumento': 'FAC', // Factura
-        'regC_Id': 21, // Cambiado de 1 a 21 para encontrar un rango CAI válido
-        'diCl_Id': widget.pedido.diClId,
-        'vend_Id': widget.pedido.vendId,
-        'fact_TipoVenta': 'CO', // Contado
-        'fact_FechaEmision': DateTime.now().toIso8601String(),
-        'fact_Latitud': latitud,
-        'fact_Longitud': longitud,
-        'fact_Referencia': 'Pedido generado desde app móvil',
-        'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
-        'usua_Creacion': widget.pedido.usuaCreacion,
-        'fact_EsPedido': true, // Marcar como pedido
-        'pedi_Id': widget.pedido.pediId, // ID del pedido actual
-        'detallesFacturaInput': detallesFactura, // Añadir los productos
-      };
-
-      // Log para mostrar el objeto completo que se envía a la API
-      print('OBJETO COMPLETO A ENVIAR: ${jsonEncode(facturaData)}');
-      
-      // Llamar al servicio para insertar la factura
-      await _facturaService.insertarFactura(facturaData);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Factura registrada correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Si la inserción fue exitosa, navegar a la pantalla de vista previa
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
-          ),
-        );
+      if (hasConnection) {
+        // Modo online - usar el flujo original
+        await _insertarFacturaOnline();
+      } else {
+        // Modo offline - guardar localmente y mostrar factura
+        await _insertarFacturaOffline();
       }
     } catch (e) {
       if (mounted) {
@@ -440,5 +371,241 @@ Widget build(BuildContext context) {
         });
       }
     }
+  }
+
+  Future<void> _insertarFacturaOnline() async {
+    // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
+    final double latitud = 0.0; // Idealmente obtener la ubicación actual
+    final double longitud = 0.0; // Idealmente obtener la ubicación actual
+
+    // Parsear los detalles del pedido para obtener los productos
+    final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
+    
+    // Log para ver el contenido de detallesJson
+    print('DETALLES JSON: ${widget.pedido.detallesJson}');
+    print('DETALLES PARSEADOS: $detalles');
+    
+    // Crear la lista de detallesFacturaInput
+    final List<Map<String, dynamic>> detallesFactura = [];
+    
+    // Recorrer los productos y añadirlos al formato requerido
+    for (var item in detalles) {
+      // Log para ver cada item
+      print('ITEM: $item');
+      print('KEYS EN ITEM: ${item.keys.toList()}');
+      
+      // Extraer el ID del producto y la cantidad
+      final int prodId = item['id'] is int
+          ? item['id']
+          : int.tryParse(item['id']?.toString() ?? '') ?? 0;
+          
+      final int cantidad = item['cantidad'] is int
+          ? item['cantidad']
+          : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
+      
+      print('PROD_ID: $prodId, CANTIDAD: $cantidad');
+      
+      // Solo añadir productos con ID y cantidad válidos
+      if (prodId > 0 && cantidad > 0) {
+        detallesFactura.add({
+          'prod_Id': prodId,
+          'faDe_Cantidad': cantidad
+        });
+      }
+    }
+    
+    print('DETALLES FACTURA FINAL: $detallesFactura');
+
+    // Preparar los datos de la factura
+    final Map<String, dynamic> facturaData = {
+      'fact_Numero': widget.pedido.pedi_Codigo,
+      'fact_TipoDeDocumento': 'FAC', // Factura
+      'regC_Id': 21, // Cambiado de 1 a 21 para encontrar un rango CAI válido
+      'diCl_Id': widget.pedido.diClId,
+      'vend_Id': widget.pedido.vendId,
+      'fact_TipoVenta': 'CO', // Contado
+      'fact_FechaEmision': DateTime.now().toIso8601String(),
+      'fact_Latitud': latitud,
+      'fact_Longitud': longitud,
+      'fact_Referencia': 'Pedido generado desde app móvil',
+      'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
+      'usua_Creacion': widget.pedido.usuaCreacion,
+      'fact_EsPedido': true, // Marcar como pedido
+      'pedi_Id': widget.pedido.pediId, // ID del pedido actual
+      'detallesFacturaInput': detallesFactura, // Añadir los productos
+    };
+
+    // Log para mostrar el objeto completo que se envía a la API
+    print('OBJETO COMPLETO A ENVIAR: ${jsonEncode(facturaData)}');
+    
+    // Llamar al servicio para insertar la factura
+    await _facturaService.insertarFactura(facturaData);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Factura registrada correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Si la inserción fue exitosa, navegar a la pantalla de vista previa
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+        ),
+      );
+    }
+  }
+
+  Future<void> _insertarFacturaOffline() async {
+    print('[DEBUG] Insertando factura en modo offline');
+    
+    // Parsear los detalles del pedido para obtener los productos
+    final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
+    
+    // Crear la estructura de la factura offline
+    final Map<String, dynamic> facturaOffline = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'pediId': widget.pedido.pediId,
+      'numeroFactura': widget.pedido.pedi_Codigo ?? 'OFFLINE-${DateTime.now().millisecondsSinceEpoch}',
+      'clienteId': widget.pedido.clieId,
+      'vendedorId': widget.pedido.vendId,
+      'fechaEmision': DateTime.now().toIso8601String(),
+      'fechaEntrega': widget.pedido.pediFechaEntrega?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'nombreCliente': widget.pedido.clieNombreNegocio ?? 'Cliente',
+      'codigoCliente': widget.pedido.clieId?.toString() ?? '',
+      'vendedor': widget.pedido.vendNombres ?? 'Vendedor',
+      'detalles': detalles,
+      'offline': true,
+      'local_signature': DateTime.now().millisecondsSinceEpoch.toString(),
+    };
+
+    // Guardar la factura offline usando el patrón de PedidosScreenOffline
+    try {
+      await PedidosScreenOffline.guardarFacturaOffline(facturaOffline);
+      print('[DEBUG] Factura offline guardada exitosamente');
+      
+      if (mounted) {
+        // Mostrar mensaje de éxito offline
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.offline_bolt, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Factura guardada offline. Se sincronizará cuando haya conexión.'),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        
+        // Navegar directamente a la pantalla de factura con los datos offline
+        await _mostrarFacturaOffline(facturaOffline, detalles);
+      }
+    } catch (e) {
+      print('[ERROR] Error guardando factura offline: $e');
+      throw Exception('Error guardando factura offline: $e');
+    }
+  }
+
+  Future<void> _mostrarFacturaOffline(Map<String, dynamic> facturaData, List<dynamic> detalles) async {
+    // Preparar los productos para la pantalla de factura
+    List<ProductoFactura> productos = [];
+    double subtotal = 0.0;
+    double totalDescuento = 0.0;
+    
+    for (var item in detalles) {
+      final String descripcion = item['descripcion']?.toString() ?? 
+                               item['prod_Descripcion']?.toString() ?? 
+                               item['producto']?.toString() ?? 
+                               'Producto sin nombre';
+      
+      final int cantidad = _parseIntFromDynamic(
+        item['cantidad'] ?? 
+        item['peDe_Cantidad'] ?? 
+        item['cantidadProducto']
+      );
+      
+      final double precio = _parseDoubleFromDynamic(
+        item['precio'] ?? 
+        item['peDe_Precio'] ?? 
+        item['peDe_ProdPrecio'] ?? 
+        item['precioProducto']
+      );
+      
+      final double descuento = _parseDoubleFromDynamic(
+        item['descuento'] ?? 
+        item['peDe_Descuento'] ?? 
+        0.0
+      );
+      
+      final double precioFinal = precio - (precio * descuento / 100);
+      final double totalProducto = precioFinal * cantidad;
+      
+      productos.add(ProductoFactura(
+        nombre: descripcion,
+        cantidad: cantidad,
+        precio: precio,
+        precioFinal: precioFinal,
+        descuentoStr: descuento > 0 ? '${descuento.toStringAsFixed(1)}%' : '0%',
+        impuesto: 0.0, // Por ahora sin impuestos
+      ));
+      
+      subtotal += totalProducto;
+      totalDescuento += (precio * descuento / 100) * cantidad;
+    }
+    
+    final double total = subtotal;
+    final String totalEnLetras = _convertirNumeroALetras(total);
+    
+    // Navegar a la pantalla de factura
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FacturaTicketScreen(
+          nombreCliente: facturaData['nombreCliente'] ?? 'Cliente',
+          codigoCliente: facturaData['codigoCliente'] ?? '',
+          direccion: null, // Por ahora sin dirección
+          rtn: null, // Por ahora sin RTN
+          vendedor: facturaData['vendedor'] ?? 'Vendedor',
+          fechaFactura: _formatearFecha(facturaData['fechaEmision']),
+          fechaEntrega: _formatearFecha(facturaData['fechaEntrega']),
+          numeroFactura: facturaData['numeroFactura'] ?? 'N/A',
+          productos: productos,
+          subtotal: subtotal,
+          totalDescuento: totalDescuento,
+          total: total,
+          totalEnLetras: totalEnLetras,
+          empresa: [], // Por ahora sin datos de empresa
+        ),
+      ),
+    );
+  }
+  
+  String _formatearFecha(String? fechaIso) {
+    if (fechaIso == null) return DateTime.now().toString().split(' ')[0];
+    try {
+      final fecha = DateTime.parse(fechaIso);
+      return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+    } catch (e) {
+      return DateTime.now().toString().split(' ')[0];
+    }
+  }
+  
+  String _convertirNumeroALetras(double numero) {
+    // Implementación básica - se puede mejorar
+    final int parteEntera = numero.floor();
+    final int centavos = ((numero - parteEntera) * 100).round();
+    
+    if (parteEntera == 0) {
+      return 'CERO LEMPIRAS CON ${centavos.toString().padLeft(2, '0')}/100';
+    }
+    
+    // Por simplicidad, retornar formato básico
+    return '${parteEntera.toString().toUpperCase()} LEMPIRAS CON ${centavos.toString().padLeft(2, '0')}/100';
   }
 }

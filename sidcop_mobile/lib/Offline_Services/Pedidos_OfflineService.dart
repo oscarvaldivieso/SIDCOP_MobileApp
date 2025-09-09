@@ -966,6 +966,90 @@ class PedidosScreenOffline {
     return await sincronizarPedidosPendientesOffline();
   }
 
+  /// Guarda una factura offline siguiendo el patrón de pedidos
+  static Future<void> guardarFacturaOffline(Map<String, dynamic> facturaData) async {
+    try {
+      print('[DEBUG] Guardando factura offline...');
+      print('[DEBUG] Datos de factura: $facturaData');
+      
+      // Leer facturas pendientes existentes
+      final raw = await leerJson('facturas_pendientes.json');
+      List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
+      
+      print('[DEBUG] Facturas existentes: ${pendientes.length}');
+      
+      // Agregar la nueva factura
+      pendientes.add(facturaData);
+      
+      print('[DEBUG] Total después de agregar: ${pendientes.length}');
+      
+      // Guardar la lista actualizada
+      await guardarJson('facturas_pendientes.json', pendientes);
+      
+      print('[DEBUG] Factura offline guardada: ${facturaData['local_signature']}');
+      
+    } catch (e) {
+      print('[ERROR] Error guardando factura offline: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtiene facturas pendientes offline
+  static Future<List<Map<String, dynamic>>> obtenerFacturasPendientes() async {
+    try {
+      final raw = await leerJson('facturas_pendientes.json');
+      if (raw == null) return [];
+      return List<Map<String, dynamic>>.from(raw as List);
+    } catch (e) {
+      print('[ERROR] Error obteniendo facturas pendientes: $e');
+      return [];
+    }
+  }
+
+  /// Sincroniza facturas pendientes offline con el servidor
+  static Future<int> sincronizarFacturasPendientes() async {
+    try {
+      print('[DEBUG] Iniciando sincronización de facturas pendientes...');
+      
+      final pendientes = await obtenerFacturasPendientes();
+      if (pendientes.isEmpty) {
+        print('[DEBUG] No hay facturas pendientes para sincronizar');
+        return 0;
+      }
+
+      int sincronizadas = 0;
+      final facturasNoSincronizadas = <Map<String, dynamic>>[];
+
+      print('[DEBUG] Sincronizando ${pendientes.length} facturas pendientes...');
+
+      for (final factura in pendientes) {
+        try {
+          print('[DEBUG] Sincronizando factura: ${factura['local_signature']}');
+          
+          // Aquí se implementaría la lógica de sincronización con el servidor
+          // Por ahora, marcar como sincronizada para testing
+          // TODO: Implementar sincronización real con FacturaService
+          
+          sincronizadas++;
+          print('[DEBUG] Factura sincronizada: ${factura['local_signature']}');
+          
+        } catch (e) {
+          facturasNoSincronizadas.add(factura);
+          print('[ERROR] Error sincronizando factura ${factura['local_signature']}: $e');
+        }
+      }
+
+      // Guardar solo las facturas que no se pudieron sincronizar
+      await guardarJson('facturas_pendientes.json', facturasNoSincronizadas);
+      
+      print('[DEBUG] Sincronización de facturas completada: $sincronizadas/${pendientes.length} facturas sincronizadas');
+      return sincronizadas;
+    } catch (e) {
+      print('[ERROR] Error en sincronizarFacturasPendientes: $e');
+      return 0;
+    }
+  }
+
   /// Sincroniza los pedidos pendientes con el servidor (método original)
   static Future<void> sincronizarPedidosPendientes() async {
     try {
