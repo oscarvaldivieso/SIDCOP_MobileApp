@@ -21,64 +21,92 @@ class InventoryService {
   }
 
   Future<List<Map<String, dynamic>>> getInventoryByVendor(int vendorId) async {
-    // Primero verificar si hay datos offline disponibles
+    // OFFLINE-FIRST: Siempre cargar desde caché primero (como productos)
     final hasOfflineData = await hasOfflineInventoryData();
-    final hasConnection = await _hasInternetConnection();
     
-    // Si tenemos conexión, intentar actualizar datos online
+    if (hasOfflineData) {
+      debugPrint('📦 Cargando inventario desde caché offline (offline-first)');
+      final offlineData = await _getOfflineInventoryDataSafe();
+      
+      // Sincronizar en segundo plano si hay conexión
+      _syncInventoryInBackground(vendorId);
+      
+      return offlineData;
+    }
+    
+    // Si no hay datos offline, intentar cargar desde servidor
+    final hasConnection = await _hasInternetConnection();
     if (hasConnection) {
-      debugPrint('🌐 Conexión disponible, actualizando inventario desde servidor...');
-      final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
-      try {
-        final response = await http.get(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-Api-Key': _apiKey,
-          },
-        );
+      debugPrint('🌐 Sin datos offline, cargando desde servidor...');
+      return await _fetchInventoryFromServer(vendorId);
+    } else {
+      // Sin conexión y sin datos offline
+      throw Exception('Sin conexión a internet y no hay datos offline disponibles. Conecta a internet para sincronizar por primera vez.');
+    }
+  }
 
-        if (response.statusCode == 200) {
-          final List<dynamic> jsonData = json.decode(response.body);
-          final inventoryData = List<Map<String, dynamic>>.from(jsonData);
-          
-          // SIEMPRE guardar datos actualizados en caché offline para uso futuro
-          try {
-            final saved = await OfflineDatabaseService.saveInventoryData(inventoryData);
-            if (saved) {
-              debugPrint('✅ Inventario actualizado y guardado offline: ${inventoryData.length} productos');
-            } else {
-              debugPrint('❌ Error al guardar inventario actualizado offline');
-            }
-          } catch (e) {
-            debugPrint('❌ Excepción al guardar inventario offline: $e');
+  /// Obtiene datos de inventario desde servidor
+  Future<List<Map<String, dynamic>>> _fetchInventoryFromServer(int vendorId) async {
+    final url = Uri.parse('$_apiServer/InventarioBodegas/InventarioAsignado?Vend_Id=$vendorId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(response.body);
+        final inventoryData = List<Map<String, dynamic>>.from(jsonData);
+        
+        // SIEMPRE guardar datos actualizados en caché offline para uso futuro
+        try {
+          final saved = await OfflineDatabaseService.saveInventoryData(inventoryData);
+          if (saved) {
+            debugPrint('✅ Inventario actualizado y guardado offline: ${inventoryData.length} productos');
+          } else {
+            debugPrint('❌ Error al guardar inventario actualizado offline');
           }
-          
-          return inventoryData;
-        } else {
-          throw Exception('Failed to load inventory: ${response.statusCode}');
+        } catch (e) {
+          debugPrint('❌ Excepción al guardar inventario offline: $e');
+        }
+        
+        return inventoryData;
+      } else {
+        throw Exception('Failed to load inventory: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error al obtener inventario desde servidor: $e');
+      rethrow;
+    }
+  }
+
+  /// Sincroniza inventario en segundo plano sin bloquear la UI
+  void _syncInventoryInBackground(int vendorId) {
+    Future.microtask(() async {
+      try {
+        final hasConnection = await _hasInternetConnection();
+        if (hasConnection) {
+          debugPrint('🔄 Sincronizando inventario en segundo plano...');
+          await _fetchInventoryFromServer(vendorId);
+          debugPrint('✅ Inventario sincronizado en segundo plano');
         }
       } catch (e) {
-        debugPrint('❌ Error al obtener inventario online: $e');
-        // Si hay datos offline, usarlos como fallback
-        if (hasOfflineData) {
-          debugPrint('📦 Usando datos offline como fallback');
-          return await _getOfflineInventoryData();
-        } else {
-          // Si no hay datos offline, mostrar error específico
-          throw Exception('No se pudo conectar al servidor y no hay datos offline disponibles. Conecta a internet para sincronizar por primera vez.');
-        }
+        debugPrint('❌ Error en sincronización de inventario en segundo plano: $e');
       }
-    } else {
-      // Sin conexión: usar datos offline si están disponibles
-      if (hasOfflineData) {
-        debugPrint('📱 Sin conexión, usando inventario offline');
-        return await _getOfflineInventoryData();
-      } else {
-        // Sin conexión y sin datos offline
-        throw Exception('Sin conexión a internet y no hay datos offline disponibles. Conecta a internet para sincronizar por primera vez.');
-      }
+    });
+  }
+
+  /// Obtiene datos offline de forma segura (sin excepciones)
+  Future<List<Map<String, dynamic>>> _getOfflineInventoryDataSafe() async {
+    try {
+      return await _getOfflineInventoryData();
+    } catch (e) {
+      debugPrint('❌ Error al obtener datos offline seguros: $e');
+      return [];
     }
   }
 

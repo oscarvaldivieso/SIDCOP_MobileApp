@@ -22,12 +22,10 @@ class LoginScreen extends StatefulWidget {
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 
-  // Método estático para limpiar credenciales guardadas (accesible desde otras clases)
-  // No limpia las credenciales offline para permitir el inicio de sesión offline permanente
+  // Método estático para limpiar completamente la sesión offline (accesible desde otras clases)
+  // Usado cuando el usuario cierra sesión explícitamente
   static Future<void> clearSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Solo eliminamos la bandera de recordar, no las credenciales guardadas
-    await prefs.setBool('remember_me', false);
+    await OfflineAuthService.clearOfflineSession();
   }
 }
 
@@ -282,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
           if (result != null && result['error'] != true) {
-            // Auto-login online exitoso - actualizar credenciales offline
+            // Auto-login online exitoso - SIEMPRE actualizar credenciales permanentes
             await OfflineAuthService.saveOfflineCredentials(
               username: _emailController.text.trim(),
               password: _passwordController.text,
@@ -370,40 +368,27 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Guardar credenciales para acceso offline y preferencia de "Remember me"
-  Future<void> _saveCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
+  // Guardar credenciales PERMANENTES (siempre se guardan, independiente del checkbox)
+  Future<void> _saveCredentials({Map<String, dynamic>? userData}) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    // Guardar credenciales para acceso offline
-    await prefs.setString('saved_email', email);
-    await prefs.setString('saved_password', password);
-
-    // Actualizar la preferencia de "Remember me"
-    await prefs.setBool('remember_me', _rememberMe);
-
-    // Si está marcado "Recordar sesión", guardar credenciales para autenticación offline
-    if (_rememberMe) {
-      try {
-        // Usar el método iniciarSesion para obtener los datos del usuario
-        final userData = await _usuarioService.iniciarSesion(email, password);
-        if (userData != null && userData['error'] != true) {
-          // Guardar credenciales offline completas
-          await OfflineAuthService.saveOfflineCredentials(
-            username: email,
-            password: password,
-            userData: userData,
-          );
-        }
-      } catch (e) {
-        // Si falla, guardar solo las credenciales básicas
-        await OfflineAuthService.saveBasicOfflineCredentials(
-          username: email,
-          password: password,
-        );
-      }
+    // SIEMPRE guardar credenciales permanentes para acceso offline
+    if (userData != null) {
+      await OfflineAuthService.saveOfflineCredentials(
+        username: email,
+        password: password,
+        userData: userData,
+      );
     }
+
+    // Guardar también las preferencias de "Remember me" para auto-login
+    await OfflineAuthService.saveOfflineSessionPreference(
+      username: email,
+      password: password,
+      rememberMe: _rememberMe,
+      userData: userData,
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -448,9 +433,6 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, dynamic>? result;
       bool isOfflineLogin = false;
 
-      // Guardar credenciales para acceso offline (incluso antes de intentar login)
-      await _saveCredentials();
-
       if (hasConnection) {
         // Intentar login online primero
         setState(() {
@@ -461,12 +443,15 @@ class _LoginScreenState extends State<LoginScreen> {
           result = await _usuarioService.iniciarSesion(email, password);
 
           if (result != null && result['error'] != true) {
-            // Login online exitoso - actualizar credenciales offline
+            // Login online exitoso - SIEMPRE guardar credenciales permanentes
             await OfflineAuthService.saveOfflineCredentials(
               username: email,
               password: password,
               userData: result,
             );
+
+            // Guardar también las preferencias de "Remember me" para auto-login
+            await _saveCredentials(userData: result);
 
             // Actualizar timestamp del último login online
             await OfflineAuthService.updateLastOnlineLogin();
@@ -479,6 +464,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
           result = await _attemptOfflineLogin();
           isOfflineLogin = true;
+          
+          // Si el login offline fue exitoso, guardar credenciales
+          if (result != null && result['error'] != true) {
+            await _saveCredentials(userData: result);
+          }
         }
       } else {
         // Sin conexión - usar login offline directamente
@@ -488,6 +478,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
         result = await _attemptOfflineLogin();
         isOfflineLogin = true;
+        
+        // Si el login offline fue exitoso, guardar credenciales
+        if (result != null && result['error'] != true) {
+          await _saveCredentials(userData: result);
+        }
       }
 
       if (result != null && result['error'] != true) {

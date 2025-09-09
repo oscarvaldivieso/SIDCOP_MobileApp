@@ -5,6 +5,7 @@ import '../../widgets/appBackground.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/PerfilUsuarioService.dart';
 import '../../../services/printer_service.dart';
+import '../../../services/InventoryImageCacheService.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -32,6 +33,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   
   final PrinterService _printerService = PrinterService();
   final InventoryService _inventoryService = InventoryService();
+  final InventoryImageCacheService _imageCacheService = InventoryImageCacheService();
   Map<String, dynamic>? _facturaData;
   String? _error;
   List<Map<String, dynamic>> _inventoryItems = [];
@@ -1991,39 +1993,32 @@ Widget _buildSummaryItem(String label, String value, Color color) {
     final String statusText = status['text'];
     final double percentage = status['percentage'];
 
-    // Widget para la imagen del producto
+    // Widget para la imagen del producto usando caché offline
+    final String productId = _getStringValue(item, 'prod_Id', '0');
     Widget productImage = prodImagen.isNotEmpty
         ? ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              prodImagen,
+            child: _imageCacheService.getCachedInventoryImage(
+              imageUrl: prodImagen,
+              productId: productId,
               width: 55,
               height: 55,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return _getProductIcon(subcDescripcion);
-              },
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  width: 55,
-                  height: 55,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(14),
+              errorWidget: _getProductIcon(subcDescripcion),
+              placeholder: Container(
+                width: 55,
+                height: 55,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFC2AF86),
+                    strokeWidth: 2,
                   ),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: const Color(0xFFC2AF86),
-                      strokeWidth: 2,
-                    ),
-                  ),
-                );
-              },
+                ),
+              ),
             ),
           )
         : Container(
