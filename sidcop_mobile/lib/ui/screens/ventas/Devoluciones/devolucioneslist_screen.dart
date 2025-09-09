@@ -97,24 +97,13 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       // Cargar devoluciones pendientes locales y prepararlas para mostrarse
       _pendingDevolucionesIds.clear();
       _pendingMessages.clear();
+      final List<DevolucionesViewModel> _pendingModels = [];
       try {
         final pendingLocal =
             await DevolucionesOffline.obtenerDevolucionesPendientesLocal();
         if (pendingLocal.isNotEmpty) {
           for (int i = 0; i < pendingLocal.length; i++) {
             final pendingMap = Map<String, dynamic>.from(pendingLocal[i]);
-            // Si tiene un ID asignado por alguna razón, usarlo; si no, crear uno sintético negativo
-            int devoId = 0;
-            if (pendingMap['devo_Id'] != null) {
-              devoId = int.tryParse(pendingMap['devo_Id'].toString()) ?? 0;
-            } else if (pendingMap['devoId'] != null) {
-              devoId = int.tryParse(pendingMap['devoId'].toString()) ?? 0;
-            }
-            if (devoId == 0) {
-              // crear id sintético negativo para evitar colisiones
-              devoId = -(DateTime.now().millisecondsSinceEpoch + i);
-              pendingMap['devo_Id'] = devoId;
-            }
 
             // Asegurar campos mínimos para convertir a modelo
             if (!pendingMap.containsKey('devo_Fecha')) {
@@ -127,7 +116,8 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
             try {
               final model = DevolucionesViewModel.fromJson(pendingMap);
-              devoluciones.add(model);
+              // no agregamos aún a 'devoluciones' para evitar sobreescritura por la carga del servidor
+              _pendingModels.add(model);
               _pendingDevolucionesIds.add(model.devoId);
               _pendingMessages[model.devoId] = 'Sincronización pendiente';
             } catch (e) {
@@ -406,22 +396,13 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         _pendingDevolucionesIds.removeWhere((id) => endpointIds.contains(id));
       }
 
-      // Merge pending devoluciones into the final list
-      devoluciones.addAll(
-        _pendingDevolucionesIds.map(
-          (id) => devoluciones.firstWhere(
-            (d) => d.devoId == id,
-            orElse: () => DevolucionesViewModel(
-              devoId: id,
-              devoMotivo: 'Devolución pendiente (offline)',
-              devoFecha: DateTime.now(),
-              devoFechaCreacion: DateTime.now(),
-              devoEstado: false, // Assuming false indicates pending
-              usuaCreacion: 0, // Assuming 0 represents an offline user
-            ),
-          ),
-        ),
-      );
+      // Merge pending devoluciones into the final list using the original pending models
+      if (_pendingModels.isNotEmpty) {
+        final toAppend = _pendingModels
+            .where((m) => _pendingDevolucionesIds.contains(m.devoId))
+            .toList();
+        devoluciones.addAll(toAppend);
+      }
 
       return devoluciones;
     } catch (e) {
@@ -701,6 +682,16 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                               if (devolucion.devoId > 0)
                                 Text(
                                   'Devolución #${devolucion.devoId}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    fontFamily: 'Satoshi',
+                                  ),
+                                )
+                              else
+                                Text(
+                                  'Sincronización pendiente',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
