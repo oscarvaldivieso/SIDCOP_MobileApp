@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.dart';
 import 'package:sidcop_mobile/models/ProductosViewModel.dart';
@@ -107,8 +108,8 @@ class InicioSesionOfflineService {
             value: jsonEncode(clientesRuta),
           );
           
-          // Cachear direcciones de cada cliente
-          await _cachearDireccionesClientes(clientesRuta);
+          // Usar el nuevo método optimizado de ClientesOfflineService
+          await ClientesOfflineService.syncDireccionesForAllClients(clientesRuta);
           
           print('Clientes por ruta cacheados: ${clientesRuta.length}');
         }
@@ -118,41 +119,6 @@ class InicioSesionOfflineService {
     }
   }
 
-  /// Cachea las direcciones de los clientes
-  static Future<void> _cachearDireccionesClientes(List<dynamic> clientes) async {
-    try {
-      print('Cacheando direcciones de clientes...');
-      
-      final clientesService = ClientesService();
-      final direccionesMap = <String, List<dynamic>>{};
-      
-      for (final cliente in clientes) {
-        if (cliente is Map<String, dynamic>) {
-          final clienteId = cliente['clie_Id'];
-          if (clienteId != null) {
-            try {
-              final direcciones = await clientesService.getDireccionesCliente(clienteId);
-              if (direcciones.isNotEmpty) {
-                direccionesMap[clienteId.toString()] = direcciones;
-              }
-            } catch (e) {
-              print('Error obteniendo direcciones del cliente $clienteId: $e');
-            }
-          }
-        }
-      }
-      
-      if (direccionesMap.isNotEmpty) {
-        await _secureStorage.write(
-          key: _clientesDireccionesKey,
-          value: jsonEncode(direccionesMap),
-        );
-        print('Direcciones de clientes cacheadas: ${direccionesMap.length}');
-      }
-    } catch (e) {
-      print('Error cacheando direcciones de clientes: $e');
-    }
-  }
 
   /// Cachea productos básicos para la creación de pedidos
   static Future<void> _cachearProductosBasicos() async {
@@ -363,7 +329,6 @@ class InicioSesionOfflineService {
       final clientesData = jsonDecode(clientesStr);
       return List<Map<String, dynamic>>.from(clientesData);
     } catch (e) {
-      print('Error obteniendo clientes desde caché: $e');
       return [];
     }
   }
@@ -371,24 +336,95 @@ class InicioSesionOfflineService {
   /// Obtiene direcciones de clientes desde el caché
   static Future<List<Map<String, dynamic>>> obtenerDireccionesClienteCache(int clienteId) async {
     try {
-      if (await _cacheHaExpirado()) {
-        print('Caché de direcciones expirado');
+      print('=== OBTENIENDO DIRECCIONES DESDE CACHÉ ===');
+      print('Cliente ID solicitado: $clienteId');
+      
+      // Verificar expiración del caché
+      final cacheExpirado = await _cacheHaExpirado();
+      print('Caché expirado: $cacheExpirado');
+      
+      // Verificar conectividad para decidir si usar caché expirado
+      final hasConnection = await _hasInternetConnection();
+      print('Conexión disponible: $hasConnection');
+      
+      if (cacheExpirado && hasConnection) {
+        print('⚠ Caché expirado y hay conexión - debería refrescarse online');
+        // En este caso, el método que llama debería manejar el refresh
+        // Pero seguimos intentando leer el caché como fallback
+      } else if (cacheExpirado && !hasConnection) {
+        print('⚠ Caché expirado pero SIN conexión - usando caché expirado como fallback');
+      }
+      
+      // Leer datos del caché de direcciones (incluso si está expirado en modo offline)
+      final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
+      print('Datos leídos del caché: ${direccionesStr?.length ?? 0} caracteres');
+      
+      if (direccionesStr == null || direccionesStr.isEmpty) {
+        print('⚠ No hay datos de direcciones en el caché');
         return [];
       }
       
-      final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
-      if (direccionesStr == null) return [];
-      
+      // Decodificar JSON
       final direccionesMap = Map<String, dynamic>.from(jsonDecode(direccionesStr));
-      final direccionesCliente = direccionesMap[clienteId.toString()];
+      print('Clientes con direcciones en caché: ${direccionesMap.keys.toList()}');
+      
+      // Buscar direcciones del cliente específico
+      final clienteKey = clienteId.toString();
+      print('Buscando direcciones para cliente key: "$clienteKey"');
+      
+      final direccionesCliente = direccionesMap[clienteKey];
       
       if (direccionesCliente != null) {
-        return List<Map<String, dynamic>>.from(direccionesCliente);
+        final direcciones = List<Map<String, dynamic>>.from(direccionesCliente);
+        print('✓ Direcciones encontradas para cliente $clienteId: ${direcciones.length}');
+        
+        if (cacheExpirado && !hasConnection) {
+          print('⚠ USANDO DIRECCIONES DE CACHÉ EXPIRADO (modo offline)');
+        }
+        
+        // Log de la primera dirección para debug
+        if (direcciones.isNotEmpty) {
+          print('Primera dirección: ${direcciones[0]}');
+        }
+        
+        return direcciones;
+      } else {
+        print('⚠ No se encontraron direcciones para cliente $clienteId');
+        print('Clientes disponibles en caché: ${direccionesMap.keys.join(", ")}');
+        
+        // Si estamos offline y no hay direcciones, crear una dirección por defecto
+        if (!hasConnection) {
+          print('>>> Creando dirección por defecto para modo offline');
+          final direccionPorDefecto = {
+            'diCl_Id': 1159, // ID temporal para offline
+            'diCl_Direccion': 'Dirección por defecto (offline)',
+            'diCl_Referencia': 'Creada automáticamente para pedido offline',
+            'diCl_ClienteId': clienteId,
+            'diCl_Estado': true,
+          };
+          return [direccionPorDefecto];
+        }
+        
+        return [];
+      }
+    } catch (e) {
+      print('✗ ERROR obteniendo direcciones del cliente desde caché: $e');
+      print('Stack trace: ${e.toString()}');
+      
+      // Si hay error y estamos offline, crear dirección por defecto
+      final hasConnection = await _hasInternetConnection();
+      if (!hasConnection) {
+        print('>>> Error en caché pero offline - creando dirección por defecto');
+        final direccionPorDefecto = {
+          'diCl_Id': 999999, // ID temporal para offline
+          'diCl_Direccion': 'Dirección por defecto (offline)',
+          'diCl_Referencia': 'Creada automáticamente para pedido offline',
+          'diCl_ClienteId': clienteId,
+          'diCl_Estado': true,
+        };
+        return [direccionPorDefecto];
       }
       
-      return [];
-    } catch (e) {
-      print('Error obteniendo direcciones del cliente desde caché: $e');
       return [];
     }
   }

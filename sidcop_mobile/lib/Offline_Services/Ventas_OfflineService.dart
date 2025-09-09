@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
+import 'package:sidcop_mobile/services/ProductosService.dart';
+import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 
 class VentasOfflineService {
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
@@ -65,6 +68,24 @@ class VentasOfflineService {
     } catch (_) {
       return [];
     }
+  }
+
+  static Future<void> descargarYGuardarProductosConDescuentoOffline(int clieId, int vendId) async {
+    final productosService = ProductosService();
+    final productos = await productosService.getProductosConDescuentoPorClienteVendedor(clieId, vendId);
+    // Convertir a JSON
+    final productosJson = productos.map((p) => p.toJson()).toList();
+    await _secureStorage.write(
+      key: 'json:productos_descuento_${clieId}_$vendId',
+      value: jsonEncode(productosJson),
+    );
+  }
+  
+  static Future<List<ProductoConDescuento>> cargarProductosConDescuentoOffline(int clieId, int vendId) async {
+    final s = await _secureStorage.read(key: 'json:productos_descuento_${clieId}_$vendId');
+    if (s == null) return [];
+    final List<dynamic> list = jsonDecode(s);
+    return list.map((json) => ProductoConDescuento.fromJson(json)).toList();
   }
 
   /// Sincroniza todas las facturas y guarda cada factura completa offline.

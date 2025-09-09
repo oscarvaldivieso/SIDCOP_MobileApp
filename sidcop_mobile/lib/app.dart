@@ -7,6 +7,7 @@ import 'ui/screens/splash_lottie_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/home_screen.dart';
 import 'package:sidcop_mobile/services/NavigationService.dart';
+import 'package:sidcop_mobile/services/ConnectivitySyncService.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

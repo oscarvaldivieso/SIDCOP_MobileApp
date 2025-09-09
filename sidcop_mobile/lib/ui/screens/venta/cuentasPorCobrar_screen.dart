@@ -84,41 +84,16 @@ class _CxCScreenState extends State<CxCScreen> {
         _errorMessage = null;
       });
 
-      // Verificar conectividad
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isConnected = connectivityResult != ConnectivityResult.none;
-
       List<dynamic> response;
       
-      if (isConnected) {
-        try {
-          // Sincronizar todos los datos de Cuentas por Cobrar de manera completa
-          print('🔄 Iniciando sincronización completa de Cuentas por Cobrar...');
-          final resultadosSincronizacion = await CuentasPorCobrarOfflineService.sincronizarTodo();
-          
-          // Usar los datos del resumen de clientes de la sincronización
-          response = resultadosSincronizacion['resumenClientes'] ?? [];
-          
-          print('✅ Sincronización completa exitosa:');
-          print('   - Cuentas por cobrar: ${(resultadosSincronizacion['cuentasPorCobrar'] as List?)?.length ?? 0}');
-          print('   - Formas de pago: ${(resultadosSincronizacion['formasPago'] as List?)?.length ?? 0}');
-          print('   - Resumen de clientes: ${response.length}');
-          
-        } catch (e) {
-          print('⚠️ Error en sincronización completa, intentando datos offline: $e');
-          // Si falla la sincronización, usar datos offline
-          response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
-        }
+      // MODO OFFLINE PRIORITARIO - Siempre usar datos offline para inmediatez
+      print('📱 Cargando datos offline actualizados para reflejo inmediato');
+      response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      
+      if (response.isEmpty) {
+        print('⚠️ No hay datos offline disponibles');
       } else {
-        // Sin conexión, cargar datos offline
-        print('📱 Sin conexión, cargando datos offline');
-        response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
-        
-        if (response.isEmpty) {
-          print('⚠️ No hay datos offline disponibles');
-        } else {
-          print('✅ Cargados ${response.length} registros desde cache offline');
-        }
+        print('✅ Cargados ${response.length} registros desde cache offline actualizado');
       }
 
       final List<CuentasXCobrar> cuentas = response

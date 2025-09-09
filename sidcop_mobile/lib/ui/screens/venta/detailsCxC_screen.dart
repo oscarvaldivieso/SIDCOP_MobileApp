@@ -554,19 +554,6 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 8),
-              Text(
-                'Observaciones adicionales',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Satoshi',
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -642,17 +629,15 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
                   ),
                 ),
               ),
-              Text(
-                _formatCurrency(_pagos.isNotEmpty 
-                  ? _pagos.map((pago) => pago.pagoMonto).reduce((a, b) => a + b)
-                  : 0.0),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF059669),
-                  fontFamily: 'Satoshi',
-                ),
-              ),
+              // Text(
+              //   _formatCurrency(_pagos.fold(0.0, (sum, pago) => sum + (pago.pagoMonto ?? 0.0))),
+              //   style: const TextStyle(
+              //     fontSize: 14,
+              //     fontWeight: FontWeight.bold,
+              //     color: Color(0xFF059669),
+              //     fontFamily: 'Satoshi',
+              //   ),
+              // ),
             ],
           ),
         ),
