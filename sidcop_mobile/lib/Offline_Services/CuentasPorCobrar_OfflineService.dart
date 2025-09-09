@@ -34,6 +34,10 @@ class CuentasPorCobrarOfflineService {
 
   // Instancia de secure storage para valores sensibles
   static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  
+  // CONTROL DE SINCRONIZACIÓN CONCURRENTE
+  static bool _sincronizacionEnProceso = false;
+  static Completer<int>? _completadorSincronizacion;
 
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
@@ -430,14 +434,36 @@ class CuentasPorCobrarOfflineService {
       // Obtener pagos pendientes existentes
       final pendientes = await obtenerPagosPendientesLocal();
       
+      // VALIDACIÓN ANTI-DUPLICADOS: Verificar que no exista un pago idéntico pendiente
+      final pagoYaExiste = pendientes.any((item) {
+        try {
+          final pagoExistente = item['pago'] as Map<String, dynamic>;
+          return pagoExistente['CPCo_Id'] == pago.cpCoId &&
+                 pagoExistente['Pago_Monto'] == pago.pagoMonto &&
+                 pagoExistente['Pago_NumeroReferencia'] == pago.pagoNumeroReferencia &&
+                 item['sincronizado'] != true; // Solo considerar pagos no sincronizados
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (pagoYaExiste) {
+        print('⚠️ Pago duplicado detectado en cola offline, omitiendo...');
+        return;
+      }
+      
+      // Generar ID temporal único para evitar duplicados
+      final idTemporal = '${DateTime.now().millisecondsSinceEpoch}_${pago.cpCoId}_${pago.pagoMonto.toStringAsFixed(2)}';
+      
       // Agregar el nuevo pago con timestamp y metadatos optimizados
       final pagoConMetadata = {
         'pago': pago.toJson(),
         'timestamp': DateTime.now().toIso8601String(),
         'intentos': 0,
-        'id_temporal': DateTime.now().millisecondsSinceEpoch.toString(),
+        'id_temporal': idTemporal,
         'sincronizado': false,
         'prioridad': 'alta', // Para sincronización prioritaria
+        'hash_validacion': _generarHashPago(pago), // Hash para validación de duplicados
       };
       
       pendientes.add(pagoConMetadata);
@@ -451,7 +477,7 @@ class CuentasPorCobrarOfflineService {
       // Actualizar timeline inmediatamente
       await _actualizarTimelineInmediato(pago);
       
-      print('✅ Pago guardado con actualización inmediata. Total pendientes: ${pendientes.length}');
+      print('✅ Pago guardado con actualización inmediata. ID temporal: $idTemporal, Total pendientes: ${pendientes.length}');
     } catch (e) {
       print('❌ Error guardando pago con actualización inmediata: $e');
       rethrow;
@@ -947,48 +973,264 @@ class CuentasPorCobrarOfflineService {
     return List.from(raw as List);
   }
 
-  /// Sincroniza los pagos pendientes con el servidor.
+  /// Sincroniza los pagos pendientes con el servidor (con control de concurrencia).
   static Future<int> sincronizarPagosPendientes() async {
-    final pendientes = await obtenerPagosPendientesLocal();
-    if (pendientes.isEmpty) return 0;
+    // CONTROL DE CONCURRENCIA: Si ya hay una sincronización en proceso, esperar a que termine
+    if (_sincronizacionEnProceso) {
+      print('⏳ Sincronización ya en proceso, esperando...');
+      if (_completadorSincronizacion != null) {
+        return await _completadorSincronizacion!.future;
+      }
+      return 0;
+    }
 
-    final servicio = PagoCuentasXCobrarService();
-    int sincronizados = 0;
-    List<dynamic> restantes = [];
+    // Marcar que la sincronización está en proceso
+    _sincronizacionEnProceso = true;
+    _completadorSincronizacion = Completer<int>();
 
-    for (final item in pendientes) {
-      try {
-        final pagoData = item['pago'] as Map<String, dynamic>;
-        final pago = PagosCuentasXCobrar.fromJson(pagoData);
-        
-        // Intentar enviar el pago
-        final resultado = await servicio.insertarPago(pago);
-        
-        if (resultado['success'] == true) {
-          sincronizados++;
-          print('Pago sincronizado exitosamente: ${item['id_temporal']}');
-        } else {
-          // Incrementar intentos y mantener en pendientes si no ha excedido el límite
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      if (pendientes.isEmpty) {
+        _completadorSincronizacion!.complete(0);
+        return 0;
+      }
+
+      final servicio = PagoCuentasXCobrarService();
+      int sincronizados = 0;
+      List<dynamic> restantes = [];
+
+      print('🔄 Iniciando sincronización de ${pendientes.length} pagos pendientes...');
+      
+      // Limpiar duplicados offline antes de sincronizar
+      final duplicadosEliminados = await limpiarPagosDuplicadosOffline();
+      if (duplicadosEliminados > 0) {
+        print('🧹 Pre-limpieza: $duplicadosEliminados duplicados eliminados');
+        // Recargar la lista actualizada
+        final pendientesLimpios = await obtenerPagosPendientesLocal();
+        pendientes.clear();
+        pendientes.addAll(pendientesLimpios);
+      }
+
+      for (final item in pendientes) {
+        try {
+          // VALIDACIÓN ADICIONAL: Solo procesar pagos no sincronizados
+          if (item['sincronizado'] == true) {
+            print('⏭️ Saltando pago ya sincronizado: ${item['id_temporal']}');
+            restantes.add(item);
+            continue;
+          }
+
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          final pago = PagosCuentasXCobrar.fromJson(pagoData);
+          
+          print('🔍 VERIFICANDO DUPLICADOS - ID Temporal: ${item['id_temporal']}, CpCo: ${pago.cpCoId}, Monto: ${pago.pagoMonto}, Ref: ${pago.pagoNumeroReferencia}');
+          
+          // VALIDACIÓN ANTI-DUPLICADOS: Verificar si ya existe en el servidor
+          final existeEnServidor = await _verificarPagoExisteEnServidor(pago);
+          if (existeEnServidor) {
+            print('⚠️ DUPLICADO DETECTADO - Pago ya existe en servidor, marcando como sincronizado: ${item['id_temporal']}');
+            item['sincronizado'] = true;
+            item['fechaSincronizacion'] = DateTime.now().toIso8601String();
+            item['razon_sincronizacion'] = 'duplicado_detectado';
+            restantes.add(item);
+            continue;
+          }
+          
+          print('📤 ENVIANDO AL SERVIDOR - ID Temporal: ${item['id_temporal']}');
+          // Intentar enviar el pago
+          final resultado = await servicio.insertarPago(pago);
+          
+          if (resultado['success'] == true) {
+            sincronizados++;
+            // Marcar como sincronizado en lugar de eliminarlo
+            item['sincronizado'] = true;
+            item['fechaSincronizacion'] = DateTime.now().toIso8601String();
+            restantes.add(item);
+            print('✅ Pago sincronizado exitosamente: ${item['id_temporal']}');
+          } else {
+            // Incrementar intentos y mantener en pendientes si no ha excedido el límite
+            item['intentos'] = (item['intentos'] ?? 0) + 1;
+            if (item['intentos'] < 3) {
+              restantes.add(item);
+            } else {
+              print('❌ Pago descartado después de 3 intentos: ${item['id_temporal']}');
+            }
+            print('⚠️ Error sincronizando pago: ${resultado['message']}');
+          }
+        } catch (e) {
+          // Incrementar intentos en caso de excepción
           item['intentos'] = (item['intentos'] ?? 0) + 1;
           if (item['intentos'] < 3) {
             restantes.add(item);
+          } else {
+            print('❌ Pago descartado después de 3 intentos por error: ${item['id_temporal']}');
           }
-          print('Error sincronizando pago: ${resultado['message']}');
-        }
-      } catch (e) {
-        // Incrementar intentos en caso de excepción
-        item['intentos'] = (item['intentos'] ?? 0) + 1;
-        if (item['intentos'] < 3) {
-          restantes.add(item);
+          print('❌ Error procesando pago: $e');
         }
       }
-    }
 
-    // Actualizar la lista de pendientes
-    await guardarJson(_archivoPagosPendientes, restantes);
-    
-    print('Sincronización de pagos completada. Sincronizados: $sincronizados, Pendientes: ${restantes.length}');
-    return sincronizados;
+      // Actualizar la lista de pendientes
+      await guardarJson(_archivoPagosPendientes, restantes);
+      
+      // Limpiar pagos sincronizados antiguos para evitar acumulación
+      await limpiarPagosSincronizadosAntiguos();
+      
+      final pendientesRestantes = restantes.where((item) => item['sincronizado'] != true).length;
+      print('🔄 Sincronización completada. Sincronizados: $sincronizados, Pendientes: $pendientesRestantes');
+      
+      _completadorSincronizacion!.complete(sincronizados);
+      return sincronizados;
+    } catch (e) {
+      print('❌ Error general en sincronización: $e');
+      _completadorSincronizacion!.completeError(e);
+      rethrow;
+    } finally {
+      // Limpiar el estado de sincronización
+      _sincronizacionEnProceso = false;
+      _completadorSincronizacion = null;
+    }
+  }
+
+  /// Verifica si un pago ya existe en el servidor para evitar duplicados
+  static Future<bool> _verificarPagoExisteEnServidor(PagosCuentasXCobrar pago) async {
+    try {
+      final servicio = PagoCuentasXCobrarService();
+      final pagosServidor = await servicio.listarPagosPorCuenta(pago.cpCoId);
+      
+      print('🔍 Verificando duplicados - Cuenta: ${pago.cpCoId}, Pagos en servidor: ${pagosServidor.length}');
+      print('🔍 Pago a verificar - Monto: ${pago.pagoMonto}, Ref: "${pago.pagoNumeroReferencia}", Fecha: ${pago.pagoFecha}');
+      
+      // Buscar pagos con características similares (mismo monto, referencia y fecha cercana)
+      final fechaPago = pago.pagoFecha;
+      for (final pagoServidor in pagosServidor) {
+        print('  📊 Comparando con servidor - ID: ${pagoServidor.pagoId}, Monto: ${pagoServidor.pagoMonto}, Ref: "${pagoServidor.pagoNumeroReferencia}", Fecha: ${pagoServidor.pagoFecha}');
+        
+        // Comparar por monto exacto Y referencia exacta (no vacía)
+        if (pagoServidor.pagoMonto == pago.pagoMonto && 
+            pagoServidor.pagoNumeroReferencia.isNotEmpty &&
+            pago.pagoNumeroReferencia.isNotEmpty &&
+            pagoServidor.pagoNumeroReferencia == pago.pagoNumeroReferencia) {
+          
+          // Verificar si la fecha es del mismo día (tolerancia de 2 horas para ser más estricto)
+          final diferenciaTiempo = pagoServidor.pagoFecha.difference(fechaPago).abs();
+          if (diferenciaTiempo.inHours <= 2) {
+            print('❌ DUPLICADO CONFIRMADO: Servidor ID=${pagoServidor.pagoId}, Local Monto=${pago.pagoMonto}, Ref="${pago.pagoNumeroReferencia}", Diferencia: ${diferenciaTiempo.inMinutes} minutos');
+            return true;
+          } else {
+            print('✅ SIMILAR PERO DIFERENTE TIEMPO: Diferencia de ${diferenciaTiempo.inHours} horas');
+          }
+        } else {
+          print('  ➡️ No coincide - Monto: ${pagoServidor.pagoMonto == pago.pagoMonto ? "✓" : "✗"}, Ref: "${pagoServidor.pagoNumeroReferencia}" vs "${pago.pagoNumeroReferencia}"');
+        }
+      }
+      
+      print('✅ No se encontraron duplicados para este pago');
+      return false;
+    } catch (e) {
+      print('❌ Error verificando duplicados en servidor: $e');
+      // En caso de error, asumir que no existe para intentar el envío
+      return false;
+    }
+  }
+
+  /// Genera un hash único para un pago para validación de duplicados
+  static String _generarHashPago(PagosCuentasXCobrar pago) {
+    final contenido = '${pago.cpCoId}_${pago.pagoMonto}_${pago.pagoNumeroReferencia}_${pago.pagoFecha.toIso8601String().substring(0, 10)}';
+    return contenido.hashCode.toString();
+  }
+
+  /// Limpia pagos ya sincronizados que tienen más de 7 días
+  static Future<void> limpiarPagosSincronizadosAntiguos() async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      final ahora = DateTime.now();
+      
+      // Mantener solo pagos no sincronizados o sincronizados recientes (últimos 7 días)
+      final pagosFiltrados = pendientes.where((item) {
+        if (item['sincronizado'] != true) {
+          return true; // Mantener pagos no sincronizados
+        }
+        
+        // Para pagos sincronizados, verificar la fecha
+        try {
+          final fechaSincronizacion = DateTime.parse(item['fechaSincronizacion']);
+          final diferencia = ahora.difference(fechaSincronizacion).inDays;
+          return diferencia <= 7; // Mantener solo los últimos 7 días
+        } catch (e) {
+          return false; // Si no se puede parsear la fecha, eliminar
+        }
+      }).toList();
+      
+      if (pagosFiltrados.length < pendientes.length) {
+        await guardarJson(_archivoPagosPendientes, pagosFiltrados);
+        final eliminados = pendientes.length - pagosFiltrados.length;
+        print('🧹 Limpieza automática: $eliminados pagos sincronizados antiguos eliminados');
+      }
+    } catch (e) {
+      print('⚠️ Error en limpieza de pagos sincronizados: $e');
+    }
+  }
+
+  /// Limpia manualmente pagos duplicados de la cola offline
+  static Future<int> limpiarPagosDuplicadosOffline() async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      if (pendientes.isEmpty) return 0;
+
+      final Map<String, dynamic> hashesVistosYaEnviados = {};
+      final List<dynamic> pagosFiltrados = [];
+      int eliminados = 0;
+
+      for (final item in pendientes) {
+        try {
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          final hash = _generarHashPago(PagosCuentasXCobrar.fromJson(pagoData));
+          
+          // Si ya está marcado como sincronizado, mantenerlo pero no duplicar
+          if (item['sincronizado'] == true) {
+            if (!hashesVistosYaEnviados.containsKey(hash)) {
+              hashesVistosYaEnviados[hash] = item;
+              pagosFiltrados.add(item);
+            } else {
+              eliminados++;
+              print('🗑️ Eliminado pago sincronizado duplicado: ${item['id_temporal']}');
+            }
+          } else {
+            // Para pagos no sincronizados, verificar si hay duplicados
+            final hashExiste = pagosFiltrados.any((existente) {
+              try {
+                final existenteData = existente['pago'] as Map<String, dynamic>;
+                final hashExistente = _generarHashPago(PagosCuentasXCobrar.fromJson(existenteData));
+                return hashExistente == hash && existente['sincronizado'] != true;
+              } catch (e) {
+                return false;
+              }
+            });
+
+            if (!hashExiste) {
+              pagosFiltrados.add(item);
+            } else {
+              eliminados++;
+              print('🗑️ Eliminado pago pendiente duplicado: ${item['id_temporal']}');
+            }
+          }
+        } catch (e) {
+          // Si hay error procesando el item, mantenerlo para no perder datos
+          pagosFiltrados.add(item);
+          print('⚠️ Error procesando item para limpieza: $e');
+        }
+      }
+
+      if (eliminados > 0) {
+        await guardarJson(_archivoPagosPendientes, pagosFiltrados);
+        print('🧹 Limpieza de duplicados completada: $eliminados pagos eliminados, ${pagosFiltrados.length} restantes');
+      }
+
+      return eliminados;
+    } catch (e) {
+      print('❌ Error en limpieza de duplicados: $e');
+      return 0;
+    }
   }
 
   /// Elimina todos los pagos pendientes (usar con precaución).
@@ -1339,14 +1581,15 @@ class CuentasPorCobrarOfflineService {
   /// Configura la sincronización periódica
   static void _configurarSincronizacionPeriodica() {
     try {
-      // Usar un timer para verificar periódicamente si hay datos pendientes
-      Timer.periodic(const Duration(minutes: 5), (timer) async {
+      // Usar un timer para verificar periódicamente si hay datos pendientes (cada 15 minutos)
+      Timer.periodic(const Duration(minutes: 15), (timer) async {
         try {
           final connectivityResult = await Connectivity().checkConnectivity();
           if (connectivityResult != ConnectivityResult.none) {
             final pendientes = await obtenerPagosPendientesLocal();
-            if (pendientes.isNotEmpty) {
-              print('🔄 Sincronización periódica: ${pendientes.length} pagos pendientes detectados');
+            final pagosNoSincronizados = pendientes.where((item) => item['sincronizado'] != true).length;
+            if (pagosNoSincronizados > 0) {
+              print('🔄 Sincronización periódica: $pagosNoSincronizados pagos no sincronizados detectados');
               sincronizarPagosPendientes().then((sincronizados) {
                 if (sincronizados > 0) {
                   print('✅ Sincronización periódica: $sincronizados pagos sincronizados');
@@ -1354,6 +1597,8 @@ class CuentasPorCobrarOfflineService {
               }).catchError((e) {
                 print('⚠️ Error en sincronización periódica: $e');
               });
+            } else if (pendientes.isNotEmpty) {
+              print('ℹ️ Sincronización periódica: ${pendientes.length} pagos en cola pero todos ya sincronizados');
             }
           }
         } catch (e) {
