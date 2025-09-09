@@ -437,6 +437,7 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _procesarVenta() async {
+    final hasConnection = await SyncService.hasInternetConnection();
     // Validar crédito si el método de pago es CRÉDITO
     if (formData.metodoPago == 'CREDITO' && widget.clienteId != null) {
       final totalVenta = _calculateTotal();
@@ -505,31 +506,62 @@ class _VentaScreenState extends State<VentaScreen> {
       for (var detalle in _ventaModel.detallesFacturaInput) {
         print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
       }
-      
-      // Enviar venta al backend
-      print('Enviando datos al servidor...');
-      final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
-      
-      // Cerrar indicador de carga
-      if (Navigator.canPop(loadingContext)) {
-        Navigator.of(loadingContext, rootNavigator: true).pop();
-      }
-      
-      print('Respuesta del servidor: $resultado');
-      
-      if (resultado?['success'] == true) {
-        // Venta exitosa - mostrar toast y dialog
-        ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
-        
+
+      if(hasConnection){
+        // Enviar venta al backend
+        print('Enviando datos al servidor...');
+        final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
+
+        // Cerrar indicador de carga
+        if (Navigator.canPop(loadingContext)) {
+          Navigator.of(loadingContext, rootNavigator: true).pop();
+        }
+
+        print('Respuesta del servidor: $resultado');
+
+        if (resultado?['success'] == true) {
+          // Venta exitosa - mostrar toast y dialog
+          ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
+          );
+        } else {
+          // Error en la venta - usar toast en lugar de dialog
+          ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
+          print('Error al procesar venta: $resultado');
+        }
+      } else {
+        // Guardar venta offline
+        await VentasOfflineService.guardarVentaOffline(
+          ventaModel: _ventaModel,
+          selectedProducts: _selectedProducts,
+          allProducts: _allProducts,
+          metodoPago: formData.metodoPago,
+          clienteId: widget.clienteId,
+          vendedorId: widget.vendedorId,
+          selectedAddress: _selectedAddress,
+        );
+
+        // Cerrar indicador de carga
+        if (Navigator.canPop(loadingContext)) {
+          Navigator.of(loadingContext, rootNavigator: true).pop();
+        }
+
+        // Después de guardar offline...
+        ErrorHandler.showSuccessToast('¡Venta guardada offline! Se enviará cuando haya conexión.');
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
+          builder: (_) => _buildModernSuccessDialog(context, {
+            'offline': true,
+            'fact_Numero': _ventaModel.factNumero,
+            'ventaModel': _ventaModel.toJson(),
+            // Puedes agregar más campos si quieres mostrar detalles
+          }),
         );
-      } else {
-        // Error en la venta - usar toast en lugar de dialog
-        ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
-        print('Error al procesar venta: $resultado');
       }
     } catch (e, stackTrace) {
       print('Excepción al procesar venta: $e');
