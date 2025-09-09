@@ -105,5 +105,12 @@ class VentasOfflineService {
     }
   }
 
+  static Future<void> descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(int vendedorId, List<int> clientesIds) async {
+    for (final clieId in clientesIds) {
+      print('Guardando lista de productos del cliente id: $clieId para vendedor id: $vendedorId');
+      await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
+    }
+  }
+
   // Puedes agregar más funciones offline para ventas aquí.
 }
