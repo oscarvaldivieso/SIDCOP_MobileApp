@@ -180,11 +180,14 @@ class _LoginScreenState extends State<LoginScreen> {
               );
               await OfflineAuthService.updateLastOnlineLogin();
 
-              // Cachear datos de pedidos y productos durante el login
+              // Cachear datos de pedidos y productos en background (no bloquear UI)
               setState(() {
-                _syncStatus = 'Cacheando datos para uso offline...';
+                _syncStatus = 'Finalizando...';
               });
-              await InicioSesionOfflineService.cachearDatosInicioSesion(result);
+              // Ejecutar caché en background sin bloquear
+              InicioSesionOfflineService.cachearDatosInicioSesion(result).catchError((e) {
+                print('Error en caché background durante auto-login: $e');
+              });
             }
           } catch (e) {
             // Si falla online, usar offline
@@ -200,21 +203,18 @@ class _LoginScreenState extends State<LoginScreen> {
           await _perfilUsuarioService.guardarDatosUsuario(result);
 
           if (hasConnection && result['offline_login'] != true) {
-            // Sincronización rápida para login online
+            // Sincronización en background para login online
             setState(() {
-              _syncStatus = 'Sincronizando...';
+              _syncStatus = 'Finalizando...';
             });
 
-            await SyncService.syncAfterLogin(
+            // Ejecutar sincronización en background sin bloquear UI
+            SyncService.syncAfterLogin(
               immediate: false,
-              onProgress: (status) {
-                if (mounted) {
-                  setState(() {
-                    _syncStatus = status;
-                  });
-                }
-              },
-            );
+              onProgress: null, // No actualizar UI desde background
+            ).catchError((e) {
+              print('Error en sincronización background: $e');
+            });
           }
 
           if (mounted) {
@@ -288,11 +288,14 @@ class _LoginScreenState extends State<LoginScreen> {
             );
             await OfflineAuthService.updateLastOnlineLogin();
 
-            // Cachear datos de pedidos y productos durante el login
+            // Cachear datos de pedidos y productos en background (no bloquear UI)
             setState(() {
-              _syncStatus = 'Cacheando datos para uso offline...';
+              _syncStatus = 'Finalizando...';
             });
-            await InicioSesionOfflineService.cachearDatosInicioSesion(result);
+            // Ejecutar caché en background sin bloquear
+            InicioSesionOfflineService.cachearDatosInicioSesion(result).catchError((e) {
+              print('Error en caché background durante auto-login manual: $e');
+            });
           }
         } catch (e) {
           // Error de conexión - intentar auto-login offline
@@ -322,24 +325,21 @@ class _LoginScreenState extends State<LoginScreen> {
             _syncStatus = 'Sesión restaurada (offline)';
           });
 
-          // Pequeña pausa para mostrar el mensaje
-          await Future.delayed(const Duration(milliseconds: 1500));
+          // Reducir pausa para login offline más rápido
+          await Future.delayed(const Duration(milliseconds: 500));
         } else {
-          // Sincronización solo para auto-login online
+          // Sincronización en background para login online
           setState(() {
-            _syncStatus = 'Sincronizando datos...';
+            _syncStatus = 'Finalizando...';
           });
 
-          await SyncService.syncAfterLogin(
+          // Ejecutar sincronización en background sin bloquear UI
+          SyncService.syncAfterLogin(
             immediate: false,
-            onProgress: (status) {
-              if (mounted) {
-                setState(() {
-                  _syncStatus = status;
-                });
-              }
-            },
-          );
+            onProgress: null, // No actualizar UI desde background
+          ).catchError((e) {
+            print('Error en sincronización background durante login: $e');
+          });
         }
 
         if (mounted) {
@@ -494,24 +494,21 @@ class _LoginScreenState extends State<LoginScreen> {
             _syncStatus = 'Acceso offline exitoso';
           });
 
-          // Pequeña pausa para mostrar el mensaje
-          await Future.delayed(const Duration(milliseconds: 1500));
+          // Reducir pausa para login offline más rápido
+          await Future.delayed(const Duration(milliseconds: 500));
         } else {
-          // Sincronización solo para login online
+          // Sincronización en background para login online
           setState(() {
-            _syncStatus = 'Sincronizando...';
+            _syncStatus = 'Finalizando...';
           });
 
-          await SyncService.syncAfterLogin(
+          // Ejecutar sincronización en background sin bloquear UI
+          SyncService.syncAfterLogin(
             immediate: false,
-            onProgress: (status) {
-              if (mounted) {
-                setState(() {
-                  _syncStatus = status;
-                });
-              }
-            },
-          );
+            onProgress: null, // No actualizar UI desde background
+          ).catchError((e) {
+            print('Error en sincronización background durante login: $e');
+          });
         }
 
         if (mounted) {

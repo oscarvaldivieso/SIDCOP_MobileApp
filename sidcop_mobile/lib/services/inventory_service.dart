@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'GlobalService.dart';
 import 'OfflineDatabaseService.dart';
+import 'JornadaOfflineService.dart';
 
 class InventoryService {
   final String _apiServer = apiServer;
@@ -193,7 +194,55 @@ class InventoryService {
 
 
 
-    Future<Map<String, dynamic>?> startJornada(int vendorId, int usuaCreacion) async {
+  /// Inicia jornada con soporte offline-first
+  Future<Map<String, dynamic>?> startJornadaOfflineFirst(int vendorId, int usuaCreacion) async {
+    final hasConnection = await _hasInternetConnection();
+    
+    if (hasConnection) {
+      try {
+        debugPrint('🌐 Intentando iniciar jornada online...');
+        final result = await startJornada(vendorId, usuaCreacion);
+        if (result != null) {
+          debugPrint('✅ Jornada iniciada online exitosamente');
+          return result;
+        }
+      } catch (e) {
+        debugPrint('❌ Error al iniciar jornada online, guardando offline: $e');
+        // Falló online, guardar offline
+        await JornadaOfflineService.guardarOperacionJornadaOffline(
+          tipoOperacion: 'iniciar',
+          vendorId: vendorId,
+          usuaCreacion: usuaCreacion,
+        );
+        
+        // Retornar respuesta simulada para UI
+        return {
+          'message': 'Jornada iniciada offline - se sincronizará cuando haya conexión',
+          'offline': true,
+          'vendorId': vendorId,
+        };
+      }
+    } else {
+      debugPrint('📱 Sin conexión, guardando jornada offline...');
+      await JornadaOfflineService.guardarOperacionJornadaOffline(
+        tipoOperacion: 'iniciar',
+        vendorId: vendorId,
+        usuaCreacion: usuaCreacion,
+      );
+      
+      // Retornar respuesta simulada para UI
+      return {
+        'message': 'Jornada iniciada offline - se sincronizará cuando haya conexión',
+        'offline': true,
+        'vendorId': vendorId,
+      };
+    }
+    
+    return null;
+  }
+
+  /// Método original para iniciar jornada (mantener compatibilidad)
+  Future<Map<String, dynamic>?> startJornada(int vendorId, int usuaCreacion) async {
     final url = Uri.parse('$_apiServer/InventarioBodegas/IniciarJornada?Vend_Id=$vendorId&Usuario_Creacion=$usuaCreacion');
     try {
       final response = await http.get(
@@ -219,6 +268,23 @@ class InventoryService {
   }
 
   Future<Map<String, dynamic>> getJornadaActiva(int vendorId) async {
+    // Primero verificar si hay estado local offline
+    final estadoLocal = await JornadaOfflineService.obtenerEstadoJornadaLocal(vendorId);
+    if (estadoLocal != null && estadoLocal['activa'] == true) {
+      debugPrint('📱 Jornada activa encontrada en estado local offline');
+      return {
+        'success': true,
+        'data': {
+          'jorV_Id': estadoLocal['datos']['id'] ?? 'offline_${DateTime.now().millisecondsSinceEpoch}',
+          'vend_Id': vendorId,
+          'fechaInicio': estadoLocal['fechaActualizacion'],
+          'offline': true,
+        },
+        'message': 'Jornada activa (offline)',
+        'code': 'SUCCESS_OFFLINE'
+      };
+    }
+    
     final hasConnection = await _hasInternetConnection();
     
     if (hasConnection) {
@@ -283,6 +349,78 @@ class InventoryService {
     }
   }
 
+  /// Cierra jornada con soporte offline-first
+  Future<Map<String, dynamic>?> closeJornadaOfflineFirst(int vendorId) async {
+    final hasConnection = await _hasInternetConnection();
+    
+    if (hasConnection) {
+      try {
+        debugPrint('🌐 Intentando cerrar jornada online...');
+        final result = await closeJornada(vendorId);
+        if (result != null) {
+          debugPrint('✅ Jornada cerrada online exitosamente');
+          return result;
+        }
+      } catch (e) {
+        debugPrint('❌ Error al cerrar jornada online, guardando offline: $e');
+        // Falló online, guardar offline
+        await JornadaOfflineService.guardarOperacionJornadaOffline(
+          tipoOperacion: 'cerrar',
+          vendorId: vendorId,
+          usuaCreacion: 0, // No necesario para cerrar
+          datosAdicionales: {
+            'fechaCierre': DateTime.now().toIso8601String(),
+            'totalProductos': 0, // Datos simulados para UI
+            'totalInicial': 0,
+            'totalFinal': 0,
+            'totalVendido': 0,
+            'montoTotal': '0.00',
+          },
+        );
+        
+        // Retornar respuesta simulada para UI
+        return {
+          'message': 'Jornada cerrada offline - se sincronizará cuando haya conexión',
+          'offline': true,
+          'totalProductos': 0,
+          'totalInicial': 0,
+          'totalFinal': 0,
+          'totalVendido': 0,
+          'montoTotal': '0.00',
+        };
+      }
+    } else {
+      debugPrint('📱 Sin conexión, guardando cierre de jornada offline...');
+      await JornadaOfflineService.guardarOperacionJornadaOffline(
+        tipoOperacion: 'cerrar',
+        vendorId: vendorId,
+        usuaCreacion: 0, // No necesario para cerrar
+        datosAdicionales: {
+          'fechaCierre': DateTime.now().toIso8601String(),
+          'totalProductos': 0, // Datos simulados para UI
+          'totalInicial': 0,
+          'totalFinal': 0,
+          'totalVendido': 0,
+          'montoTotal': '0.00',
+        },
+      );
+      
+      // Retornar respuesta simulada para UI
+      return {
+        'message': 'Jornada cerrada offline - se sincronizará cuando haya conexión',
+        'offline': true,
+        'totalProductos': 0,
+        'totalInicial': 0,
+        'totalFinal': 0,
+        'totalVendido': 0,
+        'montoTotal': '0.00',
+      };
+    }
+    
+    return null;
+  }
+
+  /// Método original para cerrar jornada (mantener compatibilidad)
   Future<Map<String, dynamic>?> closeJornada(int vendorId) async {
     final url = Uri.parse('$_apiServer/InventarioBodegas/CierreJornada?Vend_Id=$vendorId');
     try {
@@ -325,10 +463,32 @@ class InventoryService {
       // Sincronizar jornada activa
       await getJornadaActiva(vendorId);
       
+      // Sincronizar operaciones de jornada pendientes
+      await syncJornadaOperations();
+      
       debugPrint('Sincronización de inventario completada exitosamente');
       return true;
     } catch (e) {
       debugPrint('Error durante la sincronización de inventario: $e');
+      return false;
+    }
+  }
+
+  /// Sincroniza operaciones de jornada pendientes
+  Future<bool> syncJornadaOperations() async {
+    try {
+      debugPrint('🔄 Sincronizando operaciones de jornada pendientes...');
+      final success = await JornadaOfflineService.sincronizarOperacionesPendientes();
+      
+      if (success) {
+        debugPrint('✅ Operaciones de jornada sincronizadas exitosamente');
+      } else {
+        debugPrint('⚠️ Algunas operaciones de jornada no se pudieron sincronizar');
+      }
+      
+      return success;
+    } catch (e) {
+      debugPrint('❌ Error al sincronizar operaciones de jornada: $e');
       return false;
     }
   }
