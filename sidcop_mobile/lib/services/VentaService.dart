@@ -177,7 +177,6 @@ class VentaService {
     print(' [VentaService] Obteniendo factura completa');
     print(' [VentaService] URL: $url');
     print(' [VentaService] Factura ID: $facturaId');
-    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
 
     try {
       print(' [VentaService] Enviando solicitud GET...');

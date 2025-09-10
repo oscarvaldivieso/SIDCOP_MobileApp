@@ -114,9 +114,13 @@ class UsuarioService {
 
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
-        await SincronizacionService.sincronizarTodoOfflineConClientesAuto(
+        
+        // Ejecutar sincronización completa en background (no bloquear login)
+        SincronizacionService.sincronizarTodoOfflineConClientesAuto(
           vendedorId: globalVendId ?? 0,
-        );
+        ).catchError((e) {
+          print('Error en sincronización background completa: $e');
+        });
         return data;
       } else {
         // Status code diferente a 200

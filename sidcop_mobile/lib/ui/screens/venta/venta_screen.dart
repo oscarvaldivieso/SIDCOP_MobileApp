@@ -23,6 +23,7 @@ class FormData {
   String datosCliente = '';
   String productos = '';
   bool confirmacion = false;
+  double total = 0;
 }
 
 class VentaScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _VentaScreenState extends State<VentaScreen> {
     final random = Random();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
-    return 'FACT-${timestamp}_$randomDigits';
+    return '-- ---- --- -- --------';
   }
   
   // Método para construir una fila de información de crédito
@@ -543,6 +544,8 @@ class _VentaScreenState extends State<VentaScreen> {
           clienteId: widget.clienteId,
           vendedorId: widget.vendedorId,
           selectedAddress: _selectedAddress,
+          clienteNombre: formData.datosCliente,
+          totalCuenta: formData.total
         );
 
         // Cerrar indicador de carga
@@ -584,6 +587,7 @@ class _VentaScreenState extends State<VentaScreen> {
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      formData.total = 0;
       _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
       _pageController.jumpToPage(0);
@@ -3013,6 +3017,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double impuestos = baseImponible * porcentajeImpuesto;
     
     final double total = subtotalConDescuento + impuestos;
+    
+    setState(() {
+      formData.total = total;
+    });
 
     return Padding(
       padding: const EdgeInsets.all(24),
