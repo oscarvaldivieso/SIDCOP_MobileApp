@@ -166,7 +166,7 @@ class FacturaSyncService {
       'fact_Longitud': 0.0,
       'fact_Referencia': 'Factura sincronizada desde offline - ${facturaOffline['local_signature']}',
       'fact_AutorizadoPor': facturaOffline['vendedor'] ?? '',
-      'usua_Creacion': facturaOffline['usuaCreacion'] ?? facturaOffline['vendedorId'] ?? 1,
+      'usua_Creacion': facturaOffline['usuaCreacion'],
       'fact_EsPedido': facturaOffline['pediId'] != null,
       'pedi_Id': facturaOffline['pediId'],
       'detallesFacturaInput': detallesFactura,
