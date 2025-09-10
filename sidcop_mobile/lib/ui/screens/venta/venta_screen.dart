@@ -1371,25 +1371,51 @@ Widget paso1() {
     setState(() => _verificandoCredito = true);
     
     try {
-      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
-      
-      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
-      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
-      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
-      
-      setState(() {
-        _limiteCredito = limiteCredito;
-        _saldoActual = saldoActual;
-        _creditoDisponible = creditoDisponible;
-        _tieneCredito = creditoDisponible > 0;
-      });
-      
-      // Si no hay crédito disponible, volver a efectivo
-      if (!_tieneCredito) {
+      final isOffline = !(await SyncService.hasInternetConnection());
+      if (isOffline) {
+        final creditInfo = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
+        
+        final limiteCredito = (creditInfo?['clie_LimiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo?['clie_Saldo'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = limiteCredito - saldoActual;
+
         setState(() {
-          formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
         });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
+        
+      }
+      else{
+        final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+        final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+
+        setState(() {
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
+        });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
