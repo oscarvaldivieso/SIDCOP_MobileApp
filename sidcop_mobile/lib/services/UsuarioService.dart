@@ -5,7 +5,6 @@ import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
 
 class UsuarioService {
@@ -114,7 +113,7 @@ class UsuarioService {
 
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
-        
+
         // Ejecutar sincronización completa en background (no bloquear login)
         SincronizacionService.sincronizarTodoOfflineConClientesAuto(
           vendedorId: globalVendId ?? 0,
