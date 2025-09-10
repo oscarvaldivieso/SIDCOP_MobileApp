@@ -361,7 +361,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     print('\n=== _insertarFactura INICIADO ===');
 
     if (_isInsertingInvoice) {
-      print('YA SE ESTÁ INSERTANDO UNA FACTURA, SALIENDO...');
+
       return;
     }
 
@@ -534,7 +534,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       'fact_Longitud': longitud,
       'fact_Referencia': 'Pedido generado desde app móvil',
       'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
-      'usua_Creacion': widget.pedido.usuaCreacion,
+      'Usua_Id': widget.pedido.usuaCreacion,
       'fact_EsPedido': true, // Marcar como pedido
       'pedi_Id': widget.pedido.pediId, // ID del pedido actual
       'detallesFacturaInput': detallesFactura, // Añadir los productos
