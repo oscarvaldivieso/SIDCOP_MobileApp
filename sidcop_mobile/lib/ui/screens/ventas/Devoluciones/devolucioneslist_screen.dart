@@ -20,19 +20,67 @@ class DevolucioneslistScreen extends StatefulWidget {
   State<DevolucioneslistScreen> createState() => _DevolucioneslistScreenState();
 }
 
-class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
+class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
+    with WidgetsBindingObserver {
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
   List<dynamic> permisos = [];
   bool isOnline = true; // Indicador de estado de conexión
   bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
+  bool _isSyncingPendientes = false;
+  bool? _lastConnectionState;
+
   // Pendientes locales cargadas desde almacenamiento
   final Set<int> _pendingDevolucionesIds = <int>{};
   final Map<int, String> _pendingMessages = {};
+  // Numeración de pendientes (devoluciones creadas offline) por orden
+  final Map<int, int> _pendingDisplayNumber = {};
 
   // Método para verificar la conexión a internet
   Future<bool> verificarConexion() async {
     try {
       final tieneConexion = await VerificarService.verificarConexion();
+      // Detectar transición offline -> online (solo si antes estaba explícitamente offline)
+      if (_lastConnectionState == false && tieneConexion == true) {
+        // Solo ejecutar sincronización de pendientes si no se está ya sincronizando
+        if (!_isSyncingPendientes) {
+          _isSyncingPendientes = true;
+          try {
+            print(
+              'Transición: Offline -> Online detectada, sincronizando pendientes...',
+            );
+            final resultado =
+                await DevolucionesOffline.sincronizarPendientesDevoluciones();
+            print('Resultado sincronización pendientes: $resultado');
+            // Recargar listado inmediatamente
+            if (mounted) {
+              setState(() {
+                _devolucionesFuture = _loadDevoluciones();
+              });
+              // Informar al usuario solo si se sincronizó al menos una devolución
+              try {
+                final int sincronizados = (resultado['success'] ?? 0);
+                if (sincronizados > 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ' $sincronizados devoluciones sincronizadas',
+                      ),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (_) {}
+            }
+          } catch (e) {
+            print('Error sincronizando pendientes tras reconexión: $e');
+          } finally {
+            _isSyncingPendientes = false;
+          }
+        }
+      }
+
+      _lastConnectionState = tieneConexion;
       setState(() {
         isOnline = tieneConexion;
       });
@@ -50,12 +98,28 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadPermisos();
     // Inicializar _devolucionesFuture inmediatamente para evitar LateInitializationError
     _devolucionesFuture = _loadDevoluciones();
     // Luego actualizar después de verificar conexión
     _actualizarDatosSegunConexion();
     print('DevolucioneslistScreen initialized');
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Al regresar a foreground, verificar conexión para sincronizar pendientes
+    if (state == AppLifecycleState.resumed) {
+      _actualizarDatosSegunConexion();
+    }
+    super.didChangeAppLifecycleState(state);
   }
 
   // Método para actualizar los datos según la conexión
@@ -95,6 +159,10 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       List<DevolucionesViewModel> devoluciones = [];
 
       // Cargar devoluciones pendientes locales y prepararlas para mostrarse
+      try {
+        // Asegurar que las devoluciones pendientes tengan un ID asignado
+        await DevolucionesOffline.PendientesTenganId();
+      } catch (_) {}
       _pendingDevolucionesIds.clear();
       _pendingMessages.clear();
       final List<DevolucionesViewModel> _pendingModels = [];
@@ -119,7 +187,9 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
               // no agregamos aún a 'devoluciones' para evitar sobreescritura por la carga del servidor
               _pendingModels.add(model);
               _pendingDevolucionesIds.add(model.devoId);
-              _pendingMessages[model.devoId] = 'Sincronización pendiente';
+              _pendingMessages[model.devoId] = 'Devolución pendiente';
+              // Asignar número de visualización según el orden en el almacenamiento local (1..N)
+              _pendingDisplayNumber[model.devoId] = i + 1;
             } catch (e) {
               // si falla la conversión, omitir pero intentar conservar el registro en pendientes
             }
@@ -397,11 +467,14 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       }
 
       // Merge pending devoluciones into the final list using the original pending models
+      // Pendientes no sincronizados deben ir al inicio (top) de la lista
       if (_pendingModels.isNotEmpty) {
-        final toAppend = _pendingModels
+        final toPrepend = _pendingModels
             .where((m) => _pendingDevolucionesIds.contains(m.devoId))
             .toList();
-        devoluciones.addAll(toAppend);
+        if (toPrepend.isNotEmpty) {
+          devoluciones = [...toPrepend, ...devoluciones];
+        }
       }
 
       return devoluciones;
@@ -679,35 +752,87 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (devolucion.devoId > 0)
-                                Text(
-                                  'Devolución #${devolucion.devoId}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    fontFamily: 'Satoshi',
-                                  ),
-                                )
-                              else
-                                Text(
-                                  'Sincronización pendiente',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    fontFamily: 'Satoshi',
-                                  ),
+                              Text(
+                                devolucion.devoId > 0
+                                    ? 'Devolución #${devolucion.devoId}'
+                                    : (_pendingDisplayNumber[devolucion
+                                                  .devoId] !=
+                                              null
+                                          ? 'Devolución pendiente #${_pendingDisplayNumber[devolucion.devoId]}'
+                                          : 'Devolución pendiente'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontFamily: 'Satoshi',
                                 ),
+                              ),
                               // No mostrar el mensaje visual aquí
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        // Si es una devolución pendiente, mostrar botón de borrar
+                        if (devolucion.devoId < 0)
+                          IconButton(
+                            onPressed: () async {
+                              // Confirmar eliminación
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text(
+                                    'Eliminar devolución pendiente',
+                                  ),
+                                  content: const Text(
+                                    '¿Estás seguro de que quieres eliminar esta devolución pendiente? Esta acción no se puede deshacer.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(true),
+                                      child: const Text('Eliminar'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                final success =
+                                    await DevolucionesOffline.eliminarDevolucionPendiente(
+                                      devolucion.devoId,
+                                    );
+                                if (mounted) {
+                                  setState(() {
+                                    _devolucionesFuture = _loadDevoluciones();
+                                  });
+                                }
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      success
+                                          ? 'Devolución pendiente eliminada'
+                                          : 'No se pudo eliminar la devolución pendiente',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white,
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                       ],
                     ),
                   ),
