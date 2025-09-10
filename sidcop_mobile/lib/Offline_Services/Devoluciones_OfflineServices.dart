@@ -210,18 +210,64 @@ class DevolucionesOffline {
     final lista = await obtenerDevolucionesPendientesLocal();
     final id =
         devolucion['devo_Id'] ?? devolucion['devoId'] ?? devolucion['id'];
-    if (id != null) {
-      for (final item in lista) {
-        final itemId = item['devo_Id'] ?? item['devoId'] ?? item['id'];
-        if (itemId == id) {
-          // Ya existe una devolución pendiente con ese ID
-          return false;
+
+    try {
+      // Normalize incoming signature for duplicate detection when id is absent
+      final String inClie =
+          (devolucion['clie_Id'] ?? devolucion['clieId'] ?? '').toString();
+      final String inFact =
+          (devolucion['fact_Id'] ?? devolucion['factId'] ?? '').toString();
+      final String inMotivo =
+          (devolucion['devo_Motivo'] ?? devolucion['devoMotivo'] ?? '')
+              .toString();
+      String inDetallesJson = '';
+      try {
+        inDetallesJson = jsonEncode(devolucion['detalles'] ?? []);
+      } catch (_) {
+        inDetallesJson = '';
+      }
+
+      if (id != null) {
+        for (final item in lista) {
+          final itemId = item['devo_Id'] ?? item['devoId'] ?? item['id'];
+          if (itemId == id) {
+            // Ya existe una devolución pendiente con ese ID
+            return false;
+          }
+        }
+      } else {
+        // No tiene ID: comparar por contenido para evitar duplicados
+        for (final item in lista) {
+          final itemClie = (item['clie_Id'] ?? item['clieId'] ?? '').toString();
+          final itemFact = (item['fact_Id'] ?? item['factId'] ?? '').toString();
+          final itemMotivo = (item['devo_Motivo'] ?? item['devoMotivo'] ?? '')
+              .toString();
+          String itemDetallesJson = '';
+          try {
+            itemDetallesJson = jsonEncode(item['detalles'] ?? []);
+          } catch (_) {
+            itemDetallesJson = '';
+          }
+
+          if (itemClie == inClie &&
+              itemFact == inFact &&
+              itemMotivo == inMotivo &&
+              itemDetallesJson == inDetallesJson) {
+            // Se considera duplicado por tener los mismos campos clave
+            return false;
+          }
         }
       }
+
+      lista.add(devolucion);
+      await guardarDevolucionesPendientes(lista);
+      return true;
+    } catch (e) {
+      // En caso de error en la comprobación, añadir por compatibilidad
+      lista.add(devolucion);
+      await guardarDevolucionesPendientes(lista);
+      return true;
     }
-    lista.add(devolucion);
-    await guardarDevolucionesPendientes(lista);
-    return true;
   }
 
   /// Verifica si hay devoluciones pendientes

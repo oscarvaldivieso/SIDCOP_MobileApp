@@ -7,6 +7,8 @@ import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/DropdownDataService.dart';
 import 'package:sidcop_mobile/services/cloudinary_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/services/DireccionClienteService.dart';
+import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 
 class ClientesOfflineService {
   static const String _archivoClientes = 'clientes.json';
@@ -46,24 +48,36 @@ class ClientesOfflineService {
   }
 
   /// Sincroniza clientes pendientes con el servidor
-  static Future<void> sincronizarClientesPendientes() async {
+  static Future<int> sincronizarClientesPendientes() async {
     try {
+      print('🔄 Iniciando sincronización de clientes pendientes...');
+      
       final pendientes = await cargarClientesPendientes();
-      if (pendientes.isEmpty) return;
+      print('📋 Clientes pendientes encontrados: ${pendientes.length}');
+      
+      if (pendientes.isEmpty) {
+        print('✅ No hay clientes pendientes por sincronizar');
+        return 0;
+      }
 
       final hasConnection = await SyncService.hasInternetConnection();
-      if (!hasConnection) return;
+      if (!hasConnection) {
+        print('No hay conexión a internet. Sincronización pospuesta.');
+        return 0;
+      }
 
       final dropdownService = DropdownDataService();
       final imageUploadService = ImageUploadService();
       final noSincronizados = <Map<String, dynamic>>[];
+      int clientesSincronizados = 0;
 
-      for (var cliente in pendientes) {
+      for (final cliente in pendientes) {
         try {
           String? imageUrl;
           final imageKey = cliente['imageKey'] as String?;
-          
-          // Si hay una imagen guardada, subirla primero
+          final direcciones = (cliente['direcciones'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+          // Subir imagen si existe
           if (imageKey != null) {
             print('Buscando imagen con key: $imageKey');
             final imageData = await _secureStorage.read(key: imageKey);
@@ -72,50 +86,69 @@ class ClientesOfflineService {
               final imageBytes = base64Decode(imageData);
               imageUrl = await imageUploadService.uploadImageFromBytes(imageBytes);
               print('Imagen subida exitosamente: $imageUrl');
-              
-              // Asignar la URL de la imagen al campo correcto
               cliente['clie_ImagenDelNegocio'] = imageUrl;
-              
-              // Eliminar la imagen del almacenamiento local
               await _secureStorage.delete(key: imageKey);
-              print('Imagen eliminada del almacenamiento local');
               cliente.remove('imageKey');
             }
           }
 
+          // Crear cliente en el servidor
           print('Enviando datos del cliente al servidor...');
-          
-          // Crear una copia del cliente sin los campos que no necesita el servidor
           final clienteParaEnviar = Map<String, dynamic>.from(cliente);
-          clienteParaEnviar.remove('direcciones');
-          
-          // Asegurarse de que clie_ImagenDelNegocio esté presente
-          if (!clienteParaEnviar.containsKey('clie_ImagenDelNegocio')) {
-            clienteParaEnviar['clie_ImagenDelNegocio'] = '';
-          }
-          
-          print('Datos del cliente a enviar: $clienteParaEnviar');
-          
-          // Enviar los datos del cliente al servidor
+          clienteParaEnviar.remove('direcciones'); // Remover direcciones antes de enviar
           final response = await dropdownService.insertCliente(clienteParaEnviar);
-          print('Respuesta del servidor: $response');
 
           if (response['success'] == true) {
-            print('Cliente sincronizado exitosamente');
+            final clientId = response['data']?['data'] is String
+                ? int.tryParse(response['data']['data'])
+                : (response['data']?['data'] as num?)?.toInt();
+
+            if (clientId != null) {
+              print('✅ ID del cliente creado: $clientId');
+
+              // Sincronizar direcciones
+              int successfulAddresses = 0;
+              for (var direccion in direcciones) {
+                try {
+                  direccion['clie_Id'] = clientId;
+                  print('Enviando dirección: ${jsonEncode(direccion)}');
+                  final direccionObj = DireccionCliente.fromJson(direccion);
+                  final result = await DireccionClienteService().insertDireccionCliente(direccionObj);
+
+                  if (result['success'] == true) {
+                    successfulAddresses++;
+                    print('✅ Dirección guardada exitosamente');
+                  } else {
+                    print('❌ Error al guardar dirección: ${result['message']}');
+                  }
+                } catch (e) {
+                  print('❌ Excepción al sincronizar dirección: $e');
+                }
+              }
+
+              print('Resumen de sincronización de direcciones: $successfulAddresses/${direcciones.length} direcciones sincronizadas correctamente');
+              clientesSincronizados++; // Incrementar contador de clientes sincronizados
+            } else {
+              print('❌ No se pudo obtener el ID del cliente de la respuesta');
+              noSincronizados.add(cliente);
+            }
           } else {
-            print('Error al sincronizar cliente: ${response['message']}');
+            print('❌ Error al sincronizar cliente: ${response['message']}');
             noSincronizados.add(cliente);
           }
         } catch (e) {
-          print('Error al sincronizar cliente: $e');
+          print('❌ Error al sincronizar cliente: $e');
           noSincronizados.add(cliente);
         }
       }
 
       // Guardar los clientes que no se pudieron sincronizar
       await guardarClientesPendientes(noSincronizados);
+      print('📊 Sincronización completada. Clientes no sincronizados: ${noSincronizados.length}');
+      
+      return clientesSincronizados;
     } catch (e) {
-      print('Error en sincronizarClientesPendientes: $e');
+      print('❌ Error en sincronizarClientesPendientes: $e');
       rethrow;
     }
   }
