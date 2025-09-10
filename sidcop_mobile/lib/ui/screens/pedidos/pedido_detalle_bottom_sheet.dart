@@ -374,6 +374,12 @@ Widget build(BuildContext context) {
   }
 
   Future<void> _insertarFacturaOnline() async {
+    print('=== INICIANDO INSERCIÓN DE FACTURA ONLINE ===');
+    print('PEDIDO ID: ${widget.pedido.pediId}');
+    print('CLIENTE ID: ${widget.pedido.clieId}');
+    print('VENDEDOR ID: ${widget.pedido.vendId}');
+    print('CODIGO PEDIDO: ${widget.pedido.pedi_Codigo}');
+    
     // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
     final double latitud = 0.0; // Idealmente obtener la ubicación actual
     final double longitud = 0.0; // Idealmente obtener la ubicación actual
@@ -382,35 +388,60 @@ Widget build(BuildContext context) {
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
     
     // Log para ver el contenido de detallesJson
-    print('DETALLES JSON: ${widget.pedido.detallesJson}');
+    print('DETALLES JSON RAW: ${widget.pedido.detallesJson}');
     print('DETALLES PARSEADOS: $detalles');
+    print('CANTIDAD DE DETALLES: ${detalles.length}');
     
     // Crear la lista de detallesFacturaInput
     final List<Map<String, dynamic>> detallesFactura = [];
     
     // Recorrer los productos y añadirlos al formato requerido
-    for (var item in detalles) {
-      // Log para ver cada item
-      print('ITEM: $item');
-      print('KEYS EN ITEM: ${item.keys.toList()}');
+    for (int index = 0; index < detalles.length; index++) {
+      var item = detalles[index];
+      print('--- PROCESANDO ITEM $index ---');
+      print('ITEM COMPLETO: ${jsonEncode(item)}');
+      print('TIPO DE ITEM: ${item.runtimeType}');
       
-      // Extraer el ID del producto y la cantidad
+      if (item is Map) {
+        print('KEYS DISPONIBLES EN ITEM: ${item.keys.toList()}');
+        print('VALUES EN ITEM: ${item.values.toList()}');
+      }
+      
+      // Extraer el ID del producto con múltiples intentos
       final int prodId = item['id'] is int
           ? item['id']
-          : int.tryParse(item['id']?.toString() ?? '') ?? 0;
+          : item['prod_Id'] is int
+          ? item['prod_Id']
+          : item['prodId'] is int
+          ? item['prodId']
+          : int.tryParse(item['id']?.toString() ?? '') ?? 
+            int.tryParse(item['prod_Id']?.toString() ?? '') ?? 
+            int.tryParse(item['prodId']?.toString() ?? '') ?? 0;
           
+      // Extraer la cantidad con múltiples intentos
       final int cantidad = item['cantidad'] is int
           ? item['cantidad']
-          : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
+          : item['peDe_Cantidad'] is int
+          ? item['peDe_Cantidad']
+          : item['faDe_Cantidad'] is int
+          ? item['faDe_Cantidad']
+          : int.tryParse(item['cantidad']?.toString() ?? '') ?? 
+            int.tryParse(item['peDe_Cantidad']?.toString() ?? '') ?? 
+            int.tryParse(item['faDe_Cantidad']?.toString() ?? '') ?? 0;
       
-      print('PROD_ID: $prodId, CANTIDAD: $cantidad');
+      print('PROD_ID EXTRAÍDO: $prodId');
+      print('CANTIDAD EXTRAÍDA: $cantidad');
       
       // Solo añadir productos con ID y cantidad válidos
       if (prodId > 0 && cantidad > 0) {
-        detallesFactura.add({
+        final detalleItem = {
           'prod_Id': prodId,
           'faDe_Cantidad': cantidad
-        });
+        };
+        detallesFactura.add(detalleItem);
+        print('DETALLE AÑADIDO: ${jsonEncode(detalleItem)}');
+      } else {
+        print('ITEM IGNORADO - ID o cantidad inválidos');
       }
     }
     
@@ -435,11 +466,20 @@ Widget build(BuildContext context) {
       'detallesFacturaInput': detallesFactura, // Añadir los productos
     };
 
-    // Log para mostrar el objeto completo que se envía a la API
-    print('OBJETO COMPLETO A ENVIAR: ${jsonEncode(facturaData)}');
+    // Log detallado del objeto que se envía a la API
+    print('=== DATOS DE FACTURA A ENVIAR ===');
+    print('FACTURA DATA KEYS: ${facturaData.keys.toList()}');
+    print('OBJETO COMPLETO A ENVIAR:');
+    print(jsonEncode(facturaData));
+    print('TAMAÑO DEL JSON: ${jsonEncode(facturaData).length} caracteres');
+    print('DETALLES FACTURA COUNT: ${detallesFactura.length}');
     
     // Llamar al servicio para insertar la factura
-    await _facturaService.insertarFactura(facturaData);
+    print('=== LLAMANDO AL SERVICIO DE FACTURA ===');
+    final response = await _facturaService.insertarFactura(facturaData);
+    print('=== RESPUESTA DEL SERVICIO ===');
+    print('RESPONSE TYPE: ${response.runtimeType}');
+    print('RESPONSE CONTENT: ${jsonEncode(response)}');
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
