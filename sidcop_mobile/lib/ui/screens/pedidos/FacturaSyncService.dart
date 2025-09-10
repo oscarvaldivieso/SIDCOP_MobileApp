@@ -125,6 +125,7 @@ class FacturaSyncService {
   /// Convierte una factura offline al formato requerido por la API
   static Map<String, dynamic> _convertirFacturaParaAPI(Map<String, dynamic> facturaOffline) {
     print('[SYNC] Convirtiendo factura offline: ${facturaOffline['numeroFactura']}');
+    print('[SYNC] Campos disponibles en factura offline: ${facturaOffline.keys.toList()}');
     print('[SYNC] Detalles originales: ${facturaOffline['detalles']}');
     
     // Procesar detalles de la factura
@@ -158,7 +159,7 @@ class FacturaSyncService {
       'fact_Numero': facturaOffline['numeroFactura'],
       'fact_TipoDeDocumento': 'FAC',
       'regC_Id': 21,
-      'diCl_Id': facturaOffline['diClId'] ?? 1,
+      'diCl_Id': facturaOffline['diClId'] ?? facturaOffline['direccionId'] ?? 1,
       'vend_Id': facturaOffline['vendedorId'],
       'fact_TipoVenta': 'CO',
       'fact_FechaEmision': facturaOffline['fechaEmision'],
