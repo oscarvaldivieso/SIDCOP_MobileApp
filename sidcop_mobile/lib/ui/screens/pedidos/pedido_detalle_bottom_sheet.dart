@@ -307,25 +307,40 @@ Widget build(BuildContext context) {
   }
 
   Future<void> _insertarFactura() async {
-    if (_isInsertingInvoice) return;
+    print('\n=== _insertarFactura INICIADO ===');
+    
+    if (_isInsertingInvoice) {
+      print('YA SE ESTÁ INSERTANDO UNA FACTURA, SALIENDO...');
+      return;
+    }
 
+    print('CAMBIANDO ESTADO A _isInsertingInvoice = true');
     setState(() {
       _isInsertingInvoice = true;
     });
 
     try {
+      print('VERIFICANDO CONECTIVIDAD...');
       // Verificar conectividad
       final hasConnection = await SyncService.hasInternetConnection();
       print('[DEBUG] Conectividad disponible: $hasConnection');
 
       if (hasConnection) {
+        print('MODO ONLINE - LLAMANDO _insertarFacturaOnline()');
         // Modo online - usar el flujo original
         await _insertarFacturaOnline();
+        print('_insertarFacturaOnline() COMPLETADO');
       } else {
+        print('MODO OFFLINE - LLAMANDO _insertarFacturaOffline()');
         // Modo offline - guardar localmente y mostrar factura
         await _insertarFacturaOffline();
+        print('_insertarFacturaOffline() COMPLETADO');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('\n=== EXCEPCIÓN EN _insertarFactura ===');
+      print('TIPO: ${e.runtimeType}');
+      print('MENSAJE: $e');
+      print('STACK TRACE: $stackTrace');
       if (mounted) {
         // Verificar si es un error de inventario insuficiente
         if (e is InventarioInsuficienteException) {
@@ -365,11 +380,16 @@ Widget build(BuildContext context) {
         }
       }
     } finally {
+      print('EJECUTANDO BLOQUE FINALLY');
       if (mounted) {
+        print('WIDGET MONTADO - CAMBIANDO _isInsertingInvoice = false');
         setState(() {
           _isInsertingInvoice = false;
         });
+      } else {
+        print('WIDGET NO MONTADO - NO SE PUEDE CAMBIAR ESTADO');
       }
+      print('=== _insertarFactura FINALIZADO ===\n');
     }
   }
 
