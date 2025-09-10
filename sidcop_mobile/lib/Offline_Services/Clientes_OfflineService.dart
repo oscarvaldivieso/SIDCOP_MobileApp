@@ -48,20 +48,28 @@ class ClientesOfflineService {
   }
 
   /// Sincroniza clientes pendientes con el servidor
-  static Future<void> sincronizarClientesPendientes() async {
+  static Future<int> sincronizarClientesPendientes() async {
     try {
+      print('🔄 Iniciando sincronización de clientes pendientes...');
+      
       final pendientes = await cargarClientesPendientes();
-      if (pendientes.isEmpty) return;
+      print('📋 Clientes pendientes encontrados: ${pendientes.length}');
+      
+      if (pendientes.isEmpty) {
+        print('✅ No hay clientes pendientes por sincronizar');
+        return 0;
+      }
 
       final hasConnection = await SyncService.hasInternetConnection();
       if (!hasConnection) {
         print('No hay conexión a internet. Sincronización pospuesta.');
-        return;
+        return 0;
       }
 
       final dropdownService = DropdownDataService();
       final imageUploadService = ImageUploadService();
       final noSincronizados = <Map<String, dynamic>>[];
+      int clientesSincronizados = 0;
 
       for (final cliente in pendientes) {
         try {
@@ -119,6 +127,7 @@ class ClientesOfflineService {
               }
 
               print('Resumen de sincronización de direcciones: $successfulAddresses/${direcciones.length} direcciones sincronizadas correctamente');
+              clientesSincronizados++; // Incrementar contador de clientes sincronizados
             } else {
               print('❌ No se pudo obtener el ID del cliente de la respuesta');
               noSincronizados.add(cliente);
@@ -135,6 +144,9 @@ class ClientesOfflineService {
 
       // Guardar los clientes que no se pudieron sincronizar
       await guardarClientesPendientes(noSincronizados);
+      print('📊 Sincronización completada. Clientes no sincronizados: ${noSincronizados.length}');
+      
+      return clientesSincronizados;
     } catch (e) {
       print('❌ Error en sincronizarClientesPendientes: $e');
       rethrow;
