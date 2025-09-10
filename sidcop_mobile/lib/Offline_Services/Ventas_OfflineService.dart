@@ -145,8 +145,8 @@ class VentasOfflineService {
       'offline': true,
       'fact_Numero': ventaModel.factNumero,
       // Agrega los campos para visualización
-      'fact_Total': 350,
-      'cliente': 'Pulperia Toño', // Si tienes el nombre, ponlo aquí
+      'fact_Total': totalCuenta,
+      'cliente': clienteNombre, // Si tienes el nombre, ponlo aquí
       'fact_FechaEmision': now.toIso8601String(),
     };
   
