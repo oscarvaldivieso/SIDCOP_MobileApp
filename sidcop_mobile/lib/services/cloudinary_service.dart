@@ -15,10 +15,7 @@ class ImageUploadService {
 
   /// Returns the complete URL for displaying images
   static String getImageUrl(String imagePath) {
-    if (imagePath.startsWith('http')) {
-      return imagePath; // Already a complete URL
-    }
-    return '$_baseUrl$imagePath';
+    return imagePath;
   }
 
   Future<String?> uploadImage(File imageFile, {String? publicId}) async {
