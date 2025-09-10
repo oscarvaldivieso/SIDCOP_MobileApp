@@ -242,43 +242,26 @@ class _PedidosScreenState extends State<PedidosScreen> {
           }
         }
       } else {
-        print('🔍 Sin conexión, obteniendo pedidos del caché completo...');
+        print('Sin conexión, obteniendo pedidos del caché completo...');
         
-        try {
-          // 🔍 DIAGNÓSTICO: Ejecutar diagnóstico completo del caché
-          await PedidosScreenOffline.diagnosticarCache();
+        // ✅ NUEVO: Usar el método que combina pedidos online y offline del caché
+        final pedidosCache = await PedidosScreenOffline.obtenerTodosPedidosCache();
+        
+        // Convertir los pedidos del caché a PedidosViewModel
+        pedidos = await _convertirPedidosCacheAViewModel(pedidosCache);
+        
+        if (mounted) {
+          final totalPedidos = pedidos.length;
+          final pedidosOffline = pedidosCache.where((p) => p['offline'] == true).length;
+          final pedidosOnline = pedidosCache.where((p) => p['offline'] == false).length;
           
-          // ✅ NUEVO: Usar el método que combina pedidos online y offline del caché
-          final pedidosCache = await PedidosScreenOffline.obtenerTodosPedidosCache();
-          print('🔍 Pedidos obtenidos del caché: ${pedidosCache.length}');
-          
-          // Debug: mostrar contenido del caché
-          for (int i = 0; i < pedidosCache.length && i < 3; i++) {
-            print('🔍 Pedido $i: ${pedidosCache[i]}');
-          }
-          
-          // Convertir los pedidos del caché a PedidosViewModel
-          pedidos = await _convertirPedidosCacheAViewModel(pedidosCache);
-          print('🔍 Pedidos convertidos: ${pedidos.length}');
-          
-          if (mounted) {
-            final totalPedidos = pedidos.length;
-            final pedidosOffline = pedidosCache.where((p) => p['offline'] == true).length;
-            final pedidosOnline = pedidosCache.where((p) => p['offline'] == false).length;
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Modo offline - $totalPedidos pedidos en caché ($pedidosOnline online, $pedidosOffline offline)'),
-                backgroundColor: Colors.grey,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        } catch (e) {
-          print('❌ Error obteniendo pedidos del caché: $e');
-          // Fallback al método anterior si hay error
-          pedidos = await PedidosScreenOffline.obtenerPedidos();
-          print('🔄 Fallback: ${pedidos.length} pedidos del método anterior');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Modo offline - $totalPedidos pedidos en caché ($pedidosOnline online, $pedidosOffline offline)'),
+              backgroundColor: Colors.grey,
+              duration: Duration(seconds: 3),
+            ),
+          );
         }
       }
 
