@@ -1252,36 +1252,53 @@ class PedidosScreenOffline {
     }
   }
 
-  /// Obtiene todos los pedidos del caché local (tanto online como offline)
   static Future<List<Map<String, dynamic>>> obtenerTodosPedidosCache() async {
     try {
-      print('📋 Obteniendo todos los pedidos del caché local...');
+      print('📋 Obteniendo todos los pedidos del caché...');
+
+      // Obtener pedidos offline pendientes (en formato Map)
+      final pedidosOffline = await obtenerPedidosPendientesSimple();
+      print('📋 Pedidos offline encontrados: ${pedidosOffline.length}');
       
-      // Obtener pedidos pendientes (offline)
-      final pedidosPendientes = await obtenerPedidosPendientesSimple();
-      print('📋 Pedidos offline encontrados: ${pedidosPendientes.length}');
-      
-      // Obtener pedidos sincronizados (online guardados en caché)
+      // Obtener pedidos online sincronizados
       final pedidosSincronizados = await obtenerPedidosSincronizadosCache();
-      print('📋 Pedidos online en caché encontrados: ${pedidosSincronizados.length}');
+      print('📋 Pedidos sincronizados encontrados: ${pedidosSincronizados.length}');
+      
+      // Debug: mostrar algunos pedidos de cada tipo
+      if (pedidosOffline.isNotEmpty) {
+        print('📋 Ejemplo pedido offline: ${pedidosOffline.first}');
+      }
+      if (pedidosSincronizados.isNotEmpty) {
+        print('📋 Ejemplo pedido sincronizado: ${pedidosSincronizados.first}');
+      }
       
       // Combinar ambas listas
       final todosPedidos = <Map<String, dynamic>>[];
-      todosPedidos.addAll(pedidosPendientes);
-      todosPedidos.addAll(pedidosSincronizados);
       
-      // Ordenar por fecha de creación (más recientes primero)
-      todosPedidos.sort((a, b) {
-        final fechaA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime.now();
-        final fechaB = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime.now();
-        return fechaB.compareTo(fechaA);
-      });
-      
+      // Agregar pedidos offline (marcarlos como offline si no tienen la propiedad)
+      for (final pedido in pedidosOffline) {
+        final pedidoMap = Map<String, dynamic>.from(pedido);
+        pedidoMap['offline'] = true; // Asegurar que están marcados como offline
+        pedidoMap['sincronizado'] = false;
+        todosPedidos.add(pedidoMap);
+        print('📋 Agregado pedido offline: ${pedidoMap['local_signature'] ?? pedidoMap['id']}');
+      }
+
+      // Agregar pedidos sincronizados (marcarlos como online si no tienen la propiedad)
+      for (final pedido in pedidosSincronizados) {
+        final pedidoMap = Map<String, dynamic>.from(pedido);
+        pedidoMap['offline'] = false; // Asegurar que están marcados como online
+        pedidoMap['sincronizado'] = true;
+        todosPedidos.add(pedidoMap);
+        print('📋 Agregado pedido sincronizado: ${pedidoMap['local_signature'] ?? pedidoMap['id']}');
+      }
+
       print('📋 Total de pedidos en caché: ${todosPedidos.length}');
       return todosPedidos;
-      
+
     } catch (e) {
       print('❌ Error obteniendo todos los pedidos del caché: $e');
+      print('❌ Stack trace: ${e.toString()}');
       return [];
     }
   }
@@ -1368,6 +1385,41 @@ class PedidosScreenOffline {
       
     } catch (e) {
       print('❌ Error limpiando caché antiguo: $e');
+    }
+  }
+
+  /// Método de diagnóstico para verificar el estado del caché
+  static Future<void> diagnosticarCache() async {
+    try {
+      print('🔍 === DIAGNÓSTICO DE CACHÉ ===');
+      
+      // Verificar pedidos offline
+      final pedidosOffline = await obtenerPedidosPendientesSimple();
+      print('🔍 Pedidos offline: ${pedidosOffline.length}');
+      
+      // Verificar pedidos sincronizados
+      final pedidosSincronizados = await obtenerPedidosSincronizadosCache();
+      print('🔍 Pedidos sincronizados: ${pedidosSincronizados.length}');
+      
+      // Verificar método combinado
+      final todosPedidos = await obtenerTodosPedidosCache();
+      print('🔍 Total pedidos combinados: ${todosPedidos.length}');
+      
+      // Mostrar detalles de algunos pedidos
+      if (pedidosOffline.isNotEmpty) {
+        print('🔍 Primer pedido offline: ${pedidosOffline.first}');
+      }
+      if (pedidosSincronizados.isNotEmpty) {
+        print('🔍 Primer pedido sincronizado: ${pedidosSincronizados.first}');
+      }
+      
+      // Listar archivos de caché
+      await listarTodasLasClaves();
+      
+      print('🔍 === FIN DIAGNÓSTICO ===');
+      
+    } catch (e) {
+      print('❌ Error en diagnóstico: $e');
     }
   }
 }
