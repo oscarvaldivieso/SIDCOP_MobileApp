@@ -1051,26 +1051,50 @@ class PedidosScreenOffline {
   /// Sincroniza una factura individual con el servidor
   static Future<void> _sincronizarFacturaIndividual(Map<String, dynamic> factura) async {
     print('[DEBUG] Sincronizando factura individual: ${factura['numeroFactura']}');
+    print('[DEBUG] Datos completos de factura offline: ${jsonEncode(factura)}');
+    
+    // Validar datos requeridos
+    if (factura['clienteId'] == null || factura['vendedorId'] == null) {
+      throw Exception('Faltan datos requeridos: clienteId o vendedorId');
+    }
+    
+    // Convertir clienteId y vendedorId a enteros
+    final int clienteId = factura['clienteId'] is int 
+        ? factura['clienteId'] 
+        : int.tryParse(factura['clienteId'].toString()) ?? 0;
+    
+    final int vendedorId = factura['vendedorId'] is int 
+        ? factura['vendedorId'] 
+        : int.tryParse(factura['vendedorId'].toString()) ?? 0;
+    
+    if (clienteId <= 0 || vendedorId <= 0) {
+      throw Exception('IDs inválidos: clienteId=$clienteId, vendedorId=$vendedorId');
+    }
     
     // Convertir la factura offline al formato requerido por el API
     final Map<String, dynamic> facturaData = {
-      'fact_Numero': factura['numeroFactura'],
+      'fact_Numero': factura['numeroFactura']?.toString() ?? '',
       'fact_TipoDeDocumento': 'FAC',
       'regC_Id': 21,
-      'diCl_Id': factura['clienteId'] ?? 0,
-      'vend_Id': factura['vendedorId'] ?? 0,
+      'diCl_Id': clienteId,
+      'vend_Id': vendedorId,
       'fact_TipoVenta': 'CO',
       'fact_FechaEmision': factura['fechaEmision'] ?? DateTime.now().toIso8601String(),
       'fact_Latitud': 0.0,
       'fact_Longitud': 0.0,
-      'fact_Referencia': 'Factura sincronizada desde offline',
-      'fact_AutorizadoPor': factura['vendedor'] ?? '',
-      'usua_Creacion': factura['vendedorId'] ?? 0,
+      'fact_Referencia': 'Factura sincronizada desde offline - ${factura['local_signature'] ?? ''}',
+      'fact_AutorizadoPor': factura['vendedor']?.toString() ?? '',
+      'usua_Creacion': vendedorId,
       'fact_EsPedido': false,
       'detallesFacturaInput': _convertirDetallesParaAPI(factura['detalles']),
     };
     
     print('[DEBUG] Datos de factura para API: ${jsonEncode(facturaData)}');
+    
+    // Validar que hay detalles
+    if (facturaData['detallesFacturaInput'].isEmpty) {
+      throw Exception('La factura no tiene productos válidos para sincronizar');
+    }
     
     // Usar FacturaService para insertar la factura
     final facturaService = FacturaService();
@@ -1079,35 +1103,63 @@ class PedidosScreenOffline {
     print('[DEBUG] Respuesta de sincronización: ${jsonEncode(response)}');
     
     if (response['success'] != true) {
-      throw Exception('Error del servidor: ${response['message']}');
+      final errorMsg = response['message'] ?? 'Error desconocido del servidor';
+      print('[ERROR] Error del servidor: $errorMsg');
+      throw Exception('Error del servidor: $errorMsg');
     }
+    
+    print('[DEBUG] Factura sincronizada exitosamente: ${factura['numeroFactura']}');
   }
   
   /// Convierte los detalles de factura offline al formato del API
   static List<Map<String, dynamic>> _convertirDetallesParaAPI(dynamic detalles) {
     final List<Map<String, dynamic>> detallesAPI = [];
     
+    print('[DEBUG] Convirtiendo detalles para API: $detalles');
+    print('[DEBUG] Tipo de detalles: ${detalles.runtimeType}');
+    
     if (detalles is List) {
-      for (var item in detalles) {
+      print('[DEBUG] Procesando ${detalles.length} detalles...');
+      
+      for (int i = 0; i < detalles.length; i++) {
+        final item = detalles[i];
+        print('[DEBUG] Detalle $i: $item');
+        
         if (item is Map) {
+          // Intentar obtener el ID del producto de diferentes campos posibles
           final int prodId = item['id'] is int
               ? item['id']
-              : int.tryParse(item['id']?.toString() ?? '') ?? 0;
+              : item['prodId'] is int
+                  ? item['prodId']
+                  : int.tryParse(item['id']?.toString() ?? '') ?? 
+                    int.tryParse(item['prodId']?.toString() ?? '') ?? 0;
               
+          // Intentar obtener la cantidad de diferentes campos posibles
           final int cantidad = item['cantidad'] is int
               ? item['cantidad']
-              : int.tryParse(item['cantidad']?.toString() ?? '') ?? 0;
+              : int.tryParse(item['cantidad']?.toString() ?? '') ?? 1;
+          
+          print('[DEBUG] Detalle $i - prodId: $prodId, cantidad: $cantidad');
           
           if (prodId > 0 && cantidad > 0) {
-            detallesAPI.add({
+            final detalleAPI = {
               'prod_Id': prodId,
               'faDe_Cantidad': cantidad
-            });
+            };
+            detallesAPI.add(detalleAPI);
+            print('[DEBUG] Detalle $i agregado: $detalleAPI');
+          } else {
+            print('[WARNING] Detalle $i omitido - prodId o cantidad inválidos');
           }
+        } else {
+          print('[WARNING] Detalle $i no es un Map: ${item.runtimeType}');
         }
       }
+    } else {
+      print('[ERROR] Detalles no es una lista: ${detalles.runtimeType}');
     }
     
+    print('[DEBUG] Total detalles convertidos: ${detallesAPI.length}');
     return detallesAPI;
   }
 }

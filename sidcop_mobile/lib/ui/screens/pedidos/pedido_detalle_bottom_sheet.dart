@@ -6,13 +6,15 @@ import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/FacturaSyncService.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
   const PedidoDetalleBottomSheet({super.key, required this.pedido});
 
   @override
-  State<PedidoDetalleBottomSheet> createState() => _PedidoDetalleBottomSheetState();
+  State<PedidoDetalleBottomSheet> createState() =>
+      _PedidoDetalleBottomSheetState();
 }
 
 class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
@@ -24,128 +26,144 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   Color get _surfaceColor => const Color(0xFFF8FAFC);
   Color get _borderColor => const Color(0xFFE2E8F0);
 
-
   @override
-Widget build(BuildContext context) {
-  final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
-  return DraggableScrollableSheet(
-    initialChildSize: 0.75,
-    minChildSize: 0.5,
-    maxChildSize: 0.95,
-    expand: false,
-    builder: (context, scrollController) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.receipt_long, color: Color(0xFFE0C7A0), size: 30),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Detalle del Pedido',
-                    style: TextStyle(
-                      color: _primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
+  Widget build(BuildContext context) {
+    final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.receipt_long,
+                    color: Color(0xFFE0C7A0),
+                    size: 30,
                   ),
-                ),
-                  _isInsertingInvoice
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
-                        ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.shopping_cart, color: Colors.black54),
-                        onPressed: () async {
-                          print('\n=== BOTÓN DE FACTURA PRESIONADO ===');
-                          // Insertar la factura (la navegación se maneja dentro del método)
-                          await _insertarFactura();
-                          print('=== BOTÓN DE FACTURA COMPLETADO ===\n');
-                        },
-                        tooltip: 'Ver Factura',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Detalle del Pedido',
+                      style: TextStyle(
+                        color: _primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
                       ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.black54),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _buildInfoCard(
-              icon: Icons.store,
-              title: 'Negocio',
-              value: widget.pedido.clieNombreNegocio ?? '-',
-              color: _goldColor,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.event,
-                    title: 'Pedido',
-                    value: _formatFecha(widget.pedido.pediFechaPedido),
-                    color: _primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.local_shipping,
-                    title: 'Entrega',
-                    value: _formatFecha(widget.pedido.pediFechaEntrega),
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Productos',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-                color: _primaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            detalles.isEmpty
-                ? const Text('No hay productos en este widget.pedido.')
-                : Expanded(
-                    child: ListView.separated(
-                      controller: scrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: detalles.length,
-                      separatorBuilder: (_, __) => const Divider(height: 22),
-                      itemBuilder: (context, i) {
-                        final item = detalles[i];
-                        return _buildDetalleItem(item);
-                      },
                     ),
                   ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      );
-    },
-  );
-}
+                  _isInsertingInvoice
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.black54,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.shopping_cart,
+                            color: Colors.black54,
+                          ),
+                          onPressed: () async {
+                            print('\n=== BOTÓN DE FACTURA PRESIONADO ===');
+                            // Insertar la factura (la navegación se maneja dentro del método)
+                            await _insertarFactura();
+                            print('=== BOTÓN DE FACTURA COMPLETADO ===\n');
+                          },
+                          tooltip: 'Ver Factura',
+                        ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.black54,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _buildInfoCard(
+                icon: Icons.store,
+                title: 'Negocio',
+                value: widget.pedido.clieNombreNegocio ?? '-',
+                color: _goldColor,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoCard(
+                      icon: Icons.event,
+                      title: 'Pedido',
+                      value: _formatFecha(widget.pedido.pediFechaPedido),
+                      color: _primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildInfoCard(
+                      icon: Icons.local_shipping,
+                      title: 'Entrega',
+                      value: _formatFecha(widget.pedido.pediFechaEntrega),
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Productos',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                  color: _primaryColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              detalles.isEmpty
+                  ? const Text('No hay productos en este widget.pedido.')
+                  : Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: detalles.length,
+                        separatorBuilder: (_, __) => const Divider(height: 22),
+                        itemBuilder: (context, i) {
+                          final item = detalles[i];
+                          return _buildDetalleItem(item);
+                        },
+                      ),
+                    ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-  Widget _buildInfoCard({required IconData icon, required String title, required String value, required Color color}) {
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -161,8 +179,18 @@ Widget build(BuildContext context) {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-                Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: _primaryColor)),
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: _primaryColor,
+                  ),
+                ),
               ],
             ),
           ),
@@ -183,10 +211,10 @@ Widget build(BuildContext context) {
 
       // Intentar parsear como JSON
       final parsed = jsonDecode(detallesJson);
-      
+
       // Si es una lista, devolverla directamente
       if (parsed is List) return parsed;
-      
+
       // Si es un mapa, verificar si tiene una propiedad 'detalles' o similar
       if (parsed is Map) {
         if (parsed['detalles'] is List) {
@@ -195,7 +223,7 @@ Widget build(BuildContext context) {
         // Si no tiene 'detalles', devolver el mapa dentro de una lista
         return [parsed];
       }
-      
+
       return [];
     } catch (e) {
       print('Error al parsear detalles del pedido: $e');
@@ -209,34 +237,38 @@ Widget build(BuildContext context) {
 
   Widget _buildDetalleItem(dynamic item) {
     // Handle different possible field names for product details
-    final Map<String, dynamic> itemMap = item is Map ? Map<String, dynamic>.from(item) : {};
-    
+    final Map<String, dynamic> itemMap = item is Map
+        ? Map<String, dynamic>.from(item)
+        : {};
+
     // Try different possible field names for description
-    final String descripcion = itemMap['descripcion']?.toString() ?? 
-                             itemMap['prod_Descripcion']?.toString() ?? 
-                             itemMap['producto']?.toString() ?? 
-                             'Producto sin nombre';
-    
+    final String descripcion =
+        itemMap['descripcion']?.toString() ??
+        itemMap['prod_Descripcion']?.toString() ??
+        itemMap['producto']?.toString() ??
+        'Producto sin nombre';
+
     // Try different possible field names for image
-    final String imagen = itemMap['imagen']?.toString() ?? 
-                        itemMap['prod_Imagen']?.toString() ?? 
-                        '';
-    
+    final String imagen =
+        itemMap['imagen']?.toString() ??
+        itemMap['prod_Imagen']?.toString() ??
+        '';
+
     // Try different possible field names for quantity
     final int cantidad = _parseIntFromDynamic(
-      itemMap['cantidad'] ?? 
-      itemMap['peDe_Cantidad'] ?? 
-      itemMap['cantidadProducto']
+      itemMap['cantidad'] ??
+          itemMap['peDe_Cantidad'] ??
+          itemMap['cantidadProducto'],
     );
-    
+
     // Try different possible field names for price
     final double precio = _parseDoubleFromDynamic(
-      itemMap['precio'] ?? 
-      itemMap['peDe_Precio'] ?? 
-      itemMap['peDe_ProdPrecio'] ?? 
-      itemMap['precioProducto']
+      itemMap['precio'] ??
+          itemMap['peDe_Precio'] ??
+          itemMap['peDe_ProdPrecio'] ??
+          itemMap['precioProducto'],
     );
-    
+
     // Debug print to see the actual item structure
     print('Detalle del ítem: $itemMap');
 
@@ -251,7 +283,11 @@ Widget build(BuildContext context) {
                   width: 60,
                   height: 60,
                   color: Colors.grey.shade200,
-                  child: const Icon(Icons.image_not_supported_rounded, size: 32, color: Colors.grey),
+                  child: const Icon(
+                    Icons.image_not_supported_rounded,
+                    size: 32,
+                    color: Colors.grey,
+                  ),
                 ),
         ),
         const SizedBox(width: 14),
@@ -261,7 +297,10 @@ Widget build(BuildContext context) {
             children: [
               Text(
                 descripcion,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
               ),
               const SizedBox(height: 4),
               Text('Cantidad: $cantidad', style: const TextStyle(fontSize: 13)),
@@ -280,7 +319,7 @@ Widget build(BuildContext context) {
     if (value is double) return value.toInt();
     return int.tryParse(value.toString()) ?? 0;
   }
-  
+
   // Helper method to parse double from dynamic value
   double _parseDoubleFromDynamic(dynamic value) {
     if (value == null) return 0.0;
@@ -302,15 +341,25 @@ Widget build(BuildContext context) {
     if (f == null) return '-';
     final meses = [
       '',
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
     ];
     return "${f.day} de ${meses[f.month]} del ${f.year}";
   }
 
   Future<void> _insertarFactura() async {
     print('\n=== _insertarFactura INICIADO ===');
-    
+
     if (_isInsertingInvoice) {
       print('YA SE ESTÁ INSERTANDO UNA FACTURA, SALIENDO...');
       return;
@@ -351,8 +400,12 @@ Widget build(BuildContext context) {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: const Text('Inventario Insuficiente', 
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                title: const Text(
+                  'Inventario Insuficiente',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 content: SingleChildScrollView(
                   child: Text(
@@ -401,34 +454,34 @@ Widget build(BuildContext context) {
     print('CLIENTE ID: ${widget.pedido.clieId}');
     print('VENDEDOR ID: ${widget.pedido.vendId}');
     print('CODIGO PEDIDO: ${widget.pedido.pedi_Codigo}');
-    
+
     // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
     final double latitud = 0.0; // Idealmente obtener la ubicación actual
     final double longitud = 0.0; // Idealmente obtener la ubicación actual
 
     // Parsear los detalles del pedido para obtener los productos
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
-    
+
     // Log para ver el contenido de detallesJson
     print('DETALLES JSON RAW: ${widget.pedido.detallesJson}');
     print('DETALLES PARSEADOS: $detalles');
     print('CANTIDAD DE DETALLES: ${detalles.length}');
-    
+
     // Crear la lista de detallesFacturaInput
     final List<Map<String, dynamic>> detallesFactura = [];
-    
+
     // Recorrer los productos y añadirlos al formato requerido
     for (int index = 0; index < detalles.length; index++) {
       var item = detalles[index];
       print('--- PROCESANDO ITEM $index ---');
       print('ITEM COMPLETO: ${jsonEncode(item)}');
       print('TIPO DE ITEM: ${item.runtimeType}');
-      
+
       if (item is Map) {
         print('KEYS DISPONIBLES EN ITEM: ${item.keys.toList()}');
         print('VALUES EN ITEM: ${item.values.toList()}');
       }
-      
+
       // Extraer el ID del producto con múltiples intentos
       final int prodId = item['id'] is int
           ? item['id']
@@ -436,10 +489,11 @@ Widget build(BuildContext context) {
           ? item['prod_Id']
           : item['prodId'] is int
           ? item['prodId']
-          : int.tryParse(item['id']?.toString() ?? '') ?? 
-            int.tryParse(item['prod_Id']?.toString() ?? '') ?? 
-            int.tryParse(item['prodId']?.toString() ?? '') ?? 0;
-          
+          : int.tryParse(item['id']?.toString() ?? '') ??
+                int.tryParse(item['prod_Id']?.toString() ?? '') ??
+                int.tryParse(item['prodId']?.toString() ?? '') ??
+                0;
+
       // Extraer la cantidad con múltiples intentos
       final int cantidad = item['cantidad'] is int
           ? item['cantidad']
@@ -447,26 +501,24 @@ Widget build(BuildContext context) {
           ? item['peDe_Cantidad']
           : item['faDe_Cantidad'] is int
           ? item['faDe_Cantidad']
-          : int.tryParse(item['cantidad']?.toString() ?? '') ?? 
-            int.tryParse(item['peDe_Cantidad']?.toString() ?? '') ?? 
-            int.tryParse(item['faDe_Cantidad']?.toString() ?? '') ?? 0;
-      
+          : int.tryParse(item['cantidad']?.toString() ?? '') ??
+                int.tryParse(item['peDe_Cantidad']?.toString() ?? '') ??
+                int.tryParse(item['faDe_Cantidad']?.toString() ?? '') ??
+                0;
+
       print('PROD_ID EXTRAÍDO: $prodId');
       print('CANTIDAD EXTRAÍDA: $cantidad');
-      
+
       // Solo añadir productos con ID y cantidad válidos
       if (prodId > 0 && cantidad > 0) {
-        final detalleItem = {
-          'prod_Id': prodId,
-          'faDe_Cantidad': cantidad
-        };
+        final detalleItem = {'prod_Id': prodId, 'faDe_Cantidad': cantidad};
         detallesFactura.add(detalleItem);
         print('DETALLE AÑADIDO: ${jsonEncode(detalleItem)}');
       } else {
         print('ITEM IGNORADO - ID o cantidad inválidos');
       }
     }
-    
+
     print('DETALLES FACTURA FINAL: $detallesFactura');
 
     // Preparar los datos de la factura
@@ -495,14 +547,14 @@ Widget build(BuildContext context) {
     print(jsonEncode(facturaData));
     print('TAMAÑO DEL JSON: ${jsonEncode(facturaData).length} caracteres');
     print('DETALLES FACTURA COUNT: ${detallesFactura.length}');
-    
+
     // Llamar al servicio para insertar la factura
     print('=== LLAMANDO AL SERVICIO DE FACTURA ===');
     final response = await _facturaService.insertarFactura(facturaData);
     print('=== RESPUESTA DEL SERVICIO ===');
     print('RESPONSE TYPE: ${response.runtimeType}');
     print('RESPONSE CONTENT: ${jsonEncode(response)}');
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -510,7 +562,7 @@ Widget build(BuildContext context) {
           backgroundColor: Colors.green,
         ),
       );
-      
+
       // Si la inserción fue exitosa, navegar a la pantalla de vista previa
       Navigator.push(
         context,
@@ -521,34 +573,51 @@ Widget build(BuildContext context) {
     }
   }
 
+  // Actualiza tu método _insertarFacturaOffline en PedidoDetalleBottomSheet
+
   Future<void> _insertarFacturaOffline() async {
     print('[DEBUG] Insertando factura en modo offline');
-    
+
     // Parsear los detalles del pedido para obtener los productos
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
-    
-    // Crear la estructura de la factura offline
+
+    // Crear la estructura de la factura offline con TODOS los campos necesarios para sincronización
     final Map<String, dynamic> facturaOffline = {
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'pediId': widget.pedido.pediId,
-      'numeroFactura': widget.pedido.pedi_Codigo ?? 'OFFLINE-${DateTime.now().millisecondsSinceEpoch}',
+      'numeroFactura':
+          widget.pedido.pedi_Codigo ??
+          'OFFLINE-${DateTime.now().millisecondsSinceEpoch}',
       'clienteId': widget.pedido.clieId,
       'vendedorId': widget.pedido.vendId,
+      'diClId': widget
+          .pedido
+          .diClId, // IMPORTANTE: Campo requerido para sincronización
+      'usuaCreacion': widget
+          .pedido
+          .usuaCreacion, // IMPORTANTE: Campo requerido para sincronización
       'fechaEmision': DateTime.now().toIso8601String(),
-      'fechaEntrega': widget.pedido.pediFechaEntrega?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'fechaEntrega':
+          widget.pedido.pediFechaEntrega?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
       'nombreCliente': widget.pedido.clieNombreNegocio ?? 'Cliente',
       'codigoCliente': widget.pedido.clieId?.toString() ?? '',
       'vendedor': widget.pedido.vendNombres ?? 'Vendedor',
       'detalles': detalles,
       'offline': true,
       'local_signature': DateTime.now().millisecondsSinceEpoch.toString(),
+      'sync_status': 'pending', // Estado de sincronización
+      'sync_attempts': 0, // Intentos de sincronización
+      'created_at': DateTime.now().toIso8601String(), // Timestamp de creación
     };
 
-    // Guardar la factura offline usando el patrón de PedidosScreenOffline
+    // Guardar la factura offline
     try {
       await PedidosScreenOffline.guardarFacturaOffline(facturaOffline);
-      print('[DEBUG] Factura offline guardada exitosamente');
-      
+      print(
+        '[DEBUG] Factura offline guardada exitosamente con ID: ${facturaOffline['id']}',
+      );
+
       if (mounted) {
         // Mostrar mensaje de éxito offline
         ScaffoldMessenger.of(context).showSnackBar(
@@ -557,14 +626,21 @@ Widget build(BuildContext context) {
               children: [
                 Icon(Icons.offline_bolt, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Factura guardada offline. Se sincronizará cuando haya conexión.'),
+                Expanded(
+                  child: Text(
+                    'Factura guardada offline. Se sincronizará automáticamente cuando haya conexión.',
+                  ),
+                ),
               ],
             ),
             backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 4),
           ),
         );
-        
+
+        // Intentar sincronización inmediata (por si regresó la conexión)
+        _intentarSincronizacionInmediata();
+
         // Navegar directamente a la pantalla de factura con los datos offline
         await _mostrarFacturaOffline(facturaOffline, detalles);
       }
@@ -574,56 +650,105 @@ Widget build(BuildContext context) {
     }
   }
 
-  Future<void> _mostrarFacturaOffline(Map<String, dynamic> facturaData, List<dynamic> detalles) async {
+  /// Intenta sincronización inmediata en caso de que la conexión haya regresado
+  Future<void> _intentarSincronizacionInmediata() async {
+    print('[DEBUG] Verificando conexión para sincronización inmediata...');
+
+    // Esperar un momento para que el usuario vea el mensaje
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Verificar si hay conexión
+    final hasConnection = await SyncService.hasInternetConnection();
+    if (hasConnection) {
+      print('[DEBUG] Conexión detectada. Ejecutando sincronización...');
+
+      try {
+        // Importar e usar el nuevo servicio de sincronización
+        final sincronizadas =
+            await FacturaSyncService.sincronizarFacturasPendientes();
+
+        if (sincronizadas > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.cloud_done, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$sincronizadas factura${sincronizadas == 1 ? '' : 's'} sincronizada${sincronizadas == 1 ? '' : 's'} con el servidor.',
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        print('[DEBUG] Error en sincronización inmediata: $e');
+        // No mostrar error al usuario, la sincronización automática lo intentará después
+      }
+    } else {
+      print(
+        '[DEBUG] Sin conexión, la sincronización automática se ejecutará cuando regrese la conectividad',
+      );
+    }
+  }
+
+  Future<void> _mostrarFacturaOffline(
+    Map<String, dynamic> facturaData,
+    List<dynamic> detalles,
+  ) async {
     // Preparar los productos para la pantalla de factura
     List<ProductoFactura> productos = [];
     double subtotal = 0.0;
     double totalDescuento = 0.0;
-    
+
     for (var item in detalles) {
-      final String descripcion = item['descripcion']?.toString() ?? 
-                               item['prod_Descripcion']?.toString() ?? 
-                               item['producto']?.toString() ?? 
-                               'Producto sin nombre';
-      
+      final String descripcion =
+          item['descripcion']?.toString() ??
+          item['prod_Descripcion']?.toString() ??
+          item['producto']?.toString() ??
+          'Producto sin nombre';
+
       final int cantidad = _parseIntFromDynamic(
-        item['cantidad'] ?? 
-        item['peDe_Cantidad'] ?? 
-        item['cantidadProducto']
+        item['cantidad'] ?? item['peDe_Cantidad'] ?? item['cantidadProducto'],
       );
-      
+
       final double precio = _parseDoubleFromDynamic(
-        item['precio'] ?? 
-        item['peDe_Precio'] ?? 
-        item['peDe_ProdPrecio'] ?? 
-        item['precioProducto']
+        item['precio'] ??
+            item['peDe_Precio'] ??
+            item['peDe_ProdPrecio'] ??
+            item['precioProducto'],
       );
-      
+
       final double descuento = _parseDoubleFromDynamic(
-        item['descuento'] ?? 
-        item['peDe_Descuento'] ?? 
-        0.0
+        item['descuento'] ?? item['peDe_Descuento'] ?? 0.0,
       );
-      
+
       final double precioFinal = precio - (precio * descuento / 100);
       final double totalProducto = precioFinal * cantidad;
-      
-      productos.add(ProductoFactura(
-        nombre: descripcion,
-        cantidad: cantidad,
-        precio: precio,
-        precioFinal: precioFinal,
-        descuentoStr: descuento > 0 ? '${descuento.toStringAsFixed(1)}%' : '0%',
-        impuesto: 0.0, // Por ahora sin impuestos
-      ));
-      
+
+      productos.add(
+        ProductoFactura(
+          nombre: descripcion,
+          cantidad: cantidad,
+          precio: precio,
+          precioFinal: precioFinal,
+          descuentoStr: descuento > 0
+              ? '${descuento.toStringAsFixed(1)}%'
+              : '0%',
+          impuesto: 0.0, // Por ahora sin impuestos
+        ),
+      );
+
       subtotal += totalProducto;
       totalDescuento += (precio * descuento / 100) * cantidad;
     }
-    
+
     final double total = subtotal;
     final String totalEnLetras = _convertirNumeroALetras(total);
-    
+
     // Navegar a la pantalla de factura
     Navigator.push(
       context,
@@ -647,7 +772,7 @@ Widget build(BuildContext context) {
       ),
     );
   }
-  
+
   String _formatearFecha(String? fechaIso) {
     if (fechaIso == null) return DateTime.now().toString().split(' ')[0];
     try {
@@ -657,16 +782,16 @@ Widget build(BuildContext context) {
       return DateTime.now().toString().split(' ')[0];
     }
   }
-  
+
   String _convertirNumeroALetras(double numero) {
     // Implementación básica - se puede mejorar
     final int parteEntera = numero.floor();
     final int centavos = ((numero - parteEntera) * 100).round();
-    
+
     if (parteEntera == 0) {
       return 'CERO LEMPIRAS CON ${centavos.toString().padLeft(2, '0')}/100';
     }
-    
+
     // Por simplicidad, retornar formato básico
     return '${parteEntera.toString().toUpperCase()} LEMPIRAS CON ${centavos.toString().padLeft(2, '0')}/100';
   }
