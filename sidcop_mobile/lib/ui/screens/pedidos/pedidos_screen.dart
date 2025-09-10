@@ -242,24 +242,15 @@ class _PedidosScreenState extends State<PedidosScreen> {
           }
         }
       } else {
-        print('Sin conexión, obteniendo pedidos del caché completo...');
-        
-        // ✅ NUEVO: Usar el método que combina pedidos online y offline del caché
-        final pedidosCache = await PedidosScreenOffline.obtenerTodosPedidosCache();
-        
-        // Convertir los pedidos del caché a PedidosViewModel
-        pedidos = await _convertirPedidosCacheAViewModel(pedidosCache);
+        print('Sin conexión, obteniendo pedidos offline...');
+        pedidos = await PedidosScreenOffline.obtenerPedidos();
         
         if (mounted) {
-          final totalPedidos = pedidos.length;
-          final pedidosOffline = pedidosCache.where((p) => p['offline'] == true).length;
-          final pedidosOnline = pedidosCache.where((p) => p['offline'] == false).length;
-          
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Modo offline - $totalPedidos pedidos en caché ($pedidosOnline online, $pedidosOffline offline)'),
+            const SnackBar(
+              content: Text('Modo offline - usando datos en caché'),
               backgroundColor: Colors.grey,
-              duration: Duration(seconds: 3),
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -522,66 +513,5 @@ class _PedidosScreenState extends State<PedidosScreen> {
       'Diciembre',
     ];
     return "${fecha.day} de ${meses[fecha.month]} del ${fecha.year}";
-  }
-
-  /// Convierte pedidos del caché (formato Map) a PedidosViewModel
-  Future<List<PedidosViewModel>> _convertirPedidosCacheAViewModel(List<Map<String, dynamic>> pedidosCache) async {
-    final List<PedidosViewModel> pedidosConvertidos = [];
-    
-    for (final pedidoCache in pedidosCache) {
-      try {
-        // Crear PedidosViewModel desde los datos del caché
-        final pedido = PedidosViewModel(
-          pediId: pedidoCache['id'] ?? pedidoCache['server_id'] ?? 0,
-          diClId: pedidoCache['direccionId'] ?? 0,
-          vendId: pedidoCache['vendedorId'] ?? 0,
-          pediFechaPedido: DateTime.tryParse(pedidoCache['fechaPedido'] ?? '') ?? DateTime.now(),
-          pediFechaEntrega: DateTime.tryParse(pedidoCache['fechaEntrega'] ?? '') ?? DateTime.now(),
-          pedi_Codigo: pedidoCache['local_signature'] ?? 'PED-${pedidoCache['id']}',
-          usuaCreacion: 1, // Valor por defecto
-          pediFechaCreacion: DateTime.tryParse(pedidoCache['created_at'] ?? '') ?? DateTime.now(),
-          usuaModificacion: null,
-          pediFechaModificacion: null,
-          pediEstado: pedidoCache['estado'] ?? (pedidoCache['offline'] == true ? 'Pendiente' : 'Confirmado'),
-          clieCodigo: '', // No disponible en caché
-          clieId: pedidoCache['clienteId'] ?? 0,
-          clieNombreNegocio: 'Cliente ${pedidoCache['clienteId']}', // Placeholder
-          clieNombres: '', // No disponible en caché
-          clieApellidos: '', // No disponible en caché
-          coloDescripcion: null,
-          muniDescripcion: null,
-          depaDescripcion: null,
-          diClDireccionExacta: null,
-          vendNombres: '', // No disponible en caché
-          vendApellidos: '', // No disponible en caché
-          usuarioCreacion: null,
-          usuarioModificacion: null,
-          prodCodigo: null,
-          prodDescripcion: null,
-          peDeProdPrecio: null,
-          peDeCantidad: null,
-          detalles: pedidoCache['detalles'] ?? [],
-          detallesJson: jsonEncode(pedidoCache['detalles'] ?? []),
-          coFaNombreEmpresa: null,
-          coFaDireccionEmpresa: null,
-          coFaRTN: null,
-          coFaCorreo: null,
-          coFaTelefono1: null,
-          coFaTelefono2: null,
-          coFaLogo: null,
-          secuencia: null,
-        );
-        
-        pedidosConvertidos.add(pedido);
-        
-      } catch (e) {
-        print('Error convirtiendo pedido del caché: $e');
-        print('Datos del pedido problemático: $pedidoCache');
-        // Continuar con el siguiente pedido
-      }
-    }
-    
-    print('Convertidos ${pedidosConvertidos.length} pedidos del caché');
-    return pedidosConvertidos;
   }
 }

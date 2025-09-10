@@ -364,48 +364,6 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       // Usar el código generado como número de pedido real
       final numeroPedidoReal = pediCodigo;
 
-      // ✅ NUEVO: Guardar el pedido online también en caché local
-      try {
-        print('💾 Guardando pedido online en caché local...');
-        
-        // Preparar detalles del pedido para el caché (mismo formato que offline)
-        final detallesPedidoCache = _productosEditables.map((p) {
-          return {
-            'prodId': p.prodId,
-            'cantidad': p.cantidad,
-            'precioUnitario': p.precioFinal,
-            'descuento': (p.precioBase - p.precioFinal) * p.cantidad,
-            'subtotal': p.precioFinal * p.cantidad,
-          };
-        }).toList();
-
-        // Crear objeto de pedido para caché (similar al offline pero marcado como sincronizado)
-        final pedidoParaCache = {
-          'id': resultado['data']?['pedi_Id'] ?? DateTime.now().microsecondsSinceEpoch,
-          'clienteId': widget.clienteId,
-          'vendedorId': vendId,
-          'fechaPedido': DateTime.now().toIso8601String(),
-          'fechaEntrega': widget.fechaEntrega.toIso8601String(),
-          'direccionId': diClId,
-          'total': _total,
-          'estado': 'Confirmado',
-          'detalles': detallesPedidoCache,
-          'offline': false, // Marcado como online
-          'sincronizado': true, // Ya está sincronizado
-          'local_signature': numeroPedidoReal,
-          'created_at': DateTime.now().toIso8601String(),
-          'server_id': resultado['data']?['pedi_Id'],
-        };
-
-        // Guardar en caché usando el método específico para pedidos sincronizados
-        await PedidosScreenOffline.guardarPedidoSincronizadoCache(pedidoParaCache);
-        print('✅ Pedido online guardado en caché local exitosamente');
-        
-      } catch (cacheError) {
-        print('⚠️ Error guardando pedido online en caché: $cacheError');
-        // No fallar el proceso principal si hay error en caché
-      }
-
       // Si el pedido se creó exitosamente, obtener datos para la factura
       final cliente = await clienteService.getClienteById(widget.clienteId);
       final empresaService = EmpresaService();
