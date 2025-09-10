@@ -122,7 +122,10 @@ class VentasOfflineService {
     required int? vendedorId,
     required Map<String, dynamic>? selectedAddress,
   }) async {
+    final now = DateTime.now();
+    final idNegativo = -now.millisecondsSinceEpoch;
     final ventaOffline = {
+      'fact_Id': idNegativo,
       'ventaModel': ventaModel.toJson(),
       'selectedProducts': selectedProducts.map((k, v) => MapEntry(k.toString(), v)),
       'allProducts': allProducts.map((p) => p.toJson()).toList(),
