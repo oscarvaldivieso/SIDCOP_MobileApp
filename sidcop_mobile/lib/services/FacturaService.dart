@@ -90,8 +90,21 @@ class FacturaService {
       final stopwatch = Stopwatch()..start();
       
       print('EJECUTANDO http.post...');
-      final response = await http.post(url, headers: headers, body: bodyJson);
-      print('HTTP POST COMPLETADO');
+      print('INICIANDO PETICIÓN HTTP CON TIMEOUT DE 10 SEGUNDOS...');
+      
+      final response = await http.post(
+        url, 
+        headers: headers, 
+        body: bodyJson
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('TIMEOUT DE 10 SEGUNDOS ALCANZADO!');
+          throw Exception('Timeout: La petición tardó más de 10 segundos');
+        },
+      );
+      
+      print('HTTP POST COMPLETADO EXITOSAMENTE!');
 
       stopwatch.stop();
       print('TIEMPO DE RESPUESTA: ${stopwatch.elapsedMilliseconds}ms');

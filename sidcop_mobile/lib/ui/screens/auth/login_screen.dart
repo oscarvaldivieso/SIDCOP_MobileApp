@@ -107,15 +107,15 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         // Sync the orders
-        await PedidosScreenOffline.sincronizarPedidosPendientes();
+        final syncedCount = await PedidosScreenOffline.sincronizarPedidosPendientesOffline();
 
         // Show success notification
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Pedidos sincronizados exitosamente!'),
+            SnackBar(
+              content: Text('¡$syncedCount pedidos sincronizados exitosamente!'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
