@@ -76,6 +76,25 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     });
 
     try {
+      // Si el ID es negativo, buscar solo offline
+      if (widget.facturaId < 0) {
+        print('[DEBUG] Cargando factura offline con ID: ${widget.facturaId}');
+        final facturaOffline = await VentasOfflineService.obtenerFacturaCompletaOffline(widget.facturaId);
+        if (facturaOffline != null) {
+          setState(() {
+            _facturaData = facturaOffline;
+            _isLoading = false;
+            _error = null;
+          });
+        } else {
+          setState(() {
+            _error = 'No se encontró la factura offline';
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
       final response = await _ventaService.obtenerFacturaCompleta(widget.facturaId);
 
       if (response != null && response['success'] == true) {

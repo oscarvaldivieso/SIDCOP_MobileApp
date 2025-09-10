@@ -23,6 +23,7 @@ class FormData {
   String datosCliente = '';
   String productos = '';
   bool confirmacion = false;
+  double total = 0;
 }
 
 class VentaScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _VentaScreenState extends State<VentaScreen> {
     final random = Random();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
-    return 'FACT-${timestamp}_$randomDigits';
+    return '-- ---- --- -- --------';
   }
   
   // Método para construir una fila de información de crédito
@@ -543,6 +544,8 @@ class _VentaScreenState extends State<VentaScreen> {
           clienteId: widget.clienteId,
           vendedorId: widget.vendedorId,
           selectedAddress: _selectedAddress,
+          clienteNombre: formData.datosCliente,
+          totalCuenta: formData.total
         );
 
         // Cerrar indicador de carga
@@ -584,6 +587,7 @@ class _VentaScreenState extends State<VentaScreen> {
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      formData.total = 0;
       _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
       _pageController.jumpToPage(0);
@@ -1367,25 +1371,51 @@ Widget paso1() {
     setState(() => _verificandoCredito = true);
     
     try {
-      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
-      
-      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
-      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
-      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
-      
-      setState(() {
-        _limiteCredito = limiteCredito;
-        _saldoActual = saldoActual;
-        _creditoDisponible = creditoDisponible;
-        _tieneCredito = creditoDisponible > 0;
-      });
-      
-      // Si no hay crédito disponible, volver a efectivo
-      if (!_tieneCredito) {
+      final isOffline = !(await SyncService.hasInternetConnection());
+      if (isOffline) {
+        final creditInfo = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
+        
+        final limiteCredito = (creditInfo?['clie_LimiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo?['clie_Saldo'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = limiteCredito - saldoActual;
+
         setState(() {
-          formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
         });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
+        
+      }
+      else{
+        final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+        final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+
+        setState(() {
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
+        });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -3013,6 +3043,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double impuestos = baseImponible * porcentajeImpuesto;
     
     final double total = subtotalConDescuento + impuestos;
+    
+    setState(() {
+      formData.total = total;
+    });
 
     return Padding(
       padding: const EdgeInsets.all(24),

@@ -357,7 +357,28 @@ class DevolucionesService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
+
+        // Verificar success
         if (responseData['success'] == true) {
+          // Algunos endpoints devuelven detalles en data: { code_Status, message_Status }
+          try {
+            final data = responseData['data'];
+            if (data != null && data is Map<String, dynamic>) {
+              final codeStatus = data['code_Status'];
+              final messageStatus = data['message_Status'];
+              // Si backend reporta code_Status == 0, considerarlo error
+              if (codeStatus == 0) {
+                throw Exception(
+                  'Backend reportó error al anular: ${messageStatus ?? 'Desconocido'}',
+                );
+              }
+            }
+          } catch (e) {
+            // Si hubo problema con la estructura de data o code_Status indica fallo, lanzar excepción
+            _log('anularFactura: validación de data falló: $e', isError: true);
+            throw Exception('Error al anular la factura: $e');
+          }
+
           _log('Factura anulada exitosamente');
           return responseData;
         } else {
@@ -490,8 +511,7 @@ class DevolucionesService {
       // 7. Crear nueva factura con datos originales pero productos ajustados
       final nuevaVenta = VentaInsertarViewModel.empty()
         ..factNumero = nuevoNumero
-        ..factTipoDeDocumento = facturaData['fact_TipoDeDocumento'] ?? 'FAC'
-
+        ..factTipoDeDocumento = '01'
         ..regCId = 21
         ..diClId =
             diClId // Usar diClId obtenido de direcciones
@@ -553,36 +573,103 @@ class DevolucionesService {
     bool crearNuevaFactura = true,
   }) async {
     _log('\n=== INICIO DE insertarDevolucionConFacturaAjustada ===');
-    _log('NUEVO ORDEN: Factura -> Devolución -> Anular Original');
+    _log(
+      'NUEVO ORDEN SOLICITADO: Anular Original -> Factura Ajustada -> Devolución',
+    );
     _log('crearNuevaFactura: $crearNuevaFactura');
 
     try {
       Map<String, dynamic>? resultadoFactura;
 
-      // PASO 1: Crear factura ajustada PRIMERO - CRÍTICO
+      // NUEVO PASO 1: Anular la factura original ANTES de crear la nueva
       if (crearNuevaFactura) {
-        _log('PASO 1: Creando factura ajustada...');
+        _log(
+          'NUEVO PASO 1: Obteniendo datos de la factura original para motivo de anulación...',
+        );
+
+        final facturaCompleta = await obtenerFacturaCompleta(factId);
+        if (facturaCompleta == null || facturaCompleta['success'] != true) {
+          final msg =
+              facturaCompleta?['message'] ??
+              'No se pudo obtener factura original para anulación';
+          _log(
+            'ERROR: No se puede obtener factura original: $msg',
+            isError: true,
+          );
+          throw Exception('PROCESO ABORTADO: $msg');
+        }
+
+        final facturaData = facturaCompleta['data'];
+        final facturaNumeroOriginal = facturaData['fact_Numero'] ?? 'N/A';
+
+        _log(
+          'Anulando factura original (ID: $factId, Numero: $facturaNumeroOriginal) antes de crear ajustada',
+        );
+        await anularFactura(
+          factId: factId,
+          motivo: 'Anulación por devolución.',
+          usuaModificacion: usuaCreacion,
+        );
+
+        // anularFactura ahora lanza en caso de fallo; si llegó aquí es porque tuvo éxito
+        // Verificar estado real de la factura en el servidor (double-check)
+        try {
+          final refresco = await obtenerFacturaCompleta(factId);
+          final estado = refresco?['data']?['fact_Anulado'];
+          if (estado != true && estado != 1) {
+            _log(
+              'Verificación posterior a anulación indica fact_Anulado != true: $estado',
+              isError: true,
+            );
+            throw Exception(
+              'La factura no quedó anulada en el servidor tras la operación',
+            );
+          }
+        } catch (e) {
+          _log(
+            'ERROR: No se pudo verificar o confirmar la anulación: $e',
+            isError: true,
+          );
+          throw Exception(
+            'PROCESO ABORTADO: No se pudo confirmar anulación: $e',
+          );
+        }
+
+        _log(
+          '✅ Factura original anulada exitosamente (verificada) - continuando con creación de factura ajustada',
+        );
+      }
+
+      // NUEVO PASO 2: Crear la factura ajustada (ahora con la original anulada)
+      if (crearNuevaFactura) {
+        _log('NUEVO PASO 2: Creando factura ajustada...');
         resultadoFactura = await crearFacturaAjustada(
           facturaId: factId,
           productosDevueltos: detalles,
           usuaCreacion: usuaCreacion,
         );
 
-        // VALIDACIÓN CRÍTICA: Verificar que el proceso de factura fue exitoso
+        // Validar resultado de creación
         if (resultadoFactura == null || resultadoFactura['success'] != true) {
           final errorMsg =
               resultadoFactura?['message'] ??
               'Error desconocido al crear factura ajustada';
           _log(
-            'ERROR CRÍTICO: Proceso de factura falló: $errorMsg',
+            'ERROR CRÍTICO: La creación de la factura ajustada falló: $errorMsg',
             isError: true,
           );
-          throw Exception(
-            'PROCESO ABORTADO: No se pudo procesar la devolucion. $errorMsg',
-          );
+          // Nota: en este punto la factura original ya fue anulada (por petición del usuario).
+          // Retornar error claro para que la UI pueda decidir cómo proceder.
+          return {
+            'success': false,
+            'error': true,
+            'message':
+                'Error al crear factura ajustada después de anular original: $errorMsg',
+            'facturaOriginalAnulada': true,
+            'errorDetails': resultadoFactura,
+          };
         }
 
-        // Verificar si se creó una nueva factura o si es devolución completa
         if (resultadoFactura['facturaCreada'] == true) {
           _log('✅ Factura ajustada creada exitosamente');
         } else {
@@ -590,8 +677,8 @@ class DevolucionesService {
         }
       }
 
-      // PASO 2: Insertar la devolución (solo si la factura fue exitosa)
-      _log('PASO 2: Insertando devolución...');
+      // NUEVO PASO 3: Insertar la devolución
+      _log('NUEVO PASO 3: Insertando devolución...');
       final resultadoDevolucion = await insertarDevolucion(
         clieId: clieId,
         factId: factId,
@@ -602,23 +689,13 @@ class DevolucionesService {
       );
       _log('✅ Devolución insertada exitosamente');
 
-      // PASO 3: Anular la factura original (solo si todo lo anterior fue exitoso)
-      _log('PASO 3: Anulando factura original...');
-      final facturaNumero = resultadoFactura?['facturaNumero'] ?? 'N/A';
-      await anularFactura(
-        factId: factId,
-        motivo:
-            'Anulación por devolución - Nueva factura ajustada: $facturaNumero',
-        usuaModificacion: usuaCreacion,
-      );
-      _log('✅ Factura original anulada exitosamente');
-
       // 4. Retornar resultados combinados
       return {
         'success': true,
         'devolucion': resultadoDevolucion,
         'facturaAjustada': resultadoFactura,
-        'message': 'Proceso completado exitosamente - Nuevo orden aplicado',
+        'message':
+            'Proceso completado exitosamente - Orden: Anular -> Factura -> Devolución',
       };
     } catch (e) {
       _log(
