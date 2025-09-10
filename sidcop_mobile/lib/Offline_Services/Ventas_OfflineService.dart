@@ -4,6 +4,7 @@ import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
+import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 
 class VentasOfflineService {
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
@@ -61,11 +62,17 @@ class VentasOfflineService {
 
   /// Lee la lista de ventas/facturas offline desde secure storage.
   static Future<List<dynamic>> obtenerVentasOffline() async {
-    final s = await _secureStorage.read(key: 'json:$_archivoFacturas');
-    if (s == null) return [];
+    final s = await _secureStorage.read(key: 'json:facturas_por_vendedor.json');
+    if (s == null) {
+      print('[DEBUG] No hay historial offline guardado.');
+      return [];
+    }
     try {
-      return List.from(jsonDecode(s) as List);
-    } catch (_) {
+      final ventas = List.from(jsonDecode(s) as List);
+      print('[DEBUG] Historial offline cargado. Total ventas: ${ventas.length}');
+      return ventas;
+    } catch (e) {
+      print('[DEBUG] Error leyendo historial offline: $e');
       return [];
     }
   }
@@ -105,5 +112,86 @@ class VentasOfflineService {
     }
   }
 
-  // Puedes agregar más funciones offline para ventas aquí.
+  static Future<void> descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(int vendedorId, List<int> clientesIds) async {
+    for (final clieId in clientesIds) {
+      print('Guardando lista de productos del cliente id: $clieId para vendedor id: $vendedorId');
+      await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
+    }
+  }
+
+  static Future<void> guardarVentaOffline({
+    required VentaInsertarViewModel ventaModel,
+    required Map<int, double> selectedProducts,
+    required List<ProductoConDescuento> allProducts,
+    required String metodoPago,
+    required int? clienteId,
+    required int? vendedorId,
+    required Map<String, dynamic>? selectedAddress,
+    required String clienteNombre,
+    required double totalCuenta,
+  }) async {
+    final now = DateTime.now();
+    final idNegativo = -now.millisecondsSinceEpoch;
+    final ventaOffline = {
+      'fact_Id': idNegativo,
+      'ventaModel': ventaModel.toJson(),
+      'selectedProducts': selectedProducts.map((k, v) => MapEntry(k.toString(), v)),
+      'allProducts': allProducts.map((p) => p.toJson()).toList(),
+      'metodoPago': metodoPago,
+      'clienteId': clienteId,
+      'vendedorId': vendedorId,
+      'selectedAddress': selectedAddress,
+      'fechaGuardado': now.toIso8601String(),
+      'offline': true,
+      'fact_Numero': ventaModel.factNumero,
+      // Agrega los campos para visualización
+      'fact_Total': totalCuenta,
+      'cliente': clienteNombre, // Si tienes el nombre, ponlo aquí
+      'fact_FechaEmision': now.toIso8601String(),
+    };
+  
+    // Guardar en ventas pendientes
+    final keyPendientes = 'ventas_pendientes';
+    final sPendientes = await _secureStorage.read(key: keyPendientes);
+    List<dynamic> ventasPendientes = sPendientes == null ? [] : List.from(jsonDecode(sPendientes));
+    ventasPendientes.insert(0, ventaOffline); // Insertar al inicio
+    await _secureStorage.write(key: keyPendientes, value: jsonEncode(ventasPendientes));
+    print('[DEBUG] Venta offline guardada en pendientes. Total pendientes: ${ventasPendientes.length}');
+  
+    // Guardar en historial local (facturas_por_vendedor.json)
+    final keyHistorial = 'json:facturas_por_vendedor.json';
+    final sHistorial = await _secureStorage.read(key: keyHistorial);
+    List<dynamic> historial = sHistorial == null ? [] : List.from(jsonDecode(sHistorial));
+    historial.insert(0, ventaOffline); // Insertar al inicio
+    await _secureStorage.write(key: keyHistorial, value: jsonEncode(historial));
+    print('[DEBUG] Venta offline guardada en historial. Total historial: ${historial.length}');
+  }
+
+  static Future<void> sincronizarVentasPendientes() async {
+    final key = 'ventas_pendientes';
+    final s = await _secureStorage.read(key: key);
+    if (s == null) return;
+
+    List<dynamic> ventasPendientes = List.from(jsonDecode(s));
+    if (ventasPendientes.isEmpty) return;
+
+    final ventaService = VentaService();
+    List<dynamic> ventasNoEnviadas = [];
+
+    for (final venta in ventasPendientes) {
+      try {
+        final ventaModel = VentaInsertarViewModel.fromJson(venta['ventaModel']);
+        final resultado = await ventaService.insertarFacturaConValidacion(ventaModel);
+
+        if (resultado?['success'] != true) {
+          ventasNoEnviadas.add(venta); // Si falla, mantenerla en la lista
+        }
+      } catch (e) {
+        ventasNoEnviadas.add(venta); // Si hay error, mantenerla en la lista
+      }
+    }
+
+    // Guardar solo las que no se pudieron enviar
+    await _secureStorage.write(key: key, value: jsonEncode(ventasNoEnviadas));
+  }
 }

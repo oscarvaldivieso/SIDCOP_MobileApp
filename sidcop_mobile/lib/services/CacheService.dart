@@ -8,6 +8,7 @@ class CacheService {
   static const String _productsCacheKey = 'products_cache';
   static const String _productImagesCacheKey = 'product_images_cache';
   static const String _clientImagesCacheKey = 'client_images_cache';
+  static const String _inventoryImagesCacheKey = 'inventory_images_cache';
 
   // Caché en memoria para acceso rápido
   static final Map<String, dynamic> _memoryCache = {};
@@ -174,6 +175,7 @@ class CacheService {
       await prefs.remove(_productsCacheKey);
       await prefs.remove(_productImagesCacheKey);
       await prefs.remove(_clientImagesCacheKey);
+      await prefs.remove(_inventoryImagesCacheKey);
 
       // Limpiar caché en memoria
       _memoryCache.clear();
@@ -310,6 +312,65 @@ class CacheService {
     }
   }
 
+  /// Guarda mapeo de imágenes de inventario en caché
+  static Future<void> cacheInventoryImagesData(Map<String, String> imagesData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Guardar en SharedPreferences
+      await prefs.setString(_inventoryImagesCacheKey, jsonEncode(imagesData));
+
+      // Guardar en memoria
+      _memoryCache[_inventoryImagesCacheKey] = imagesData;
+
+      print('Mapeo de imágenes de inventario guardado en caché');
+    } catch (e) {
+      print('Error guardando mapeo de imágenes de inventario en caché: $e');
+    }
+  }
+
+  /// Obtiene mapeo de imágenes de inventario desde caché
+  static Future<Map<String, String>?> getCachedInventoryImagesData() async {
+    try {
+      // Intentar obtener desde memoria primero
+      if (_memoryCache.containsKey(_inventoryImagesCacheKey)) {
+        print('Mapeo de imágenes de inventario obtenido desde caché en memoria');
+        return Map<String, String>.from(_memoryCache[_inventoryImagesCacheKey] as Map);
+      }
+
+      // Si no está en memoria, obtener desde SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString(_inventoryImagesCacheKey);
+
+      if (cachedData != null) {
+        final imagesData = Map<String, String>.from(jsonDecode(cachedData) as Map);
+
+        // Actualizar caché en memoria
+        _memoryCache[_inventoryImagesCacheKey] = imagesData;
+
+        print('Mapeo de imágenes de inventario obtenido desde caché persistente');
+        return imagesData;
+      }
+
+      return null;
+    } catch (e) {
+      print('Error obteniendo mapeo de imágenes de inventario desde caché: $e');
+      return null;
+    }
+  }
+
+  /// Limpia el caché de imágenes de inventario
+  static Future<void> clearInventoryImagesCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_inventoryImagesCacheKey);
+      _memoryCache.remove(_inventoryImagesCacheKey);
+      print('CacheService: Caché de imágenes de inventario limpiado');
+    } catch (e) {
+      print('CacheService: Error limpiando caché de imágenes de inventario: $e');
+    }
+  }
+
   /// Obtiene información del estado del caché
   static Future<Map<String, dynamic>> getCacheInfo() async {
     try {
@@ -319,7 +380,7 @@ class CacheService {
         'cache_entries': {},
       };
 
-      final keys = [_userCacheKey, _clientsCacheKey, _productsCacheKey, _productImagesCacheKey, _clientImagesCacheKey];
+      final keys = [_userCacheKey, _clientsCacheKey, _productsCacheKey, _productImagesCacheKey, _clientImagesCacheKey, _inventoryImagesCacheKey];
 
       for (String key in keys) {
         final cachedData = prefs.getString(key);

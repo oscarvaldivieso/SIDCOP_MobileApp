@@ -69,7 +69,21 @@ class _clientScreenState extends State<clientScreen> {
         await ClientesOfflineService.guardarClientes(clientes);
 
         // Sincronizar clientes pendientes
-        await ClientesOfflineService.sincronizarClientesPendientes();
+        final clientesSincronizados = await ClientesOfflineService.sincronizarClientesPendientes();
+        
+        // Mostrar mensaje de sincronización si se sincronizaron clientes
+        if (clientesSincronizados > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$clientesSincronizados Cliente(s) sincronizados exitosamente'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Sincronizar clientes pendientes
+        //await ClientesOfflineService.sincronizarClientesPendientes();
       } else {
         print('Sin conexión - cargando datos offline');
 
@@ -1317,4 +1331,4 @@ class _clientScreenState extends State<clientScreen> {
         },
     );
   }
-}
+} 

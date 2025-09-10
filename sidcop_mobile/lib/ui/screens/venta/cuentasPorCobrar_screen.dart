@@ -24,29 +24,8 @@ class _CxCScreenState extends State<CxCScreen> {
   void initState() {
     super.initState();
     _loadCuentasPorCobrar();
-    // Sincronizar pagos pendientes en background
-    _sincronizarPagosPendientesEnBackground();
-    // Realizar sincronización inicial completa en background
+    // Realizar sincronización inicial completa en background (incluye pagos)
     _sincronizacionInicialCompleta();
-  }
-
-  /// Sincroniza pagos pendientes en background sin bloquear la UI
-  Future<void> _sincronizarPagosPendientesEnBackground() async {
-    try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isConnected = connectivityResult != ConnectivityResult.none;
-      
-      if (isConnected) {
-        final sincronizados = await CuentasPorCobrarOfflineService.sincronizarPagosPendientes();
-        if (sincronizados > 0) {
-          print('✅ $sincronizados pagos sincronizados automáticamente');
-          // Recargar datos después de sincronizar
-          _loadCuentasPorCobrar();
-        }
-      }
-    } catch (e) {
-      print('Error en sincronización automática de pagos: $e');
-    }
   }
 
   /// Realiza una sincronización completa inicial si hay conectividad
