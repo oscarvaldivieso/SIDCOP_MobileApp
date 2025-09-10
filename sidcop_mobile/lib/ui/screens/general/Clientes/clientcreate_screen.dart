@@ -338,10 +338,17 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
               // Actualizar el ID del cliente en cada dirección
               final direccionData = direccion.copyWith(clie_id: clientId);
 
-              print('=== Enviando dirección para cliente $clientId ===');
-              print('Datos completos: ${direccionData.toJson()}');
+              // Validar y completar los datos de la dirección
+              final direccionJson = direccionData.toJson();
+              direccionJson['colo_Descripcion'] ??= 'Sin descripción'; // Valor predeterminado
+              direccionJson['muni_Descripcion'] ??= 'Sin descripción'; // Valor predeterminado
+              direccionJson['depa_Descripcion'] ??= 'Sin descripción'; // Valor predeterminado
 
-              final result = await _direccionClienteService.insertDireccionCliente(direccionData);
+              print('=== Enviando dirección para cliente $clientId ===');
+              print('Datos completos: ${jsonEncode(direccionJson)}');
+
+              final direccionClienteObj = DireccionCliente.fromJson(direccionJson);
+              final result = await _direccionClienteService.insertDireccionCliente(direccionClienteObj);
 
               print('Respuesta del servidor para dirección: $result');
 
