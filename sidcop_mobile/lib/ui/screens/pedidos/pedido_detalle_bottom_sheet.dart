@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/PedidosViewModel.Dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/ui/screens/pedidos/FacturaSyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
-import 'package:sidcop_mobile/ui/screens/pedidos/FacturaSyncService.dart';
 
 class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
@@ -454,6 +455,11 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     print('CLIENTE ID: ${widget.pedido.clieId}');
     print('VENDEDOR ID: ${widget.pedido.vendId}');
     print('CODIGO PEDIDO: ${widget.pedido.pedi_Codigo}');
+    print('=== DEBUGGING USUARIO ID ===');
+    print('globalVendId actual: $globalVendId');
+    print('widget.pedido.usuaCreacion: ${widget.pedido.usuaCreacion}');
+    print('widget.pedido.vendId: ${widget.pedido.vendId}');
+    print('Tipo de globalVendId: ${globalVendId.runtimeType}');
 
     // Obtener la ubicación actual (si no está disponible, usar valores predeterminados)
     final double latitud = 0.0; // Idealmente obtener la ubicación actual
@@ -521,6 +527,13 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
     print('DETALLES FACTURA FINAL: $detallesFactura');
 
+    // Determinar el Usua_Id a usar con validación
+    final int usuaIdToUse = globalVendId ?? 1;
+    
+    print('=== VALIDACIÓN FINAL DE USUA_ID ===');
+    print('Usua_Id que se enviará: $usuaIdToUse');
+    print('Origen del Usua_Id: ${globalVendId != null ? "globalVendId" : "fallback (1)"}');
+    
     // Preparar los datos de la factura
     final Map<String, dynamic> facturaData = {
       'fact_Numero': widget.pedido.pedi_Codigo,
@@ -534,7 +547,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       'fact_Longitud': longitud,
       'fact_Referencia': 'Pedido generado desde app móvil',
       'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
-      'Usua_Id': widget.pedido.usuaCreacion,
+      'Usua_Creacion': usuaIdToUse, // CORREGIDO: Usar Usua_Creacion en lugar de Usua_Id
       'fact_EsPedido': true, // Marcar como pedido
       'pedi_Id': widget.pedido.pediId, // ID del pedido actual
       'detallesFacturaInput': detallesFactura, // Añadir los productos
@@ -550,10 +563,36 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
     // Llamar al servicio para insertar la factura
     print('=== LLAMANDO AL SERVICIO DE FACTURA ===');
-    final response = await _facturaService.insertarFactura(facturaData);
-    print('=== RESPUESTA DEL SERVICIO ===');
-    print('RESPONSE TYPE: ${response.runtimeType}');
-    print('RESPONSE CONTENT: ${jsonEncode(response)}');
+    
+    try {
+      final response = await _facturaService.insertarFactura(facturaData);
+      print('=== RESPUESTA DEL SERVICIO ===');
+      print('RESPONSE TYPE: ${response.runtimeType}');
+      print('RESPONSE CONTENT: ${jsonEncode(response)}');
+      
+      // Verificar si la respuesta indica error
+      print('=== ANÁLISIS DETALLADO DE LA RESPUESTA ===');
+      print('code_Status: ${response['code_Status']}');
+      print('message_Status: ${response['message_Status']}');
+      print('success: ${response['success']}');
+      
+      // Si hay error, mostrar detalles adicionales
+      if (response['code_Status'] != 1 || response['success'] == false) {
+        print('=== ERROR EN LA INSERCIÓN ===');
+        print('STATUS CODE: ${response['code_Status']}');
+        print('SUCCESS FLAG: ${response['success']}');
+        print('ERROR MESSAGE: ${response['message']}');
+        print('STATUS MESSAGE: ${response['message_Status']}');
+        
+        // Lanzar excepción con el mensaje de error del servidor
+        throw Exception(response['message_Status'] ?? response['message'] ?? 'Error desconocido en la inserción');
+      }
+    } catch (e) {
+      print('=== EXCEPCIÓN EN SERVICIO DE FACTURA ===');
+      print('ERROR: $e');
+      print('TIPO: ${e.runtimeType}');
+      rethrow; // Re-lanzar la excepción para que sea manejada por el bloque superior
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -581,34 +620,52 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     // Parsear los detalles del pedido para obtener los productos
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
 
-    // Crear la estructura de la factura offline con TODOS los campos necesarios para sincronización
+    // Determinar el Usua_Id a usar con validación (igual que online)
+    final int usuaIdToUse = globalVendId ?? 1;
+    
+    print('=== DEBUG OFFLINE USUA_ID ===');
+    print('globalVendId actual: $globalVendId');
+    print('usuaIdToUse para offline: $usuaIdToUse');
+    print('widget.pedido.vendId: ${widget.pedido.vendId}');
+    print('widget.pedido.usuaCreacion: ${widget.pedido.usuaCreacion}');
+    
+    // Crear la estructura de la factura offline IDÉNTICA a la online
     final Map<String, dynamic> facturaOffline = {
+      // Campos básicos de identificación
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'pediId': widget.pedido.pediId,
-      'numeroFactura':
-          widget.pedido.pedi_Codigo ??
-          'OFFLINE-${DateTime.now().millisecondsSinceEpoch}',
+      'local_signature': DateTime.now().millisecondsSinceEpoch.toString(),
+      'offline': true,
+      'sync_status': 'pending',
+      'sync_attempts': 0,
+      'created_at': DateTime.now().toIso8601String(),
+      
+      // DATOS EXACTOS COMO LA FACTURA ONLINE
+      'fact_Numero': widget.pedido.pedi_Codigo,
+      'fact_TipoDeDocumento': 'FAC',
+      'regC_Id': 21,
+      'diCl_Id': widget.pedido.diClId,
+      'vend_Id': widget.pedido.vendId,
+      'fact_TipoVenta': 'CO',
+      'fact_FechaEmision': DateTime.now().toIso8601String(),
+      'fact_Latitud': 0.0,
+      'fact_Longitud': 0.0,
+      'fact_Referencia': 'Pedido generado desde app móvil',
+      'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
+      'Usua_Creacion': usuaIdToUse,
+      'fact_EsPedido': true,
+      'pedi_Id': widget.pedido.pediId,
+      'detallesFacturaInput': detalles,
+      
+      // Campos adicionales para compatibilidad
+      'numeroFactura': widget.pedido.pedi_Codigo,
       'clienteId': widget.pedido.clieId,
       'vendedorId': widget.pedido.vendId,
-      'diClId': widget
-          .pedido
-          .diClId, // IMPORTANTE: Campo requerido para sincronización
-      'usuaCreacion': widget
-          .pedido
-          .usuaCreacion, // IMPORTANTE: Campo requerido para sincronización
+      'direccionId': widget.pedido.diClId,
+      'usuaCreacion': usuaIdToUse,
       'fechaEmision': DateTime.now().toIso8601String(),
-      'fechaEntrega':
-          widget.pedido.pediFechaEntrega?.toIso8601String() ??
-          DateTime.now().toIso8601String(),
       'nombreCliente': widget.pedido.clieNombreNegocio ?? 'Cliente',
-      'codigoCliente': widget.pedido.clieId?.toString() ?? '',
       'vendedor': widget.pedido.vendNombres ?? 'Vendedor',
       'detalles': detalles,
-      'offline': true,
-      'local_signature': DateTime.now().millisecondsSinceEpoch.toString(),
-      'sync_status': 'pending', // Estado de sincronización
-      'sync_attempts': 0, // Intentos de sincronización
-      'created_at': DateTime.now().toIso8601String(), // Timestamp de creación
     };
 
     // Guardar la factura offline
@@ -619,27 +676,37 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       );
 
       if (mounted) {
-        // Mostrar mensaje de éxito offline
+        // Mostrar mensaje de éxito offline con alerta prominente
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(
               children: [
-                Icon(Icons.offline_bolt, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(
+                const Icon(Icons.offline_bolt, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(
                   child: Text(
-                    'Factura guardada offline. Se sincronizará automáticamente cuando haya conexión.',
+                    '📱 FACTURA GUARDADA OFFLINE\nSe sincronizará automáticamente cuando haya conexión a internet.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
             ),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 6),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
 
+        // Mostrar diálogo de confirmación adicional
+        _mostrarDialogoFacturaOffline(facturaOffline);
+
         // Intentar sincronización inmediata (por si regresó la conexión)
         _intentarSincronizacionInmediata();
+
+        // Inicializar el sistema de sincronización automática
+        FacturaSyncService.inicializarSincronizacion();
 
         // Navegar directamente a la pantalla de factura con los datos offline
         await _mostrarFacturaOffline(facturaOffline, detalles);
@@ -648,6 +715,62 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       print('[ERROR] Error guardando factura offline: $e');
       throw Exception('Error guardando factura offline: $e');
     }
+  }
+
+  /// Muestra un diálogo de confirmación para factura offline
+  void _mostrarDialogoFacturaOffline(Map<String, dynamic> facturaOffline) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.offline_bolt,
+            color: Colors.orange,
+            size: 48,
+          ),
+          title: const Text(
+            'Factura Guardada Offline',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Número: ${facturaOffline['numeroFactura']}'),
+              Text('Cliente: ${facturaOffline['nombreCliente']}'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'La factura se sincronizará automáticamente cuando se restaure la conexión a internet.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   /// Intenta sincronización inmediata en caso de que la conexión haya regresado
@@ -660,38 +783,40 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     // Verificar si hay conexión
     final hasConnection = await SyncService.hasInternetConnection();
     if (hasConnection) {
-      print('[DEBUG] Conexión detectada. Ejecutando sincronización...');
-
+      print('[DEBUG] Conexión disponible, intentando sincronizar facturas pendientes...');
+      
       try {
-        // Importar e usar el nuevo servicio de sincronización
-        final sincronizadas =
-            await FacturaSyncService.sincronizarFacturasPendientes();
-
+        final sincronizadas = await FacturaSyncService.sincronizarFacturasPendientes();
+        
         if (sincronizadas > 0 && mounted) {
+          // Mostrar mensaje de sincronización exitosa
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
                   const Icon(Icons.cloud_done, color: Colors.white),
                   const SizedBox(width: 8),
-                  Text(
-                    '$sincronizadas factura${sincronizadas == 1 ? '' : 's'} sincronizada${sincronizadas == 1 ? '' : 's'} con el servidor.',
+                  Expanded(
+                    child: Text(
+                      '✅ $sincronizadas factura(s) sincronizada(s) exitosamente con el servidor',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.green.shade600,
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           );
         }
       } catch (e) {
-        print('[DEBUG] Error en sincronización inmediata: $e');
-        // No mostrar error al usuario, la sincronización automática lo intentará después
+        print('[ERROR] Error en sincronización inmediata: $e');
       }
     } else {
-      print(
-        '[DEBUG] Sin conexión, la sincronización automática se ejecutará cuando regrese la conectividad',
-      );
+      print('[DEBUG] Sin conexión, factura permanece offline');
     }
   }
 

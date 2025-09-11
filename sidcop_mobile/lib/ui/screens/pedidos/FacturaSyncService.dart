@@ -37,7 +37,7 @@ class FacturaSyncService {
         final facturasPendientes = await PedidosScreenOffline.obtenerFacturasPendientes();
         if (facturasPendientes.isNotEmpty) {
           print('[SYNC] ${facturasPendientes.length} facturas pendientes encontradas. Sincronizando...');
-          await sincronizarFacturasPendientes();
+          await PedidosScreenOffline.sincronizarFacturasPendientes();
         }
       }
     });
@@ -92,13 +92,17 @@ class FacturaSyncService {
           // Enviar al servidor
           final response = await _facturaService.insertarFactura(facturaData);
           
+          print('[SYNC] Respuesta completa del servidor: ${jsonEncode(response)}');
+          
           // Verificar respuesta
           if (response != null && (response['success'] == true || response['data'] != null)) {
             sincronizadas++;
-            print('[SYNC] ✓ Factura ${factura['numeroFactura']} sincronizada');
+            print('[SYNC] ✓ Factura ${factura['fact_Numero'] ?? factura['numeroFactura']} sincronizada');
           } else {
             facturasNoSincronizadas.add(factura);
-            print('[SYNC] ⚠ Factura ${factura['numeroFactura']} falló: ${response?['message']}');
+            print('[SYNC] ⚠ Factura ${factura['fact_Numero'] ?? factura['numeroFactura']} falló');
+            print('[SYNC] Error del servidor: ${response?['message']}');
+            print('[SYNC] Datos enviados que causaron error: ${jsonEncode(facturaData)}');
           }
           
         } catch (e) {
@@ -124,96 +128,64 @@ class FacturaSyncService {
   
   /// Convierte una factura offline al formato requerido por la API
   static Map<String, dynamic> _convertirFacturaParaAPI(Map<String, dynamic> facturaOffline) {
-    print('[SYNC] Convirtiendo factura offline: ${facturaOffline['numeroFactura']}');
+    print('[SYNC] Convirtiendo factura offline: ${facturaOffline['fact_Numero'] ?? facturaOffline['numeroFactura']}');
     print('[SYNC] Campos disponibles en factura offline: ${facturaOffline.keys.toList()}');
-    print('[SYNC] Detalles originales: ${facturaOffline['detalles']}');
+    print('[SYNC] Detalles originales: ${facturaOffline['detallesFacturaInput'] ?? facturaOffline['detalles']}');
     
-    // Procesar detalles de la factura
-    final detallesFactura = <Map<String, dynamic>>[];
-    final detalles = facturaOffline['detalles'] as List<dynamic>? ?? [];
+    // La factura offline ya tiene el formato correcto, solo necesitamos extraer los campos principales
+    final facturaData = <String, dynamic>{};
     
-    for (var item in detalles) {
-      if (item is Map<String, dynamic>) {
-        // Intentar extraer ID del producto con diferentes nombres de campo
-        final int prodId = _extraerProdId(item);
-        final int cantidad = _extraerCantidad(item);
-        
-        print('[SYNC] Procesando item: prodId=$prodId, cantidad=$cantidad');
-        
-        if (prodId > 0 && cantidad > 0) {
-          detallesFactura.add({
-            'prod_Id': prodId,
-            'faDe_Cantidad': cantidad
-          });
-          print('[SYNC] ✓ Detalle añadido: prodId=$prodId, cantidad=$cantidad');
-        } else {
-          print('[SYNC] ⚠ Item ignorado: prodId=$prodId, cantidad=$cantidad');
-        }
-      }
+    // Copiar todos los campos que ya están en formato API
+    if (facturaOffline.containsKey('fact_Numero')) {
+      facturaData['fact_Numero'] = facturaOffline['fact_Numero'];
     }
-    
-    print('[SYNC] Total detalles procesados: ${detallesFactura.length}');
-    
-    // Construir objeto para API
-    final facturaData = {
-      'fact_Numero': facturaOffline['numeroFactura'],
-      'fact_TipoDeDocumento': 'FAC',
-      'regC_Id': 21,
-      'diCl_Id': facturaOffline['diClId'] ?? facturaOffline['direccionId'] ?? 1,
-      'vend_Id': facturaOffline['vendedorId'],
-      'fact_TipoVenta': 'CO',
-      'fact_FechaEmision': facturaOffline['fechaEmision'],
-      'fact_Latitud': 0.0,
-      'fact_Longitud': 0.0,
-      'fact_Referencia': 'Factura sincronizada desde offline - ${facturaOffline['local_signature']}',
-      'fact_AutorizadoPor': facturaOffline['vendedor'] ?? '',
-      'usua_Creacion': 7, // Usuario fijo que existe en la base de datos
-      'fact_EsPedido': facturaOffline['pediId'] != null,
-      'pedi_Id': facturaOffline['pediId'],
-      'detallesFacturaInput': detallesFactura,
-    };
+    if (facturaOffline.containsKey('fact_TipoDeDocumento')) {
+      facturaData['fact_TipoDeDocumento'] = facturaOffline['fact_TipoDeDocumento'];
+    }
+    if (facturaOffline.containsKey('regC_Id')) {
+      facturaData['regC_Id'] = facturaOffline['regC_Id'];
+    }
+    if (facturaOffline.containsKey('diCl_Id')) {
+      facturaData['diCl_Id'] = facturaOffline['diCl_Id'];
+    }
+    if (facturaOffline.containsKey('vend_Id')) {
+      facturaData['vend_Id'] = facturaOffline['vend_Id'];
+    }
+    if (facturaOffline.containsKey('fact_TipoVenta')) {
+      facturaData['fact_TipoVenta'] = facturaOffline['fact_TipoVenta'];
+    }
+    if (facturaOffline.containsKey('fact_FechaEmision')) {
+      facturaData['fact_FechaEmision'] = facturaOffline['fact_FechaEmision'];
+    }
+    if (facturaOffline.containsKey('fact_Latitud')) {
+      facturaData['fact_Latitud'] = facturaOffline['fact_Latitud'];
+    }
+    if (facturaOffline.containsKey('fact_Longitud')) {
+      facturaData['fact_Longitud'] = facturaOffline['fact_Longitud'];
+    }
+    if (facturaOffline.containsKey('fact_Referencia')) {
+      facturaData['fact_Referencia'] = facturaOffline['fact_Referencia'];
+    }
+    if (facturaOffline.containsKey('fact_AutorizadoPor')) {
+      facturaData['fact_AutorizadoPor'] = facturaOffline['fact_AutorizadoPor'];
+    }
+    if (facturaOffline.containsKey('Usua_Creacion')) {
+      facturaData['Usua_Creacion'] = facturaOffline['Usua_Creacion'];
+    }
+    if (facturaOffline.containsKey('fact_EsPedido')) {
+      facturaData['fact_EsPedido'] = facturaOffline['fact_EsPedido'];
+    }
+    if (facturaOffline.containsKey('pedi_Id')) {
+      facturaData['pedi_Id'] = facturaOffline['pedi_Id'];
+    }
+    if (facturaOffline.containsKey('detallesFacturaInput')) {
+      facturaData['detallesFacturaInput'] = facturaOffline['detallesFacturaInput'];
+    }
     
     print('[SYNC] Factura convertida para API: ${jsonEncode(facturaData)}');
     return facturaData;
   }
   
-  /// Extrae el ID del producto con diferentes nombres de campo
-  static int _extraerProdId(Map<String, dynamic> item) {
-    // Lista de posibles nombres de campo para el ID del producto
-    final posiblesCampos = ['id', 'prod_Id', 'prodId', 'Prod_Id'];
-    
-    for (final campo in posiblesCampos) {
-      final valor = item[campo];
-      if (valor != null) {
-        if (valor is int) return valor;
-        if (valor is String) {
-          final parsed = int.tryParse(valor);
-          if (parsed != null && parsed > 0) return parsed;
-        }
-      }
-    }
-    
-    return 0;
-  }
-  
-  /// Extrae la cantidad con diferentes nombres de campo
-  static int _extraerCantidad(Map<String, dynamic> item) {
-    // Lista de posibles nombres de campo para la cantidad
-    final posiblesCampos = ['cantidad', 'peDe_Cantidad', 'faDe_Cantidad', 'cantidadProducto'];
-    
-    for (final campo in posiblesCampos) {
-      final valor = item[campo];
-      if (valor != null) {
-        if (valor is int) return valor;
-        if (valor is String) {
-          final parsed = int.tryParse(valor);
-          if (parsed != null && parsed > 0) return parsed;
-        }
-      }
-    }
-    
-    return 0;
-  }
   
   /// Método manual para forzar sincronización
   static Future<bool> forzarSincronizacion() async {
