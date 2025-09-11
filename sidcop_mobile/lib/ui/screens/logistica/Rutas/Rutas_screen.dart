@@ -12,7 +12,7 @@ import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/RutasViewModel.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:http/http.dart' as http;
 import 'Rutas_details.dart';
 import 'Rutas_mapscreen.dart';
@@ -117,6 +117,7 @@ class _RutasScreenState extends State<RutasScreen> {
         // Intentar sincronización forzada - siempre intentamos sincronizar
         // todos los datos independientemente del estado de conexión previo
         print('DEBUG: Iniciando sincronización FORZADA en _initState');
+        print('vendedor en rutas: $globalVendId');
         await _syncAllOnEntry();
         print('DEBUG: Sincronización FORZADA completada');
       } catch (e) {

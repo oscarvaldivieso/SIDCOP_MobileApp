@@ -1,5 +1,5 @@
 int? globalVendId; // usua_IdPersona del vendedor autenticado
-//bool modoOffline;
+int? globalUsuaId; // usua_Id del usuario autenticado
 
 //const String apiServer = 'http://sidcop.somee.com';
 // const String apiServer = 'http://200.59.27.115:8091';

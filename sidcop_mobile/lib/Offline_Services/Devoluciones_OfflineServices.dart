@@ -259,6 +259,17 @@ class DevolucionesOffline {
         }
       }
 
+      // Si no tiene ID asignado, crear un ID sintético negativo estable (timestamp negativo)
+      if (id == null) {
+        try {
+          final syntheticId = -DateTime.now().millisecondsSinceEpoch;
+          devolucion['devo_Id'] = syntheticId;
+        } catch (_) {
+          // fallback: usar un número negativo fijo temporal
+          devolucion['devo_Id'] = -DateTime.now().microsecondsSinceEpoch;
+        }
+      }
+
       lista.add(devolucion);
       await guardarDevolucionesPendientes(lista);
       return true;
@@ -274,6 +285,62 @@ class DevolucionesOffline {
   static Future<bool> existenDevolucionesPendientes() async {
     final pendientes = await obtenerDevolucionesPendientesLocal();
     return pendientes.isNotEmpty;
+  }
+
+  /// Elimina una devolución pendiente localmente por su `devo_Id`.
+  /// Devuelve true si se eliminó al menos un elemento.
+  static Future<bool> eliminarDevolucionPendiente(int devoId) async {
+    try {
+      final lista = await obtenerDevolucionesPendientesLocal();
+      if (lista.isEmpty) return false;
+
+      final before = lista.length;
+
+      lista.removeWhere((item) {
+        try {
+          final itemId = item['devo_Id'] ?? item['devoId'] ?? item['id'];
+          if (itemId == null) return false;
+          return int.tryParse(itemId.toString()) == devoId;
+        } catch (_) {
+          return false;
+        }
+      });
+
+      final after = lista.length;
+      if (after < before) {
+        await guardarDevolucionesPendientes(lista);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Asegura que todas las devoluciones pendientes tengan un `devo_Id`.
+  /// Si alguna no lo tiene, se le asigna un ID sintético negativo y se guarda la lista.
+  static Future<void> PendientesTenganId() async {
+    try {
+      final lista = await obtenerDevolucionesPendientesLocal();
+      bool changed = false;
+      for (int i = 0; i < lista.length; i++) {
+        final item = lista[i];
+        final itemId = item['devo_Id'] ?? item['devoId'] ?? item['id'];
+        if (itemId == null) {
+          final syntheticId = -DateTime.now().millisecondsSinceEpoch - i;
+          item['devo_Id'] = syntheticId;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await guardarDevolucionesPendientes(
+          List<Map<String, dynamic>>.from(lista),
+        );
+      }
+    } catch (e) {
+      // Silenciar errores de migración
+    }
   }
 
   // Instancia de secure storage para almacenar datos
