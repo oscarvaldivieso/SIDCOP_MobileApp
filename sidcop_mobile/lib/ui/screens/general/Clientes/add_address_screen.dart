@@ -56,7 +56,6 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   bool? esAdmin;
   int? usuaId;
 
-
   // Map variables
   LatLng _selectedLocation = const LatLng(
     15.5,
@@ -93,14 +92,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   }
 
   Future<void> _loadAllClientData() async {
-
     // Obtener el usua_IdPersona del usuario logueado
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
 
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
-    
+
     // Extraer rutasDelDiaJson y Ruta_Id
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
@@ -128,9 +126,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       clientes = await SyncService.getClients();
       print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
     }
-    }
-    
-
+  }
 
   Future<void> _showMapModal() async {
     final newLocation = await MapWidget.showAsDialog(
