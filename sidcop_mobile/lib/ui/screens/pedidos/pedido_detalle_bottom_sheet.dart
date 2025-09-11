@@ -21,6 +21,7 @@ class PedidoDetalleBottomSheet extends StatefulWidget {
 class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   final FacturaService _facturaService = FacturaService();
   bool _isInsertingInvoice = false;
+  bool _isSyncing = false;
 
   Color get _primaryColor => const Color(0xFF141A2F);
   Color get _goldColor => const Color(0xFFE0C7A0);
@@ -87,6 +88,28 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
                             print('=== BOTÓN DE FACTURA COMPLETADO ===\n');
                           },
                           tooltip: 'Ver Factura',
+                        ),
+                  const SizedBox(width: 8),
+                  _isSyncing
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.blue,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.sync,
+                            color: Colors.blue,
+                          ),
+                          onPressed: () async {
+                            await _sincronizarFacturasOffline();
+                          },
+                          tooltip: 'Sincronizar Facturas Offline',
                         ),
                   const SizedBox(width: 8),
                   IconButton(
@@ -562,16 +585,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     
     try {
       final response = await _facturaService.insertarFactura(facturaData);
-      print('=== RESPUESTA DEL SERVICIO ===');
-      print('RESPONSE TYPE: ${response.runtimeType}');
-      print('RESPONSE CONTENT: ${jsonEncode(response)}');
-      
-      // Verificar si la respuesta indica error
-      print('=== ANÁLISIS DETALLADO DE LA RESPUESTA ===');
-      print('code_Status: ${response['code_Status']}');
-      print('message_Status: ${response['message_Status']}');
-      print('success: ${response['success']}');
-      
+     
       // Si hay error, mostrar detalles adicionales
       if (response['code_Status'] != 1 || response['success'] == false) {
         print('=== ERROR EN LA INSERCIÓN ===');
@@ -584,9 +598,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
         throw Exception(response['message_Status'] ?? response['message'] ?? 'Error desconocido en la inserción');
       }
     } catch (e) {
-      print('=== EXCEPCIÓN EN SERVICIO DE FACTURA ===');
-      print('ERROR: $e');
-      print('TIPO: ${e.runtimeType}');
+  
       rethrow; // Re-lanzar la excepción para que sea manejada por el bloque superior
     }
 
@@ -698,7 +710,6 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
         await _mostrarFacturaOffline(facturaOffline, detalles);
       }
     } catch (e) {
-      print('[ERROR] Error guardando factura offline: $e');
       throw Exception('Error guardando factura offline: $e');
     }
   }
@@ -761,7 +772,6 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   /// Intenta sincronización inmediata en caso de que la conexión haya regresado
   Future<void> _intentarSincronizacionInmediata() async {
-    print('[DEBUG] Verificando conexión para sincronización inmediata...');
 
     // Esperar un momento para que el usuario vea el mensaje
     await Future.delayed(const Duration(seconds: 2));
@@ -905,5 +915,60 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
     // Por simplicidad, retornar formato básico
     return '${parteEntera.toString().toUpperCase()} LEMPIRAS CON ${centavos.toString().padLeft(2, '0')}/100';
+  }
+
+  /// Método para sincronizar facturas offline manualmente
+  Future<void> _sincronizarFacturasOffline() async {
+    if (_isSyncing) return; // Evitar múltiples sincronizaciones simultáneas
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      // Mostrar mensaje de inicio de sincronización
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Iniciando sincronización de facturas offline...'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Usar el servicio de sincronización de facturas
+      final facturasSincronizadas = await FacturaSyncService.sincronizarFacturasPendientes();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              facturasSincronizadas > 0
+                  ? 'Se sincronizaron $facturasSincronizadas facturas correctamente'
+                  : 'No hay facturas offline pendientes por sincronizar',
+            ),
+            backgroundColor: facturasSincronizadas > 0 ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error durante la sincronización: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
   }
 }
