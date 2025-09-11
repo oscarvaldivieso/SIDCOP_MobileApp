@@ -21,17 +21,17 @@ class ImageUploadService {
   Future<String?> uploadImage(File imageFile, {String? publicId}) async {
     try {
       final url = Uri.parse('$_baseUrl$_uploadEndpoint');
-      
+
       // Read file as bytes
       final bytes = await imageFile.readAsBytes();
-      
+
       // Create multipart request
       var request = http.MultipartRequest('POST', url);
-      
+
       // Add headers
       request.headers['accept'] = '*/*';
       request.headers['X-Api-Key'] = _apiKey;
-      
+
       // Determine content type based on file extension
       String extension = path.extension(imageFile.path).toLowerCase();
       MediaType contentType;
@@ -46,19 +46,21 @@ class ImageUploadService {
         default:
           contentType = MediaType('image', 'jpeg');
       }
-      
+
       // Add file to request
-      request.files.add(http.MultipartFile.fromBytes(
-        'imagen',
-        bytes,
-        filename: path.basename(imageFile.path),
-        contentType: contentType,
-      ));
-      
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'imagen',
+          bytes,
+          filename: path.basename(imageFile.path),
+          contentType: contentType,
+        ),
+      );
+
       // Send request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final imagePath = responseData['ruta'];
@@ -73,19 +75,24 @@ class ImageUploadService {
     }
   }
 
-  Future<String?> uploadImageFromBytes(Uint8List imageBytes, {String? publicId, String? fileName}) async {
+  Future<String?> uploadImageFromBytes(
+    Uint8List imageBytes, {
+    String? publicId,
+    String? fileName,
+  }) async {
     try {
       final url = Uri.parse('$_baseUrl$_uploadEndpoint');
-      
+
       // Create multipart request
       var request = http.MultipartRequest('POST', url);
-      
+
       // Add headers
       request.headers['accept'] = '*/*';
       request.headers['X-Api-Key'] = _apiKey;
-      
+
       // Determine content type based on filename extension
-      String finalFileName = fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      String finalFileName =
+          fileName ?? '${DateTime.now().millisecondsSinceEpoch}.jpg';
       String extension = path.extension(finalFileName).toLowerCase();
       MediaType contentType;
       switch (extension) {
@@ -100,19 +107,21 @@ class ImageUploadService {
           contentType = MediaType('image', 'jpeg');
           finalFileName = '${path.basenameWithoutExtension(finalFileName)}.jpg';
       }
-      
+
       // Add file to request
-      request.files.add(http.MultipartFile.fromBytes(
-        'imagen',
-        imageBytes,
-        filename: finalFileName,
-        contentType: contentType,
-      ));
-      
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'imagen',
+          imageBytes,
+          filename: finalFileName,
+          contentType: contentType,
+        ),
+      );
+
       // Send request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final imagePath = responseData['ruta'];

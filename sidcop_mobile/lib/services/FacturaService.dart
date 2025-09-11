@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 // Clase personalizada para manejar errores de inventario insuficiente
 class InventarioInsuficienteException implements Exception {
   final String message;
-  
+
   InventarioInsuficienteException(this.message);
-  
+
   @override
   String toString() => message;
 }
@@ -18,14 +18,11 @@ class FacturaService {
 
   Future<List<dynamic>> getFacturas() async {
     final url = Uri.parse('$_apiServer/Facturas/Listar');
-    
+
     try {
       final response = await http.get(
         url,
-        headers: {
-          'X-Api-Key': _apiKey,
-          'Accept': 'application/json',
-        },
+        headers: {'X-Api-Key': _apiKey, 'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -42,16 +39,13 @@ class FacturaService {
     }
   }
 
-    Future<List<dynamic>> getFacturasDevolucionesLimite() async {
+  Future<List<dynamic>> getFacturasDevolucionesLimite() async {
     final url = Uri.parse('$_apiServer/Facturas/ListarConLimiteDevolucion');
-    
+
     try {
       final response = await http.get(
         url,
-        headers: {
-          'X-Api-Key': _apiKey,
-          'Accept': 'application/json',
-        },
+        headers: {'X-Api-Key': _apiKey, 'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -68,12 +62,14 @@ class FacturaService {
     }
   }
 
-  Future<Map<String, dynamic>> insertarFactura(Map<String, dynamic> facturaData) async {
+  Future<Map<String, dynamic>> insertarFactura(
+    Map<String, dynamic> facturaData,
+  ) async {
     final url = Uri.parse('$_apiServer/Facturas/Insertar');
-    
+
     try {
       print('ENVIANDO PETICIÓN A: $url');
-      
+
       final response = await http.post(
         url,
         headers: {
@@ -86,15 +82,17 @@ class FacturaService {
 
       print('CÓDIGO DE RESPUESTA: ${response.statusCode}');
       print('CUERPO DE RESPUESTA: ${response.body}');
-      
+
       final data = json.decode(response.body);
-      
+
       if (response.statusCode == 200 && data['success'] == true) {
         print('INSERCIÓN EXITOSA: ${data['message']}');
         return data;
       } else {
-        print('ERROR EN LA RESPUESTA: ${data['message'] ?? 'Sin mensaje de error'}');
-        
+        print(
+          'ERROR EN LA RESPUESTA: ${data['message'] ?? 'Sin mensaje de error'}',
+        );
+
         // Verificar si es un error de inventario insuficiente
         String errorMessage = data['message'] ?? '';
         if (data['data'] != null && data['data']['message_Status'] != null) {
@@ -104,9 +102,15 @@ class FacturaService {
             throw InventarioInsuficienteException(statusMessage);
           }
         }
-        
-        print('DETALLES DEL ERROR: ${data['errors'] ?? 'Sin detalles adicionales'}');
-        throw Exception(errorMessage.isNotEmpty ? errorMessage : 'Error al insertar factura: ${response.statusCode}');
+
+        print(
+          'DETALLES DEL ERROR: ${data['errors'] ?? 'Sin detalles adicionales'}',
+        );
+        throw Exception(
+          errorMessage.isNotEmpty
+              ? errorMessage
+              : 'Error al insertar factura: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('EXCEPCIÓN AL INSERTAR FACTURA: $e');
@@ -117,4 +121,3 @@ class FacturaService {
     }
   }
 }
-
