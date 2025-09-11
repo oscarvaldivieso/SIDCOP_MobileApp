@@ -530,10 +530,6 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     // Determinar el Usua_Id a usar con validación
     final int usuaIdToUse = globalVendId ?? 1;
     
-    print('=== VALIDACIÓN FINAL DE USUA_ID ===');
-    print('Usua_Id que se enviará: $usuaIdToUse');
-    print('Origen del Usua_Id: ${globalVendId != null ? "globalVendId" : "fallback (1)"}');
-    
     // Preparar los datos de la factura
     final Map<String, dynamic> facturaData = {
       'fact_Numero': widget.pedido.pedi_Codigo,
@@ -547,7 +543,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       'fact_Longitud': longitud,
       'fact_Referencia': 'Pedido generado desde app móvil',
       'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
-      'Usua_Creacion': usuaIdToUse, // CORREGIDO: Usar Usua_Creacion en lugar de Usua_Id
+      'Usua_Creacion': 1, // CORREGIDO: Usar Usua_Creacion en lugar de Usua_Id
       'fact_EsPedido': true, // Marcar como pedido
       'pedi_Id': widget.pedido.pediId, // ID del pedido actual
       'detallesFacturaInput': detallesFactura, // Añadir los productos
@@ -615,20 +611,10 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   // Actualiza tu método _insertarFacturaOffline en PedidoDetalleBottomSheet
 
   Future<void> _insertarFacturaOffline() async {
-    print('[DEBUG] Insertando factura en modo offline');
-
-    // Parsear los detalles del pedido para obtener los productos
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
 
-    // Determinar el Usua_Id a usar con validación (igual que online)
-    final int usuaIdToUse = globalVendId ?? 1;
-    
-    print('=== DEBUG OFFLINE USUA_ID ===');
-    print('globalVendId actual: $globalVendId');
-    print('usuaIdToUse para offline: $usuaIdToUse');
-    print('widget.pedido.vendId: ${widget.pedido.vendId}');
-    print('widget.pedido.usuaCreacion: ${widget.pedido.usuaCreacion}');
-    
+    final int usuaIdToUse = 1;
+
     // Crear la estructura de la factura offline IDÉNTICA a la online
     final Map<String, dynamic> facturaOffline = {
       // Campos básicos de identificación
@@ -651,7 +637,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       'fact_Longitud': 0.0,
       'fact_Referencia': 'Pedido generado desde app móvil',
       'fact_AutorizadoPor': widget.pedido.vendNombres ?? '',
-      'Usua_Creacion': usuaIdToUse,
+      'Usua_Creacion': 1,
       'fact_EsPedido': true,
       'pedi_Id': widget.pedido.pediId,
       'detallesFacturaInput': detalles,
