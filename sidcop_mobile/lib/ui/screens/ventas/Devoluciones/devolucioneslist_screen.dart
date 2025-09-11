@@ -262,6 +262,28 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
             final facturasData = await facturaService
                 .getFacturasDevolucionesLimite();
 
+            // Guardar las facturas obtenidas localmente para uso en la pantalla de crear
+            try {
+              if (facturasData.isNotEmpty) {
+                final List<Map<String, dynamic>> facturasToSave = facturasData.map<Map<String, dynamic>>((f) {
+                  if (f is Map) return Map<String, dynamic>.from(f);
+                  try {
+                    // Algunos servicios devuelven objetos con toJson()
+                    final dynamic json = f.toJson();
+                    if (json is Map) return Map<String, dynamic>.from(json);
+                  } catch (_) {}
+                  return <String, dynamic>{};
+                }).toList();
+
+                if (facturasToSave.isNotEmpty) {
+                  await DevolucionesOffline.guardarFacturasCreate(facturasToSave);
+                  print('Facturas guardadas localmente (${facturasToSave.length})');
+                }
+              }
+            } catch (saveErr) {
+              print('Error guardando facturas localmente: $saveErr');
+            }
+
             final int? vendIdActual = globalVendId; // desde GlobalService
             final Set<int> factIdsSet = {};
 
@@ -844,6 +866,12 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
                       children: [
                         // Fila de cliente
                         const SizedBox(height: 12),
+                        _buildDetailRow(
+                          Icons.business_outlined,
+                          'Cliente',
+                          devolucion.clieNombreNegocio ?? 'Cliente desconocido',
+                        ),
+                        const SizedBox(height: 8),
                         // Fila de motivo
                         _buildDetailRow(
                           Icons.receipt_long_outlined,
