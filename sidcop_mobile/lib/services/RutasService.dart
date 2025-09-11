@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class RutasService {
   final String _apiServer = apiServer;
@@ -15,6 +15,7 @@ class RutasService {
         url,
         headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
       );
+      print('vendedor en rutas service: $globalVendId');
 
       developer.log('Get Rutas Response Status: ${response.statusCode}');
       developer.log('Get Rutas Response Body: ${response.body}');
@@ -32,6 +33,7 @@ class RutasService {
       throw Exception('Error en la solicitud: $e');
     }
   }
+
   Future<List<dynamic>> createRuta(Map<String, dynamic> rutaData) async {
     final url = Uri.parse('$_apiServer/Rutas/Crear');
     developer.log('Create Ruta Request URL: $url');
@@ -58,7 +60,11 @@ class RutasService {
       throw Exception('Error en la solicitud: $e');
     }
   }
-  Future<List<dynamic>> updateRuta(int rutaId , Map<String, dynamic> rutaData) async {
+
+  Future<List<dynamic>> updateRuta(
+    int rutaId,
+    Map<String, dynamic> rutaData,
+  ) async {
     final url = Uri.parse('$_apiServer/Rutas/Modificar/$rutaId');
     developer.log('Update Ruta Request URL: $url');
     try {
