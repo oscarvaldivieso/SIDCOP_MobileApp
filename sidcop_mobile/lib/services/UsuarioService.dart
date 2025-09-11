@@ -91,12 +91,17 @@ class UsuarioService {
           };
         }
 
-        // Guardar ID de persona global y registrarlo en logs
-        globalVendId = data['personaId'] is int
-            ? data['personaId']
-            : int.tryParse(data['personaId'].toString());
+        // Guardar ID de usuario global y registrarlo en logs
+        globalVendId = data['usua_Id'] is int
+            ? data['usua_Id']
+            : int.tryParse(data['usua_Id'].toString());
 
-        print('este es el globalVendId: $globalVendId');
+        print('=== DEBUGGING LOGIN USER ID ===');
+        print('usua_Id del response: ${data['usua_Id']}');
+        print('personaId del response: ${data['personaId']}');
+        print('globalVendId asignado: $globalVendId');
+        print('Tipo de globalVendId: ${globalVendId.runtimeType}');
+        print('================================');
 
         developer.log('Usuario ID: $globalVendId');
         
