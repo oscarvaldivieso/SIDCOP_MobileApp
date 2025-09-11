@@ -265,19 +265,25 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
             // Guardar las facturas obtenidas localmente para uso en la pantalla de crear
             try {
               if (facturasData.isNotEmpty) {
-                final List<Map<String, dynamic>> facturasToSave = facturasData.map<Map<String, dynamic>>((f) {
-                  if (f is Map) return Map<String, dynamic>.from(f);
-                  try {
-                    // Algunos servicios devuelven objetos con toJson()
-                    final dynamic json = f.toJson();
-                    if (json is Map) return Map<String, dynamic>.from(json);
-                  } catch (_) {}
-                  return <String, dynamic>{};
-                }).toList();
+                final List<Map<String, dynamic>> facturasToSave = facturasData
+                    .map<Map<String, dynamic>>((f) {
+                      if (f is Map) return Map<String, dynamic>.from(f);
+                      try {
+                        // Algunos servicios devuelven objetos con toJson()
+                        final dynamic json = f.toJson();
+                        if (json is Map) return Map<String, dynamic>.from(json);
+                      } catch (_) {}
+                      return <String, dynamic>{};
+                    })
+                    .toList();
 
                 if (facturasToSave.isNotEmpty) {
-                  await DevolucionesOffline.guardarFacturasCreate(facturasToSave);
-                  print('Facturas guardadas localmente (${facturasToSave.length})');
+                  await DevolucionesOffline.guardarFacturasCreate(
+                    facturasToSave,
+                  );
+                  print(
+                    'Facturas guardadas localmente (${facturasToSave.length})',
+                  );
                 }
               }
             } catch (saveErr) {
