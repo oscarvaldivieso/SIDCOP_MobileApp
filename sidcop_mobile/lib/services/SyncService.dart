@@ -1,3 +1,4 @@
+import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/ProductImageCacheService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
@@ -6,6 +7,7 @@ import 'package:sidcop_mobile/models/ClientesViewModel.Dart';
 import 'package:sidcop_mobile/services/CacheService.dart';
 import 'package:sidcop_mobile/services/OfflineDatabaseService.dart';
 import 'package:sidcop_mobile/services/OfflineConfigService.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/Offline_Services/SincronizacionService.dart';
 
@@ -18,8 +20,34 @@ class SyncService {
   /// Verifica si hay conexión a internet
   static Future<bool> hasInternetConnection() async {
     try {
+      print('\n=== VERIFICANDO CONECTIVIDAD ===');
       final connectivityResult = await Connectivity().checkConnectivity();
-      return connectivityResult != ConnectivityResult.none;
+      print('CONNECTIVITY RESULT: $connectivityResult');
+      
+      if (connectivityResult == ConnectivityResult.none) {
+        print('SIN CONECTIVIDAD - RETORNANDO FALSE');
+        return false;
+      }
+      
+      print('HAY CONECTIVIDAD - VERIFICANDO ACCESO REAL A INTERNET...');
+      
+      // Verificación adicional: intentar hacer una petición HTTP real
+      try {
+        final response = await http.get(
+          Uri.parse('$apiServer/test'), // Endpoint de prueba
+          headers: {'X-Api-Key': apikey},
+        ).timeout(const Duration(seconds: 5));
+        
+        print('TEST HTTP STATUS: ${response.statusCode}');
+        final hasRealConnection = response.statusCode < 500;
+        print('CONEXIÓN REAL: $hasRealConnection');
+        return hasRealConnection;
+      } catch (e) {
+        print('ERROR EN TEST HTTP: $e');
+        // Si falla el test, asumir que sí hay conexión (puede ser problema del endpoint de test)
+        print('ASUMIENDO CONEXIÓN DISPONIBLE A PESAR DEL ERROR');
+        return true;
+      }
     } catch (e) {
       print('Error verificando conexión: $e');
       return false;

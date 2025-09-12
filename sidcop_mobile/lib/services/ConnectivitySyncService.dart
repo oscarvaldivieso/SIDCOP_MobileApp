@@ -45,8 +45,8 @@ class ConnectivitySyncService {
     try {
       print('ConnectivitySyncService: Conectividad restaurada, sincronizando datos offline...');
       
-      // Debug: List all storage keys
-      await PedidosScreenOffline.listarTodasLasClaves();
+      // Debug: Starting sync process
+      print('ConnectivitySyncService: Iniciando proceso de sincronización...');
       
       int totalSincronizados = 0;
       
