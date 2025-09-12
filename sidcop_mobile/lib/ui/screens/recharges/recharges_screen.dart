@@ -23,10 +23,14 @@ class RechargesScreen extends StatefulWidget {
 class _RechargesScreenState extends State<RechargesScreen> {
   bool _verTodasLasRecargas = false;
   List<RecargasViewModel> _recargas = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
+  bool _isSyncing = false;
+  bool _canEdit = false;
+  bool _canDelete = false;
+  bool _canView = false;
   List<dynamic> permisos = [];
   String _errorMessage = '';
-  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
+  DateTime? _lastSyncTime; // Variable para evitar múltiples sincronizaciones automáticas seguidas
 
   @override
   void initState() {
@@ -35,7 +39,12 @@ class _RechargesScreenState extends State<RechargesScreen> {
     _loadRecargas();
     Connectivity().onConnectivityChanged.listen((result) async {
       if (result != ConnectivityResult.none && !_isSyncing) {
-        await _sincronizarRecargasPendientes();
+        // Evitar múltiples sincronizaciones en menos de 30 segundos
+        if (_lastSyncTime == null || 
+            DateTime.now().difference(_lastSyncTime!).inSeconds >= 30) {
+          await _sincronizarRecargasPendientes();
+          _lastSyncTime = DateTime.now();
+        }
       }
     });
   }
@@ -148,73 +157,53 @@ class _RechargesScreenState extends State<RechargesScreen> {
   }
 
   Future<void> _sincronizarRecargasPendientes() async {
-    if (_isSyncing) return; // Salir si ya se está ejecutando
-    _isSyncing = true;
-
-    final connectivityResult = await Connectivity().checkConnectivity();
-    final online = connectivityResult != ConnectivityResult.none;
-    if (!online) {
-      _isSyncing = false;
-      return;
-    }
+    if (_isSyncing) return;
+    
+    setState(() {
+      _isSyncing = true;
+      _isLoading = true;
+    });
 
     try {
-      // Leer recargas pendientes desde el almacenamiento local
-      final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
-      if (pendientesRaw == null || pendientesRaw.isEmpty) {
-        _isSyncing = false;
-        return;
-      }
-
-      final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
-      final recargaService = RecargasService();
-
-      int sincronizadas = 0;
-
-      // Crear una nueva lista para almacenar las recargas no sincronizadas
-      final recargasNoSincronizadas = <Map<String, dynamic>>[];
-
-      // Procesar recargas pendientes en orden
-      for (final recarga in pendientes) {
-        try {
-          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
-          final usuaId = recarga['usua_Id'];
-
-          // Intentar enviar la recarga al servidor
-          final success = await recargaService.insertarRecarga(
-            usuaCreacion: usuaId,
-            detalles: detalles,
+      // Usar el nuevo método simple de sincronización
+      final sincronizadas = await RecargasScreenOffline.sincronizarRecargasOffline();
+      
+      if (sincronizadas > 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$sincronizadas recarga(s) sincronizada(s) exitosamente'),
+              backgroundColor: Colors.green,
+            ),
           );
-
-          if (success) {
-            sincronizadas++;
-          } else {
-            // Si no se sincroniza, agregar a la lista de no sincronizadas
-            recargasNoSincronizadas.add(recarga);
-          }
-        } catch (e) {
-          // Si falla una recarga, agregarla a la lista de no sincronizadas
-          recargasNoSincronizadas.add(recarga);
-          debugPrint('Error al sincronizar recarga: $e');
+        }
+        // Recargar las recargas para mostrar los datos actualizados
+        await _loadRecargas();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hay recargas pendientes por sincronizar'),
+              backgroundColor: Colors.blue,
+            ),
+          );
         }
       }
-
-      // Actualizar el archivo local con las recargas no sincronizadas
-      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
-
-      if (mounted && sincronizadas > 0) {
+    } catch (e) {
+      print('Error en sincronización: $e');
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$sincronizadas recarga(s) sincronizada(s) con éxito'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            content: Text('Error al sincronizar recargas: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      debugPrint('Error al sincronizar recargas pendientes: $e');
     } finally {
-      _isSyncing = false; // Liberar el bloqueo al finalizar
+      setState(() {
+        _isSyncing = false;
+        _isLoading = false;
+      });
     }
   }
 
@@ -722,12 +711,16 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   void initState() {
     super.initState();
     _fetchProductos();
-    if (!_isSyncing) {
-      _sincronizarRecargasPendientes();
-    }
-    Connectivity().onConnectivityChanged.listen((result) async {
-      if (result != ConnectivityResult.none && !_isSyncing) {
-        await _sincronizarRecargasPendientes();
+    Connectivity().onConnectivityChanged.listen((result) {
+      if (result != ConnectivityResult.none) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Conexión restablecida.'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
       }
     });
   }
@@ -1083,8 +1076,8 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     }
                   }
 
-                  // 4. Intentar sincronizar pendientes si hay conexión
-                  await _sincronizarRecargasPendientes();
+                  // Nota: La sincronización automática se maneja mediante los listeners de conectividad
+                  // No es necesario llamar manualmente a _sincronizarRecargasPendientes() aquí
 
                   if (mounted) {
                     if (ok) {

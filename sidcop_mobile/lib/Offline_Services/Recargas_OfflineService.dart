@@ -12,6 +12,7 @@ import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 /// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
 
@@ -809,6 +810,110 @@ class RecargasScreenOffline {
       await guardarJson('recargas_pendientes.json', noSincronizadas);
     } catch (e) {
       print('Error al sincronizar recargas pendientes: $e');
+    }
+  }
+
+  /// Sincronización simple de recargas offline
+  /// Lee los datos guardados localmente y los inserta online directamente
+  /// Retorna la cantidad de recargas sincronizadas exitosamente
+  static Future<int> sincronizarRecargasOffline() async {
+    try {
+      print('🔄 Iniciando sincronización simple de recargas offline...');
+      
+      // 1. Verificar conexión a internet
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final online = connectivityResult != ConnectivityResult.none;
+      if (!online) {
+        print('❌ No hay conexión a internet');
+        return 0;
+      }
+
+      // 2. Leer recargas pendientes
+      final raw = await leerJson('recargas_pendientes.json');
+      if (raw == null || raw is! List || raw.isEmpty) {
+        print('✅ No hay recargas pendientes por sincronizar');
+        return 0;
+      }
+
+      final pendientes = List<Map<String, dynamic>>.from(raw);
+      print('📋 Encontradas ${pendientes.length} recargas pendientes');
+      
+      // DEBUG: Mostrar estructura exacta de cada recarga pendiente
+      for (int i = 0; i < pendientes.length; i++) {
+        final recarga = pendientes[i];
+        print('\n🔍 DEBUG - Recarga ${i + 1}:');
+        print('   ID: ${recarga['id']}');
+        print('   Usuario: ${recarga['usua_Id']}');
+        print('   Fecha: ${recarga['fecha']}');
+        print('   Offline: ${recarga['offline']}');
+        print('   Detalles (${recarga['detalles'].length} productos):');
+        
+        final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+        for (int j = 0; j < detalles.length; j++) {
+          final detalle = detalles[j];
+          print('     Producto ${j + 1}: ID=${detalle['prod_Id']}, Cantidad=${detalle['reDe_Cantidad']}');
+        }
+      }
+
+      // 3. Procesar cada recarga
+      final recargasService = RecargasService();
+      final sincronizadasExitosas = <Map<String, dynamic>>[];
+      final sincronizadasFallidas = <Map<String, dynamic>>[];
+      
+      for (int i = 0; i < pendientes.length; i++) {
+        final recarga = pendientes[i];
+        print('\n🔄 Procesando recarga ${i + 1}/${pendientes.length}');
+        
+        try {
+          // Extraer datos de la recarga guardada
+          final usuaId = recarga['usua_Id'];
+          final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
+          
+          print('📤 Enviando recarga - Usuario: $usuaId, Detalles: ${detalles.length} productos');
+          
+          // DEBUG: Mostrar exactamente qué se va a enviar al servidor
+          print('📤 DEBUG - Enviando al servidor:');
+          print('   usuaCreacion: $usuaId');
+          print('   detalles: $detalles');
+          
+          // Insertar directamente online usando el mismo método que cuando está online
+          final success = await recargasService.insertarRecarga(
+            usuaCreacion: usuaId,
+            detalles: detalles,
+          );
+          
+          if (success) {
+            print('✅ Recarga sincronizada exitosamente');
+            sincronizadasExitosas.add(recarga);
+          } else {
+            print('❌ Error al sincronizar recarga');
+            sincronizadasFallidas.add(recarga);
+          }
+        } catch (e) {
+          print('❌ Excepción al sincronizar recarga: $e');
+          sincronizadasFallidas.add(recarga);
+        }
+      }
+
+      // 4. Actualizar archivo local: mantener solo las fallidas
+      if (sincronizadasFallidas.isEmpty) {
+        // Si todas se sincronizaron, eliminar el archivo
+        await guardarJson('recargas_pendientes.json', []);
+        print('🗑️ Todas las recargas sincronizadas, archivo limpiado');
+      } else {
+        // Mantener solo las que fallaron
+        await guardarJson('recargas_pendientes.json', sincronizadasFallidas);
+        print('⚠️ Se mantienen ${sincronizadasFallidas.length} recargas fallidas para reintentar');
+      }
+
+      print('\n📊 Resumen de sincronización:');
+      print('   ✅ Exitosas: ${sincronizadasExitosas.length}');
+      print('   ❌ Fallidas: ${sincronizadasFallidas.length}');
+      
+      return sincronizadasExitosas.length;
+    } catch (e) {
+      print('❌ Error general en sincronizarRecargasOffline: $e');
+      return 0;
     }
   }
 }
