@@ -30,7 +30,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
   bool _canView = false;
   List<dynamic> permisos = [];
   String _errorMessage = '';
-  DateTime? _lastSyncTime; // Variable para evitar múltiples sincronizaciones automáticas seguidas
+  DateTime? _lastSyncTime;
 
   @override
   void initState() {
@@ -39,7 +39,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     _loadRecargas();
     Connectivity().onConnectivityChanged.listen((result) async {
       if (result != ConnectivityResult.none && !_isSyncing) {
-        // Evitar múltiples sincronizaciones en menos de 30 segundos
         if (_lastSyncTime == null || 
             DateTime.now().difference(_lastSyncTime!).inSeconds >= 30) {
           await _sincronizarRecargasPendientes();
@@ -73,16 +72,10 @@ class _RechargesScreenState extends State<RechargesScreen> {
     });
 
     try {
-      // Verificar conectividad
       final connectivityResult = await Connectivity().checkConnectivity();
       final online = connectivityResult != ConnectivityResult.none;
 
       if (online) {
-        // Sincronizar datos maestros
-        await RecargasScreenOffline.sincronizarClientes();
-        await RecargasScreenOffline.sincronizarDirecciones();
-
-        // Intentar enviar recargas pendientes
         final pendientesEnviadas = await RecargasScreenOffline.sincronizarPendientes();
         if (mounted && pendientesEnviadas > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -94,7 +87,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
           );
         }
 
-        // Cargar recargas remotas
         final perfilService = PerfilUsuarioService();
         final userData = await perfilService.obtenerDatosUsuario();
         final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
@@ -105,7 +97,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
         );
         final recargasJson = recargas.map((r) => r.toJson()).toList();
 
-        // Fusionar con recargas locales pendientes
         final localRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
         final pendientes = localRaw?.where((e) => e['offline'] == true).toList() ?? [];
 
@@ -122,7 +113,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
           _isLoading = false;
         });
       } else {
-        // Cargar recargas locales en modo offline
         final raw = await RecargasScreenOffline.leerJson('recargas.json');
         if (raw != null) {
           setState(() {
@@ -151,7 +141,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
       builder: (context) => const RecargaBottomSheet(),
     ).then((value) {
       if (value == true) {
-        setState(() {}); // Refresca la lista de recargas
+        setState(() {});
       }
     });
   }
@@ -165,7 +155,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     });
 
     try {
-      // Usar el nuevo método simple de sincronización
       final sincronizadas = await RecargasScreenOffline.sincronizarRecargasOffline();
       
       if (sincronizadas > 0) {
@@ -177,7 +166,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
             ),
           );
         }
-        // Recargar las recargas para mostrar los datos actualizados
         await _loadRecargas();
       } else {
         if (mounted) {
@@ -411,7 +399,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     int cantidadProductos, {
     required List<RecargasViewModel> recargasGrupo,
   }) {
-    // Configuración de colores y gradientes según el estado
     Color primaryColor;
     Color secondaryColor;
     Color backgroundColor;
@@ -436,9 +423,9 @@ class _RechargesScreenState extends State<RechargesScreen> {
         break;
       case 'Entregado':
         label = 'Entregado';
-        primaryColor = const Color(0xFF141A2F); // Azul oscuro principal del sistema
-        secondaryColor = const Color(0xFF2C3655); // Tono ligeramente más claro para el degradado
-        backgroundColor = const Color(0xFFE8EAF6); // Fondo azul muy claro
+        primaryColor = const Color(0xFF141A2F);
+        secondaryColor = const Color(0xFF2C3655);
+        backgroundColor = const Color(0xFFE8EAF6);
         statusIcon = Icons.check_circle_rounded;
         break;
       case 'Rechazada':
@@ -468,8 +455,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
             builder: (context) => RecargaDetalleBottomSheet(
               recargasGrupo: recargasGrupo,
               onRecargaUpdated: () {
-                print('🔍 DEBUG: Callback ejecutado - refrescando lista');
-                setState(() {}); // Refresca la lista de recargas
+                setState(() {});
               },
             ),
           );
@@ -506,7 +492,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
               ),
               child: Column(
                 children: [
-                  // Header con gradiente de estado
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -576,12 +561,10 @@ class _RechargesScreenState extends State<RechargesScreen> {
                       ],
                     ),
                   ),
-                  // Contenido principal
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
-                        // Fecha de solicitud
                         Row(
                           children: [
                             Container(
@@ -626,7 +609,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // Cantidad de productos
                         Row(
                           children: [
                             Container(
@@ -682,7 +664,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 }
-// aquí termina correctamente el método
 
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
@@ -701,11 +682,11 @@ class RecargaBottomSheet extends StatefulWidget {
 class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
-  Map<int, int> _cantidades = {}; // prod_Id -> cantidad
-  Map<int, TextEditingController> _controllers = {}; // prod_Id -> controller
+  Map<int, int> _cantidades = {};
+  Map<int, TextEditingController> _controllers = {};
   String search = '';
   bool _isLoading = true;
-  bool _isSyncing = false; // Variable para evitar múltiples ejecuciones simultáneas
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -731,7 +712,6 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     if (!online) return;
 
     try {
-      // Leer recargas pendientes desde el almacenamiento local
       final pendientesRaw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
       if (pendientesRaw == null || pendientesRaw.isEmpty) return;
 
@@ -739,17 +719,13 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       final recargaService = RecargasService();
 
       int sincronizadas = 0;
-
-      // Crear una nueva lista para almacenar las recargas no sincronizadas
       final recargasNoSincronizadas = <Map<String, dynamic>>[];
 
-      // Procesar recargas pendientes en orden
       for (final recarga in pendientes) {
         try {
           final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
           final usuaId = recarga['usua_Id'];
 
-          // Intentar enviar la recarga al servidor
           final success = await recargaService.insertarRecarga(
             usuaCreacion: usuaId,
             detalles: detalles,
@@ -758,17 +734,14 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
           if (success) {
             sincronizadas++;
           } else {
-            // Si no se sincroniza, agregar a la lista de no sincronizadas
             recargasNoSincronizadas.add(recarga);
           }
         } catch (e) {
-          // Si falla una recarga, agregarla a la lista de no sincronizadas
           recargasNoSincronizadas.add(recarga);
           debugPrint('Error al sincronizar recarga: $e');
         }
       }
 
-      // Actualizar el archivo local con las recargas no sincronizadas
       await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
 
       if (mounted && sincronizadas > 0) {
@@ -811,13 +784,11 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             _preFillEditData();
           }
         });
-        // Guardar productos offline
         try {
           final jsonList = productos.map((p) => p.toJson()).toList();
           await RecargasScreenOffline.guardarJson('productos.json', jsonList);
         } catch (_) {}
       } catch (e) {
-        // Si falla online, intentar cargar productos offline
         await _loadProductosOffline();
       }
     } else {
@@ -860,7 +831,6 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
         
         if (cantidad > 0) {
           _cantidades[prodId] = cantidad;
-          // Create controller with listener
           final controller = TextEditingController(text: cantidad.toString());
           controller.addListener(() {
             final text = controller.text;
@@ -955,8 +925,15 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
+                icon: const Icon(Icons.send, color: Colors.white),
+                label: const Text(
+                  'Solicitar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 onPressed: () async {
-                  // 1. Obtener usuario logueado
                   final perfilService = PerfilUsuarioService();
                   final userData = await perfilService.obtenerDatosUsuario();
                   if (userData == null || userData['usua_Id'] == null) {
@@ -985,7 +962,6 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     return;
                   }
 
-                  // 2. Construir detalles
                   final detalles = _cantidades.entries
                       .where((e) => e.value > 0)
                       .map(
@@ -1015,24 +991,23 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                         context: context,
                         builder: (BuildContext context) {
                           return AlertDialog(
-                            title: const Text('Alerta!'),
-                            content: const Text('Selecciona al menos un producto.'),
+                            title: const Text("Error"),
+                            content: const Text("Debe seleccionar al menos un producto."),
                             actions: <Widget>[
                               TextButton(
                                 onPressed: () {
-                                  Navigator.of(context).pop(); // Dismiss the dialog
+                                  Navigator.of(context).pop();
                                 },
                                 child: const Text('OK'),
                               ),
                             ],
                           );
-                        }
+                        },
                       );
                     }
                     return;
                   }
 
-                  // 3. Verificar conectividad
                   bool online = true;
                   try {
                     final result = await InternetAddress.lookup('google.com');
@@ -1042,26 +1017,26 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   }
                   bool ok = false;
                   if (online) {
-                    // 4. Llamar a RecargasService
                     final recargaService = RecargasService();
                     ok = await recargaService.insertarRecarga(
                       usuaCreacion: usuaId,
                       detalles: detalles,
                     );
                   } else {
-                    // Guardar recarga offline para sincronizar después
                     final recargaOffline = {
                       'id': DateTime.now().microsecondsSinceEpoch,
                       'usua_Id': usuaId,
-                      'detalles': detalles,
                       'fecha': DateTime.now().toIso8601String(),
                       'offline': true,
+                      'local_signature': '${DateTime.now().microsecondsSinceEpoch}_${usuaId}',
+                      'detalles': detalles,
                     };
+                    
                     try {
-                      final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json');
-                      List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
-                      pendientes.add(recargaOffline);
-                      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', pendientes);
+                      final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json') ?? [];
+                      final lista = List<Map<String, dynamic>>.from(raw as List);
+                      lista.add(recargaOffline);
+                      await RecargasScreenOffline.guardarJson('recargas_pendientes.json', lista);
                       ok = true;
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1076,9 +1051,6 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     }
                   }
 
-                  // Nota: La sincronización automática se maneja mediante los listeners de conectividad
-                  // No es necesario llamar manualmente a _sincronizarRecargasPendientes() aquí
-
                   if (mounted) {
                     if (ok) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1092,24 +1064,14 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                       Navigator.of(context).pop(true);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(online
-                              ? "Error al enviar la recarga"
-                              : "Error al guardar la recarga offline"),
+                        const SnackBar(
+                          content: Text("Error al guardar la recarga."),
                           backgroundColor: Colors.red,
                         ),
                       );
                     }
                   }
                 },
-                icon: const Icon(Icons.send, color: Colors.white),
-                label: const Text(
-                  'Solicitar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ),
             ),
           ],
@@ -1119,7 +1081,6 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   }
 
   Widget _buildProducto(Productos producto, int cantidad) {
-    // Inicializa el controlador si no existe
     if (!_controllers.containsKey(producto.prod_Id)) {
       final controller = TextEditingController(
         text: cantidad > 0 ? cantidad.toString() : '',
@@ -1127,54 +1088,35 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       controller.addListener(() {
         final text = controller.text;
         final value = int.tryParse(text);
-        if (value != null && value >= 0 ) {
-          setState(() {
-            _cantidades[producto.prod_Id] = value;
-          });
+        if (value != null && value >= 0) {
+          _cantidades[producto.prod_Id] = value;
         } else if (text.isEmpty) {
-          setState(() {
-            _cantidades[producto.prod_Id] = 0;
-          });
+          _cantidades[producto.prod_Id] = 0;
         }
       });
       _controllers[producto.prod_Id] = controller;
     } else {
-      // Si la cantidad cambia por botones, actualiza el texto
       final currentText = _controllers[producto.prod_Id]!.text;
       var text;
-
       if (cantidad > 0) {
         text = cantidad.toString();
-      }
-      else
-      {
+      } else {
         text = '';
       }
-
-      if (cantidad < 99) {
-       text = cantidad.toString();
-      }
-      else
-      {
-        text = '99';
-      }
-
       if (currentText != text) {
         _controllers[producto.prod_Id]!.text = text;
       }
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child:
-                  producto.prod_Imagen != null &&
-                      producto.prod_Imagen!.isNotEmpty
+              child: producto.prod_Imagen != null && producto.prod_Imagen!.isNotEmpty
                   ? Image.network(
                       producto.prod_Imagen!,
                       width: 48,
@@ -1187,58 +1129,66 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                producto.prod_DescripcionCorta ?? '-',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    producto.prod_DescripcionCorta ?? '',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (producto.prod_Descripcion != null &&
+                      producto.prod_Descripcion!.isNotEmpty)
+                    Text(
+                      producto.prod_Descripcion!,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
+                ],
               ),
             ),
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: cantidad > 0
-                      ? () {
-                          final newValue = cantidad - 1;
-                          _controllers[producto.prod_Id]?.text = newValue > 0
-                              ? newValue.toString()
-                              : '';
-                          setState(() {
-                            _cantidades[producto.prod_Id] = newValue > 0
-                                ? newValue
-                                : 0;
-                          });
-                        }
-                      : null,
+                  onPressed: () {
+                    if (cantidad > 0) {
+                      setState(() {
+                        _cantidades[producto.prod_Id] = cantidad - 1;
+                        _controllers[producto.prod_Id]!.text = (cantidad - 1).toString();
+                      });
+                    }
+                  },
                 ),
                 SizedBox(
-                  width: 50,
+                  width: 60,
                   child: TextField(
                     controller: _controllers[producto.prod_Id],
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     textAlign: TextAlign.center,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 8,
-                      ),
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
                     ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
-                  onPressed: cantidad < 99
-                  ? () {
-                    final newValue = cantidad + 1;  
-                    _controllers[producto.prod_Id]?.text = newValue.toString();
-                    setState(() {
-                      _cantidades[producto.prod_Id] = newValue;
-                    });
-                  }
-                  : null,
+                  onPressed: () {
+                    if (cantidad < 99) {
+                      setState(() {
+                        _cantidades[producto.prod_Id] = cantidad + 1;
+                        _controllers[producto.prod_Id]!.text = (cantidad + 1).toString();
+                      });
+                    }
+                  },
                 ),
               ],
             ),
