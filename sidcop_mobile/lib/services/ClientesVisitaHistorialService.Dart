@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 // import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'dart:io';
+
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class ClientesVisitaHistorialService {
   // GET /ClientesVisitaHistorial/ListarVisitasPorVendedor
@@ -157,7 +159,7 @@ class ClientesVisitaHistorialService {
     required DateTime clViFecha,
     required List<String> imagenesBase64,
   }) async {
-    final int? usuaCreacion = globalVendId;
+    final int? usuaCreacion = globalUsuaId;
     if (usuaCreacion == null) {
       throw Exception('No se encontró el ID del usuario actual');
     }
@@ -171,7 +173,7 @@ class ClientesVisitaHistorialService {
       'esVi_Id': esViId,
       'clVi_Observaciones': clViObservaciones,
       'clVi_Fecha': clViFecha.toIso8601String(),
-      'usua_Creacion': usuaCreacion,
+      'usua_Creacion': globalUsuaId,
       'imagenesBase64': imagenesBase64,
     };
 

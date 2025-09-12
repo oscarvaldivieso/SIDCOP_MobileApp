@@ -523,8 +523,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           }
         } else {
           // Guardar devolución offline
+          final clienteNombre = _selectedDireccion != null
+              ? _formatClienteName(_selectedDireccion!)
+              : '';
+
           final pending = {
             'clie_Id': _selectedClienteId,
+            'clie_Nombre': clienteNombre,
+            // También incluir claves alternativas que el ViewModel busca
+            'clie_NombreNegocio': clienteNombre,
+            'clieNombreNegocio': clienteNombre,
             'fact_Id': _selectedFacturaId,
             'devo_Motivo': _motivoController.text,
             'usua_Creacion': usuaId ?? 0,

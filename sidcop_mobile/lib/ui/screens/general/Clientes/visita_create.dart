@@ -6,10 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
-// Removed unused imports: provider, ClientesVisitaHistorialModel, cloudinary_service
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
@@ -558,7 +557,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             ? _observacionesController.text
             : '',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
-        'usua_Creacion': 57,
+        'usua_Creacion': globalUsuaId,
         'clVi_FechaCreacion': now.toIso8601String(),
       };
 
@@ -757,27 +756,6 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
       }
     }
   }
-
-  // Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
-  //   try {
-  //     final cloudinaryService = CloudinaryService();
-  //     if (kIsWeb) {
-  //       return await cloudinaryService.uploadImageFromBytes(imageBytes);
-  //     } else {
-  //       // Crear archivo temporal para subir
-  //       final tempDir = await getTemporaryDirectory();
-  //       final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
-  //       await file.writeAsBytes(imageBytes);
-  //       return await cloudinaryService.uploadImage(file);
-  //     }
-  //   } catch (e) {
-  //     debugPrint('Error al subir imagen a Cloudinary: $e');
-  //     return null;
-  //   }
-  // }
-
-  // Esta función fue eliminada ya que no se está utilizando y el SP
-  // siempre requiere que se utilice el ID 57
 
   void _mostrarError(String mensaje) {
     if (mounted) {

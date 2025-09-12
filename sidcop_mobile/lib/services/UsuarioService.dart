@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
 
@@ -55,10 +54,10 @@ class UsuarioService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        
+
         // Obtener los datos del SP
         final data = responseData['data'];
-        
+
         // Verificar si los datos existen
         if (data == null) {
           return {
@@ -67,23 +66,21 @@ class UsuarioService {
             'details': responseData,
           };
         }
-        
+
         // Verificar el code_Status del SP
         final codeStatus = data['code_Status'];
-        
+
         if (codeStatus == null || codeStatus != 1) {
           // Login falló - el SP devolvió error
-          final errorMessage = data['message_Status'] ?? 'Error de autenticación';
-          return {
-            'error': true,
-            'message': errorMessage,
-            'details': data,
-          };
+          final errorMessage =
+              data['message_Status'] ?? 'Error de autenticación';
+          return {'error': true, 'message': errorMessage, 'details': data};
         }
-        
+
         // code_Status == 1, login exitoso
         // Verificar que tenga los campos esenciales del usuario
-        if (!data.containsKey('usua_IdPersona') || data['usua_IdPersona'] == null) {
+        if (!data.containsKey('usua_IdPersona') ||
+            data['usua_IdPersona'] == null) {
           return {
             'error': true,
             'message': 'Error al obtener datos del usuario',
@@ -91,20 +88,20 @@ class UsuarioService {
           };
         }
 
-        // Guardar ID de usuario global y registrarlo en logs
-        globalVendId = data['usua_Id'] is int
+        // Guardar ID de persona global y registrarlo en logs
+
+        globalVendId = data['personaId'] is int
+            ? data['personaId']
+            : int.tryParse(data['personaId'].toString());
+        globalUsuaId = data['usua_Id'] is int
             ? data['usua_Id']
             : int.tryParse(data['usua_Id'].toString());
 
-        print('=== DEBUGGING LOGIN USER ID ===');
-        print('usua_Id del response: ${data['usua_Id']}');
-        print('personaId del response: ${data['personaId']}');
-        print('globalVendId asignado: $globalVendId');
-        print('Tipo de globalVendId: ${globalVendId.runtimeType}');
-        print('================================');
+        print('este es el globalVendId: $globalVendId');
+        print('este es el globalUsuaId: $globalUsuaId');
 
         developer.log('Usuario ID: $globalVendId');
-        
+
         // Validar que se haya guardado correctamente el ID
         if (globalVendId == null || globalVendId == 0) {
           return {
@@ -113,10 +110,10 @@ class UsuarioService {
             'details': data,
           };
         }
-        
+
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
-        
+
         // Ejecutar sincronización completa en background (no bloquear login)
         SincronizacionService.sincronizarTodoOfflineConClientesAuto(
           vendedorId: globalVendId ?? 0,
@@ -127,7 +124,7 @@ class UsuarioService {
       } else {
         // Status code diferente a 200
         developer.log('Error en la autenticación: ${response.statusCode}');
-        
+
         // Intentar extraer mensaje de error del body si existe
         try {
           final errorData = jsonDecode(response.body);
@@ -159,7 +156,7 @@ class UsuarioService {
     try {
       final preloadService = ProductPreloadService();
       preloadService.preloadInBackground();
-      
+
       // También iniciar precarga de imágenes de clientes
       SyncService.cacheClientImages();
     } catch (e) {
