@@ -204,97 +204,101 @@ class _RechargesScreenState extends State<RechargesScreen> {
         icon: Icons.sync,
         permisos: permisos,
         onRefresh: () async {
-          setState(() {});
+          await _loadRecargas();
         },
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Historial de solicitudes',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _verTodasLasRecargas = !_verTodasLasRecargas;
-                        });
-                      },
-                      child: Text(
-                        _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                          fontFamily: 'Satoshi',
+        child: RefreshIndicator(
+          onRefresh: _loadRecargas,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 15),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Historial de solicitudes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : Builder(
-                        builder: (context) {
-                          final Map<int, List<RecargasViewModel>> agrupadas = {};
-                          for (final r in _recargas) {
-                            if (r.reca_Id != null) {
-                              agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
-                            }
-                          }
-
-                          if (agrupadas.isEmpty) {
-                            return const Center(
-                              child: Text(
-                                'No hay recargas registradas',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            );
-                          }
-
-                          final keys = agrupadas.keys.toList()
-                            ..sort((a, b) => b.compareTo(a));
-
-                          final recargasAMostrar = _verTodasLasRecargas
-                              ? keys
-                              : keys.take(3).toList();
-
-                          return Column(
-                            children: recargasAMostrar.map((recaId) {
-                              final recargasGrupo = agrupadas[recaId]!;
-                              final recarga = recargasGrupo.first;
-                              final cantidadProductos = recargasGrupo.fold(
-                                0,
-                                (sum, r) => sum +
-                                    (int.tryParse(r.reDe_Cantidad.toString()) ?? 0),
-                              );
-                              return _buildHistorialCard(
-                                _mapEstadoFromApi(recarga.reca_Confirmacion),
-                                recarga.reca_Fecha != null
-                                    ? _formatFechaFromApi(
-                                        recarga.reca_Fecha.toString())
-                                    : 'Fecha no disponible',
-                                cantidadProductos,
-                                recargasGrupo: recargasGrupo,
-                              );
-                            }).toList(),
-                          );
+                      const SizedBox(width: 12),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _verTodasLasRecargas = !_verTodasLasRecargas;
+                          });
                         },
+                        child: Text(
+                          _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            fontFamily: 'Satoshi',
+                          ),
+                        ),
                       ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Builder(
+                          builder: (context) {
+                            final Map<int, List<RecargasViewModel>> agrupadas = {};
+                            for (final r in _recargas) {
+                              if (r.reca_Id != null) {
+                                agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
+                              }
+                            }
+
+                            if (agrupadas.isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  'No hay recargas registradas',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final keys = agrupadas.keys.toList()
+                              ..sort((a, b) => b.compareTo(a));
+
+                            final recargasAMostrar = _verTodasLasRecargas
+                                ? keys
+                                : keys.take(3).toList();
+
+                            return Column(
+                              children: recargasAMostrar.map((recaId) {
+                                final recargasGrupo = agrupadas[recaId]!;
+                                final recarga = recargasGrupo.first;
+                                final cantidadProductos = recargasGrupo.fold(
+                                  0,
+                                  (sum, r) => sum +
+                                      (int.tryParse(r.reDe_Cantidad.toString()) ?? 0),
+                                );
+                                return _buildHistorialCard(
+                                  _mapEstadoFromApi(recarga.reca_Confirmacion),
+                                  recarga.reca_Fecha != null
+                                      ? _formatFechaFromApi(
+                                          recarga.reca_Fecha.toString())
+                                      : 'Fecha no disponible',
+                                  cantidadProductos,
+                                  recargasGrupo: recargasGrupo,
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                ],
+              ),
             ),
           ),
         ),
