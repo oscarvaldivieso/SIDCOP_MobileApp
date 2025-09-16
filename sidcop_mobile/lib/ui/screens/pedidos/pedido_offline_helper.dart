@@ -120,9 +120,9 @@ class PedidoOfflineHelper {
   }
 
   /// Sincroniza los pedidos pendientes con el servidor
-  static Future<void> sincronizarPedidosPendientes() async {
+  static Future<int> sincronizarPedidosPendientes() async {
     try {
-      await PedidosScreenOffline.sincronizarPedidosPendientes();
+      return await PedidosScreenOffline.sincronizarPedidosPendientesOffline();
     } catch (e) {
       rethrow;
     }
