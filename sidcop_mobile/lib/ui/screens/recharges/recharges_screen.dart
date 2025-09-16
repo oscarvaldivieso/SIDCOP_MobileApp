@@ -206,24 +206,21 @@ class _RechargesScreenState extends State<RechargesScreen> {
         onRefresh: () async {
           await _loadRecargas();
         },
-        child: RefreshIndicator(
-          onRefresh: _loadRecargas,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 15),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Historial de solicitudes',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Historial de solicitudes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -302,7 +299,6 @@ class _RechargesScreenState extends State<RechargesScreen> {
             ),
           ),
         ),
-      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF141A2F),
         onPressed: () async {
