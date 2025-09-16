@@ -901,34 +901,103 @@ Widget _buildSummaryItem(String label, String value, Color color) {
 }
 
 
-  Future<void> _printInvoice() async {
-
-    _loadJornadaDetallada();
-
-    if (_facturaData == null) return;
-
+  /// Imprime el inventario usando datos offline si es necesario
+  Future<void> _printInventoryOffline() async {
     try {
-      // Mostrar diálogo de carga
+      // Mostrar diálogo de preparación
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Preparando impresión...'),
-            ],
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Preparando inventario',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isConnected ? 'Obteniendo datos actualizados...' : 'Usando datos offline...',
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
+      // Preparar datos del inventario para impresión
+      Map<String, dynamic> inventoryPrintData = await _prepareInventoryPrintData();
+      
+      // Cerrar diálogo de preparación
+      if (mounted) Navigator.of(context).pop();
+
+      // Verificar si hay datos para imprimir
+      if (inventoryPrintData.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('No hay datos de inventario para imprimir'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
       // Seleccionar impresora y conectar
       final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      // Cerrar diálogo de carga
-      if (mounted) Navigator.of(context).pop();
       
       if (selectedDevice == null) {
         if (mounted) {
@@ -947,14 +1016,64 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Conectando a impresora...'),
-              ],
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Conectando a impresora',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Estableciendo conexión...',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -970,8 +1089,15 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Error al conectar con la impresora'),
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error al conectar con la impresora'),
+                ],
+              ),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -983,21 +1109,71 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Imprimiendo factura...'),
-              ],
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade400, Colors.purple.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Imprimiendo inventario',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enviando datos a la impresora...',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       }
 
       // Imprimir usando el PrinterService
-      final printSuccess = await _printerService.printInventory(_facturaData!);
+      final printSuccess = await _printerService.printInventory(inventoryPrintData);
       
       // Cerrar diálogo de impresión
       if (mounted) Navigator.of(context).pop();
@@ -1008,16 +1184,18 @@ Widget _buildSummaryItem(String label, String value, Color color) {
       if (mounted) {
         if (printSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Factura impresa exitosamente'),
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(_isConnected 
+                    ? 'Inventario impreso exitosamente' 
+                    : 'Inventario offline impreso exitosamente'),
                 ],
               ),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         } else {
@@ -1027,7 +1205,7 @@ Widget _buildSummaryItem(String label, String value, Color color) {
                 children: [
                   Icon(Icons.error, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('Error al imprimir la factura'),
+                  Text('Error al imprimir el inventario'),
                 ],
               ),
               backgroundColor: Colors.red,
@@ -1053,7 +1231,7 @@ Widget _buildSummaryItem(String label, String value, Color color) {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Error al imprimir: $e')),
+                Expanded(child: Text('Error al imprimir inventario: $e')),
               ],
             ),
             backgroundColor: Colors.red,
@@ -1062,6 +1240,91 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         );
       }
     }
+  }
+
+  /// Prepara los datos del inventario para impresión usando datos offline si es necesario
+  Future<Map<String, dynamic>> _prepareInventoryPrintData() async {
+    try {
+      // Intentar obtener datos actualizados si hay conexión, sino usar offline
+      List<Map<String, dynamic>> inventoryItems = [];
+      
+      if (_inventoryItems.isNotEmpty) {
+        // Usar los datos ya cargados en la pantalla
+        inventoryItems = _inventoryItems;
+        debugPrint('📦 Usando inventario ya cargado: ${inventoryItems.length} productos');
+      } else {
+        // Cargar datos directamente del servicio (offline-first)
+        try {
+          inventoryItems = await _inventoryService.getInventoryByVendor(widget.usuaIdPersona);
+          debugPrint('📦 Inventario cargado para impresión: ${inventoryItems.length} productos');
+        } catch (e) {
+          debugPrint('❌ Error cargando inventario para impresión: $e');
+          return {};
+        }
+      }
+
+      if (inventoryItems.isEmpty) {
+        debugPrint('⚠️ No hay productos de inventario para imprimir');
+        return {};
+      }
+
+      // Preparar header del inventario
+      Map<String, dynamic> header = {
+        'rutaDescripcion': 'Ruta de Ventas - ${_sellerName}',
+        'vendedor': _sellerName,
+        'fecha': DateTime.now().toIso8601String(),
+        'usuarioId': widget.usuaIdPersona,
+        'totalProductos': inventoryItems.length,
+        'estado': _isConnected ? 'Online' : 'Offline',
+      };
+
+      // Preparar detalle de productos para impresión
+      List<Map<String, dynamic>> detalle = [];
+      
+      for (var item in inventoryItems) {
+        detalle.add({
+          'producto': _getStringValue(item, 'nombreProducto', 'Producto sin nombre'),
+          'codigo': _getStringValue(item, 'codigoProducto', 'N/A'),
+          'inicial': _getIntValue(item, 'cantidadAsignada'),
+          'vendido': _getIntValue(item, 'soldQuantity'),
+          'final': _getIntValue(item, 'currentQuantity'),
+          'precio': _getDoubleValue(item, 'precio'),
+          'categoria': _getStringValue(item, 'subc_Descripcion', 'Sin categoría'),
+        });
+      }
+
+      // Calcular totales
+      int totalInicial = detalle.fold(0, (sum, item) => sum + (item['inicial'] as int));
+      int totalVendido = detalle.fold(0, (sum, item) => sum + (item['vendido'] as int));
+      int totalFinal = detalle.fold(0, (sum, item) => sum + (item['final'] as int));
+      double montoTotal = detalle.fold(0.0, (sum, item) => sum + ((item['precio'] as double) * (item['vendido'] as int)));
+
+      header.addAll({
+        'totalInicial': totalInicial,
+        'totalVendido': totalVendido,
+        'totalFinal': totalFinal,
+        'montoTotal': montoTotal,
+      });
+
+      debugPrint('✅ Datos de inventario preparados para impresión');
+      debugPrint('📊 Total productos: ${inventoryItems.length}');
+      debugPrint('📊 Total inicial: $totalInicial, Vendido: $totalVendido, Final: $totalFinal');
+      debugPrint('💰 Monto total: L.$montoTotal');
+
+      return {
+        'header': header,
+        'detalle': detalle,
+      };
+
+    } catch (e) {
+      debugPrint('❌ Error preparando datos de inventario para impresión: $e');
+      return {};
+    }
+  }
+
+  /// Método legacy mantenido para compatibilidad (ahora llama al método offline)
+  Future<void> _printInvoice() async {
+    await _printInventoryOffline();
   }
 
   Future<void> _loadInventoryData() async {
