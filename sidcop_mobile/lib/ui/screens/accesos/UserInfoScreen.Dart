@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../../services/PerfilUsuarioService.Dart';
+import '../../../services/UserInfoService.dart';
 
 class UserInfoScreen extends StatefulWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
@@ -11,62 +11,57 @@ class UserInfoScreen extends StatefulWidget {
 }
 
 class _UserInfoScreenState extends State<UserInfoScreen> {
-  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final UserInfoService _userInfoService = UserInfoService();
   
-  String _nombreCompleto = 'Cargando...';
-  String _numeroIdentidad = 'Cargando...';
-  String _numeroEmpleado = 'Cargando...';
-  String _correoElectronico = 'Cargando...';
-  String _telefono = 'Cargando...';
-  String _cargo = 'Cargando...';
-  String? _imagenUsuario;
+  Map<String, dynamic> _userData = {};
+  bool _isConnected = false;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarDatosUsuario();
+    _initializeService();
   }
 
-  Future<void> _cargarDatosUsuario() async {
-    try {
-      // Debug: mostrar todos los campos disponibles del API
-      await _perfilUsuarioService.mostrarCamposDisponibles();
-      
-      final nombreCompleto = await _perfilUsuarioService.obtenerNombreCompleto();
-      final numeroIdentidad = await _perfilUsuarioService.obtenerNumeroIdentidad();
-      final numeroEmpleado = await _perfilUsuarioService.obtenerNumeroEmpleado();
-      final correoElectronico = await _perfilUsuarioService.obtenerCorreoElectronico();
-      final telefono = await _perfilUsuarioService.obtenerTelefono();
-      final cargo = await _perfilUsuarioService.obtenerCargo();
-      final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
+  Future<void> _initializeService() async {
+    // Inicializar el servicio
+    await _userInfoService.initialize();
+    
+    // Escuchar cambios en los datos del usuario
+    _userInfoService.userDataStream.listen((userData) {
+      if (mounted) {
+        setState(() {
+          _userData = userData;
+          _isLoading = false;
+        });
+      }
+    });
+    
+    // Escuchar cambios de conectividad
+    _userInfoService.connectivityStream.listen((isConnected) {
+      if (mounted) {
+        setState(() {
+          _isConnected = isConnected;
+        });
+      }
+    });
+    
+    // Cargar datos iniciales
+    setState(() {
+      _userData = _userInfoService.cachedUserData ?? {};
+      _isConnected = _userInfoService.isConnected;
+      _isLoading = _userInfoService.isLoading;
+    });
+  }
 
-      if (mounted) {
-        setState(() {
-          _nombreCompleto = nombreCompleto;
-          _numeroIdentidad = numeroIdentidad;
-          _numeroEmpleado = numeroEmpleado;
-          _correoElectronico = correoElectronico;
-          _telefono = telefono;
-          _cargo = cargo;
-          _imagenUsuario = imagenUsuario;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _nombreCompleto = 'Error al cargar';
-          _numeroIdentidad = 'Error al cargar';
-          _numeroEmpleado = 'Error al cargar';
-          _correoElectronico = 'Error al cargar';
-          _telefono = 'Error al cargar';
-          _cargo = 'Error al cargar';
-          _imagenUsuario = null;
-          _isLoading = false;
-        });
-      }
-    }
+  Future<void> _refreshData() async {
+    await _userInfoService.forceRefresh();
+  }
+
+  @override
+  void dispose() {
+    // No llamamos dispose en el servicio porque es singleton
+    super.dispose();
   }
 
   @override
@@ -90,6 +85,45 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           ),
         ),
         centerTitle: false,
+        actions: [
+          // Indicador de conectividad
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isConnected ? Icons.wifi : Icons.wifi_off,
+                  color: _isConnected ? Colors.green : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isConnected ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    color: _isConnected ? Colors.green : Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Botón de refresh
+          IconButton(
+            icon: _userInfoService.isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _userInfoService.isLoading ? null : _refreshData,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -145,7 +179,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 Positioned(
                   top: 170,
                   child: Text(
-                    _isLoading ? 'Cargando...' : _nombreCompleto,
+                    _isLoading ? 'Cargando...' : _getUserField('nombreCompleto'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
@@ -179,32 +213,32 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                   _buildSectionHeader('Datos personales', Icons.person),
                   _buildInfoRow(
                     'Nombre completo:',
-                    _nombreCompleto,
+                    _getUserField('nombreCompleto'),
                   ),
-                  _buildInfoRow('Número de identidad:', _numeroIdentidad),
-                  _buildInfoRow('Número de empleado:', _numeroEmpleado),
-                  _buildInfoRow('Correo electrónico:', _correoElectronico),
-                  _buildInfoRow('Teléfono:', _telefono),
-                  _buildInfoRow('Cargo:', _cargo),
+                  _buildInfoRow('Número de identidad:', _getUserField('numeroIdentidad')),
+                  _buildInfoRow('Número de empleado:', _getUserField('numeroEmpleado')),
+                  _buildInfoRow('Correo electrónico:', _getUserField('correo')),
+                  _buildInfoRow('Teléfono:', _getUserField('telefono')),
+                  _buildInfoRow('Cargo:', _getUserField('cargo')),
                   const SizedBox(height: 18),
                   _buildSectionHeader(
                     'Datos de asignación laboral',
                     Icons.work,
                   ),
-                  _buildInfoRow('Ruta asignada:', 'Ruta 410'),
-                  _buildInfoRow('Supervisor responsable:', 'Mario Galeas'),
-                  _buildInfoRow('Fecha de ingreso:', '2/7/2025'),
+                  _buildInfoRow('Ruta asignada:', _getUserField('rutaAsignada')),
+                  _buildInfoRow('Supervisor responsable:', _getUserField('supervisorResponsable')),
                   const SizedBox(height: 18),
                   _buildSectionHeader(
                     'Información operativa',
                     Icons.assessment,
                   ),
-                  _buildInfoRow('Inventario asignado:', '52 productos'),
-                  _buildInfoRow('Meta de ventas diaria:', 'L.7,500.00'),
-                  _buildInfoRow('Ventas del día:', 'L.5,200.00'),
+                  _buildInfoRow('Inventario asignado:', '${_getUserField('inventarioAsignado')} productos'),
+                  _buildInfoRow('Clientes asignados:', _getUserField('clientesAsignados')),
+                  _buildInfoRow('Meta de ventas diaria:', _getUserField('metaVentasDiaria')),
+                  _buildInfoRow('Ventas del día:', _getUserField('ventasDelDia')),
                   _buildInfoRow(
                     'Última recarga solicitada:',
-                    '29 jun 2025 - 1:40 pm',
+                    _getUserField('ultimaRecargaSolicitada'),
                   ),
                 ],
               ),
@@ -271,6 +305,17 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
     );
   }
 
+  String _getUserField(String fieldName, {String defaultValue = 'Cargando...'}) {
+    if (_userData.isEmpty) return defaultValue;
+    
+    final value = _userData[fieldName];
+    if (value == null || value.toString().isEmpty || value.toString() == 'null') {
+      return 'Sin información';
+    }
+    
+    return value.toString();
+  }
+
   Widget _buildProfileImage() {
     if (_isLoading) {
       return Container(
@@ -289,11 +334,13 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       );
     }
 
-    if (_imagenUsuario != null && _imagenUsuario!.isNotEmpty) {
+    final imagenUsuario = _getUserField('imagenUsuario', defaultValue: '');
+    
+    if (imagenUsuario.isNotEmpty && imagenUsuario != 'Sin información') {
       // Si la imagen es una URL (comienza con http)
-      if (_imagenUsuario!.startsWith('http')) {
+      if (imagenUsuario.startsWith('http')) {
         return Image.network(
-          _imagenUsuario!,
+          imagenUsuario,
           fit: BoxFit.cover,
           width: 90,
           height: 90,
@@ -322,7 +369,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
         // Si es una imagen en base64 o otro formato
         try {
           return Image.memory(
-            const Base64Decoder().convert(_imagenUsuario!),
+            const Base64Decoder().convert(imagenUsuario),
             fit: BoxFit.cover,
             width: 90,
             height: 90,

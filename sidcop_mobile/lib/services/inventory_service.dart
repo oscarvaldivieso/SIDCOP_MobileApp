@@ -20,7 +20,7 @@ class InventoryService {
       return false;
     }
   }
-
+  
   Future<List<Map<String, dynamic>>> getInventoryByVendor(int vendorId) async {
     // OFFLINE-FIRST: Siempre cargar desde caché primero (como productos)
     final hasOfflineData = await hasOfflineInventoryData();

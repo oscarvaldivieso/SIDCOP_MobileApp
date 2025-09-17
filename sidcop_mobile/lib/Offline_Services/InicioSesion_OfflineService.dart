@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
@@ -58,6 +59,11 @@ class InicioSesionOfflineService {
       print('Iniciando caché de pedidos...');
       await _cachearPedidosConDetalles(userData);
       print('Pedidos cacheados');
+      
+      // Generar diccionario completo de información del usuario
+      print('Generando diccionario completo de usuario...');
+      await generarYGuardarDiccionarioUsuario();
+      print('Diccionario de usuario generado');
       
       print('=== CACHÉ DE DATOS DE LOGIN COMPLETADO EXITOSAMENTE ===');
     } catch (e) {
@@ -609,5 +615,509 @@ class InicioSesionOfflineService {
     } catch (e) {
       print('Error refrescando caché de productos: $e');
     }
+  }
+
+  /// Obtiene información operativa del usuario desde el caché
+  static Future<Map<String, String>> obtenerInformacionOperativa() async {
+    try {
+      final userData = await obtenerDatosUsuarioCache();
+      final productos = await obtenerProductosBasicosCache();
+      final pedidos = await obtenerPedidosCache();
+      
+      // Datos por defecto
+      Map<String, String> infoOperativa = {
+        'rutaAsignada': 'No asignada',
+        'supervisorResponsable': 'No asignado',
+        'fechaIngreso': 'No disponible',
+        'inventarioAsignado': '${productos.length} productos',
+        'metaVentasDiaria': 'L.7,500.00', // Valor por defecto
+        'ventasDelDia': 'L.5,200.00', // Valor por defecto
+        'ultimaRecarga': 'Sin pedidos registrados',
+      };
+      
+      if (userData != null) {
+        // Extraer datos del vendedor si están disponibles
+        final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+        
+        if (datosVendedor != null) {
+          // Ruta asignada
+          final vendCodigo = datosVendedor['vend_Codigo'];
+          if (vendCodigo != null) {
+            infoOperativa['rutaAsignada'] = 'Ruta $vendCodigo';
+          }
+          
+          // Supervisor responsable
+          final nombreSupervisor = datosVendedor['nombreSupervisor']?.toString() ?? '';
+          final apellidoSupervisor = datosVendedor['apellidoSupervisor']?.toString() ?? '';
+          final supervisor = '$nombreSupervisor $apellidoSupervisor'.trim();
+          if (supervisor.isNotEmpty) {
+            infoOperativa['supervisorResponsable'] = supervisor;
+          }
+          
+          // Fecha de ingreso
+          final fechaCreacion = datosVendedor['vend_FechaCreacion'];
+          if (fechaCreacion != null) {
+            try {
+              final fecha = DateTime.parse(fechaCreacion.toString());
+              infoOperativa['fechaIngreso'] = '${fecha.day}/${fecha.month}/${fecha.year}';
+            } catch (e) {
+              print('Error parseando fecha de creación: $e');
+            }
+          }
+        }
+        
+        // Última recarga desde pedidos
+        if (pedidos.isNotEmpty) {
+          try {
+            // Ordenar pedidos por ID (más reciente primero)
+            pedidos.sort((a, b) => b.pediId.compareTo(a.pediId));
+            final ultimoPedido = pedidos.first;
+            
+            final fecha = ultimoPedido.pediFechaPedido;
+            final meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+                          'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            final mes = meses[fecha.month - 1];
+            final hora = '${fecha.hour}:${fecha.minute.toString().padLeft(2, '0')}';
+            infoOperativa['ultimaRecarga'] = '${fecha.day} $mes ${fecha.year} - $hora';
+          } catch (e) {
+            print('Error procesando última recarga: $e');
+          }
+        }
+      }
+      
+      return infoOperativa;
+    } catch (e) {
+      print('Error obteniendo información operativa: $e');
+      return {
+        'rutaAsignada': 'Error al cargar',
+        'supervisorResponsable': 'Error al cargar',
+        'fechaIngreso': 'Error al cargar',
+        'inventarioAsignado': 'Error al cargar',
+        'metaVentasDiaria': 'Error al cargar',
+        'ventasDelDia': 'Error al cargar',
+        'ultimaRecarga': 'Error al cargar',
+      };
+    }
+  }
+
+  /// Obtiene estadísticas de ventas (por implementar con datos reales)
+  static Future<Map<String, String>> obtenerEstadisticasVentas() async {
+    try {
+      // TODO: Implementar lógica para calcular ventas reales
+      // Por ahora devolver valores por defecto
+      return {
+        'metaVentasDiaria': 'L.7,500.00',
+        'ventasDelDia': 'L.5,200.00',
+        'ventasMes': 'L.156,000.00',
+        'porcentajeMeta': '69.3%',
+      };
+    } catch (e) {
+      print('Error obteniendo estadísticas de ventas: $e');
+      return {
+        'metaVentasDiaria': 'No disponible',
+        'ventasDelDia': 'No disponible',
+        'ventasMes': 'No disponible',
+        'porcentajeMeta': 'No disponible',
+      };
+    }
+  }
+
+  /// Clave para almacenar el diccionario completo de información del usuario
+  static const String _userInfoDictionaryKey = 'user_info_dictionary';
+
+  /// Genera y guarda un diccionario completo con toda la información del usuario
+  static Future<void> generarYGuardarDiccionarioUsuario() async {
+    try {
+      print('=== GENERANDO DICCIONARIO COMPLETO DE USUARIO ===');
+      
+      final userData = await obtenerDatosUsuarioCache();
+      final productos = await obtenerProductosBasicosCache();
+      final pedidos = await obtenerPedidosCache();
+      
+      print('DEBUG - userData disponible: ${userData != null}');
+      if (userData != null) {
+        print('DEBUG - Campos en userData: ${userData.keys.join(", ")}');
+        print('DEBUG - datosVendedor disponible: ${userData['datosVendedor'] != null}');
+        if (userData['datosVendedor'] != null) {
+          final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>;
+          print('DEBUG - Campos en datosVendedor: ${datosVendedor.keys.join(", ")}');
+        }
+      }
+      print('DEBUG - Productos encontrados: ${productos.length}');
+      print('DEBUG - Pedidos encontrados: ${pedidos.length}');
+      
+      // Extraer datos con debug
+      final nombreCompleto = _extraerNombreCompleto(userData);
+      final numeroIdentidad = _extraerNumeroIdentidad(userData);
+      final numeroEmpleado = _extraerNumeroEmpleado(userData);
+      final correo = _extraerCorreo(userData);
+      final telefono = _extraerTelefono(userData);
+      final cargo = _extraerCargo(userData);
+      final rutaAsignada = _extraerRutaAsignada(userData);
+      final supervisorResponsable = _extraerSupervisorResponsable(userData);
+      final fechaIngreso = _extraerFechaIngreso(userData);
+      final ultimaRecarga = _extraerUltimaRecarga(pedidos);
+      final clientesAsignados = _extraerNumeroClientesAsignados(userData);
+      
+      print('DEBUG - Datos extraídos:');
+      print('  nombreCompleto: $nombreCompleto');
+      print('  numeroIdentidad: $numeroIdentidad');
+      print('  numeroEmpleado: $numeroEmpleado');
+      print('  correo: $correo');
+      print('  telefono: $telefono');
+      print('  cargo: $cargo');
+      print('  rutaAsignada: $rutaAsignada');
+      print('  supervisorResponsable: $supervisorResponsable');
+      print('  fechaIngreso: $fechaIngreso');
+      print('  inventarioAsignado: ${productos.length}');
+      print('  clientesAsignados: $clientesAsignados');
+      print('  ultimaRecarga: $ultimaRecarga');
+      
+      // Crear diccionario completo
+      Map<String, dynamic> diccionarioCompleto = {
+        // Datos personales
+        'nombreCompleto': nombreCompleto,
+        'numeroIdentidad': numeroIdentidad,
+        'numeroEmpleado': numeroEmpleado,
+        'correo': correo,
+        'telefono': telefono,
+        'cargo': cargo,
+        
+        // Datos de asignación laboral
+        'rutaAsignada': rutaAsignada,
+        'supervisorResponsable': supervisorResponsable,
+        'fechaIngreso': fechaIngreso,
+        
+        // Información operativa
+        'inventarioAsignado': productos.length.toString(),
+        'clientesAsignados': clientesAsignados.toString(),
+        'metaVentasDiaria': 'L.7,500.00', // Valor por defecto
+        'ventasDelDia': 'L.5,200.00', // Valor por defecto
+        'ultimaRecargaSolicitada': ultimaRecarga,
+        
+        // Metadatos
+        'fechaGeneracion': DateTime.now().toIso8601String(),
+        'totalProductos': productos.length,
+        'totalPedidos': pedidos.length,
+      };
+      
+      // Guardar en FlutterSecureStorage
+      await _secureStorage.write(
+        key: _userInfoDictionaryKey,
+        value: jsonEncode(diccionarioCompleto),
+      );
+      
+      print('✓ Diccionario de usuario guardado exitosamente');
+      print('Datos guardados: ${diccionarioCompleto.keys.join(", ")}');
+      print('Contenido completo del diccionario:');
+      diccionarioCompleto.forEach((key, value) {
+        print('  $key: $value');
+      });
+      
+    } catch (e) {
+      print('✗ Error generando diccionario de usuario: $e');
+      print('Stack trace: ${e.toString()}');
+    }
+  }
+
+  /// Obtiene el diccionario completo de información del usuario
+  static Future<Map<String, dynamic>?> obtenerDiccionarioUsuario() async {
+    try {
+      final diccionarioStr = await _secureStorage.read(key: _userInfoDictionaryKey);
+      
+      if (diccionarioStr == null || diccionarioStr.isEmpty) {
+        print('No hay diccionario de usuario guardado, generando uno nuevo...');
+        await generarYGuardarDiccionarioUsuario();
+        
+        // Intentar leer nuevamente
+        final nuevoDiccionarioStr = await _secureStorage.read(key: _userInfoDictionaryKey);
+        if (nuevoDiccionarioStr != null) {
+          return Map<String, dynamic>.from(jsonDecode(nuevoDiccionarioStr));
+        }
+        return null;
+      }
+      
+      return Map<String, dynamic>.from(jsonDecode(diccionarioStr));
+    } catch (e) {
+      print('Error obteniendo diccionario de usuario: $e');
+      return null;
+    }
+  }
+
+  /// Actualiza el diccionario de usuario con datos frescos
+  static Future<void> actualizarDiccionarioUsuario() async {
+    try {
+      print('Actualizando diccionario de usuario...');
+      await generarYGuardarDiccionarioUsuario();
+    } catch (e) {
+      print('Error actualizando diccionario de usuario: $e');
+    }
+  }
+
+  /// Método de debug para verificar el estado del diccionario
+  static Future<void> debugDiccionarioUsuario() async {
+    try {
+      print('=== DEBUG DICCIONARIO DE USUARIO ===');
+      
+      // Verificar si existe el diccionario
+      final diccionarioStr = await _secureStorage.read(key: _userInfoDictionaryKey);
+      print('Diccionario existe: ${diccionarioStr != null}');
+      
+      if (diccionarioStr != null) {
+        print('Tamaño del diccionario: ${diccionarioStr.length} caracteres');
+        
+        try {
+          final diccionario = Map<String, dynamic>.from(jsonDecode(diccionarioStr));
+          print('Campos en el diccionario:');
+          diccionario.forEach((key, value) {
+            print('  $key: $value');
+          });
+        } catch (e) {
+          print('Error parseando diccionario: $e');
+        }
+      }
+      
+      // Verificar datos fuente
+      final userData = await obtenerDatosUsuarioCache();
+      print('\\nDatos fuente disponibles:');
+      print('  userData: ${userData != null}');
+      if (userData != null) {
+        print('  Campos userData: ${userData.keys.join(", ")}');
+        if (userData['datosVendedor'] != null) {
+          final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>;
+          print('  datosVendedor disponible con campos: ${datosVendedor.keys.join(", ")}');
+        }
+      }
+      
+      final productos = await obtenerProductosBasicosCache();
+      final pedidos = await obtenerPedidosCache();
+      print('  productos: ${productos.length}');
+      print('  pedidos: ${pedidos.length}');
+      
+    } catch (e) {
+      print('Error en debug: $e');
+    }
+  }
+
+  /// Fuerza la regeneración del diccionario (para testing)
+  static Future<Map<String, dynamic>?> forzarRegeneracionDiccionario() async {
+    try {
+      print('=== FORZANDO REGENERACIÓN DEL DICCIONARIO ===');
+      
+      // Eliminar diccionario existente
+      await _secureStorage.delete(key: _userInfoDictionaryKey);
+      print('Diccionario anterior eliminado');
+      
+      // Generar nuevo diccionario
+      await generarYGuardarDiccionarioUsuario();
+      
+      // Verificar que se guardó correctamente
+      final diccionarioStr = await _secureStorage.read(key: _userInfoDictionaryKey);
+      if (diccionarioStr != null) {
+        final diccionario = Map<String, dynamic>.from(jsonDecode(diccionarioStr));
+        print('✓ Diccionario regenerado exitosamente');
+        return diccionario;
+      } else {
+        print('✗ Error: No se pudo regenerar el diccionario');
+        return null;
+      }
+    } catch (e) {
+      print('Error forzando regeneración: $e');
+      return null;
+    }
+  }
+
+  // Métodos auxiliares para extraer datos específicos
+  static String _extraerNombreCompleto(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    
+    if (userData['nombreCompleto'] != null && userData['nombreCompleto'].toString().isNotEmpty) {
+      return userData['nombreCompleto'].toString();
+    }
+    
+    final nombres = userData['nombres']?.toString() ?? '';
+    final apellidos = userData['apellidos']?.toString() ?? '';
+    
+    if (nombres.isNotEmpty && apellidos.isNotEmpty) {
+      return '$nombres $apellidos';
+    } else if (nombres.isNotEmpty) {
+      return nombres;
+    } else if (apellidos.isNotEmpty) {
+      return apellidos;
+    }
+    
+    return userData['usua_Usuario']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerNumeroIdentidad(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    return userData['dni']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerNumeroEmpleado(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    return userData['usua_Id']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerCorreo(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    return userData['correo']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerTelefono(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    return userData['telefono']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerCargo(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    return userData['role_Descripcion']?.toString() ?? userData['cargo']?.toString() ?? 'No disponible';
+  }
+
+  static String _extraerRutaAsignada(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No asignada';
+    
+    try {
+      // Intentar obtener desde rutasDelDiaJson
+      final rutasDelDiaJson = userData['rutasDelDiaJson'] as String?;
+      if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+        final rutasData = jsonDecode(rutasDelDiaJson) as List<dynamic>;
+        if (rutasData.isNotEmpty) {
+          final primeraRuta = rutasData.first as Map<String, dynamic>;
+          final rutaCodigo = primeraRuta['Ruta_Codigo'] as String?;
+          final rutaDescripcion = primeraRuta['Ruta_Descripcion'] as String?;
+          
+          if (rutaCodigo != null) {
+            return rutaDescripcion ?? rutaCodigo;
+          }
+        }
+      }
+      
+      // Fallback: intentar desde datosVendedor (método anterior)
+      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+      if (datosVendedor != null) {
+        final vendCodigo = datosVendedor['vend_Codigo'];
+        if (vendCodigo != null) {
+          return 'Ruta $vendCodigo';
+        }
+      }
+      
+      // Fallback: usar código del usuario
+      final codigo = userData['codigo'] as String?;
+      if (codigo != null) {
+        return codigo;
+      }
+      
+    } catch (e) {
+      print('Error extrayendo ruta asignada: $e');
+    }
+    
+    return 'No asignada';
+  }
+
+  static String _extraerSupervisorResponsable(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No asignado';
+    
+    try {
+      // Por ahora usar un valor por defecto ya que no viene en el JSON del login
+      // TODO: Implementar llamada a API específica para obtener supervisor
+      return 'Mario Galeas'; // Valor por defecto
+      
+      // Fallback: intentar desde datosVendedor si está disponible
+      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+      if (datosVendedor != null) {
+        final nombreSupervisor = datosVendedor['nombreSupervisor']?.toString() ?? '';
+        final apellidoSupervisor = datosVendedor['apellidoSupervisor']?.toString() ?? '';
+        final supervisor = '$nombreSupervisor $apellidoSupervisor'.trim();
+        if (supervisor.isNotEmpty) {
+          return supervisor;
+        }
+      }
+    } catch (e) {
+      print('Error extrayendo supervisor responsable: $e');
+    }
+    
+    return 'No asignado';
+  }
+
+  static String _extraerFechaIngreso(Map<String, dynamic>? userData) {
+    if (userData == null) return 'No disponible';
+    
+    try {
+      // Usar usua_FechaCreacion del endpoint de login
+      final fechaCreacion = userData['usua_FechaCreacion'];
+      if (fechaCreacion != null && fechaCreacion.toString() != "0001-01-01T00:00:00") {
+        try {
+          final fecha = DateTime.parse(fechaCreacion.toString());
+          return DateFormat('dd/MM/yyyy').format(fecha);
+        } catch (e) {
+          print('Error parseando usua_FechaCreacion: $e');
+        }
+      }
+      
+      // Fallback: intentar desde datosVendedor
+      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+      if (datosVendedor != null) {
+        final fechaCreacion = datosVendedor['vend_FechaCreacion'];
+        if (fechaCreacion != null) {
+          try {
+            final fecha = DateTime.parse(fechaCreacion.toString());
+            return DateFormat('dd/MM/yyyy').format(fecha);
+          } catch (e) {
+            print('Error parseando fecha de ingreso desde datosVendedor: $e');
+          }
+        }
+      }
+      
+      // Si no hay fecha válida, usar fecha actual como placeholder
+      return DateFormat('dd/MM/yyyy').format(DateTime.now());
+      
+    } catch (e) {
+      print('Error extrayendo fecha de ingreso: $e');
+    }
+    
+    return 'No disponible';
+  }
+
+  static String _extraerUltimaRecarga(List<PedidosViewModel> pedidos) {
+    if (pedidos.isEmpty) return 'Sin pedidos registrados';
+    
+    try {
+      // Ordenar pedidos por ID (más reciente primero)
+      pedidos.sort((a, b) => b.pediId.compareTo(a.pediId));
+      final ultimoPedido = pedidos.first;
+      
+      final fecha = ultimoPedido.pediFechaPedido;
+      final meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+                    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      final mes = meses[fecha.month - 1];
+      final hora = '${fecha.hour}:${fecha.minute.toString().padLeft(2, '0')}';
+      return '${fecha.day} $mes ${fecha.year} - $hora';
+    } catch (e) {
+      print('Error procesando última recarga: $e');
+      return 'Error al procesar fecha';
+    }
+  }
+
+  static int _extraerNumeroClientesAsignados(Map<String, dynamic>? userData) {
+    if (userData == null) return 0;
+    
+    try {
+      final rutasDelDiaJson = userData['rutasDelDiaJson'] as String?;
+      if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+        final rutasData = jsonDecode(rutasDelDiaJson) as List<dynamic>;
+        if (rutasData.isNotEmpty) {
+          final primeraRuta = rutasData.first as Map<String, dynamic>;
+          final clientes = primeraRuta['Clientes'] as List<dynamic>?;
+          if (clientes != null) {
+            return clientes.length;
+          }
+        }
+      }
+    } catch (e) {
+      print('Error extrayendo número de clientes asignados: $e');
+    }
+    
+    return 0;
   }
 }
