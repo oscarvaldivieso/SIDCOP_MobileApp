@@ -234,8 +234,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                   ),
                   _buildInfoRow('Inventario asignado:', '${_getUserField('inventarioAsignado')}'),
                   _buildInfoRow('Clientes asignados:', _getUserField('clientesAsignados')),
-                  _buildInfoRow('Meta de ventas diaria:', _getUserField('metaVentasDiaria')),
-                  _buildInfoRow('Ventas del día:', _getUserField('ventasDelDia')),
+                  _buildInfoRow('Ventas del mes:', _getUserField('ventasDelMes')),
                   _buildInfoRow(
                     'Última recarga solicitada:',
                     _getUserField('ultimaRecargaSolicitada'),

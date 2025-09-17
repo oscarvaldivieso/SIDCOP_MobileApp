@@ -143,8 +143,7 @@ class UserInfoService extends ChangeNotifier {
       'supervisorResponsable': 'Sin información',
       'inventarioAsignado': '0',
       'clientesAsignados': '0',
-      'metaVentasDiaria': 'L.0.00',
-      'ventasDelDia': 'L.0.00',
+      'ventasDelMes': 'L.0.00',
       'ultimaRecargaSolicitada': 'Sin información',
       'fechaGeneracion': DateTime.now().toIso8601String(),
     };
