@@ -58,20 +58,75 @@ class UserInfoService extends ChangeNotifier {
       
       if (diccionarioUsuario != null) {
         _cachedUserData = diccionarioUsuario;
+        
+        // Completar datos faltantes desde el sistema offline
+        await _completarDatosDesdeOffline();
+        
         print('✓ Datos cargados desde caché: ${_cachedUserData!.keys.length} campos');
         
         // Notificar a los listeners
         _userDataController.add(_cachedUserData!);
         notifyListeners();
       } else {
-        print('⚠ No hay datos en caché local');
-        _cachedUserData = _getDefaultUserData();
-        _userDataController.add(_cachedUserData!);
+        print('⚠ No hay datos en caché local, generando desde offline...');
+        await _generarDatosDesdeOffline();
       }
     } catch (e) {
       print('✗ Error cargando desde caché: $e');
+      await _generarDatosDesdeOffline();
+    }
+  }
+
+  /// Completa datos faltantes desde el sistema offline
+  Future<void> _completarDatosDesdeOffline() async {
+    try {
+      // Obtener datos base del usuario desde InicioSesion_OfflineService
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      
+      if (userData != null) {
+        // Completar correo y teléfono si no están en el diccionario
+        if (_cachedUserData!['correo'] == null || _cachedUserData!['correo'] == 'Sin información') {
+          _cachedUserData!['correo'] = await _extraerCorreoDesdeUserData(userData);
+        }
+        
+        if (_cachedUserData!['telefono'] == null || _cachedUserData!['telefono'] == 'Sin información') {
+          _cachedUserData!['telefono'] = await _extraerTelefonoDesdeUserData(userData);
+        }
+      }
+      
+      // Obtener información operativa actualizada
+      final infoOperativa = await InicioSesionOfflineService.obtenerInformacionOperativa();
+      _cachedUserData!.addAll(infoOperativa);
+      
+    } catch (e) {
+      print('Error completando datos desde offline: $e');
+    }
+  }
+
+  /// Genera datos completos desde el sistema offline cuando no hay diccionario
+  Future<void> _generarDatosDesdeOffline() async {
+    try {
+      // Regenerar el diccionario completo
+      await InicioSesionOfflineService.generarYGuardarDiccionarioUsuario();
+      
+      // Intentar cargar nuevamente
+      final diccionarioUsuario = await InicioSesionOfflineService.obtenerDiccionarioUsuario();
+      
+      if (diccionarioUsuario != null) {
+        _cachedUserData = diccionarioUsuario;
+        await _completarDatosDesdeOffline();
+        _userDataController.add(_cachedUserData!);
+      } else {
+        _cachedUserData = _getDefaultUserData();
+        _userDataController.add(_cachedUserData!);
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      print('Error generando datos desde offline: $e');
       _cachedUserData = _getDefaultUserData();
       _userDataController.add(_cachedUserData!);
+      notifyListeners();
     }
   }
 
@@ -164,8 +219,8 @@ class UserInfoService extends ChangeNotifier {
       final nombreCompleto = await perfilService.obtenerNombreCompleto();
       final numeroIdentidad = await perfilService.obtenerNumeroIdentidad();
       final numeroEmpleado = await perfilService.obtenerNumeroEmpleado();
-      final correo = await perfilService.obtenerCorreoElectronico();
-      final telefono = await perfilService.obtenerTelefono();
+      final correo = await _obtenerCorreoCompleto();
+      final telefono = await _obtenerTelefonoCompleto();
       final cargo = await perfilService.obtenerCargo();
       final imagenUsuario = await perfilService.obtenerImagenUsuario();
       
@@ -182,7 +237,7 @@ class UserInfoService extends ChangeNotifier {
         'fechaUltimaSync': DateTime.now().toIso8601String(),
       });
       
-      // Obtener información operativa actualizada
+      // Obtener información operativa actualizada desde el sistema offline
       final infoOperativa = await InicioSesionOfflineService.obtenerInformacionOperativa();
       updatedData.addAll(infoOperativa);
       
@@ -267,6 +322,104 @@ class UserInfoService extends ChangeNotifier {
     _cachedUserData = null;
     await InicioSesionOfflineService.limpiarCache();
     await initialize();
+  }
+
+  /// Obtiene correo completo desde múltiples fuentes
+  Future<String> _obtenerCorreoCompleto() async {
+    try {
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      if (userData != null) {
+        return await _extraerCorreoDesdeUserData(userData);
+      }
+      
+      // Fallback al servicio de perfil
+      final perfilService = PerfilUsuarioService();
+      return await perfilService.obtenerCorreoElectronico();
+    } catch (e) {
+      print('Error obteniendo correo completo: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Obtiene teléfono completo desde múltiples fuentes
+  Future<String> _obtenerTelefonoCompleto() async {
+    try {
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      if (userData != null) {
+        return await _extraerTelefonoDesdeUserData(userData);
+      }
+      
+      // Fallback al servicio de perfil
+      final perfilService = PerfilUsuarioService();
+      return await perfilService.obtenerTelefono();
+    } catch (e) {
+      print('Error obteniendo teléfono completo: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Extrae correo desde userData (priorizando datos del login)
+  Future<String> _extraerCorreoDesdeUserData(Map<String, dynamic> userData) async {
+    try {
+      // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
+      String correo = userData['correo']?.toString() ?? 
+                     userData['correoElectronico']?.toString() ?? 
+                     userData['email']?.toString() ?? 
+                     userData['usua_Correo']?.toString() ?? 
+                     userData['usuario_Correo']?.toString() ?? '';
+      
+      if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
+        return correo;
+      }
+      
+      // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
+      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+      if (datosVendedor != null) {
+        correo = datosVendedor['vend_Correo']?.toString() ?? 
+                 datosVendedor['correo']?.toString() ?? '';
+        
+        if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
+          return correo;
+        }
+      }
+      
+      return 'Sin información';
+    } catch (e) {
+      print('Error extrayendo correo: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Extrae teléfono desde userData (priorizando datos del login)
+  Future<String> _extraerTelefonoDesdeUserData(Map<String, dynamic> userData) async {
+    try {
+      // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
+      String telefono = userData['telefono']?.toString() ?? 
+                        userData['phone']?.toString() ?? 
+                        userData['celular']?.toString() ?? 
+                        userData['usua_Telefono']?.toString() ?? 
+                        userData['usuario_Telefono']?.toString() ?? '';
+      
+      if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
+        return telefono;
+      }
+      
+      // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
+      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+      if (datosVendedor != null) {
+        telefono = datosVendedor['vend_Telefono']?.toString() ?? 
+                   datosVendedor['telefono']?.toString() ?? '';
+        
+        if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
+          return telefono;
+        }
+      }
+      
+      return 'Sin información';
+    } catch (e) {
+      print('Error extrayendo teléfono: $e');
+      return 'Sin información';
+    }
   }
 
   /// Libera recursos cuando el servicio ya no se necesita

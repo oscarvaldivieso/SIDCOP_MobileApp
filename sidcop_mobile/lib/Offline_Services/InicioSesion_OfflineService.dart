@@ -623,48 +623,26 @@ class InicioSesionOfflineService {
       final userData = await obtenerDatosUsuarioCache();
       final productos = await obtenerProductosBasicosCache();
       final pedidos = await obtenerPedidosCache();
+      final clientesRuta = await obtenerClientesRutaCache();
+      
+      // Obtener inventario asignado desde el servicio de inventario
+      final inventarioAsignado = await _obtenerInventarioAsignadoDesdeInventario(userData);
       
       // Datos por defecto
       Map<String, String> infoOperativa = {
         'rutaAsignada': 'No asignada',
         'supervisorResponsable': 'No asignado',
-        'fechaIngreso': 'No disponible',
-        'inventarioAsignado': '${productos.length} productos',
+        'inventarioAsignado': inventarioAsignado,
+        'clientesAsignados': '${clientesRuta.length}',
         'metaVentasDiaria': 'L.7,500.00', // Valor por defecto
         'ventasDelDia': 'L.5,200.00', // Valor por defecto
-        'ultimaRecarga': 'Sin pedidos registrados',
+        'ultimaRecargaSolicitada': 'Sin pedidos registrados',
       };
       
       if (userData != null) {
-        // Extraer datos del vendedor si están disponibles
-        final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
-        
-        if (datosVendedor != null) {
-          // Ruta asignada
-          final vendCodigo = datosVendedor['vend_Codigo'];
-          if (vendCodigo != null) {
-            infoOperativa['rutaAsignada'] = 'Ruta $vendCodigo';
-          }
-          
-          // Supervisor responsable
-          final nombreSupervisor = datosVendedor['nombreSupervisor']?.toString() ?? '';
-          final apellidoSupervisor = datosVendedor['apellidoSupervisor']?.toString() ?? '';
-          final supervisor = '$nombreSupervisor $apellidoSupervisor'.trim();
-          if (supervisor.isNotEmpty) {
-            infoOperativa['supervisorResponsable'] = supervisor;
-          }
-          
-          // Fecha de ingreso
-          final fechaCreacion = datosVendedor['vend_FechaCreacion'];
-          if (fechaCreacion != null) {
-            try {
-              final fecha = DateTime.parse(fechaCreacion.toString());
-              infoOperativa['fechaIngreso'] = '${fecha.day}/${fecha.month}/${fecha.year}';
-            } catch (e) {
-              print('Error parseando fecha de creación: $e');
-            }
-          }
-        }
+        // Usar los métodos de extracción que priorizan datos del login
+        infoOperativa['rutaAsignada'] = _extraerRutaAsignada(userData);
+        infoOperativa['supervisorResponsable'] = _extraerSupervisorResponsable(userData);
         
         // Última recarga desde pedidos
         if (pedidos.isNotEmpty) {
@@ -678,7 +656,7 @@ class InicioSesionOfflineService {
                           'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
             final mes = meses[fecha.month - 1];
             final hora = '${fecha.hour}:${fecha.minute.toString().padLeft(2, '0')}';
-            infoOperativa['ultimaRecarga'] = '${fecha.day} $mes ${fecha.year} - $hora';
+            infoOperativa['ultimaRecargaSolicitada'] = '${fecha.day} $mes ${fecha.year} - $hora';
           } catch (e) {
             print('Error procesando última recarga: $e');
           }
@@ -691,11 +669,11 @@ class InicioSesionOfflineService {
       return {
         'rutaAsignada': 'Error al cargar',
         'supervisorResponsable': 'Error al cargar',
-        'fechaIngreso': 'Error al cargar',
         'inventarioAsignado': 'Error al cargar',
+        'clientesAsignados': 'Error al cargar',
         'metaVentasDiaria': 'Error al cargar',
         'ventasDelDia': 'Error al cargar',
-        'ultimaRecarga': 'Error al cargar',
+        'ultimaRecargaSolicitada': 'Error al cargar',
       };
     }
   }
@@ -961,12 +939,58 @@ class InicioSesionOfflineService {
 
   static String _extraerCorreo(Map<String, dynamic>? userData) {
     if (userData == null) return 'No disponible';
-    return userData['correo']?.toString() ?? 'No disponible';
+    
+    // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
+    String correo = userData['correo']?.toString() ?? 
+                   userData['correoElectronico']?.toString() ?? 
+                   userData['email']?.toString() ?? 
+                   userData['usua_Correo']?.toString() ?? 
+                   userData['usuario_Correo']?.toString() ?? '';
+    
+    if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
+      return correo;
+    }
+    
+    // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
+    final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+    if (datosVendedor != null) {
+      correo = datosVendedor['vend_Correo']?.toString() ?? 
+               datosVendedor['correo']?.toString() ?? '';
+      
+      if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
+        return correo;
+      }
+    }
+    
+    return 'No disponible';
   }
 
   static String _extraerTelefono(Map<String, dynamic>? userData) {
     if (userData == null) return 'No disponible';
-    return userData['telefono']?.toString() ?? 'No disponible';
+    
+    // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
+    String telefono = userData['telefono']?.toString() ?? 
+                      userData['phone']?.toString() ?? 
+                      userData['celular']?.toString() ?? 
+                      userData['usua_Telefono']?.toString() ?? 
+                      userData['usuario_Telefono']?.toString() ?? '';
+    
+    if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
+      return telefono;
+    }
+    
+    // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
+    final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
+    if (datosVendedor != null) {
+      telefono = datosVendedor['vend_Telefono']?.toString() ?? 
+                 datosVendedor['telefono']?.toString() ?? '';
+      
+      if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
+        return telefono;
+      }
+    }
+    
+    return 'No disponible';
   }
 
   static String _extraerCargo(Map<String, dynamic>? userData) {
@@ -978,9 +1002,20 @@ class InicioSesionOfflineService {
     if (userData == null) return 'No asignada';
     
     try {
-      // Intentar obtener desde rutasDelDiaJson
+      // PRIORIDAD 1: Datos directos del login
+      // Buscar campos que vienen directamente en la respuesta del login
+      final rutaLogin = userData['ruta']?.toString() ?? 
+                       userData['rutaAsignada']?.toString() ?? 
+                       userData['ruta_Codigo']?.toString() ?? 
+                       userData['ruta_Descripcion']?.toString() ?? '';
+      
+      if (rutaLogin.isNotEmpty && rutaLogin != 'null') {
+        return rutaLogin;
+      }
+      
+      // PRIORIDAD 2: Intentar obtener desde rutasDelDiaJson
       final rutasDelDiaJson = userData['rutasDelDiaJson'] as String?;
-      if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+      if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty && rutasDelDiaJson != 'null') {
         final rutasData = jsonDecode(rutasDelDiaJson) as List<dynamic>;
         if (rutasData.isNotEmpty) {
           final primeraRuta = rutasData.first as Map<String, dynamic>;
@@ -993,7 +1028,7 @@ class InicioSesionOfflineService {
         }
       }
       
-      // Fallback: intentar desde datosVendedor (método anterior)
+      // PRIORIDAD 3: Fallback desde datosVendedor (solo si no viene en login)
       final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
       if (datosVendedor != null) {
         final vendCodigo = datosVendedor['vend_Codigo'];
@@ -1002,9 +1037,9 @@ class InicioSesionOfflineService {
         }
       }
       
-      // Fallback: usar código del usuario
+      // PRIORIDAD 4: Usar código del usuario
       final codigo = userData['codigo'] as String?;
-      if (codigo != null) {
+      if (codigo != null && codigo.isNotEmpty && codigo != 'null') {
         return codigo;
       }
       
@@ -1019,20 +1054,38 @@ class InicioSesionOfflineService {
     if (userData == null) return 'No asignado';
     
     try {
-      // Por ahora usar un valor por defecto ya que no viene en el JSON del login
-      // TODO: Implementar llamada a API específica para obtener supervisor
-      return 'Mario Galeas'; // Valor por defecto
+      // PRIORIDAD 1: Datos directos del login
+      // Buscar campos que vienen directamente en la respuesta del login
+      final supervisorLogin = userData['supervisor']?.toString() ?? 
+                             userData['supervisorResponsable']?.toString() ?? 
+                             userData['supervisor_Nombre']?.toString() ?? 
+                             userData['nombreSupervisor']?.toString() ?? '';
       
-      // Fallback: intentar desde datosVendedor si está disponible
+      if (supervisorLogin.isNotEmpty && supervisorLogin != 'null') {
+        return supervisorLogin;
+      }
+      
+      // PRIORIDAD 2: Buscar en campos combinados del login
+      final nombreSup = userData['supervisor_Nombres']?.toString() ?? '';
+      final apellidoSup = userData['supervisor_Apellidos']?.toString() ?? '';
+      if (nombreSup.isNotEmpty || apellidoSup.isNotEmpty) {
+        final supervisorCompleto = '$nombreSup $apellidoSup'.trim();
+        if (supervisorCompleto.isNotEmpty) {
+          return supervisorCompleto;
+        }
+      }
+      
+      // PRIORIDAD 3: Fallback desde datosVendedor (solo si no viene en login)
       final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
       if (datosVendedor != null) {
         final nombreSupervisor = datosVendedor['nombreSupervisor']?.toString() ?? '';
         final apellidoSupervisor = datosVendedor['apellidoSupervisor']?.toString() ?? '';
         final supervisor = '$nombreSupervisor $apellidoSupervisor'.trim();
-        if (supervisor.isNotEmpty) {
+        if (supervisor.isNotEmpty && supervisor != 'null null') {
           return supervisor;
         }
       }
+      
     } catch (e) {
       print('Error extrayendo supervisor responsable: $e');
     }
@@ -1119,5 +1172,111 @@ class InicioSesionOfflineService {
     }
     
     return 0;
+  }
+
+  /// Obtiene el inventario asignado desde el servicio de inventario
+  static Future<String> _obtenerInventarioAsignadoDesdeInventario(Map<String, dynamic>? userData) async {
+    try {
+      if (userData == null) return '0';
+      
+      // Obtener el ID del vendedor
+      final vendedorId = userData['usua_IdPersona'] as int?;
+      if (vendedorId == null) return '0';
+      
+      print('Obteniendo inventario asignado para vendedor: $vendedorId');
+      
+      try {
+        // OPCIÓN 1: Intentar obtener desde caché específico de inventario
+        final inventoryItems = await _obtenerInventarioDesdeOfflineDatabase(vendedorId);
+        
+        if (inventoryItems.isNotEmpty) {
+          print('✓ Inventario encontrado en caché específico: ${inventoryItems.length} productos');
+          return '${inventoryItems.length}';
+        }
+        
+        // OPCIÓN 2: Intentar usar InventoryService (solo lectura de caché)
+        final inventoryFromService = await _obtenerInventarioDesdeServicio(vendedorId);
+        if (inventoryFromService > 0) {
+          print('✓ Inventario encontrado desde servicio: $inventoryFromService productos');
+          return '$inventoryFromService';
+        }
+        
+        // OPCIÓN 3: Fallback - usar productos básicos
+        final productos = await obtenerProductosBasicosCache();
+        print('⚠ Usando productos básicos como fallback: ${productos.length} productos');
+        return '${productos.length}';
+        
+      } catch (e) {
+        print('Error obteniendo inventario desde servicio: $e');
+        
+        // Fallback: usar productos básicos
+        final productos = await obtenerProductosBasicosCache();
+        return '${productos.length}';
+      }
+      
+    } catch (e) {
+      print('Error obteniendo inventario asignado: $e');
+      return '0';
+    }
+  }
+
+  /// Obtiene inventario desde la base de datos offline
+  static Future<List<Map<String, dynamic>>> _obtenerInventarioDesdeOfflineDatabase(int vendedorId) async {
+    try {
+      // Intentar leer desde el caché de inventario offline si existe
+      final inventoryStr = await _secureStorage.read(key: 'inventory_cache_$vendedorId');
+      
+      if (inventoryStr != null && inventoryStr.isNotEmpty) {
+        final inventoryData = jsonDecode(inventoryStr);
+        if (inventoryData is List) {
+          return List<Map<String, dynamic>>.from(inventoryData);
+        }
+      }
+      
+      return [];
+    } catch (e) {
+      print('Error obteniendo inventario desde offline database: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene el conteo de inventario desde el servicio de inventario (solo lectura de caché)
+  static Future<int> _obtenerInventarioDesdeServicio(int vendedorId) async {
+    try {
+      // Buscar diferentes keys posibles donde se pueda guardar el inventario
+      final possibleKeys = [
+        'inventory_cache_$vendedorId',
+        'inventory_data_$vendedorId',
+        'offline_inventory_$vendedorId',
+        'vendedor_${vendedorId}_inventory',
+      ];
+      
+      for (final key in possibleKeys) {
+        try {
+          final inventoryStr = await _secureStorage.read(key: key);
+          if (inventoryStr != null && inventoryStr.isNotEmpty) {
+            final inventoryData = jsonDecode(inventoryStr);
+            if (inventoryData is List) {
+              print('✓ Inventario encontrado en key: $key con ${inventoryData.length} productos');
+              return inventoryData.length;
+            } else if (inventoryData is Map && inventoryData.containsKey('items')) {
+              final items = inventoryData['items'] as List?;
+              if (items != null) {
+                print('✓ Inventario encontrado en key: $key con ${items.length} productos');
+                return items.length;
+              }
+            }
+          }
+        } catch (e) {
+          // Continuar con la siguiente key
+          continue;
+        }
+      }
+      
+      return 0;
+    } catch (e) {
+      print('Error obteniendo inventario desde servicio: $e');
+      return 0;
+    }
   }
 }

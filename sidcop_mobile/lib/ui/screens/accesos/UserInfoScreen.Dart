@@ -232,7 +232,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                     'Información operativa',
                     Icons.assessment,
                   ),
-                  _buildInfoRow('Inventario asignado:', '${_getUserField('inventarioAsignado')} productos'),
+                  _buildInfoRow('Inventario asignado:', '${_getUserField('inventarioAsignado')}'),
                   _buildInfoRow('Clientes asignados:', _getUserField('clientesAsignados')),
                   _buildInfoRow('Meta de ventas diaria:', _getUserField('metaVentasDiaria')),
                   _buildInfoRow('Ventas del día:', _getUserField('ventasDelDia')),
