@@ -50,7 +50,7 @@ class DireccionCliente {
       dicl_id: json['diCl_Id'],
       clie_id: json['clie_Id'],
       colo_id: json['colo_Id'],
-
+      Colo_Descripcion: json['Colo_Descripcion'],
       dicl_direccionexacta: json['diCl_DireccionExacta'],
       dicl_observaciones: json['diCl_Observaciones'],
       dicl_latitud: json['diCl_Latitud'] != null

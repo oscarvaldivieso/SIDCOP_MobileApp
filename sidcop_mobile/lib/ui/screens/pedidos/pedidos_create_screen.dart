@@ -1,11 +1,10 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/ui/widgets/appBar.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/services/PedidosService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
-import 'package:sidcop_mobile/services/ClientesService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 import 'package:sidcop_mobile/Offline_Services/Productos_OfflineService.dart';
 import 'package:sidcop_mobile/Offline_Services/InicioSesion_OfflineService.dart';
@@ -14,6 +13,7 @@ import 'package:sidcop_mobile/utils/numero_en_letras.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sidcop_mobile/models/ProductosPedidosViewModel.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
+import 'dart:async';
 
 class PedidosCreateScreen extends StatefulWidget {
   final int clienteId;
@@ -41,6 +41,10 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   List<dynamic> _direcciones = [];
   dynamic _direccionSeleccionada;
   bool _loadingDirecciones = false;
+  
+  // Variables para conectividad y sincronización
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  bool _isConnected = true;
 
   @override
   void initState() {
@@ -48,11 +52,13 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     _fetchProductos();
     _fetchDirecciones();
     _searchController.addListener(_onSearchChanged);
+    _initConnectivityListener();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -456,72 +462,13 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     });
 
     try {
-      // Primero intentamos obtener la dirección de la sesión del usuario
-      final perfilService = PerfilUsuarioService();
-      final userData = await perfilService.obtenerDatosUsuario();
-
-      if (userData != null && userData['datosVendedor'] != null) {
-        final vendedorData = userData['datosVendedor'];
-
-        // Verificar si vendedorData es un String y convertirlo a Map si es necesario
-        Map<String, dynamic> vendedorMap = {};
-        if (vendedorData is String) {
-          try {
-            final decoded = json.decode(vendedorData);
-            if (decoded is Map) {
-              vendedorMap = Map<String, dynamic>.from(decoded);
-            }
-          } catch (e) {
-            print('Error al convertir vendedorData a Map: $e');
-          }
-        } else if (vendedorData is Map) {
-          vendedorMap = Map<String, dynamic>.from(vendedorData);
-        }
-
-        if (vendedorMap['vend_DireccionExacta'] != null) {
-          // Creamos un mapa con la dirección del usuario
-          // Usar un ID único basado en el vendedor para evitar conflictos
-          final vendedorId = vendedorMap['vend_Id'] ?? DateTime.now().millisecondsSinceEpoch;
-          final direccionUsuario = {
-            'diCl_Id': vendedorId, // Usar ID del vendedor como ID de dirección
-            'DiCl_Id': vendedorId, // Variante del campo para compatibilidad
-            'diCl_DireccionExacta': vendedorMap['vend_DireccionExacta'],
-            'DiCl_DescripcionExacta': vendedorMap['vend_DireccionExacta'],
-            'diCl_EsPrincipal': true,
-            'esDeSesion': true, // Bandera para identificar que viene de la sesión
-          };
-
-          setState(() {
-            _direcciones = [direccionUsuario];
-            _direccionSeleccionada = direccionUsuario;
-            _loadingDirecciones = false;
-          });
-          return;
-        }
-      }
-
-      // Si no hay dirección en la sesión, intentamos cargar desde la API
-      List<dynamic> direcciones = [];
+      print('🏠 Cargando direcciones para cliente: ${widget.clienteId}');
       
-      try {
-        // Intentar cargar desde la API primero
-        direcciones = await ClientesService().getDireccionesCliente(
-          widget.clienteId,
-        );
-        print('Direcciones obtenidas desde API: $direcciones');
-      } catch (e) {
-        print('Error cargando direcciones desde API: $e');
-        
-        // Fallback: intentar cargar desde caché offline
-        try {
-          final direccionesCache = await InicioSesionOfflineService.obtenerDireccionesClienteCache(widget.clienteId);
-          direcciones = direccionesCache;
-          print('Direcciones obtenidas desde caché: $direcciones');
-        } catch (cacheError) {
-          print('Error cargando direcciones desde caché: $cacheError');
-        }
-      }
-
+      // Usar el nuevo método offline-first
+      final direcciones = await ClientesOfflineService.getDireccionesClienteOfflineFirst(
+        widget.clienteId,
+      );
+      
       setState(() {
         _direcciones = direcciones;
         _loadingDirecciones = false;
@@ -529,17 +476,37 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         // Seleccionar la primera dirección por defecto si existe
         if (_direcciones.isNotEmpty) {
           _direccionSeleccionada = _direcciones[0];
-          print('Dirección seleccionada por defecto: $_direccionSeleccionada');
+          print('✅ Dirección seleccionada por defecto: ${_direccionSeleccionada['diCl_DireccionExacta']}');
+        } else {
+          print('⚠️ No se encontraron direcciones para el cliente ${widget.clienteId}');
         }
       });
+      
+      // Mostrar mensaje informativo si hay direcciones
+      if (mounted && direcciones.isNotEmpty) {
+        final hasOfflineData = await ClientesOfflineService.hasOfflineDireccionesData(widget.clienteId);
+        if (hasOfflineData) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Direcciones cargadas (${direcciones.length} encontradas)'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
     } catch (e) {
       setState(() {
         _loadingDirecciones = false;
       });
 
+      print('❌ Error cargando direcciones: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar direcciones: $e')),
+          SnackBar(
+            content: Text('Error al cargar direcciones. Verifica tu conexión.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
     }
@@ -668,83 +635,12 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       return;
     }
 
-    // Verificar conexión a internet
-    final connectivityResult = await Connectivity().checkConnectivity();
-    final bool isOnline = connectivityResult != ConnectivityResult.none;
-
     // 4. Preparar productos para confirmación
     final productosSeleccionadosList = _cantidades.entries
         .where((e) => e.value > 0)
         .toList();
 
-    // Mapear productos seleccionados al formato requerido
-    final List<Map<String, dynamic>> detallesPedido = [];
-    double totalPedido = 0;
-
-    for (final entry in productosSeleccionadosList) {
-      final producto = _productos.firstWhere((p) => p.prodId == entry.key);
-      final cantidad = entry.value;
-      final precioUnitario = _getPrecioPorCantidad(producto, cantidad);
-
-      detallesPedido.add({
-        'prodId': producto.prodId,
-        'cantidad': cantidad,
-        'precioUnitario': precioUnitario,
-        'descuento': 0, // Ajustar según sea necesario
-      });
-
-      totalPedido += precioUnitario * cantidad;
-    }
-
-    // Obtener datos del usuario actual
-    final perfilService = PerfilUsuarioService();
-    final userData = await perfilService.obtenerDatosUsuario();
-    final int? vendedorId = userData?['usua_IdPersona'] is String
-        ? int.tryParse(userData?['usua_IdPersona'])
-        : userData?['usua_IdPersona'];
-
-    // Crear objeto de pedido para guardar offline
-    final pedidoOffline = {
-      'clienteId': widget.clienteId,
-      'vendedorId': vendedorId,
-      'fechaPedido': DateTime.now().toIso8601String(),
-      'fechaEntrega': _fechaEntrega!.toIso8601String(),
-      'direccionId': _direccionSeleccionada['diCl_Id'],
-      'total': totalPedido,
-      'estado': isOnline ? 'Pendiente' : 'Pendiente Sincronización',
-      'detalles': detallesPedido,
-    };
-
-    // Si no hay conexión, guardar el pedido localmente
-    if (!isOnline) {
-      try {
-        await PedidosScreenOffline.guardarPedidoPendiente(pedidoOffline);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Pedido guardado localmente. Se sincronizará cuando haya conexión.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
-          );
-          Navigator.of(context).pop(); // Volver a la pantalla anterior
-          return;
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error al guardar el pedido: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-    }
-
-    // Si hay conexión o se está en modo offline, continuar con el flujo normal
+    // Continuar con el flujo normal hacia confirmación (tanto online como offline)
     final productosConfirmacion = productosSeleccionadosList.map((e) {
       final producto = _productos.firstWhere((p) => p.prodId == e.key);
       final precioFinal = _getPrecioPorCantidad(producto, e.value);
@@ -1705,5 +1601,57 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ),
       ),
     );
+  }
+
+  /// Inicializa el listener de conectividad para sincronización automática
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (ConnectivityResult result) {
+        final wasConnected = _isConnected;
+        _isConnected = result != ConnectivityResult.none;
+        
+        // Si se recuperó la conexión, intentar sincronizar pedidos pendientes
+        if (!wasConnected && _isConnected) {
+          print('🔄 Conexión restaurada, sincronizando pedidos pendientes...');
+          _sincronizarPedidosPendientes();
+        }
+      },
+    );
+  }
+
+  /// Sincroniza pedidos pendientes en background
+  Future<void> _sincronizarPedidosPendientes() async {
+    try {
+      final pedidosPendientes = await PedidosScreenOffline.contarPedidosPendientes();
+      
+      if (pedidosPendientes > 0) {
+        print('📋 Encontrados $pedidosPendientes pedidos pendientes para sincronizar');
+        
+        final sincronizados = await PedidosScreenOffline.sincronizarPedidosPendientesOffline();
+        
+        if (mounted && sincronizados > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.sync, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '✅ $sincronizados pedido(s) sincronizado(s) automáticamente',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green[700],
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error sincronizando pedidos pendientes: $e');
+    }
   }
 }

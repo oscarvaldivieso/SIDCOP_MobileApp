@@ -3,6 +3,7 @@ import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/services/GlobalService.Dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
@@ -68,12 +69,37 @@ class _clientScreenState extends State<clientScreen> {
         await ClientesOfflineService.guardarClientes(clientes);
 
         // Sincronizar clientes pendientes
-        await ClientesOfflineService.sincronizarClientesPendientes();
+        final clientesSincronizados = await ClientesOfflineService.sincronizarClientesPendientes();
+        
+        // Mostrar mensaje de sincronización si se sincronizaron clientes
+        if (clientesSincronizados > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$clientesSincronizados Cliente(s) sincronizados exitosamente'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Sincronizar clientes pendientes
+        //await ClientesOfflineService.sincronizarClientesPendientes();
       } else {
         print('Sin conexión - cargando datos offline');
 
         // Cargar clientes desde almacenamiento local
         clientes = await ClientesOfflineService.cargarClientes();
+      }
+
+      // Procesar URLs de imágenes - concatenar baseUrl solo si no contiene 'http'
+      for (var cliente in clientes) {
+        if (cliente['clie_ImagenDelNegocio'] != null && 
+            cliente['clie_ImagenDelNegocio'].toString().isNotEmpty) {
+          String imagenUrl = cliente['clie_ImagenDelNegocio'].toString();
+          cliente['clie_ImagenDelNegocio'] = imagenUrl.contains('http') 
+              ? imagenUrl 
+              : apiServer + imagenUrl;
+        }
       }
 
       setState(() {
@@ -1305,4 +1331,4 @@ class _clientScreenState extends State<clientScreen> {
         },
     );
   }
-}
+} 
