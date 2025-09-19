@@ -543,45 +543,27 @@ class CuentasPorCobrarOfflineService {
         }
       }
 
-      // 2. Obtener el saldo actual (incluyendo pagos pendientes ya aplicados)
-      double saldoActual = 0;
-      if (cuentaDetalle != null) {
-        saldoActual = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
-      } else {
-        // Buscar en resumen de clientes
-        final resumenClientes = await obtenerResumenClientesLocal();
-        for (final item in resumenClientes) {
-          if (item['cpCo_Id'] == cpCoId) {
-            saldoActual = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
-            break;
-          }
-        }
-      }
+      // 2. CORRECCIÓN: Obtener el saldo real actualizado (mismo que ve el usuario)
+      // Este saldo YA incluye todos los pagos pendientes offline aplicados
+      final saldoRealActualizado = await obtenerSaldoRealCuentaActualizado(cpCoId);
+      
+      print('💰 Validación de pago - Cuenta: $cpCoId');
+      print('   - Monto solicitado: ${_formatCurrency(montoPago)}');
+      print('   - Saldo real disponible: ${_formatCurrency(saldoRealActualizado)}');
 
-      // 3. Validar que el monto no exceda el saldo pendiente
-      if (montoPago > saldoActual) {
+      // 3. Validar que el monto no exceda el saldo disponible real
+      if (montoPago > saldoRealActualizado) {
         return {
           'valido': false,
-          'mensaje': 'El monto del pago (${_formatCurrency(montoPago)}) excede el saldo pendiente (${_formatCurrency(saldoActual)})'
+          'mensaje': 'El monto del pago (${_formatCurrency(montoPago)}) excede el saldo disponible (${_formatCurrency(saldoRealActualizado)})'
         };
       }
 
-      // 4. Validar que no haya pagos duplicados pendientes para la misma cuenta
-      final pagosPendientes = await obtenerPagosPendientesLocal();
-      double montoPagosYaPendientes = 0;
-      
-      for (final pendiente in pagosPendientes) {
-        final pagoData = pendiente['pago'] as Map<String, dynamic>;
-        if (pagoData['CPCo_Id'] == cpCoId) {
-          montoPagosYaPendientes += (pagoData['Pago_Monto'] ?? 0).toDouble();
-        }
-      }
-
-      final saldoDisponible = saldoActual - montoPagosYaPendientes;
-      if (montoPago > saldoDisponible) {
+      // 4. Validación adicional: verificar que el saldo sea positivo
+      if (saldoRealActualizado <= 0) {
         return {
           'valido': false,
-          'mensaje': 'Ya hay pagos pendientes por ${_formatCurrency(montoPagosYaPendientes)}. Saldo disponible: ${_formatCurrency(saldoDisponible)}'
+          'mensaje': 'Esta cuenta ya está completamente saldada. Saldo actual: ${_formatCurrency(saldoRealActualizado)}'
         };
       }
 
@@ -610,8 +592,8 @@ class CuentasPorCobrarOfflineService {
       return {
         'valido': true,
         'mensaje': 'Pago válido',
-        'saldoActual': saldoActual,
-        'saldoDisponible': saldoDisponible
+        'saldoRealActualizado': saldoRealActualizado,
+        'saldoDisponible': saldoRealActualizado
       };
 
     } catch (e) {

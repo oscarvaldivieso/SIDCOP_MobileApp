@@ -35,17 +35,43 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
   DateTime _fechaPago = DateTime.now();
   bool _isLoading = false;
   bool _isLoadingFormasPago = true;
+  double? _saldoRealActualizado; // Saldo real actualizado para mostrar en UI
 
   List<FormaPago> _formasPago = [];
 
   @override
   void initState() {
     super.initState();
-    // Pre-llenar el monto con el total pendiente
-    _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+    // CORRECCIÓN: Pre-llenar el monto con el saldo real actualizado
+    _inicializarMontoConSaldoReal();
     // Cargar formas de pago
     _loadFormasPago();
     // Nota: La sincronización se maneja automáticamente por el timer periódico del servicio
+  }
+
+  /// Inicializa el campo de monto con el saldo real actualizado
+  Future<void> _inicializarMontoConSaldoReal() async {
+    try {
+      final cpCoId = widget.cuentaResumen.cpCo_Id;
+      if (cpCoId != null) {
+        final saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+        
+        if (mounted) {
+          setState(() {
+            _saldoRealActualizado = saldoReal;
+          });
+          _montoController.text = saldoReal.toStringAsFixed(2);
+          print('💰 Monto inicializado con saldo real: ${_formatCurrency(saldoReal)}');
+        }
+      } else {
+        // Fallback al valor original si no hay ID
+        _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+      }
+    } catch (e) {
+      print('❌ Error inicializando monto con saldo real: $e');
+      // Fallback al valor original en caso de error
+      _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+    }
   }
 
   Future<void> _loadFormasPago() async {
@@ -428,7 +454,7 @@ Future<void> _registrarPago() async {
           if (widget.cuentaResumen.clie_NombreNegocio?.isNotEmpty == true)
             _buildInfoRow('Negocio:', widget.cuentaResumen.clie_NombreNegocio!),
           _buildInfoRow('Cuenta No.:', widget.cuentaResumen.secuencia ?? 'N/A'),
-          _buildInfoRow('Total Pendiente:', _formatCurrency(widget.cuentaResumen.totalPendiente ?? 0)),
+          _buildSaldoPendienteRow(),
         ],
       ),
     );
@@ -458,6 +484,60 @@ Future<void> _registrarPago() async {
                 fontWeight: FontWeight.w600,
                 fontFamily: 'Satoshi',
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaldoPendienteRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              'Total Pendiente:',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Satoshi',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  _formatCurrency(_saldoRealActualizado ?? widget.cuentaResumen.totalPendiente ?? 0),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Satoshi',
+                    color: _saldoRealActualizado != null ? const Color(0xFF1E3A8A) : Colors.grey.shade700,
+                  ),
+                ),
+                if (_saldoRealActualizado == null) ...[
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.grey.shade400),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Colors.green.shade600,
+                  ),
+                ],
+              ],
             ),
           ),
         ],
