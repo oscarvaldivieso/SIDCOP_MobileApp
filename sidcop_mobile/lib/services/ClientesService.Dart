@@ -23,10 +23,11 @@ class ClientesService {
 
       if (response.statusCode == 200) {
         final List<dynamic> clientesList = jsonDecode(response.body);
-        return clientesList;
+        // Filtrar clientes con clie_Estado == true
+        return clientesList.where((cliente) => cliente['clie_Estado'] == true).toList();
       } else {
         throw Exception(
-          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+          'Error en la solicitud: Código \\${response.statusCode}, Respuesta: \\${response.body}',
         );
       }
     } catch (e) {
