@@ -240,9 +240,20 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             ),
           ),
           trailing: _isConnected 
-              ? IconButton(
-                  icon: const Icon(Icons.link_off, color: Colors.red),
-                  onPressed: _disconnectPrinter,
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.print, color: Color(0xFF1a1d3a)),
+                      onPressed: () => _probarImpresora(),
+                      tooltip: 'Probar impresión',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.link_off, color: Colors.red),
+                      onPressed: _disconnectPrinter,
+                      tooltip: 'Desconectar',
+                    ),
+                  ],
                 )
               : const Icon(Icons.chevron_right, color: Color(0xFF666666)),
           onTap: _isConnected ? null : () => _showPrinterBottomSheet(),
@@ -250,6 +261,76 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ),
       ],
     );
+  }
+
+  // Probar la impresora conectada
+  Future<void> _probarImpresora() async {
+    if (!_isConnected || _connectedDevice == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay ninguna impresora conectada', style: TextStyle(fontFamily: 'Satoshi')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Mostrar diálogo de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Enviando prueba de impresión...', style: TextStyle(fontFamily: 'Satoshi')),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      // Generar y enviar prueba de impresión
+      final bool resultado = await _printerService.printTest();
+      
+      // Cerrar el diálogo de carga
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Mostrar resultado
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resultado 
+                  ? 'Prueba de impresión enviada correctamente' 
+                  : 'Error al enviar prueba de impresión',
+              style: const TextStyle(fontFamily: 'Satoshi'),
+            ),
+            backgroundColor: resultado ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Cerrar el diálogo de carga en caso de error
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error inesperado al probar la impresora', style: TextStyle(fontFamily: 'Satoshi')),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   // Mostrar bottom sheet con opciones de impresora
@@ -395,19 +476,27 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fondo blanco para toda la pantalla
+      backgroundColor: Colors.white,
+      // AppBar separado del body
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(0), // Sin altura visible
+        child: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+        ),
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Sección superior con fondo SVG como UserInfoScreen
+            // Sección superior con fondo SVG
             Container(
               width: double.infinity,
               height: 300,
               color: const Color(0xFF1a1d3a),
               child: Stack(
-                alignment: Alignment.center,
                 children: [
-                  // Imagen SVG de fondo con flip horizontal y opacidad (igual que UserInfoScreen)
+                  // Imagen SVG de fondo con flip horizontal y opacidad
                   SizedBox(
                     width: double.infinity,
                     height: 200,
@@ -425,51 +514,79 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   ),
                   // Ícono de configuración
                   Positioned(
-                    top: 100,
-                    child: Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.2),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 2,
+                    top: 120,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.2),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
+                          ),
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.settings,
-                        size: 40,
-                        color: Colors.white,
+                        child: const Icon(
+                          Icons.settings,
+                          size: 40,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
-                  // AppBar personalizado integrado
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
+                  // AppBar personalizado en la parte superior
+                  SafeArea(
                     child: Container(
                       height: 60,
-                      color: const Color(0xFF1a1d3a),
-                      child: SafeArea(
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            const Text(
-                              'Configuración',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w500,
-                                fontFamily: 'Satoshi',
-                              ),
-                            ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF1a1d3a).withOpacity(0.95),
+                            const Color(0xFF1a1d3a).withOpacity(0.7),
                           ],
                         ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Botón de regreso
+                          Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(30),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(30),
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_back_ios_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Configuración',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Satoshi',
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -497,71 +614,14 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Sección Cuenta alineada a la izquierda
-                      // const Text(
-                      //   'Cuenta',
-                      //   style: TextStyle(
-                      //     fontSize: 16,
-                      //     fontWeight: FontWeight.w600,
-                      //     color: Color(0xFF666666),
-                      //     fontFamily: 'Satoshi',
-                      //   ),
-                      // ),
-                     // const SizedBox(height: 12),
-                      
-                      // Widget de configuración offline
-                      //const OfflineConfigWidget(),
-                      
                       const SizedBox(height: 24),
                       
-                      // Sección de configuración de impresora AQUÍ
+                      // Sección de configuración de impresora
                       _buildPrinterSection(),
                       
                       const SizedBox(height: 24),
                       
-                      // Sección Acerca de
-                      const Text(
-                        'Acerca de',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF666666),
-                          fontFamily: 'Satoshi',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       
-                      ListTile(
-                        leading: const Icon(Icons.help_outline, color: Color(0xFF666666)),
-                        title: const Text(
-                          'Ayuda y soporte',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontSize: 16,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
-                        onTap: () {},
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      
-                      ListTile(
-                        leading: const Icon(Icons.info_outline, color: Color(0xFF666666)),
-                        title: const Text(
-                          'Términos y condiciones',
-                          style: TextStyle(
-                            fontFamily: 'Satoshi',
-                            fontSize: 16,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF666666)),
-                        onTap: () {},
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      
-                      const SizedBox(height: 24),
                       
                       // Sección Almacenamiento y sincronización
                       const Text(
