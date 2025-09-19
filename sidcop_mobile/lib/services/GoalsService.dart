@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class GoalsService {
   final String _apiServer = apiServer;
@@ -11,7 +11,7 @@ class GoalsService {
     final url = '$_apiServer/Metas/ListarPorVendedor/$vendorId';
     debugPrint('[GoalsService] Solicitando metas para el vendedor: $vendorId');
     debugPrint('[GoalsService] URL: $url');
-    
+
     try {
       final response = await http.put(
         Uri.parse(url),
@@ -35,7 +35,9 @@ class GoalsService {
           return null;
         }
       } else {
-        debugPrint('[GoalsService] Error en la respuesta: ${response.statusCode} - ${response.body}');
+        debugPrint(
+          '[GoalsService] Error en la respuesta: ${response.statusCode} - ${response.body}',
+        );
         return null;
       }
     } catch (e, stackTrace) {

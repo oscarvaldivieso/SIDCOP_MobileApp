@@ -64,10 +64,10 @@ class OfflineAuthService {
       // Obtener el vendorId del usuario
       int? vendorId;
       
-      if (userData.containsKey('personaId')) {
-        vendorId = userData['personaId'] is int
-            ? userData['personaId']
-            : int.tryParse(userData['personaId'].toString());
+      if (userData.containsKey('usua_Id')) {
+        vendorId = userData['usua_Id'] is int
+            ? userData['usua_Id']
+            : int.tryParse(userData['usua_Id'].toString());
       } else if (userData.containsKey('usua_IdPersona')) {
         vendorId = userData['usua_IdPersona'] is int
             ? userData['usua_IdPersona']
@@ -273,10 +273,10 @@ class OfflineAuthService {
       }
       
       // Restaurar globalVendId desde los datos guardados
-      if (userData.containsKey('personaId')) {
-        globalVendId = userData['personaId'] is int
-            ? userData['personaId']
-            : int.tryParse(userData['personaId'].toString());
+      if (userData.containsKey('usua_Id')) {
+        globalVendId = userData['usua_Id'] is int
+            ? userData['usua_Id']
+            : int.tryParse(userData['usua_Id'].toString());
       } else if (userData.containsKey('usua_IdPersona')) {
         globalVendId = userData['usua_IdPersona'] is int
             ? userData['usua_IdPersona']
