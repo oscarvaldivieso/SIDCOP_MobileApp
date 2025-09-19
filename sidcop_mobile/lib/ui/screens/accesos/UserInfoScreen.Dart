@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/UserInfoService.dart';
+import '../../../debug/DebugCredenciales.dart';
 
 class UserInfoScreen extends StatefulWidget {
   const UserInfoScreen({Key? key}) : super(key: key);
@@ -24,12 +25,15 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
   }
 
   Future<void> _initializeService() async {
+    print('=== INICIALIZANDO UserInfoScreen ===');
+    
     // Inicializar el servicio
     await _userInfoService.initialize();
     
     // Escuchar cambios en los datos del usuario
     _userInfoService.userDataStream.listen((userData) {
       if (mounted) {
+        print('UserInfoScreen: Datos recibidos - ${userData.keys.length} campos');
         setState(() {
           _userData = userData;
           _isLoading = false;
@@ -40,9 +44,16 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
     // Escuchar cambios de conectividad
     _userInfoService.connectivityStream.listen((isConnected) {
       if (mounted) {
+        print('UserInfoScreen: Cambio de conectividad - ${isConnected ? "Online" : "Offline"}');
         setState(() {
           _isConnected = isConnected;
         });
+        
+        // Si acabamos de conectarnos, intentar sincronizar automáticamente
+        if (isConnected && !_userInfoService.isLoading) {
+          print('UserInfoScreen: Auto-sincronizando al conectarse...');
+          _refreshData();
+        }
       }
     });
     
@@ -52,10 +63,142 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       _isConnected = _userInfoService.isConnected;
       _isLoading = _userInfoService.isLoading;
     });
+    
+    print('UserInfoScreen: Inicialización completada');
+    print('Datos iniciales: ${_userData.keys.length} campos');
+    print('Conectividad: ${_isConnected ? "Online" : "Offline"}');
   }
 
   Future<void> _refreshData() async {
-    await _userInfoService.forceRefresh();
+    print('UserInfoScreen: Iniciando refresh manual...');
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      await _userInfoService.forceRefresh();
+      print('UserInfoScreen: Refresh completado exitosamente');
+    } catch (e) {
+      print('UserInfoScreen: Error en refresh: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = _userInfoService.isLoading;
+        });
+      }
+    }
+  }
+
+  /// Método de debug para mostrar toda la información disponible
+  void _showDebugInfo() {
+    print('=== DEBUG INFO UserInfoScreen ===');
+    print('_isLoading: $_isLoading');
+    print('_isConnected: $_isConnected');
+    print('_userData.isEmpty: ${_userData.isEmpty}');
+    print('_userData.keys.length: ${_userData.keys.length}');
+    
+    if (_userData.isNotEmpty) {
+      print('Campos disponibles:');
+      _userData.forEach((key, value) {
+        print('  $key: $value');
+      });
+    }
+    
+    print('UserInfoService.cachedUserData: ${_userInfoService.cachedUserData?.keys.length ?? 0} campos');
+    print('UserInfoService.isConnected: ${_userInfoService.isConnected}');
+    print('UserInfoService.isLoading: ${_userInfoService.isLoading}');
+    
+    // Mostrar dialog con información de debug
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Debug Info'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Loading: $_isLoading'),
+              Text('Connected: $_isConnected'),
+              Text('Data fields: ${_userData.keys.length}'),
+              const SizedBox(height: 10),
+              const Text('Available fields:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...(_userData.keys.map((key) => Text('• $key: ${_userData[key]}')).toList()),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await DebugCredenciales.diagnosticoCompleto();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Diagnóstico completado - Ver logs')),
+              );
+            },
+            child: const Text('Diagnóstico'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _forceSync();
+            },
+            child: const Text('Forzar Sync'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fuerza una sincronización completa con el nuevo endpoint
+  Future<void> _forceSync() async {
+    print('UserInfoScreen: Forzando sincronización completa...');
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Forzar sincronización con API
+      final success = await _userInfoService.syncWithAPI();
+      print('UserInfoScreen: Sincronización ${success ? "exitosa" : "falló"}');
+      
+      // Actualizar datos locales
+      setState(() {
+        _userData = _userInfoService.cachedUserData ?? {};
+        _isLoading = _userInfoService.isLoading;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Sincronización exitosa' : 'Error en sincronización'),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('UserInfoScreen: Error en sincronización forzada: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -108,6 +251,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 ),
               ],
             ),
+          ),
+          // Botón de debug (temporal)
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            onPressed: _showDebugInfo,
           ),
           // Botón de refresh
           IconButton(
@@ -305,10 +453,23 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
   }
 
   String _getUserField(String fieldName, {String defaultValue = 'Cargando...'}) {
-    if (_userData.isEmpty) return defaultValue;
+    if (_isLoading) return 'Cargando...';
+    
+    if (_userData.isEmpty) {
+      print('UserInfoScreen: _userData está vacío para campo $fieldName');
+      return defaultValue;
+    }
     
     final value = _userData[fieldName];
-    if (value == null || value.toString().isEmpty || value.toString() == 'null') {
+    
+    // Debug: mostrar qué valor se está obteniendo
+    print('UserInfoScreen: Campo $fieldName = $value');
+    
+    if (value == null || value.toString().isEmpty || value.toString() == 'null' || value.toString() == 'Sin información') {
+      // Si no hay información y estamos online, mostrar que se está actualizando
+      if (_isConnected) {
+        return 'Actualizando...';
+      }
       return 'Sin información';
     }
     

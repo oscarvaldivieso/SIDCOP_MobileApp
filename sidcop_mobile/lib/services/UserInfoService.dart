@@ -84,13 +84,13 @@ class UserInfoService extends ChangeNotifier {
       final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
       
       if (userData != null) {
-        // Completar correo y teléfono si no están en el diccionario
+        // Completar correo y teléfono usando los métodos del InicioSesion_OfflineService
         if (_cachedUserData!['correo'] == null || _cachedUserData!['correo'] == 'Sin información') {
-          _cachedUserData!['correo'] = await _extraerCorreoDesdeUserData(userData);
+          _cachedUserData!['correo'] = InicioSesionOfflineService.extraerCorreo(userData);
         }
         
         if (_cachedUserData!['telefono'] == null || _cachedUserData!['telefono'] == 'Sin información') {
-          _cachedUserData!['telefono'] = await _extraerTelefonoDesdeUserData(userData);
+          _cachedUserData!['telefono'] = InicioSesionOfflineService.extraerTelefono(userData);
         }
       }
       
@@ -214,27 +214,60 @@ class UserInfoService extends ChangeNotifier {
       // Obtener datos actualizados desde la API
       final perfilService = PerfilUsuarioService();
       
-      // Obtener datos básicos del usuario
-      final nombreCompleto = await perfilService.obtenerNombreCompleto();
-      final numeroIdentidad = await perfilService.obtenerNumeroIdentidad();
-      final numeroEmpleado = await perfilService.obtenerNumeroEmpleado();
-      final correo = await _obtenerCorreoCompleto();
-      final telefono = await _obtenerTelefonoCompleto();
-      final cargo = await perfilService.obtenerCargo();
-      final imagenUsuario = await perfilService.obtenerImagenUsuario();
+      // NUEVO: Intentar obtener información completa desde el endpoint /Usuarios/IniciarSesion
+      print('Obteniendo información completa desde endpoint /Usuarios/IniciarSesion...');
+      final informacionCompleta = await perfilService.obtenerInformacionCompletaUsuario();
       
-      // Crear datos actualizados
-      final updatedData = Map<String, dynamic>.from(_cachedUserData ?? {});
-      updatedData.addAll({
-        'nombreCompleto': nombreCompleto,
-        'numeroIdentidad': numeroIdentidad,
-        'numeroEmpleado': numeroEmpleado,
-        'correo': correo,
-        'telefono': telefono,
-        'cargo': cargo,
-        'imagenUsuario': imagenUsuario,
-        'fechaUltimaSync': DateTime.now().toIso8601String(),
-      });
+      Map<String, dynamic> updatedData;
+      
+      if (informacionCompleta != null && informacionCompleta['fuenteDatos'] == 'endpoint_iniciar_sesion') {
+        print('✓ Información completa obtenida desde endpoint /Usuarios/IniciarSesion');
+        // Usar datos del endpoint completo
+        updatedData = Map<String, dynamic>.from(_cachedUserData ?? {});
+        updatedData.addAll({
+          'nombreCompleto': '${informacionCompleta['nombres']} ${informacionCompleta['apellidos']}',
+          'numeroIdentidad': informacionCompleta['dni'],
+          'numeroEmpleado': informacionCompleta['codigo'],
+          'correo': informacionCompleta['correo'],
+          'telefono': informacionCompleta['telefono'],
+          'cargo': informacionCompleta['cargo'],
+          'rutaAsignada': informacionCompleta['rutaAsignada'],
+          'supervisorResponsable': informacionCompleta['supervisor'],
+          'inventarioAsignado': informacionCompleta['cantidadInventario'],
+          'fechaUltimaSync': DateTime.now().toIso8601String(),
+          'fuenteUltimaSync': 'endpoint_iniciar_sesion',
+        });
+      } else {
+        print('⚠ Usando método fallback mejorado');
+        // Método fallback mejorado que combina múltiples fuentes
+        final nombreCompleto = await perfilService.obtenerNombreCompleto();
+        final numeroIdentidad = await perfilService.obtenerNumeroIdentidad();
+        final numeroEmpleado = await perfilService.obtenerNumeroEmpleado();
+        final cargo = await perfilService.obtenerCargo();
+        final imagenUsuario = await perfilService.obtenerImagenUsuario();
+        
+        // Obtener correo y teléfono con métodos mejorados
+        final correo = await _obtenerCorreoMejorado();
+        final telefono = await _obtenerTelefonoMejorado();
+        final rutaAsignada = await _obtenerRutaAsignadaMejorada();
+        final supervisor = await _obtenerSupervisorMejorado();
+        
+        // Crear datos actualizados
+        updatedData = Map<String, dynamic>.from(_cachedUserData ?? {});
+        updatedData.addAll({
+          'nombreCompleto': nombreCompleto,
+          'numeroIdentidad': numeroIdentidad,
+          'numeroEmpleado': numeroEmpleado,
+          'correo': correo,
+          'telefono': telefono,
+          'cargo': cargo,
+          'rutaAsignada': rutaAsignada,
+          'supervisorResponsable': supervisor,
+          'imagenUsuario': imagenUsuario,
+          'fechaUltimaSync': DateTime.now().toIso8601String(),
+          'fuenteUltimaSync': 'metodos_fallback_mejorados',
+        });
+      }
       
       // Obtener información operativa actualizada desde el sistema offline
       final infoOperativa = await InicioSesionOfflineService.obtenerInformacionOperativa();
@@ -323,101 +356,304 @@ class UserInfoService extends ChangeNotifier {
     await initialize();
   }
 
-  /// Obtiene correo completo desde múltiples fuentes
-  Future<String> _obtenerCorreoCompleto() async {
+  /// Obtiene correo desde userData o servicio de perfil
+  Future<String> obtenerCorreo() async {
     try {
       final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
       if (userData != null) {
-        return await _extraerCorreoDesdeUserData(userData);
+        return InicioSesionOfflineService.extraerCorreo(userData);
       }
       
-      // Fallback al servicio de perfil
-      final perfilService = PerfilUsuarioService();
-      return await perfilService.obtenerCorreoElectronico();
-    } catch (e) {
-      print('Error obteniendo correo completo: $e');
-      return 'Sin información';
-    }
-  }
-
-  /// Obtiene teléfono completo desde múltiples fuentes
-  Future<String> _obtenerTelefonoCompleto() async {
-    try {
-      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
-      if (userData != null) {
-        return await _extraerTelefonoDesdeUserData(userData);
-      }
-      
-      // Fallback al servicio de perfil
-      final perfilService = PerfilUsuarioService();
-      return await perfilService.obtenerTelefono();
-    } catch (e) {
-      print('Error obteniendo teléfono completo: $e');
-      return 'Sin información';
-    }
-  }
-
-  /// Extrae correo desde userData (priorizando datos del login)
-  Future<String> _extraerCorreoDesdeUserData(Map<String, dynamic> userData) async {
-    try {
-      // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
-      String correo = userData['correo']?.toString() ?? 
-                     userData['correoElectronico']?.toString() ?? 
-                     userData['email']?.toString() ?? 
-                     userData['usua_Correo']?.toString() ?? 
-                     userData['usuario_Correo']?.toString() ?? '';
-      
-      if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
-        return correo;
-      }
-      
-      // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
-      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
-      if (datosVendedor != null) {
-        correo = datosVendedor['vend_Correo']?.toString() ?? 
-                 datosVendedor['correo']?.toString() ?? '';
+      // NUEVO: Intentar obtener desde endpoint completo si hay conexión
+      if (_isConnected) {
+        final perfilService = PerfilUsuarioService();
+        final camposEspecificos = await perfilService.obtenerCamposEspecificos();
+        final correoEndpoint = camposEspecificos['correo'];
         
-        if (correo.isNotEmpty && correo != 'null' && correo.toLowerCase() != 'string') {
-          return correo;
+        if (correoEndpoint != null && correoEndpoint != 'Sin información' && correoEndpoint != 'Error al obtener') {
+          return correoEndpoint;
+        }
+      }
+      
+      // Fallback al servicio de perfil tradicional
+      final perfilService = PerfilUsuarioService();
+      final perfil = await perfilService.obtenerDatosUsuario();
+      
+      if (perfil != null && perfil.isNotEmpty) {
+        return perfil['correo']?.toString() ?? 'Sin información';
+      }
+      
+      return 'Sin información';
+    } catch (e) {
+      print('Error obteniendo correo: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Obtiene teléfono desde userData o servicio de perfil
+  Future<String> obtenerTelefono() async {
+    try {
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      if (userData != null) {
+        return InicioSesionOfflineService.extraerTelefono(userData);
+      }
+      
+      // NUEVO: Intentar obtener desde endpoint completo si hay conexión
+      if (_isConnected) {
+        final perfilService = PerfilUsuarioService();
+        final camposEspecificos = await perfilService.obtenerCamposEspecificos();
+        final telefonoEndpoint = camposEspecificos['telefono'];
+        
+        if (telefonoEndpoint != null && telefonoEndpoint != 'Sin información' && telefonoEndpoint != 'Error al obtener') {
+          return telefonoEndpoint;
+        }
+      }
+      
+      // Fallback al servicio de perfil tradicional
+      final perfilService = PerfilUsuarioService();
+      final perfil = await perfilService.obtenerDatosUsuario();
+      
+      if (perfil != null && perfil.isNotEmpty) {
+        return perfil['telefono']?.toString() ?? 'Sin información';
+      }
+      
+      return 'Sin información';
+    } catch (e) {
+      print('Error obteniendo teléfono: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Obtiene la ruta asignada usando el nuevo endpoint cuando hay conexión
+  Future<String> obtenerRutaAsignada() async {
+    try {
+      // NUEVO: Intentar obtener desde endpoint completo si hay conexión
+      if (_isConnected) {
+        final perfilService = PerfilUsuarioService();
+        final camposEspecificos = await perfilService.obtenerCamposEspecificos();
+        final rutaEndpoint = camposEspecificos['rutaAsignada'];
+        
+        if (rutaEndpoint != null && rutaEndpoint != 'Sin información' && rutaEndpoint != 'Error al obtener') {
+          return rutaEndpoint;
+        }
+      }
+      
+      // Fallback a datos locales
+      return getUserField('rutaAsignada');
+    } catch (e) {
+      print('Error obteniendo ruta asignada: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Obtiene el supervisor responsable usando el nuevo endpoint cuando hay conexión
+  Future<String> obtenerSupervisorResponsable() async {
+    try {
+      // NUEVO: Intentar obtener desde endpoint completo si hay conexión
+      if (_isConnected) {
+        final perfilService = PerfilUsuarioService();
+        final camposEspecificos = await perfilService.obtenerCamposEspecificos();
+        final supervisorEndpoint = camposEspecificos['supervisor'];
+        
+        if (supervisorEndpoint != null && supervisorEndpoint != 'Sin información' && supervisorEndpoint != 'Error al obtener') {
+          return supervisorEndpoint;
+        }
+      }
+      
+      // Fallback a datos locales
+      return getUserField('supervisorResponsable');
+    } catch (e) {
+      print('Error obteniendo supervisor responsable: $e');
+      return 'Sin información';
+    }
+  }
+
+  /// Método de sincronización silenciosa para uso en segundo plano
+  Future<bool> silentSync() async {
+    if (!_isConnected || _isLoading) {
+      return false;
+    }
+
+    try {
+      print('Sincronización silenciosa iniciada...');
+      
+      final perfilService = PerfilUsuarioService();
+      final informacionCompleta = await perfilService.obtenerInformacionCompletaUsuario();
+      
+      if (informacionCompleta != null) {
+        final updatedData = Map<String, dynamic>.from(_cachedUserData ?? {});
+        updatedData.addAll({
+          'correo': informacionCompleta['correo'],
+          'telefono': informacionCompleta['telefono'],
+          'rutaAsignada': informacionCompleta['rutaAsignada'],
+          'supervisorResponsable': informacionCompleta['supervisor'],
+          'inventarioAsignado': informacionCompleta['cantidadInventario'],
+          'fechaUltimaSync': DateTime.now().toIso8601String(),
+        });
+        
+        _cachedUserData = updatedData;
+        _userDataController.add(_cachedUserData!);
+        
+        print('✓ Sincronización silenciosa completada');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Error en sincronización silenciosa: $e');
+      return false;
+    }
+  }
+
+  /// Obtiene correo usando múltiples fuentes mejoradas
+  Future<String> _obtenerCorreoMejorado() async {
+    try {
+      // 1. Intentar desde InicioSesion_OfflineService
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      if (userData != null) {
+        final correoOffline = InicioSesionOfflineService.extraerCorreo(userData);
+        if (correoOffline != 'Sin información' && correoOffline.isNotEmpty) {
+          return correoOffline;
+        }
+      }
+      
+      // 2. Intentar desde PerfilUsuarioService con datos guardados
+      final perfilService = PerfilUsuarioService();
+      final perfilData = await perfilService.obtenerDatosUsuario();
+      
+      if (perfilData != null) {
+        // Buscar en múltiples campos posibles
+        final posiblesCampos = ['correo', 'Correo', 'correoElectronico', 'email'];
+        for (String campo in posiblesCampos) {
+          final valor = perfilData[campo];
+          if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+            return valor.toString();
+          }
+        }
+        
+        // 3. Si es vendedor, buscar en datos del vendedor
+        if (perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+          final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+          if (datosVendedor != null && datosVendedor['vend_Correo'] != null) {
+            return datosVendedor['vend_Correo'].toString();
+          }
         }
       }
       
       return 'Sin información';
     } catch (e) {
-      print('Error extrayendo correo: $e');
+      print('Error en _obtenerCorreoMejorado: $e');
       return 'Sin información';
     }
   }
-
-  /// Extrae teléfono desde userData (priorizando datos del login)
-  Future<String> _extraerTelefonoDesdeUserData(Map<String, dynamic> userData) async {
+  
+  /// Obtiene teléfono usando múltiples fuentes mejoradas
+  Future<String> _obtenerTelefonoMejorado() async {
     try {
-      // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
-      String telefono = userData['telefono']?.toString() ?? 
-                        userData['phone']?.toString() ?? 
-                        userData['celular']?.toString() ?? 
-                        userData['usua_Telefono']?.toString() ?? 
-                        userData['usuario_Telefono']?.toString() ?? '';
-      
-      if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
-        return telefono;
+      // 1. Intentar desde InicioSesion_OfflineService
+      final userData = await InicioSesionOfflineService.obtenerDatosUsuarioCache();
+      if (userData != null) {
+        final telefonoOffline = InicioSesionOfflineService.extraerTelefono(userData);
+        if (telefonoOffline != 'Sin información' && telefonoOffline.isNotEmpty) {
+          return telefonoOffline;
+        }
       }
       
-      // PRIORIDAD 2: Buscar en datosVendedor (solo como fallback)
-      final datosVendedor = userData['datosVendedor'] as Map<String, dynamic>?;
-      if (datosVendedor != null) {
-        telefono = datosVendedor['vend_Telefono']?.toString() ?? 
-                   datosVendedor['telefono']?.toString() ?? '';
+      // 2. Intentar desde PerfilUsuarioService con datos guardados
+      final perfilService = PerfilUsuarioService();
+      final perfilData = await perfilService.obtenerDatosUsuario();
+      
+      if (perfilData != null) {
+        // Buscar en múltiples campos posibles
+        final posiblesCampos = ['telefono', 'usua_Telefono', 'phone', 'celular', 'numeroTelefono'];
+        for (String campo in posiblesCampos) {
+          final valor = perfilData[campo];
+          if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+            return valor.toString();
+          }
+        }
         
-        if (telefono.isNotEmpty && telefono != 'null' && telefono.toLowerCase() != 'string') {
-          return telefono;
+        // 3. Si es vendedor, buscar en datos del vendedor
+        if (perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+          final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+          if (datosVendedor != null && datosVendedor['vend_Telefono'] != null) {
+            return datosVendedor['vend_Telefono'].toString();
+          }
         }
       }
       
       return 'Sin información';
     } catch (e) {
-      print('Error extrayendo teléfono: $e');
+      print('Error en _obtenerTelefonoMejorado: $e');
       return 'Sin información';
+    }
+  }
+  
+  /// Obtiene ruta asignada usando múltiples fuentes mejoradas
+  Future<String> _obtenerRutaAsignadaMejorada() async {
+    try {
+      final perfilService = PerfilUsuarioService();
+      final perfilData = await perfilService.obtenerDatosUsuario();
+      
+      if (perfilData != null) {
+        // 1. Buscar en campos directos
+        final posiblesCampos = ['sucursal', 'rutaAsignada', 'ruta'];
+        for (String campo in posiblesCampos) {
+          final valor = perfilData[campo];
+          if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+            return valor.toString();
+          }
+        }
+        
+        // 2. Si es vendedor, buscar en datos del vendedor
+        if (perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+          final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+          if (datosVendedor != null) {
+            final rutaVendedor = datosVendedor['sucu_Descripcion'] ?? datosVendedor['sucursal'];
+            if (rutaVendedor != null && rutaVendedor.toString().isNotEmpty) {
+              return rutaVendedor.toString();
+            }
+          }
+        }
+      }
+      
+      return 'No asignada';
+    } catch (e) {
+      print('Error en _obtenerRutaAsignadaMejorada: $e');
+      return 'No asignada';
+    }
+  }
+  
+  /// Obtiene supervisor usando múltiples fuentes mejoradas
+  Future<String> _obtenerSupervisorMejorado() async {
+    try {
+      final perfilService = PerfilUsuarioService();
+      final perfilData = await perfilService.obtenerDatosUsuario();
+      
+      if (perfilData != null && perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+        final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+        
+        if (datosVendedor != null) {
+          // 1. Intentar construir nombre completo del supervisor
+          final nombreSupervisor = datosVendedor['nombreSupervisor'];
+          final apellidoSupervisor = datosVendedor['apellidoSupervisor'];
+          
+          if (nombreSupervisor != null && apellidoSupervisor != null) {
+            return '$nombreSupervisor $apellidoSupervisor';
+          }
+          
+          // 2. Usar campo directo de supervisor
+          final supervisor = datosVendedor['vend_Supervisor'];
+          if (supervisor != null && supervisor.toString().isNotEmpty) {
+            return supervisor.toString();
+          }
+        }
+      }
+      
+      return 'No asignado';
+    } catch (e) {
+      print('Error en _obtenerSupervisorMejorado: $e');
+      return 'No asignado';
     }
   }
 

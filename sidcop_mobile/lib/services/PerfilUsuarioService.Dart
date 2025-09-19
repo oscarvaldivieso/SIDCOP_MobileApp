@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
@@ -405,6 +406,296 @@ class PerfilUsuarioService {
       });
     } else {
       developer.log('No hay datos de usuario disponibles');
+    }
+  }
+
+  /// Obtiene información completa del usuario usando el endpoint /Usuarios/IniciarSesion
+  /// Requiere credenciales válidas (usua_Usuario y usua_Clave)
+  Future<Map<String, dynamic>?> obtenerInformacionCompletaUsuario() async {
+    try {
+      developer.log('=== OBTENIENDO INFORMACIÓN COMPLETA CON /Usuarios/IniciarSesion ===');
+      
+      // Intentar obtener credenciales desde FlutterSecureStorage
+      final credenciales = await _obtenerCredencialesSeguras();
+      
+      if (credenciales == null) {
+        developer.log('No se encontraron credenciales, usando método fallback');
+        return await _obtenerInformacionFallback();
+      }
+      
+      developer.log('Credenciales encontradas para usuario: ${credenciales['usua_Usuario']}');
+      
+      // Construir URL del endpoint
+      final url = Uri.parse('$_apiServer/Usuarios/IniciarSesion');
+      developer.log('Consultando información completa URL: $url');
+      
+      // Crear el body con solo los campos requeridos
+      final body = {
+        'usua_Usuario': credenciales['usua_Usuario'],
+        'usua_Clave': credenciales['usua_Clave'],
+      };
+      
+      developer.log('Enviando request con usuario: ${body['usua_Usuario']}');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': _apiKey,
+        },
+        body: jsonEncode(body),
+      );
+
+      developer.log('Response Status: ${response.statusCode}');
+      developer.log('Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        
+        // Verificar si la respuesta es exitosa
+        if (responseData['success'] == true || responseData['code_Status'] == 200) {
+          developer.log('✓ Login exitoso, extrayendo información...');
+          
+          // Extraer información del response
+          final informacionCompleta = _extraerInformacionDelResponse(responseData);
+          
+          developer.log('✓ Información completa obtenida desde endpoint /Usuarios/IniciarSesion');
+          developer.log('Campos disponibles: ${informacionCompleta.keys.join(', ')}');
+          
+          return informacionCompleta;
+        } else {
+          developer.log('✗ Respuesta no exitosa: ${responseData['message_Status'] ?? responseData['message']}');
+          return await _obtenerInformacionFallback();
+        }
+      } else {
+        developer.log('✗ Error HTTP ${response.statusCode}, usando fallback');
+        return await _obtenerInformacionFallback();
+      }
+      
+    } catch (e) {
+      developer.log('✗ Error en obtenerInformacionCompletaUsuario: $e');
+      return await _obtenerInformacionFallback();
+    }
+  }
+  
+  /// Obtiene credenciales seguras desde FlutterSecureStorage
+  Future<Map<String, String>?> _obtenerCredencialesSeguras() async {
+    try {
+      // Intentar obtener desde diferentes fuentes
+      const storage = FlutterSecureStorage();
+      
+      // Opción 1: Credenciales guardadas específicamente para consultas
+      final usuario = await storage.read(key: 'login_usuario');
+      final clave = await storage.read(key: 'login_clave');
+      
+      if (usuario != null && clave != null) {
+        developer.log('Credenciales encontradas en storage seguro');
+        return {
+          'usua_Usuario': usuario,
+          'usua_Clave': clave,
+        };
+      }
+      
+      // Opción 2: Obtener desde datos de usuario si están disponibles
+      final userData = await obtenerDatosUsuario();
+      if (userData != null && userData['usua_Usuario'] != null) {
+        final usuarioGuardado = userData['usua_Usuario'].toString();
+        
+        // Intentar obtener la clave desde storage con el usuario como key
+        final claveGuardada = await storage.read(key: 'clave_$usuarioGuardado');
+        
+        if (claveGuardada != null) {
+          developer.log('Credenciales reconstruidas desde storage');
+          return {
+            'usua_Usuario': usuarioGuardado,
+            'usua_Clave': claveGuardada,
+          };
+        }
+      }
+      
+      developer.log('No se encontraron credenciales válidas');
+      return null;
+      
+    } catch (e) {
+      developer.log('Error obteniendo credenciales: $e');
+      return null;
+    }
+  }
+  
+  /// Extrae información relevante del response del endpoint /Usuarios/IniciarSesion
+  Map<String, dynamic> _extraerInformacionDelResponse(Map<String, dynamic> responseData) {
+    // El response puede tener diferentes estructuras, adaptarse a ambas
+    final data = responseData['data'] ?? responseData;
+    
+    return {
+      // Información básica del usuario
+      'telefono': data['telefono'] ?? data['usua_Telefono'] ?? 'Sin información',
+      'correo': data['correo'] ?? data['Correo'] ?? 'Sin información',
+      'nombres': data['nombres'] ?? 'Sin información',
+      'apellidos': data['apellidos'] ?? 'Sin información',
+      'dni': data['dni'] ?? 'Sin información',
+      'cargo': data['cargo'] ?? data['role_Descripcion'] ?? 'Sin información',
+      
+      // Información de asignación laboral
+      'rutaAsignada': data['sucursal'] ?? 'Sin información',
+      'supervisor': data['supervisor'] ?? 'Sin información',
+      
+      // Información operativa
+      'cantidadInventario': data['cantidadInventario']?.toString() ?? '0',
+      'rutasDelDiaJson': data['rutasDelDiaJson'],
+      'permisosJson': data['permisosJson'],
+      
+      // Campos adicionales
+      'codigo': data['codigo'] ?? data['usua_Id']?.toString() ?? 'Sin información',
+      'usuaId': data['usua_Id']?.toString() ?? 'Sin información',
+      'fechaConsulta': DateTime.now().toIso8601String(),
+      
+      // Metadatos del response
+      'fuenteDatos': 'endpoint_iniciar_sesion',
+      'message_Status': data['message_Status'] ?? 'Información obtenida',
+    };
+  }
+  
+  /// Método fallback que usa endpoints existentes cuando no hay credenciales
+  Future<Map<String, dynamic>?> _obtenerInformacionFallback() async {
+    try {
+      developer.log('=== USANDO MÉTODO FALLBACK ===');
+      
+      // Obtener datos base del usuario guardados
+      final userData = await obtenerDatosUsuario();
+      if (userData == null) {
+        developer.log('No hay datos de usuario guardados');
+        return null;
+      }
+
+      final usuaId = userData['usua_Id'];
+      final personaId = userData['usua_IdPersona'];
+      
+      if (usuaId == null) {
+        developer.log('No se encontró usua_Id en los datos guardados');
+        return null;
+      }
+
+      developer.log('Obteniendo datos completos para usuaId: $usuaId, personaId: $personaId');
+      
+      // Obtener datos completos del usuario desde /Usuarios/Listar
+      final datosCompletos = await obtenerDatosCompletoUsuario(usuaId);
+      
+      if (datosCompletos == null) {
+        developer.log('No se pudieron obtener datos completos del usuario');
+        return null;
+      }
+      
+      developer.log('Datos completos obtenidos: ${datosCompletos.keys.length} campos');
+      
+      // Obtener datos del vendedor si es vendedor
+      Map<String, dynamic>? datosVendedor;
+      if (personaId != null && userData['usua_EsVendedor'] == true) {
+        developer.log('Usuario es vendedor, obteniendo datos del vendedor...');
+        datosVendedor = await buscarDatosVendedor(personaId);
+        
+        if (datosVendedor != null) {
+          developer.log('Datos del vendedor obtenidos: ${datosVendedor.keys.length} campos');
+        } else {
+          developer.log('No se pudieron obtener datos del vendedor');
+        }
+      }
+      
+      // Construir información completa combinando ambas fuentes
+      final informacionCompleta = {
+        // Información básica del usuario
+        'telefono': datosCompletos['telefono'] ?? 
+                   datosVendedor?['vend_Telefono'] ?? 
+                   userData['telefono'] ?? 'Sin información',
+        'correo': datosCompletos['correo'] ?? 
+                 datosVendedor?['vend_Correo'] ?? 
+                 userData['correo'] ?? 'Sin información',
+        'nombres': datosCompletos['nombres'] ?? 
+                  datosVendedor?['vend_Nombres'] ?? 
+                  userData['nombres'] ?? 'Sin información',
+        'apellidos': datosCompletos['apellidos'] ?? 
+                    datosVendedor?['vend_Apellidos'] ?? 
+                    userData['apellidos'] ?? 'Sin información',
+        'dni': datosCompletos['dni'] ?? 
+              datosVendedor?['vend_DNI'] ?? 
+              userData['dni'] ?? 'Sin información',
+        'cargo': datosCompletos['cargo'] ?? 
+                userData['cargo'] ?? 
+                userData['role_Descripcion'] ?? 'Sin información',
+        
+        // Información de asignación laboral
+        'rutaAsignada': datosCompletos['sucursal'] ?? 
+                       datosVendedor?['sucu_Descripcion'] ?? 
+                       userData['sucursal'] ?? 'Sin información',
+        'supervisor': datosVendedor?['nombreSupervisor'] != null && datosVendedor?['apellidoSupervisor'] != null
+                     ? '${datosVendedor!['nombreSupervisor']} ${datosVendedor['apellidoSupervisor']}'
+                     : datosVendedor?['vend_Supervisor']?.toString() ?? 'Sin información',
+        
+        // Información operativa (se calculará desde datos locales)
+        'cantidadInventario': '0', // Se calculará desde productos en caché
+        'fechaConsulta': DateTime.now().toIso8601String(),
+        
+        // Campos adicionales útiles
+        'codigo': datosVendedor?['vend_Codigo'] ?? userData['usua_Id']?.toString() ?? 'Sin información',
+        'direccionExacta': datosVendedor?['vend_DireccionExacta'] ?? 'Sin información',
+        'sucursalId': datosVendedor?['sucu_Id']?.toString() ?? 'Sin información',
+        'vendedorId': datosVendedor?['vend_Id']?.toString() ?? 'Sin información',
+        
+        // Metadatos
+        'fuenteDatos': 'endpoints_fallback',
+      };
+      
+      developer.log('✓ Información completa construida con fallback');
+      developer.log('Campos disponibles: ${informacionCompleta.keys.join(', ')}');
+      
+      return informacionCompleta;
+      
+    } catch (e) {
+      developer.log('✗ Error en método fallback: $e');
+      return null;
+    }
+  }
+
+  /// Obtiene información específica usando el endpoint completo
+  /// Campos: telefono, correo, rutaAsignada, supervisor
+  Future<Map<String, String>> obtenerCamposEspecificos() async {
+    try {
+      final informacionCompleta = await obtenerInformacionCompletaUsuario();
+      
+      if (informacionCompleta != null) {
+        return {
+          'telefono': informacionCompleta['telefono']?.toString() ?? 'Sin información',
+          'correo': informacionCompleta['correo']?.toString() ?? 'Sin información',
+          'rutaAsignada': informacionCompleta['rutaAsignada']?.toString() ?? 'Sin información',
+          'supervisor': informacionCompleta['supervisor']?.toString() ?? 'Sin información',
+        };
+      }
+      
+      // Fallback a datos locales si no hay conexión
+      final userData = await obtenerDatosUsuario();
+      if (userData != null) {
+        return {
+          'telefono': userData['telefono']?.toString() ?? 'Sin información',
+          'correo': userData['correo']?.toString() ?? 'Sin información', 
+          'rutaAsignada': userData['sucursal']?.toString() ?? 'Sin información',
+          'supervisor': 'Sin información', // No disponible en datos locales
+        };
+      }
+      
+      return {
+        'telefono': 'Sin información',
+        'correo': 'Sin información',
+        'rutaAsignada': 'Sin información',
+        'supervisor': 'Sin información',
+      };
+    } catch (e) {
+      developer.log('Error en obtenerCamposEspecificos: $e');
+      return {
+        'telefono': 'Error al obtener',
+        'correo': 'Error al obtener',
+        'rutaAsignada': 'Error al obtener',
+        'supervisor': 'Error al obtener',
+      };
     }
   }
 }

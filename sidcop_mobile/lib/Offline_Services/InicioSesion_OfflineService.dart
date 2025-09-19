@@ -77,6 +77,9 @@ class InicioSesionOfflineService {
     try {
       print('Cacheando datos del usuario...');
       
+      // NUEVO: Guardar credenciales de forma segura ANTES de filtrar
+      await _guardarCredencialesSeguras(userData);
+      
       // Filtrar datos sensibles
       final datosLimpios = Map<String, dynamic>.from(userData);
       datosLimpios.remove('usua_Clave');
@@ -90,6 +93,31 @@ class InicioSesionOfflineService {
       print('Datos del usuario cacheados correctamente');
     } catch (e) {
       print('Error cacheando datos del usuario: $e');
+    }
+  }
+
+  /// Guarda las credenciales de forma segura para consultas posteriores
+  static Future<void> _guardarCredencialesSeguras(Map<String, dynamic> userData) async {
+    try {
+      final usuario = userData['usua_Usuario'];
+      final clave = userData['usua_Clave'];
+      
+      if (usuario != null && clave != null) {
+        print('Guardando credenciales de forma segura para consultas posteriores...');
+        
+        // Guardar credenciales para consultas
+        await _secureStorage.write(key: 'login_usuario', value: usuario.toString());
+        await _secureStorage.write(key: 'login_clave', value: clave.toString());
+        
+        // También guardar con el usuario como key (método alternativo)
+        await _secureStorage.write(key: 'clave_${usuario.toString()}', value: clave.toString());
+        
+        print('✓ Credenciales guardadas de forma segura');
+      } else {
+        print('⚠ No se encontraron credenciales válidas para guardar');
+      }
+    } catch (e) {
+      print('Error guardando credenciales seguras: $e');
     }
   }
 
@@ -728,8 +756,8 @@ class InicioSesionOfflineService {
       final nombreCompleto = _extraerNombreCompleto(userData);
       final numeroIdentidad = _extraerNumeroIdentidad(userData);
       final numeroEmpleado = _extraerNumeroEmpleado(userData);
-      final correo = _extraerCorreo(userData);
-      final telefono = _extraerTelefono(userData);
+      final correo = extraerCorreo(userData);
+      final telefono = extraerTelefono(userData);
       final cargo = _extraerCargo(userData);
       final rutaAsignada = _extraerRutaAsignada(userData);
       final supervisorResponsable = _extraerSupervisorResponsable(userData);
@@ -937,7 +965,7 @@ class InicioSesionOfflineService {
     return userData['usua_Id']?.toString() ?? 'No disponible';
   }
 
-  static String _extraerCorreo(Map<String, dynamic>? userData) {
+  static String extraerCorreo(Map<String, dynamic>? userData) {
     if (userData == null) return 'No disponible';
     
     // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
@@ -965,7 +993,7 @@ class InicioSesionOfflineService {
     return 'No disponible';
   }
 
-  static String _extraerTelefono(Map<String, dynamic>? userData) {
+  static String extraerTelefono(Map<String, dynamic>? userData) {
     if (userData == null) return 'No disponible';
     
     // PRIORIDAD 1: Datos directos del login (campos principales de la respuesta de la API)
