@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/vendedoresViewModel.dart';
 import 'package:sidcop_mobile/models/VendedoresPorRutaModel.dart';
 
@@ -49,6 +49,9 @@ class VendedoresService {
       if (data is List) {
         return data
             .whereType<Map<String, dynamic>>()
+            .where(
+              (e) => e['vend_Id'] == globalVendId,
+            ) // Filtrar por globalVendId global
             .map((e) => VendedoresPorRutaModel.fromJson(e))
             .toList();
       }

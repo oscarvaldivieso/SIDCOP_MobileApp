@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class ClientesService {
   // --- Ubicaciones ---
@@ -23,10 +23,11 @@ class ClientesService {
 
       if (response.statusCode == 200) {
         final List<dynamic> clientesList = jsonDecode(response.body);
-        return clientesList;
+        // Filtrar clientes con clie_Estado == true
+        return clientesList.where((cliente) => cliente['clie_Estado'] == true).toList();
       } else {
         throw Exception(
-          'Error en la solicitud: Código \${response.statusCode}, Respuesta: \${response.body}',
+          'Error en la solicitud: Código \\${response.statusCode}, Respuesta: \\${response.body}',
         );
       }
     } catch (e) {

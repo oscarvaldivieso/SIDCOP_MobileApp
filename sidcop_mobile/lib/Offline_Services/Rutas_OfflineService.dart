@@ -11,7 +11,7 @@ import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 /// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
 

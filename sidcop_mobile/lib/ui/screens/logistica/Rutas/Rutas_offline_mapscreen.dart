@@ -966,16 +966,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       'OFFLINE: Construyendo orden de paradas. Direcciones disponibles: ${_direccionesFiltradasOffline.length}',
     );
 
-    // Añadir ubicación del usuario como primer punto
-    if (_centerLat != null && _centerLng != null) {
-      orden.add({
-        'tipo': 'origen',
-        'nombre': 'Tu ubicación',
-        'direccion': '',
-        'latlng': LatLng(_centerLat!, _centerLng!),
-      });
-    }
-
     for (final d in _direccionesFiltradasOffline) {
       final rawClId = d['clie_id'] ?? d['clieid'] ?? d['clie'];
       final clIdStr = rawClId == null ? null : rawClId.toString();
@@ -1245,6 +1235,28 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                   ),
                 ),
               ),
+              // Add the 'Tu ubicación' ListTile here
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: _darkBg,
+                  child: Icon(Icons.person_pin_circle, color: _gold),
+                ),
+                title: const Text(
+                  'Tu ubicación',
+                  style: TextStyle(color: _body, fontFamily: 'Satoshi'),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  if (_centerLat != null) {
+                    try {
+                      _mapController.move(
+                        LatLng(_centerLat!, _centerLng!),
+                        16.0,
+                      );
+                    } catch (_) {}
+                  }
+                },
+              ),
               Expanded(
                 child: Builder(
                   builder: (context) {
@@ -1271,33 +1283,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                       itemBuilder: (context, idx) {
                         final parada = ordenParadas[idx];
                         if (parada['tipo'] == 'origen') {
-                          return ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: _darkBg,
-                              child: Icon(
-                                Icons.person_pin_circle,
-                                color: _gold,
-                              ),
-                            ),
-                            title: const Text(
-                              'Tu ubicación',
-                              style: TextStyle(
-                                color: _body,
-                                fontFamily: 'Satoshi',
-                              ),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              if (_centerLat != null) {
-                                try {
-                                  _mapController.move(
-                                    LatLng(_centerLat!, _centerLng!),
-                                    16.0,
-                                  );
-                                } catch (_) {}
-                              }
-                            },
-                          );
+                          return const SizedBox.shrink(); // Skip 'Tu ubicación' inside the list
                         }
 
                         final cliente =
@@ -1404,17 +1390,9 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                                                 await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
 
                                             // Convertir clienteId y rutaId a enteros para comparar
-                                            final clienteIdInt =
-                                                int.tryParse(
-                                                  clienteId.toString(),
-                                                ) ??
-                                                0;
-
                                             for (final vpr
                                                 in vendedoresPorRuta) {
                                               if (vpr is Map) {
-                                                final vprClienteId =
-                                                    vpr['clie_Id'] ?? 0;
                                                 final vprRutaId =
                                                     vpr['ruta_Id'] ?? 0;
                                                 final vprVeRuId =
