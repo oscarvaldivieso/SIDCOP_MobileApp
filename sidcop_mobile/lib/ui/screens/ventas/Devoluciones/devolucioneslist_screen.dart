@@ -6,7 +6,7 @@ import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductosService.Dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
@@ -207,6 +207,14 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
             isOnline:
                 isOnline, // Pasar el estado de conexión para que el método sepa si debe obtener del servidor o localmente
           );
+
+      if (isOnline) {
+        try {
+          await DevolucionesOffline.guardarDevolucionesHistorial(
+            devolucionesData,
+          );
+        } catch (saveErr) {}
+      }
 
       // Convertir a modelos con manejo mejorado de errores
       try {
