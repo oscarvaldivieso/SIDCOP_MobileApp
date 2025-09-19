@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
@@ -60,6 +61,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   int? usuaIdPersona;
   bool? esAdmin;
   int? usuaId;
+  int? rutaId;
 
   // Services are already declared above
 
@@ -152,6 +154,25 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
 
+
+        // Extraer rutasDelDiaJson y Ruta_Id
+    final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
+    
+    if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+      try {
+        final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
+        print('DEBUG: rutasDelDiaJson parseado = $rutasList');
+        
+        // Obtener el primer elemento de la lista de rutas y extraer Ruta_Id
+        if (rutasList.isNotEmpty) {
+          rutaId = rutasList[0]['Ruta_Id'] as int?;
+        }
+      } catch (e) {
+        print('ERROR al parsear rutasDelDiaJson: $e');
+      }
+    }
+    
+    print('DEBUG: rutaId = $rutaId');
     // Extraer rutasDelDiaJson y Ruta_Id
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
@@ -265,8 +286,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       setState(() {
         _direcciones = direccionesData
             .where(
-              (direccion) =>
-                  esAdmin == true || direccion.usua_creacion == usuaId,
+              (direccion) => esAdmin == true || direccion.clie_Codigo == rutaId,
             )
             .toList();
         _facturas = List<Map<String, dynamic>>.from(facturasData);
