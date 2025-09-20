@@ -260,11 +260,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                     // Si es admin, mostrar todas las direcciones
                     if (esAdmin == true) return true;
                     
-                    // Si no es admin, filtrar por usua_creacion Y rutaId
-                    bool matchesUser = direccion.usua_creacion == usuaId;
+                    // Si no es admin, filtrar solo por rutaId
                     bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
                     
-                    return matchesUser && matchesRuta;
+                    return matchesRuta;
                   },
                 )
                 .toList();
@@ -308,11 +307,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                 // Si es admin, mostrar todas las direcciones
                 if (esAdmin == true) return true;
                 
-                // Si no es admin, filtrar por usua_creacion Y rutaId
-                bool matchesUser = direccion.usua_creacion == usuaId;
+                // Si no es admin, filtrar solo por rutaId
                 bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
                 
-                return matchesUser && matchesRuta;
+                return matchesRuta;
               },
             )
             .toList();
@@ -341,11 +339,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
                   // Si es admin, mostrar todas las direcciones
                   if (esAdmin == true) return true;
                   
-                  // Si no es admin, filtrar por usua_creacion Y rutaId
-                  bool matchesUser = direccion.usua_creacion == usuaId;
+                  // Si no es admin, filtrar solo por rutaId
                   bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
                   
-                  return matchesUser && matchesRuta;
+                  return matchesRuta;
                 },
               )
               .toList();
