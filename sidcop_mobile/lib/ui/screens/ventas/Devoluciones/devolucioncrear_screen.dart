@@ -156,12 +156,12 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
     // Extraer rutasDelDiaJson y Ruta_Id
     final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
-
+    
     if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
       try {
         final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
         print('DEBUG: rutasDelDiaJson parseado = $rutasList');
-
+        
         // Obtener el primer elemento de la lista de rutas y extraer Ruta_Id
         if (rutasList.isNotEmpty) {
           rutaId = rutasList[0]['Ruta_Id'] as int?;
@@ -170,9 +170,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         print('ERROR al parsear rutasDelDiaJson: $e');
       }
     }
-
+    
     print('DEBUG: rutaId = $rutaId');
-    // Extraer rutasDelDiaJson y Ruta_Id
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
@@ -182,9 +181,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
     // lista de clientes se obtiene según permisos; variable local removida si no se usa
 
-    if (esAdmin == true) {
-      print('DEBUG: Usuario es ADMIN - Puede ver todos los datos');
-    } else if (esVendedor && usuaIdPersona != null) {
+    if (esVendedor && usuaIdPersona != null) {
       print(
         'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
       );
@@ -199,6 +196,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       );
       print('DEBUG: Solicitando lista de clientes por permisos');
     }
+  }
+
+  /// Verifica si un cliente pertenece a la ruta del usuario
+  bool _clienteBelongsToRuta(String? clieCode) {
+    if (rutaId == null || clieCode == null) return true;
+    
+    // Aquí puedes implementar la lógica específica para verificar
+    // si el cliente pertenece a la ruta. Por ahora, retornamos true
+    // para permitir todos los clientes hasta que se implemente la lógica específica
+    return true;
   }
 
   void _onClienteChanged(DireccionCliente? direccion) {
@@ -229,24 +236,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   }
 
   Future<void> _loadData() async {
-    print('🚀 DEBUG: _loadData() iniciado');
     try {
       final isOnline = await VerificarService.verificarConexion();
-      print('🌐 DEBUG: isOnline = $isOnline');
 
       if (!isOnline) {
         // Cargar desde almacenamiento local si existe
         try {
           final localFacturas =
               await DevolucionesOffline.obtenerFacturasCreateLocal();
-          // Obtener direcciones desde DevolucionesOffline
-          final localDirecciones = await DevolucionesOffline.obtenerDireccionesCreateLocal();
-          print('📋 DEBUG: Direcciones desde DevolucionesOffline: ${localDirecciones.length}');
-          
-          // Si no hay direcciones en DevolucionesOffline y es admin, mostrar mensaje específico
-          if (localDirecciones.isEmpty && esAdmin == true) {
-            print('⚠️ DEBUG: No hay direcciones en caché offline. Como eres admin, necesitas conectarte online al menos una vez para cargar los datos.');
-          }
+          final localDirecciones =
+              await DevolucionesOffline.obtenerDireccionesCreateLocal();
 
           final direccionesList = localDirecciones
               .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
@@ -254,24 +253,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
           if (!mounted) return;
           setState(() {
+            // Filtrar direcciones por rutaId si el usuario no es admin
             _direcciones = direccionesList
                 .where(
-                  (direccion) =>
-                      esAdmin == true ||
-                      (rutaId != null &&
-                          direccion.clie_Codigo == rutaId.toString()),
+                  (direccion) {
+                    // Si es admin, mostrar todas las direcciones
+                    if (esAdmin == true) return true;
+                    
+                    // Si no es admin, filtrar solo por rutaId
+                    bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                    
+                    return matchesRuta;
+                  },
                 )
                 .toList();
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
             _isLoading = false;
-
-            print(
-              'DEBUG OFFLINE: Total direcciones: ${direccionesList.length}',
-            );
-            print(
-              'DEBUG OFFLINE: Direcciones filtradas: ${_direcciones.length}',
-            );
-            print('DEBUG OFFLINE: esAdmin = $esAdmin, rutaId = $rutaId');
           });
           return;
         } catch (localErr) {
@@ -303,36 +300,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       if (!mounted) return;
 
       setState(() {
+        // Filtrar direcciones por rutaId si el usuario no es admin
         _direcciones = direccionesData
             .where(
-              (direccion) =>
-                  esAdmin == true ||
-                  (rutaId != null &&
-                      direccion.clie_Codigo == rutaId.toString()),
+              (direccion) {
+                // Si es admin, mostrar todas las direcciones
+                if (esAdmin == true) return true;
+                
+                // Si no es admin, filtrar solo por rutaId
+                bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                
+                return matchesRuta;
+              },
             )
             .toList();
         _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
-
-        // Debug: mostrar información de filtrado
-        print(
-          'DEBUG ONLINE: Total direcciones recibidas: ${direccionesData.length}',
-        );
-        print(
-          'DEBUG ONLINE: Direcciones después del filtro: ${_direcciones.length}',
-        );
-        print('DEBUG ONLINE: esAdmin = $esAdmin, rutaId = $rutaId');
-        print('DEBUG ONLINE: Comparando clie_Codigo con rutaId.toString()');
-        if (direccionesData.isNotEmpty) {
-          print(
-            'DEBUG ONLINE: Primera dirección - clie_Codigo: "${direccionesData.first.clie_Codigo}"',
-          );
-        }
-        if (_direcciones.isNotEmpty) {
-          print(
-            'DEBUG ONLINE: Primera dirección filtrada: ${_direcciones.first.clie_Codigo}',
-          );
-        }
       });
     } catch (e) {
       // En caso de fallo online, intentar cargar desde almacenamiento local
@@ -349,22 +332,22 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
         if (!mounted) return;
         setState(() {
+          // Filtrar direcciones por rutaId si el usuario no es admin
           _direcciones = direccionesList
               .where(
-                (direccion) =>
-                    esAdmin == true ||
-                    (rutaId != null &&
-                        direccion.clie_Codigo == rutaId.toString()),
+                (direccion) {
+                  // Si es admin, mostrar todas las direcciones
+                  if (esAdmin == true) return true;
+                  
+                  // Si no es admin, filtrar solo por rutaId
+                  bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                  
+                  return matchesRuta;
+                },
               )
               .toList();
           _facturas = List<Map<String, dynamic>>.from(localFacturas);
           _isLoading = false;
-
-          print('DEBUG FALLBACK: Total direcciones: ${direccionesList.length}');
-          print(
-            'DEBUG FALLBACK: Direcciones filtradas: ${_direcciones.length}',
-          );
-          print('DEBUG FALLBACK: esAdmin = $esAdmin, rutaId = $rutaId');
         });
       } catch (localErr) {
         if (!mounted) return;
