@@ -144,12 +144,87 @@ class DebugCredenciales {
     print('=== LIMPIEZA COMPLETADA ===');
   }
   
+  /// Verifica específicamente los datos del vendedor para ruta y supervisor
+  static Future<void> verificarDatosVendedor() async {
+    print('\n=== VERIFICANDO DATOS DEL VENDEDOR PARA RUTA Y SUPERVISOR ===');
+    
+    try {
+      final perfilService = PerfilUsuarioService();
+      final userData = await perfilService.obtenerDatosUsuario();
+      
+      if (userData == null) {
+        print('❌ No hay datos de usuario');
+        return;
+      }
+      
+      print('Usuario: ${userData['usua_Usuario']}');
+      print('Es vendedor: ${userData['usua_EsVendedor']}');
+      print('PersonaId: ${userData['usua_IdPersona']}');
+      
+      if (userData['usua_EsVendedor'] == true && userData['usua_IdPersona'] != null) {
+        print('\n--- OBTENIENDO DATOS DEL VENDEDOR ---');
+        final datosVendedor = await perfilService.buscarDatosVendedor(userData['usua_IdPersona']);
+        
+        if (datosVendedor != null) {
+          print('✅ Datos del vendedor obtenidos');
+          print('Total de campos: ${datosVendedor.keys.length}');
+          
+          print('\n🔍 CAMPOS RELACIONADOS CON RUTA:');
+          final camposRuta = [
+            'sucu_Descripcion', 'sucursal', 'ruta', 'rutaAsignada', 'sucu_Id',
+            'sucursalDescripcion', 'sucursalNombre', 'zona', 'area'
+          ];
+          
+          for (String campo in camposRuta) {
+            final valor = datosVendedor[campo];
+            if (valor != null) {
+              print('  ✓ $campo: $valor');
+            } else {
+              print('  ❌ $campo: null');
+            }
+          }
+          
+          print('\n🔍 CAMPOS RELACIONADOS CON SUPERVISOR:');
+          final camposSupervisor = [
+            'nombreSupervisor', 'apellidoSupervisor', 'vend_Supervisor', 'supervisor',
+            'supervisorId', 'supervisorNombre', 'jefe', 'encargado'
+          ];
+          
+          for (String campo in camposSupervisor) {
+            final valor = datosVendedor[campo];
+            if (valor != null) {
+              print('  ✓ $campo: $valor');
+            } else {
+              print('  ❌ $campo: null');
+            }
+          }
+          
+          print('\n📋 TODOS LOS CAMPOS DISPONIBLES:');
+          datosVendedor.forEach((key, value) {
+            print('  $key: $value');
+          });
+          
+        } else {
+          print('❌ No se pudieron obtener datos del vendedor');
+        }
+      } else {
+        print('⚠ El usuario no es vendedor o no tiene personaId');
+      }
+      
+    } catch (e) {
+      print('❌ ERROR verificando datos del vendedor: $e');
+    }
+    
+    print('\n=== VERIFICACIÓN DE DATOS DEL VENDEDOR COMPLETADA ===');
+  }
+  
   /// Ejecuta todas las verificaciones
   static Future<void> diagnosticoCompleto() async {
     print('\n🔍 INICIANDO DIAGNÓSTICO COMPLETO DE CREDENCIALES');
     
     await verificarCredenciales();
     await probarEndpointDirecto();
+    await verificarDatosVendedor();
     
     print('\n🔍 DIAGNÓSTICO COMPLETO TERMINADO');
     print('Revisa los logs arriba para identificar el problema.');

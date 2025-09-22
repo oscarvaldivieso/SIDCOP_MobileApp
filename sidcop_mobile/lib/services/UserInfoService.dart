@@ -220,9 +220,10 @@ class UserInfoService extends ChangeNotifier {
       
       Map<String, dynamic> updatedData;
       
-      if (informacionCompleta != null && informacionCompleta['fuenteDatos'] == 'endpoint_iniciar_sesion') {
-        print('✓ Información completa obtenida desde endpoint /Usuarios/IniciarSesion');
-        // Usar datos del endpoint completo
+      if (informacionCompleta != null) {
+        print('✓ Información completa obtenida - Fuente: ${informacionCompleta['fuenteDatos']}');
+        
+        // Usar datos del endpoint completo (ya sea del endpoint o fallback)
         updatedData = Map<String, dynamic>.from(_cachedUserData ?? {});
         updatedData.addAll({
           'nombreCompleto': '${informacionCompleta['nombres']} ${informacionCompleta['apellidos']}',
@@ -235,8 +236,15 @@ class UserInfoService extends ChangeNotifier {
           'supervisorResponsable': informacionCompleta['supervisor'],
           'inventarioAsignado': informacionCompleta['cantidadInventario'],
           'fechaUltimaSync': DateTime.now().toIso8601String(),
-          'fuenteUltimaSync': 'endpoint_iniciar_sesion',
+          'fuenteUltimaSync': informacionCompleta['fuenteDatos'] ?? 'desconocida',
         });
+        
+        print('✓ Datos actualizados:');
+        print('  - rutaAsignada: ${updatedData['rutaAsignada']}');
+        print('  - supervisorResponsable: ${updatedData['supervisorResponsable']}');
+        print('  - correo: ${updatedData['correo']}');
+        print('  - telefono: ${updatedData['telefono']}');
+        
       } else {
         print('⚠ Usando método fallback mejorado');
         // Método fallback mejorado que combina múltiples fuentes
@@ -592,31 +600,56 @@ class UserInfoService extends ChangeNotifier {
   /// Obtiene ruta asignada usando múltiples fuentes mejoradas
   Future<String> _obtenerRutaAsignadaMejorada() async {
     try {
+      print('🔍 Buscando ruta asignada...');
       final perfilService = PerfilUsuarioService();
       final perfilData = await perfilService.obtenerDatosUsuario();
       
       if (perfilData != null) {
-        // 1. Buscar en campos directos
-        final posiblesCampos = ['sucursal', 'rutaAsignada', 'ruta'];
-        for (String campo in posiblesCampos) {
+        print('Datos de usuario encontrados');
+        
+        // 1. Buscar en campos directos del usuario
+        final posiblesCamposUsuario = ['sucursal', 'rutaAsignada', 'ruta', 'sucu_Descripcion'];
+        for (String campo in posiblesCamposUsuario) {
           final valor = perfilData[campo];
           if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+            print('✓ Ruta encontrada en $campo: $valor');
             return valor.toString();
           }
         }
         
         // 2. Si es vendedor, buscar en datos del vendedor
         if (perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+          print('Usuario es vendedor, buscando en datos del vendedor...');
           final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+          
           if (datosVendedor != null) {
-            final rutaVendedor = datosVendedor['sucu_Descripcion'] ?? datosVendedor['sucursal'];
-            if (rutaVendedor != null && rutaVendedor.toString().isNotEmpty) {
-              return rutaVendedor.toString();
+            print('Datos del vendedor obtenidos, buscando ruta...');
+            
+            // Buscar en múltiples campos posibles del vendedor
+            final posiblesCamposVendedor = [
+              'sucu_Descripcion', 'sucursal', 'ruta', 'rutaAsignada', 
+              'sucursalDescripcion', 'sucursalNombre', 'zona', 'area'
+            ];
+            
+            for (String campo in posiblesCamposVendedor) {
+              final valor = datosVendedor[campo];
+              if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+                print('✓ Ruta encontrada en vendedor.$campo: $valor');
+                return valor.toString();
+              }
             }
+            
+            print('⚠ No se encontró ruta en datos del vendedor');
+            print('Campos disponibles en vendedor: ${datosVendedor.keys.join(', ')}');
+          } else {
+            print('❌ No se pudieron obtener datos del vendedor');
           }
+        } else {
+          print('⚠ Usuario no es vendedor o no tiene personaId');
         }
       }
       
+      print('❌ No se encontró ruta asignada');
       return 'No asignada';
     } catch (e) {
       print('Error en _obtenerRutaAsignadaMejorada: $e');
@@ -627,29 +660,67 @@ class UserInfoService extends ChangeNotifier {
   /// Obtiene supervisor usando múltiples fuentes mejoradas
   Future<String> _obtenerSupervisorMejorado() async {
     try {
+      print('🔍 Buscando supervisor responsable...');
       final perfilService = PerfilUsuarioService();
       final perfilData = await perfilService.obtenerDatosUsuario();
       
-      if (perfilData != null && perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
-        final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
+      if (perfilData != null) {
+        print('Datos de usuario encontrados');
         
-        if (datosVendedor != null) {
-          // 1. Intentar construir nombre completo del supervisor
-          final nombreSupervisor = datosVendedor['nombreSupervisor'];
-          final apellidoSupervisor = datosVendedor['apellidoSupervisor'];
-          
-          if (nombreSupervisor != null && apellidoSupervisor != null) {
-            return '$nombreSupervisor $apellidoSupervisor';
+        // 1. Buscar en campos directos del usuario
+        final posiblesCamposUsuario = ['supervisor', 'supervisorResponsable', 'jefe', 'encargado'];
+        for (String campo in posiblesCamposUsuario) {
+          final valor = perfilData[campo];
+          if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+            print('✓ Supervisor encontrado en $campo: $valor');
+            return valor.toString();
           }
+        }
+        
+        // 2. Si es vendedor, buscar en datos del vendedor
+        if (perfilData['usua_EsVendedor'] == true && perfilData['usua_IdPersona'] != null) {
+          print('Usuario es vendedor, buscando en datos del vendedor...');
+          final datosVendedor = await perfilService.buscarDatosVendedor(perfilData['usua_IdPersona']);
           
-          // 2. Usar campo directo de supervisor
-          final supervisor = datosVendedor['vend_Supervisor'];
-          if (supervisor != null && supervisor.toString().isNotEmpty) {
-            return supervisor.toString();
+          if (datosVendedor != null) {
+            print('Datos del vendedor obtenidos, buscando supervisor...');
+            
+            // 3. Intentar construir nombre completo del supervisor
+            final nombreSupervisor = datosVendedor['nombreSupervisor'];
+            final apellidoSupervisor = datosVendedor['apellidoSupervisor'];
+            
+            if (nombreSupervisor != null && apellidoSupervisor != null && 
+                nombreSupervisor.toString().isNotEmpty && apellidoSupervisor.toString().isNotEmpty) {
+              final nombreCompleto = '${nombreSupervisor.toString()} ${apellidoSupervisor.toString()}';
+              print('✓ Supervisor encontrado (nombre completo): $nombreCompleto');
+              return nombreCompleto;
+            }
+            
+            // 4. Buscar en múltiples campos posibles del vendedor
+            final posiblesCamposVendedor = [
+              'vend_Supervisor', 'supervisor', 'supervisorId', 'supervisorNombre',
+              'jefe', 'encargado', 'nombreSupervisor', 'apellidoSupervisor'
+            ];
+            
+            for (String campo in posiblesCamposVendedor) {
+              final valor = datosVendedor[campo];
+              if (valor != null && valor.toString().isNotEmpty && valor.toString() != 'Sin información') {
+                print('✓ Supervisor encontrado en vendedor.$campo: $valor');
+                return valor.toString();
+              }
+            }
+            
+            print('⚠ No se encontró supervisor en datos del vendedor');
+            print('Campos disponibles en vendedor: ${datosVendedor.keys.join(', ')}');
+          } else {
+            print('❌ No se pudieron obtener datos del vendedor');
           }
+        } else {
+          print('⚠ Usuario no es vendedor o no tiene personaId');
         }
       }
       
+      print('❌ No se encontró supervisor responsable');
       return 'No asignado';
     } catch (e) {
       print('Error en _obtenerSupervisorMejorado: $e');

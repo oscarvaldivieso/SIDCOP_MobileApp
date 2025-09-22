@@ -396,14 +396,47 @@ class PerfilUsuarioService {
     return imagen.toString();
   }
   
-  // Método para debug - mostrar todos los campos disponibles
+  /// Método para debug - muestra todos los campos disponibles en userData
   Future<void> mostrarCamposDisponibles() async {
     final userData = await obtenerDatosUsuario();
+    
     if (userData != null) {
       developer.log('Campos disponibles en userData:');
       userData.forEach((key, value) {
         developer.log('  $key: $value');
       });
+      
+      // Si es vendedor, también mostrar datos del vendedor
+      if (userData['usua_EsVendedor'] == true && userData['usua_IdPersona'] != null) {
+        developer.log('\n=== DATOS DEL VENDEDOR ===');
+        final datosVendedor = await buscarDatosVendedor(userData['usua_IdPersona']);
+        
+        if (datosVendedor != null) {
+          developer.log('Campos disponibles en datosVendedor:');
+          datosVendedor.forEach((key, value) {
+            developer.log('  $key: $value');
+          });
+          
+          // Campos específicos para ruta y supervisor
+          developer.log('\n=== CAMPOS ESPECÍFICOS PARA RUTA Y SUPERVISOR ===');
+          final camposRuta = ['sucu_Descripcion', 'sucursal', 'ruta', 'rutaAsignada', 'sucu_Id'];
+          final camposSupervisor = ['nombreSupervisor', 'apellidoSupervisor', 'vend_Supervisor', 'supervisor'];
+          
+          developer.log('Campos de RUTA:');
+          for (String campo in camposRuta) {
+            final valor = datosVendedor[campo];
+            developer.log('  $campo: $valor');
+          }
+          
+          developer.log('Campos de SUPERVISOR:');
+          for (String campo in camposSupervisor) {
+            final valor = datosVendedor[campo];
+            developer.log('  $campo: $valor');
+          }
+        } else {
+          developer.log('No se pudieron obtener datos del vendedor');
+        }
+      }
     } else {
       developer.log('No hay datos de usuario disponibles');
     }
@@ -456,10 +489,23 @@ class PerfilUsuarioService {
         if (responseData['success'] == true || responseData['code_Status'] == 200) {
           developer.log('✓ Login exitoso, extrayendo información...');
           
+          // Mostrar datos específicos antes de extraer
+          final data = responseData['data'] ?? responseData;
+          developer.log('DATOS ESPECÍFICOS DEL ENDPOINT:');
+          developer.log('  - sucursal: ${data['sucursal']}');
+          developer.log('  - supervisor: ${data['supervisor']}');
+          developer.log('  - telefono: ${data['telefono']}');
+          developer.log('  - correo: ${data['correo']}');
+          
           // Extraer información del response
           final informacionCompleta = _extraerInformacionDelResponse(responseData);
           
           developer.log('✓ Información completa obtenida desde endpoint /Usuarios/IniciarSesion');
+          developer.log('INFORMACIÓN EXTRAÍDA:');
+          developer.log('  - rutaAsignada: ${informacionCompleta['rutaAsignada']}');
+          developer.log('  - supervisor: ${informacionCompleta['supervisor']}');
+          developer.log('  - telefono: ${informacionCompleta['telefono']}');
+          developer.log('  - correo: ${informacionCompleta['correo']}');
           developer.log('Campos disponibles: ${informacionCompleta.keys.join(', ')}');
           
           return informacionCompleta;

@@ -3,7 +3,7 @@ int? globalUsuaId; // usua_Id del usuario autenticado
 
 //const String apiServer = 'http://sidcop.somee.com';
 // const String apiServer = 'http://200.59.27.115:8091';
-const String apiServer = 'http://sidcop.somee.com';
+const String apiServer = 'http://jesusmejia.somee.com/';
 //const String apiServer = 'https://localhost:7071';
 //const String apiServer = 'http://200.59.27.115:8091';
 //const String apiServer = 'http://192.168.1.146:8091';
