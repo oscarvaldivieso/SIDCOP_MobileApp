@@ -100,7 +100,6 @@ class Productos {
       try {
         return DateTime.parse(value);
       } catch (e) {
-        print('Error parsing date: $value - $e');
         return DateTime.now();
       }
     }
@@ -178,8 +177,7 @@ class Productos {
         impu_Descripcion: json['impu_Descripcion']?.toString(),
       );
     } catch (e) {
-      print('Error parsing Productos from JSON: $e');
-      print('JSON data: $json');
+    
       rethrow;
     }
   }

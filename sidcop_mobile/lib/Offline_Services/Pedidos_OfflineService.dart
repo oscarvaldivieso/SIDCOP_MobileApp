@@ -19,15 +19,15 @@ class PedidosScreenOffline {
     try {
       final contenido = jsonEncode(objeto);
       final key = 'json:$nombreArchivo';
-      print('DEBUG guardarJson: Guardando en clave: $key');
-      print('DEBUG guardarJson: Contenido: $contenido');
+      //print('DEBUG guardarJson: Guardando en clave: $key');
+      //print('DEBUG guardarJson: Contenido: $contenido');
       await _storage.write(key: key, value: contenido);
       
       // Verificar que se guardó correctamente
       final verificacion = await _storage.read(key: key);
-      print('DEBUG guardarJson: Verificación - contenido guardado: $verificacion');
+      //print('DEBUG guardarJson: Verificación - contenido guardado: $verificacion');
     } catch (e) {
-      print('DEBUG guardarJson: Error: $e');
+      //print('DEBUG guardarJson: Error: $e');
       rethrow;
     }
   }
@@ -36,18 +36,18 @@ class PedidosScreenOffline {
   static Future<dynamic> leerJson(String nombreArchivo) async {
     try {
       final key = 'json:$nombreArchivo';
-      print('DEBUG leerJson: Buscando clave: $key');
+      //print('DEBUG leerJson: Buscando clave: $key');
       final s = await _storage.read(key: key);
-      print('DEBUG leerJson: Contenido raw: $s');
+      //print('DEBUG leerJson: Contenido raw: $s');
       if (s == null) {
-        print('DEBUG leerJson: No se encontró contenido para $key');
+        //print('DEBUG leerJson: No se encontró contenido para $key');
         return null;
       }
       final decoded = jsonDecode(s);
-      print('DEBUG leerJson: Contenido decodificado: $decoded');
+      //print('DEBUG leerJson: Contenido decodificado: $decoded');
       return decoded;
     } catch (e) {
-      print('DEBUG leerJson: Error: $e');
+      //print('DEBUG leerJson: Error: $e');
       rethrow;
     }
   }
@@ -81,7 +81,7 @@ class PedidosScreenOffline {
         final file = File(ruta);
         await file.writeAsString(contenido, flush: true);
       } catch (e) {
-        print('Error al guardar archivo local: $e');
+        //print('Error al guardar archivo local: $e');
       }
     } catch (e) {
       rethrow;
@@ -94,7 +94,7 @@ class PedidosScreenOffline {
       final detalleKey = '$_pedidoDetalleKey$pedidoId';
       await _guardarDatos(detalleKey, detalle);
     } catch (e) {
-      print('Error al guardar detalle del pedido $pedidoId: $e');
+      //print('Error al guardar detalle del pedido $pedidoId: $e');
       rethrow;
     }
   }
@@ -113,14 +113,14 @@ class PedidosScreenOffline {
           final detalle = await pedidosService.getPedidoDetalle(pedido.pediId);
           await guardarPedidoDetalle(pedido.pediId, detalle);
         } catch (e) {
-          print('Error al cargar detalle del pedido ${pedido.pediId}: $e');
+          //print('Error al cargar detalle del pedido ${pedido.pediId}: $e');
           continue;
         }
       }
       
       return true;
     } catch (e) {
-      print('Error en preloadOrderDetails: $e');
+      //print('Error en preloadOrderDetails: $e');
       return false;
     }
   }
@@ -137,9 +137,9 @@ class PedidosScreenOffline {
       // Guardar la lista actualizada
       await _guardarDatos(_pedidosPendientesKey, pedidosPendientes);
       
-      print('Pedido guardado para sincronización: ${pedidoData['pedidoId']}');
+      //print('Pedido guardado para sincronización: ${pedidoData['pedidoId']}');
     } catch (e) {
-      print('Error al guardar pedido pendiente: $e');
+      //print('Error al guardar pedido pendiente: $e');
       rethrow;
     }
   }
@@ -153,7 +153,7 @@ class PedidosScreenOffline {
       }
       return [];
     } catch (e) {
-      print('Error al obtener pedidos pendientes: $e');
+      //print('Error al obtener pedidos pendientes: $e');
       return [];
     }
   }
@@ -165,36 +165,36 @@ class PedidosScreenOffline {
   // Lee datos del almacenamiento seguro o del archivo
   static Future<dynamic> _leerDatos(String clave) async {
     try {
-      print('Leyendo datos para clave: $clave');
+      //print('Leyendo datos para clave: $clave');
 
       // Primero intentar leer de secure storage
       String? datos = await _storage.read(key: clave);
 
       // Si no hay datos en secure storage, intentar leer del archivo
       if (datos == null) {
-        print('No se encontraron datos en secure storage, buscando en archivo...');
+        //print('No se encontraron datos en secure storage, buscando en archivo...');
         try {
           final ruta = await _rutaArchivo('$clave.json');
           final file = File(ruta);
 
           if (await file.exists()) {
-            print('Leyendo archivo: ${file.path}');
+            //print('Leyendo archivo: ${file.path}');
             datos = await file.readAsString();
 
             // Si se encontró en archivo, actualizar secure storage
             if (datos.isNotEmpty) {
-              print('Datos encontrados en archivo, actualizando secure storage...');
+              //print('Datos encontrados en archivo, actualizando secure storage...');
               await _storage.write(key: clave, value: datos);
             } else {
-              print('Archivo vacío');
+              //print('Archivo vacío');
               return null;
             }
           } else {
-            print('Archivo no encontrado: ${file.path}');
+            //print('Archivo no encontrado: ${file.path}');
             return null;
           }
         } catch (e) {
-          print('Error al leer archivo local: $e');
+          //print('Error al leer archivo local: $e');
           return null;
         }
       }
@@ -202,18 +202,18 @@ class PedidosScreenOffline {
       if (datos != null && datos.isNotEmpty) {
         try {
           final decoded = jsonDecode(datos);
-          print('Datos decodificados correctamente: ${decoded.runtimeType}');
+          //print('Datos decodificados correctamente: ${decoded.runtimeType}');
           return decoded;
         } catch (e) {
-          print('Error al decodificar JSON: $e');
-          print('Datos crudos: $datos');
+          //print('Error al decodificar JSON: $e');
+          //print('Datos crudos: $datos');
           return null;
         }
       }
 
       return null;
     } catch (e) {
-      print('Error en _leerDatos: $e');
+      //print('Error en _leerDatos: $e');
       rethrow;
     }
   }
@@ -221,17 +221,17 @@ class PedidosScreenOffline {
   /// Guarda la lista de pedidos en el almacenamiento seguro
   static Future<void> guardarPedidos(List<PedidosViewModel> pedidos) async {
     try {
-      print('=== GUARDANDO PEDIDOS ===');
-      print('Cantidad de pedidos a guardar: ${pedidos.length}');
+      //print('=== GUARDANDO PEDIDOS ===');
+      //print('Cantidad de pedidos a guardar: ${pedidos.length}');
 
       if (pedidos.isEmpty) {
-        print('Lista de pedidos vacía, no se guarda nada');
+        //print('Lista de pedidos vacía, no se guarda nada');
         return;
       }
 
       // Obtener pedidos existentes
       final pedidosExistentes = await obtenerPedidos();
-      print('Pedidos existentes: ${pedidosExistentes.length}');
+      //print('Pedidos existentes: ${pedidosExistentes.length}');
 
       // Crear un mapa para evitar duplicados usando pediId como clave
       final mapaPedidos = <int, PedidosViewModel>{};
@@ -240,7 +240,7 @@ class PedidosScreenOffline {
       for (var pedido in pedidosExistentes) {
         mapaPedidos[pedido.pediId] = pedido;
       }
-      print('Mapa inicializado con ${mapaPedidos.length} pedidos existentes');
+      //print('Mapa inicializado con ${mapaPedidos.length} pedidos existentes');
 
       // Actualizar o agregar los nuevos pedidos
       for (var pedido in pedidos) {
@@ -289,7 +289,7 @@ class PedidosScreenOffline {
         }
         mapaPedidos[pedido.pediId] = pedido;
       }
-      print('Después de agregar nuevos: ${mapaPedidos.length} pedidos');
+      //print('Después de agregar nuevos: ${mapaPedidos.length} pedidos');
 
       // Convertir el mapa a lista
       final listaActualizada = mapaPedidos.values.toList();
@@ -297,7 +297,7 @@ class PedidosScreenOffline {
           .map((pedido) => pedido.toMap())
           .toList();
 
-      print('Lista final a guardar: ${listaJson.length} pedidos');
+      //print('Lista final a guardar: ${listaJson.length} pedidos');
 
       // Guardar en la clave principal de pedidos
       await _guardarDatos(_pedidosKey, listaJson);
@@ -307,9 +307,9 @@ class PedidosScreenOffline {
         await guardarDetallePedido(pedido);
       }
 
-      print('=== PEDIDOS GUARDADOS EXITOSAMENTE ===');
+      //print('=== PEDIDOS GUARDADOS EXITOSAMENTE ===');
     } catch (e) {
-      print('Error en guardarPedidos: $e');
+      //print('Error en guardarPedidos: $e');
       rethrow;
     }
   }
@@ -327,9 +327,9 @@ class PedidosScreenOffline {
           } else {
             pedidoMap['detalles'] = pedidoMap['detallesJson'];
           }
-          print('Detalles convertidos desde detallesJson: ${pedidoMap['detalles'].length} items');
+          //print('Detalles convertidos desde detallesJson: ${pedidoMap['detalles'].length} items');
         } catch (e) {
-          print('Error al parsear detallesJson: $e');
+          //print('Error al parsear detallesJson: $e');
           pedidoMap['detalles'] = [];
         }
       } else if (pedidoMap['detalles'] == null) {
@@ -354,9 +354,9 @@ class PedidosScreenOffline {
         }
       }
       
-      print('Procesados ${detalles.length} detalles para el pedido');
+      //print('Procesados ${detalles.length} detalles para el pedido');
     } catch (e) {
-      print('Error en _procesarDetallesPedido: $e');
+      //print('Error en _procesarDetallesPedido: $e');
       pedidoMap['detalles'] = [];
     }
   }
@@ -364,19 +364,19 @@ class PedidosScreenOffline {
   /// Obtiene la lista de pedidos guardados localmente
   static Future<List<PedidosViewModel>> obtenerPedidos() async {
     try {
-      print('=== OBTENIENDO TODOS LOS PEDIDOS ===');
+      //print('=== OBTENIENDO TODOS LOS PEDIDOS ===');
       final data = await _leerDatos(_pedidosKey);
 
       if (data == null) {
-        print('No se encontraron datos de pedidos en _pedidosKey');
+        //print('No se encontraron datos de pedidos en _pedidosKey');
         return [];
       }
 
-      print('Tipo de datos: ${data.runtimeType}');
-      print('Datos raw: $data'); // Debug adicional
+      //print('Tipo de datos: ${data.runtimeType}');
+      //print('Datos raw: $data'); // Debug adicional
 
       if (data is List) {
-        print('Procesando lista de ${data.length} elementos');
+        //print('Procesando lista de ${data.length} elementos');
         final List<PedidosViewModel> pedidos = [];
 
         for (int i = 0; i < data.length; i++) {
@@ -390,11 +390,9 @@ class PedidosScreenOffline {
               
               final pedido = PedidosViewModel.fromJson(pedidoMap);
               pedidos.add(pedido);
-              print(
-                'Pedido ${i + 1}: ID=${pedido.pediId} con ${pedido.detalles.length} detalles',
-              );
+        
             } else {
-              print('Elemento $i no es un mapa: ${item.runtimeType}');
+              //print('Elemento $i no es un mapa: ${item.runtimeType}');
             }
           } catch (e, stackTrace) {
             print('Error procesando pedido en posición $i: $e');
@@ -402,12 +400,12 @@ class PedidosScreenOffline {
           }
         }
 
-        print('Total de pedidos procesados: ${pedidos.length}');
-        print('=== FIN OBTENIENDO PEDIDOS ===');
+        //print('Total de pedidos procesados: ${pedidos.length}');
+        //print('=== FIN OBTENIENDO PEDIDOS ===');
         return pedidos;
       } else if (data is Map) {
         // Si es un solo pedido (formato antiguo o error)
-        print('Dato único detectado, convirtiendo a lista');
+        //print('Dato único detectado, convirtiendo a lista');
         try {
           final pedidoMap = Map<String, dynamic>.from(data);
 
@@ -415,19 +413,19 @@ class PedidosScreenOffline {
           _procesarDetallesPedido(pedidoMap);
           
           final pedido = PedidosViewModel.fromJson(pedidoMap);
-          print('Pedido único procesado: ID=${pedido.pediId} con ${pedido.detalles.length} detalles');
+          //print('Pedido único procesado: ID=${pedido.pediId} con ${pedido.detalles.length} detalles');
           return [pedido];
         } catch (e, stackTrace) {
-          print('Error al procesar pedido único: $e');
-          print('Stack trace: $stackTrace');
+          //print('Error al procesar pedido único: $e');
+          //print('Stack trace: $stackTrace');
           return [];
         }
       }
 
-      print('Formato de datos no reconocido: ${data.runtimeType}');
+      //print('Formato de datos no reconocido: ${data.runtimeType}');
       return [];
     } catch (e) {
-      print('Error al obtener pedidos: $e');
+      //print('Error al obtener pedidos: $e');
       return [];
     }
   }
@@ -442,7 +440,7 @@ class PedidosScreenOffline {
       // NO actualizar la lista completa aquí para evitar problemas de concurrencia
       // La lista se actualiza en guardarPedidos()
     } catch (e) {
-      print('Error al guardar detalle del pedido: $e');
+      //print('Error al guardar detalle del pedido: $e');
       rethrow;
     }
   }
@@ -474,7 +472,7 @@ class PedidosScreenOffline {
 
       return PedidosViewModel.fromJson(pedidoData);
     } catch (e) {
-      print('Error al obtener detalle del pedido $pedidoId: $e');
+      //print('Error al obtener detalle del pedido $pedidoId: $e');
       return null;
     }
   }
@@ -482,7 +480,7 @@ class PedidosScreenOffline {
   /// Agrega un pedido a la lista de pendientes de sincronización
   static Future<void> agregarPedidoPendiente(PedidosViewModel pedido) async {
     try {
-      print('Iniciando agregarPedidoPendiente para pedido: ${pedido.pediId}');
+      //print('Iniciando agregarPedidoPendiente para pedido: ${pedido.pediId}');
 
       // Crear un nuevo pedido con un ID si es necesario
       PedidosViewModel pedidoConId = pedido;
@@ -530,14 +528,14 @@ class PedidosScreenOffline {
       }
 
       // Obtener pedidos pendientes existentes
-      print('Obteniendo pedidos pendientes existentes...');
+      //print('Obteniendo pedidos pendientes existentes...');
       List<PedidosViewModel> pedidosPendientes = [];
 
       try {
         pedidosPendientes = await obtenerPedidosPendientes();
-        print('Pedidos pendientes actuales: ${pedidosPendientes.length}');
+        //print('Pedidos pendientes actuales: ${pedidosPendientes.length}');
       } catch (e) {
-        print('Error al obtener pedidos pendientes: $e');
+        //print('Error al obtener pedidos pendientes: $e');
         pedidosPendientes = [];
       }
 
@@ -548,23 +546,23 @@ class PedidosScreenOffline {
 
       if (index != -1) {
         // Actualizar pedido existente
-        print('Actualizando pedido existente con ID: ${pedidoConId.pediId}');
+        //print('Actualizando pedido existente con ID: ${pedidoConId.pediId}');
         pedidosPendientes[index] = pedidoConId;
       } else {
         // Agregar nuevo pedido
-        print('Agregando nuevo pedido con ID: ${pedidoConId.pediId}');
+        //print('Agregando nuevo pedido con ID: ${pedidoConId.pediId}');
         pedidosPendientes.add(pedidoConId);
       }
 
       // Convertir a lista de mapas
       final listaParaGuardar = pedidosPendientes.map((p) => p.toMap()).toList();
-      print('Guardando ${listaParaGuardar.length} pedidos pendientes...');
+      //print('Guardando ${listaParaGuardar.length} pedidos pendientes...');
 
       // Guardar la lista actualizada
       await _guardarDatos(_pedidosPendientesKey, listaParaGuardar);
 
       // Asegurarse de que el pedido también esté en la lista principal
-      print('Guardando detalle del pedido ${pedidoConId.pediId}...');
+      //print('Guardando detalle del pedido ${pedidoConId.pediId}...');
       await guardarDetallePedido(pedidoConId);
 
       // Verificar que se guardó correctamente
@@ -572,13 +570,11 @@ class PedidosScreenOffline {
       final totalGuardado = pedidosGuardados is List
           ? pedidosGuardados.length
           : 0;
-      print('Verificación: Se guardaron $totalGuardado pedidos en total');
+    print('Verificación: Se guardaron $totalGuardado pedidos en total');
 
-      print(
-        'Pedido ${pedidoConId.pediId} procesado correctamente. Total pendientes: ${pedidosPendientes.length}',
-      );
+  
     } catch (e) {
-      print('Error al agregar pedido pendiente: $e');
+      //print('Error al agregar pedido pendiente: $e');
       rethrow;
     }
   }
@@ -586,52 +582,46 @@ class PedidosScreenOffline {
   /// Obtiene la lista de pedidos pendientes de sincronización
   static Future<List<PedidosViewModel>> obtenerPedidosPendientes() async {
     try {
-      print('=== INICIO obtenerPedidosPendientes ===');
+      //print('=== INICIO obtenerPedidosPendientes ===');
       final data = await _leerDatos(_pedidosPendientesKey);
 
       if (data == null) {
-        print('No se encontraron datos de pedidos pendientes');
+        //print('No se encontraron datos de pedidos pendientes');
         return [];
       }
 
-      print('Tipo de datos recuperados: ${data.runtimeType}');
-      print('Contenido raw de datos: $data'); // Debug adicional
+      //print('Tipo de datos recuperados: ${data.runtimeType}');
+      //print('Contenido raw de datos: $data'); // Debug adicional
 
       // Si es una lista, procesar cada elemento
       if (data is List) {
-        print('Procesando lista de ${data.length} pedidos...');
+        //print('Procesando lista de ${data.length} pedidos...');
         final pedidos = <PedidosViewModel>[];
 
         for (var i = 0; i < data.length; i++) {
           try {
             final item = data[i];
-            print(
-              'Procesando item $i: ${item.runtimeType} - $item',
-            ); // Debug adicional
+          // Debug adicional
 
             if (item is Map) {
               final pedidoMap = item is Map<String, dynamic>
                   ? item
                   : Map<String, dynamic>.from(item);
 
-              print(
-                'PedidoMap keys: ${pedidoMap.keys.toList()}',
-              ); // Debug adicional
-              print('pediId value: ${pedidoMap['pediId']}'); // Debug adicional
+            // Debug adicional
+              //print('pediId value: ${pedidoMap['pediId']}'); // Debug adicional
 
               // Verificar campos requeridos
               if (pedidoMap['pediId'] == null) {
-                print('  ⚠️  Pedido sin ID, se omitirá');
+                //print('  ⚠️  Pedido sin ID, se omitirá');
                 continue;
               }
 
               final pedido = PedidosViewModel.fromJson(pedidoMap);
               pedidos.add(pedido);
-              print('  ✓ Pedido ${pedido.pediId} agregado correctamente');
+              //print('  ✓ Pedido ${pedido.pediId} agregado correctamente');
             } else {
-              print(
-                '  ⚠️  Elemento en posición $i no es un mapa: ${item.runtimeType}',
-              );
+           
             }
           } catch (e, stackTrace) {
             print('  ❌ Error procesando pedido #$i: $e');
@@ -639,38 +629,38 @@ class PedidosScreenOffline {
           }
         }
 
-        print('Total de pedidos procesados exitosamente: ${pedidos.length}');
-        print('=== FIN obtenerPedidosPendientes ===');
+        //print('Total de pedidos procesados exitosamente: ${pedidos.length}');
+        //print('=== FIN obtenerPedidosPendientes ===');
         return pedidos;
       }
 
       // Si es un solo pedido (formato antiguo)
       if (data is Map) {
-        print('⚠️  Formato antiguo detectado: un solo pedido');
+        //print('⚠️  Formato antiguo detectado: un solo pedido');
         try {
           final pedidoMap = data is Map<String, dynamic>
               ? data
               : Map<String, dynamic>.from(data);
 
           if (pedidoMap['pediId'] == null) {
-            print('❌ Pedido sin ID, no se puede procesar');
+            //print('❌ Pedido sin ID, no se puede procesar');
             return [];
           }
 
           final pedido = PedidosViewModel.fromJson(pedidoMap);
-          print('✓ Pedido único ${pedido.pediId} procesado');
-          print('=== FIN obtenerPedidosPendientes ===');
+          //print('✓ Pedido único ${pedido.pediId} procesado');
+          //print('=== FIN obtenerPedidosPendientes ===');
           return [pedido];
         } catch (e) {
-          print('❌ Error al procesar pedido único: $e');
+          //print('❌ Error al procesar pedido único: $e');
           return [];
         }
       }
 
-      print('❌ Formato de datos no soportado: ${data.runtimeType}');
+      //print('❌ Formato de datos no soportado: ${data.runtimeType}');
       return [];
     } catch (e, stackTrace) {
-      print('❌❌❌ ERROR CRÍTICO en obtenerPedidosPendientes ❌❌❌');
+      //print('❌❌❌ ERROR CRÍTICO en obtenerPedidosPendientes ❌❌❌');
       print('Error: $e');
       print('Stack trace: $stackTrace');
       return [];
@@ -693,7 +683,7 @@ class PedidosScreenOffline {
         );
       }
     } catch (e) {
-      print('Error al eliminar pedido pendiente $pedidoId: $e');
+      //print('Error al eliminar pedido pendiente $pedidoId: $e');
       rethrow;
     }
   }
@@ -701,30 +691,30 @@ class PedidosScreenOffline {
   /// Guarda un pedido offline siguiendo el patrón de recargas
   static Future<void> guardarPedidoOffline(Map<String, dynamic> pedidoData) async {
     try {
-      print('💾 DEBUG SAVE - Iniciando guardado de pedido offline...');
-      print('💾 DEBUG SAVE - Datos a guardar: $pedidoData');
+      //print('💾 DEBUG SAVE - Iniciando guardado de pedido offline...');
+      //print('💾 DEBUG SAVE - Datos a guardar: $pedidoData');
       
       // Leer pedidos pendientes existentes
       final raw = await leerJson('pedidos_pendientes.json');
       List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
       
-      print('💾 DEBUG SAVE - Pedidos existentes: ${pendientes.length}');
+      //print('💾 DEBUG SAVE - Pedidos existentes: ${pendientes.length}');
       
       // Agregar el nuevo pedido
       pendientes.add(pedidoData);
       
-      print('💾 DEBUG SAVE - Total después de agregar: ${pendientes.length}');
+      //print('💾 DEBUG SAVE - Total después de agregar: ${pendientes.length}');
       
       // Guardar la lista actualizada
       await guardarJson('pedidos_pendientes.json', pendientes);
       
-      print('✅ DEBUG SAVE - Pedido offline guardado: ${pedidoData['local_signature']}');
+      //print('✅ DEBUG SAVE - Pedido offline guardado: ${pedidoData['local_signature']}');
       
       // Verificar que se guardó correctamente
       await mostrarPedidosOfflineGuardados();
       
     } catch (e) {
-      print('❌ DEBUG SAVE - Error guardando pedido offline: $e');
+      //print('❌ DEBUG SAVE - Error guardando pedido offline: $e');
       rethrow;
     }
   }
@@ -732,60 +722,60 @@ class PedidosScreenOffline {
   /// Método de debugging para mostrar todos los pedidos offline guardados
   static Future<void> mostrarPedidosOfflineGuardados() async {
     try {
-      print('🔍 DEBUG VIEW - Mostrando todos los pedidos offline guardados...');
+      //print('🔍 DEBUG VIEW - Mostrando todos los pedidos offline guardados...');
       
       final raw = await leerJson('pedidos_pendientes.json');
       if (raw == null) {
-        print('🔍 DEBUG VIEW - No hay archivo de pedidos pendientes');
+        //print('🔍 DEBUG VIEW - No hay archivo de pedidos pendientes');
         return;
       }
       
       if (raw is! List) {
-        print('🔍 DEBUG VIEW - El archivo no contiene una lista válida: ${raw.runtimeType}');
+        //print('🔍 DEBUG VIEW - El archivo no contiene una lista válida: ${raw.runtimeType}');
         return;
       }
       
       final pedidos = List<Map<String, dynamic>>.from(raw);
-      print('🔍 DEBUG VIEW - Total de pedidos offline: ${pedidos.length}');
+      //print('🔍 DEBUG VIEW - Total de pedidos offline: ${pedidos.length}');
       
       if (pedidos.isEmpty) {
-        print('🔍 DEBUG VIEW - No hay pedidos offline guardados');
+        //print('🔍 DEBUG VIEW - No hay pedidos offline guardados');
         return;
       }
       
       for (int i = 0; i < pedidos.length; i++) {
         final pedido = pedidos[i];
-        print('🔍 DEBUG VIEW - Pedido $i:');
-        print('   📋 ID: ${pedido['id']}');
-        print('   📋 Local Signature: ${pedido['local_signature']}');
-        print('   👤 Cliente ID: ${pedido['clienteId']}');
-        print('   👨‍💼 Vendedor ID: ${pedido['vendedorId']}');
-        print('   📍 Dirección ID: ${pedido['direccionId']}');
-        print('   📅 Fecha Pedido: ${pedido['fechaPedido']}');
-        print('   📅 Fecha Entrega: ${pedido['fechaEntrega']}');
-        print('   💰 Total: ${pedido['total']}');
-        print('   📊 Estado: ${pedido['estado']}');
-        print('   🔄 Sync Attempts: ${pedido['sync_attempts'] ?? 0}');
-        print('   ⏰ Created At: ${pedido['created_at']}');
-        print('   📦 Detalles (${pedido['detalles']?.length ?? 0} productos):');
+        //print('🔍 DEBUG VIEW - Pedido $i:');
+        //print('   📋 ID: ${pedido['id']}');
+        //print('   📋 Local Signature: ${pedido['local_signature']}');
+        //print('   👤 Cliente ID: ${pedido['clienteId']}');
+        //print('   👨‍💼 Vendedor ID: ${pedido['vendedorId']}');
+        //print('   📍 Dirección ID: ${pedido['direccionId']}');
+        //print('   📅 Fecha Pedido: ${pedido['fechaPedido']}');
+        //print('   📅 Fecha Entrega: ${pedido['fechaEntrega']}');
+        //print('   💰 Total: ${pedido['total']}');
+        //print('   📊 Estado: ${pedido['estado']}');
+        //print('   🔄 Sync Attempts: ${pedido['sync_attempts'] ?? 0}');
+        //print('   ⏰ Created At: ${pedido['created_at']}');
+        //print('   📦 Detalles (${pedido['detalles']?.length ?? 0} productos):');
         
         if (pedido['detalles'] != null && pedido['detalles'] is List) {
           final detalles = List.from(pedido['detalles']);
           for (int j = 0; j < detalles.length; j++) {
             final detalle = detalles[j];
-            print('      Producto $j:');
-            print('        - ID: ${detalle['prodId']}');
-            print('        - Cantidad: ${detalle['cantidad']}');
-            print('        - Precio Unitario: ${detalle['precioUnitario']}');
-            print('        - Descuento: ${detalle['descuento']}');
-            print('        - Subtotal: ${detalle['subtotal']}');
+            //print('      Producto $j:');
+            //print('        - ID: ${detalle['prodId']}');
+            //print('        - Cantidad: ${detalle['cantidad']}');
+            //print('        - Precio Unitario: ${detalle['precioUnitario']}');
+            //print('        - Descuento: ${detalle['descuento']}');
+            //print('        - Subtotal: ${detalle['subtotal']}');
           }
         }
-        print('   ─────────────────────────────────────');
+        //print('   ─────────────────────────────────────');
       }
       
     } catch (e) {
-      print('❌ DEBUG VIEW - Error mostrando pedidos offline: $e');
+      //print('❌ DEBUG VIEW - Error mostrando pedidos offline: $e');
     }
   }
 
@@ -796,7 +786,7 @@ class PedidosScreenOffline {
       if (raw == null) return [];
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
-      print('Error obteniendo pedidos pendientes simples: $e');
+      //print('Error obteniendo pedidos pendientes simples: $e');
       return [];
     }
   }
@@ -824,11 +814,11 @@ class PedidosScreenOffline {
   /// Sincroniza pedidos pendientes offline con el servidor
   static Future<int> sincronizarPedidosPendientesOffline() async {
     try {
-      print('🔄 Iniciando sincronización de pedidos pendientes...');
+      //print('🔄 Iniciando sincronización de pedidos pendientes...');
       
       final pendientes = await obtenerPedidosPendientesSimple();
       if (pendientes.isEmpty) {
-        print('✅ No hay pedidos pendientes para sincronizar');
+        //print('✅ No hay pedidos pendientes para sincronizar');
         return 0;
       }
 
@@ -836,69 +826,69 @@ class PedidosScreenOffline {
       int sincronizadas = 0;
       final pedidosNoSincronizados = <Map<String, dynamic>>[];
 
-      print('📋 Sincronizando ${pendientes.length} pedidos pendientes...');
+      //print('📋 Sincronizando ${pendientes.length} pedidos pendientes...');
 
       for (final pedido in pendientes) {
         try {
-          print('🔄 Sincronizando pedido: ${pedido['local_signature']}');
-          print('📋 DEBUG - Datos completos del pedido offline:');
-          print('   - clienteId: ${pedido['clienteId']}');
-          print('   - vendedorId: ${pedido['vendedorId']}');
-          print('   - direccionId: ${pedido['direccionId']}');
-          print('   - fechaPedido: ${pedido['fechaPedido']}');
-          print('   - fechaEntrega: ${pedido['fechaEntrega']}');
-          print('   - total: ${pedido['total']}');
-          print('   - detalles count: ${pedido['detalles']?.length ?? 0}');
+          //print('🔄 Sincronizando pedido: ${pedido['local_signature']}');
+          //print('📋 DEBUG - Datos completos del pedido offline:');
+          //print('   - clienteId: ${pedido['clienteId']}');
+          //print('   - vendedorId: ${pedido['vendedorId']}');
+          //print('   - direccionId: ${pedido['direccionId']}');
+          //print('   - fechaPedido: ${pedido['fechaPedido']}');
+          //print('   - fechaEntrega: ${pedido['fechaEntrega']}');
+          //print('   - total: ${pedido['total']}');
+          //print('   - detalles count: ${pedido['detalles']?.length ?? 0}');
           
           final detalles = List<Map<String, dynamic>>.from(pedido['detalles']);
-          print('📦 DEBUG - Detalles de productos:');
+          //print('📦 DEBUG - Detalles de productos:');
           for (int i = 0; i < detalles.length; i++) {
-            print('   Producto $i: ${detalles[i]}');
-            print('   ⚠️  CRÍTICO - Prod_Id que se enviará: ${detalles[i]['prodId']}');
-            print('   ⚠️  CRÍTICO - Tipo de Prod_Id: ${detalles[i]['prodId'].runtimeType}');
+            //print('   Producto $i: ${detalles[i]}');
+            //print('   ⚠️  CRÍTICO - Prod_Id que se enviará: ${detalles[i]['prodId']}');
+            //print('   ⚠️  CRÍTICO - Tipo de Prod_Id: ${detalles[i]['prodId'].runtimeType}');
           }
           
           // Verificar que todos los Prod_Id sean válidos
-          print('🔍 VERIFICACIÓN DE PROD_IDs:');
+          //print('🔍 VERIFICACIÓN DE PROD_IDs:');
           bool hayProductosInvalidos = false;
           for (int i = 0; i < detalles.length; i++) {
             final prodId = detalles[i]['prodId'];
             if (prodId == null) {
-              print('   ❌ Producto $i tiene Prod_Id NULL');
+              //print('   ❌ Producto $i tiene Prod_Id NULL');
               hayProductosInvalidos = true;
             } else if (prodId == 0) {
-              print('   ❌ Producto $i tiene Prod_Id = 0 (inválido)');
+              //print('   ❌ Producto $i tiene Prod_Id = 0 (inválido)');
               hayProductosInvalidos = true;
             } else if (prodId is! int) {
-              print('   ⚠️  Producto $i tiene Prod_Id no entero: $prodId (${prodId.runtimeType})');
+              //print('   ⚠️  Producto $i tiene Prod_Id no entero: $prodId (${prodId.runtimeType})');
               // Intentar convertir a int
               try {
                 final convertido = int.parse(prodId.toString());
                 detalles[i]['prodId'] = convertido;
-                print('   ✅ Convertido a: $convertido');
+                //print('   ✅ Convertido a: $convertido');
               } catch (e) {
-                print('   ❌ No se pudo convertir Prod_Id: $e');
+                //print('   ❌ No se pudo convertir Prod_Id: $e');
                 hayProductosInvalidos = true;
               }
             } else {
-              print('   ✅ Producto $i tiene Prod_Id válido: $prodId');
+              //print('   ✅ Producto $i tiene Prod_Id válido: $prodId');
             }
           }
           
           if (hayProductosInvalidos) {
-            print('❌ HAY PRODUCTOS CON IDs INVÁLIDOS - EL PEDIDO FALLARÁ');
+            //print('❌ HAY PRODUCTOS CON IDs INVÁLIDOS - EL PEDIDO FALLARÁ');
             throw Exception('Productos con IDs inválidos detectados');
           }
           
-          print('🌐 DEBUG - Parámetros que se enviarán a la API:');
-          print('   - diClId: ${pedido['direccionId']}');
-          print('   - vendId: ${pedido['vendedorId']}');
-          print('   - pediCodigo: ${pedido['local_signature'] ?? 'PED-${pedido['id']}'}');
-          print('   - fechaPedido: ${DateTime.parse(pedido['fechaPedido'])}');
-          print('   - fechaEntrega: ${DateTime.parse(pedido['fechaEntrega'])}');
-          print('   - usuaCreacion: 7 (fijo)');
-          print('   - clieId: ${pedido['clienteId']}');
-          print('   - detalles: $detalles');
+          //print('🌐 DEBUG - Parámetros que se enviarán a la API:');
+          //print('   - diClId: ${pedido['direccionId']}');
+          //print('   - vendId: ${pedido['vendedorId']}');
+          //print('   - pediCodigo: ${pedido['local_signature'] ?? 'PED-${pedido['id']}'}');
+          //print('   - fechaPedido: ${DateTime.parse(pedido['fechaPedido'])}');
+          //print('   - fechaEntrega: ${DateTime.parse(pedido['fechaEntrega'])}');
+          //print('   - usuaCreacion: 7 (fijo)');
+          //print('   - clieId: ${pedido['clienteId']}');
+          //print('   - detalles: $detalles');
           
           // Transformar detalles al formato exacto que espera el backend
           final detallesParaAPI = detalles.map((detalle) {
@@ -913,10 +903,10 @@ class PedidosScreenOffline {
             };
           }).toList();
           
-          print('🔧 DEBUG - Detalles transformados para API:');
+          //print('🔧 DEBUG - Detalles transformados para API:');
           for (int i = 0; i < detallesParaAPI.length; i++) {
-            print('   Detalle API $i: ${detallesParaAPI[i]}');
-            print('   ⚠️  CRÍTICO - Prod_Id final: ${detallesParaAPI[i]['Prod_Id']}');
+            //print('   Detalle API $i: ${detallesParaAPI[i]}');
+            //print('   ⚠️  CRÍTICO - Prod_Id final: ${detallesParaAPI[i]['Prod_Id']}');
           }
           
           final resultado = await pedidosService.insertarPedido(
@@ -930,31 +920,31 @@ class PedidosScreenOffline {
             detalles: detallesParaAPI, // Usar detalles transformados
           );
           
-          print('📡 DEBUG - Respuesta de la API:');
-          print('   - success: ${resultado['success']}');
-          print('   - message: ${resultado['message']}');
-          print('   - data: ${resultado['data']}');
+          //print('📡 DEBUG - Respuesta de la API:');
+          //print('   - success: ${resultado['success']}');
+          //print('   - message: ${resultado['message']}');
+          //print('   - data: ${resultado['data']}');
 
           if (resultado != null && resultado['success'] == true) {
             sincronizadas++;
-            print('✅ Pedido sincronizado: ${pedido['local_signature']}');
+            //print('✅ Pedido sincronizado: ${pedido['local_signature']}');
           } else {
             pedidosNoSincronizados.add(pedido);
-            print('⚠️ Pedido no sincronizado: ${pedido['local_signature']}');
+            //print('⚠️ Pedido no sincronizado: ${pedido['local_signature']}');
           }
         } catch (e) {
           pedidosNoSincronizados.add(pedido);
-          print('❌ Error sincronizando pedido ${pedido['local_signature']}: $e');
+          //print('❌ Error sincronizando pedido ${pedido['local_signature']}: $e');
         }
       }
 
       // Guardar solo los pedidos que no se pudieron sincronizar
       await guardarJson('pedidos_pendientes.json', pedidosNoSincronizados);
       
-      print('🎉 Sincronización completada: $sincronizadas/${pendientes.length} pedidos sincronizados');
+      //print('🎉 Sincronización completada: $sincronizadas/${pendientes.length} pedidos sincronizados');
       return sincronizadas;
     } catch (e) {
-      print('❌ Error en sincronizarPedidosPendientesOffline: $e');
+      //print('❌ Error en sincronizarPedidosPendientesOffline: $e');
       return 0;
     }
   }
@@ -968,27 +958,27 @@ class PedidosScreenOffline {
   /// Guarda una factura offline siguiendo el patrón de pedidos
   static Future<void> guardarFacturaOffline(Map<String, dynamic> facturaData) async {
     try {
-      print('[DEBUG] Guardando factura offline...');
-      print('[DEBUG] Datos de factura: $facturaData');
+      //print('[DEBUG] Guardando factura offline...');
+      //print('[DEBUG] Datos de factura: $facturaData');
       
       // Leer facturas pendientes existentes
       final raw = await leerJson('facturas_pendientes.json');
       List<dynamic> pendientes = raw != null ? List.from(raw as List) : [];
       
-      print('[DEBUG] Facturas existentes: ${pendientes.length}');
+      //print('[DEBUG] Facturas existentes: ${pendientes.length}');
       
       // Agregar la nueva factura
       pendientes.add(facturaData);
       
-      print('[DEBUG] Total después de agregar: ${pendientes.length}');
+      //print('[DEBUG] Total después de agregar: ${pendientes.length}');
       
       // Guardar la lista actualizada
       await guardarJson('facturas_pendientes.json', pendientes);
       
-      print('[DEBUG] Factura offline guardada: ${facturaData['local_signature']}');
+      //print('[DEBUG] Factura offline guardada: ${facturaData['local_signature']}');
       
     } catch (e) {
-      print('[ERROR] Error guardando factura offline: $e');
+      //print('[ERROR] Error guardando factura offline: $e');
       rethrow;
     }
   }
@@ -1000,7 +990,7 @@ class PedidosScreenOffline {
       if (raw == null) return [];
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
-      print('[ERROR] Error obteniendo facturas pendientes: $e');
+      //print('[ERROR] Error obteniendo facturas pendientes: $e');
       return [];
     }
   }
@@ -1008,50 +998,50 @@ class PedidosScreenOffline {
   /// Sincroniza facturas pendientes offline con el servidor
   static Future<int> sincronizarFacturasPendientes() async {
     try {
-      print('[DEBUG] Iniciando sincronización de facturas pendientes...');
+      //print('[DEBUG] Iniciando sincronización de facturas pendientes...');
       
       final pendientes = await obtenerFacturasPendientes();
       if (pendientes.isEmpty) {
-        print('[DEBUG] No hay facturas pendientes para sincronizar');
+        //print('[DEBUG] No hay facturas pendientes para sincronizar');
         return 0;
       }
 
       int sincronizadas = 0;
       final facturasNoSincronizadas = <Map<String, dynamic>>[];
 
-      print('[DEBUG] Sincronizando ${pendientes.length} facturas pendientes...');
+      //print('[DEBUG] Sincronizando ${pendientes.length} facturas pendientes...');
 
       for (final factura in pendientes) {
         try {
-          print('[DEBUG] Sincronizando factura: ${factura['local_signature']}');
+          //print('[DEBUG] Sincronizando factura: ${factura['local_signature']}');
           
           // Implementar sincronización real con FacturaService
           await _sincronizarFacturaIndividual(factura);
           
           sincronizadas++;
-          print('[DEBUG] Factura sincronizada: ${factura['local_signature']}');
+          //print('[DEBUG] Factura sincronizada: ${factura['local_signature']}');
           
         } catch (e) {
           facturasNoSincronizadas.add(factura);
-          print('[ERROR] Error sincronizando factura ${factura['local_signature']}: $e');
+          //print('[ERROR] Error sincronizando factura ${factura['local_signature']}: $e');
         }
       }
 
       // Guardar solo las facturas que no se pudieron sincronizar
       await guardarJson('facturas_pendientes.json', facturasNoSincronizadas);
       
-      print('[DEBUG] Sincronización de facturas completada: $sincronizadas/${pendientes.length} facturas sincronizadas');
+      //print('[DEBUG] Sincronización de facturas completada: $sincronizadas/${pendientes.length} facturas sincronizadas');
       return sincronizadas;
     } catch (e) {
-      print('[ERROR] Error en sincronizarFacturasPendientes: $e');
+      //print('[ERROR] Error en sincronizarFacturasPendientes: $e');
       return 0;
     }
   }
 
   /// Sincroniza una factura individual con el servidor
   static Future<void> _sincronizarFacturaIndividual(Map<String, dynamic> factura) async {
-    print('[DEBUG] Sincronizando factura individual: ${factura['numeroFactura']}');
-    print('[DEBUG] Datos completos de factura offline: ${jsonEncode(factura)}');
+    //print('[DEBUG] Sincronizando factura individual: ${factura['numeroFactura']}');
+    //print('[DEBUG] Datos completos de factura offline: ${jsonEncode(factura)}');
     
     // Validar datos requeridos
     if (factura['clienteId'] == null || factura['vendedorId'] == null) {
@@ -1089,7 +1079,7 @@ class PedidosScreenOffline {
       'detallesFacturaInput': _convertirDetallesParaAPI(factura['detalles']),
     };
     
-    print('[DEBUG] Datos de factura para API: ${jsonEncode(facturaData)}');
+    //print('[DEBUG] Datos de factura para API: ${jsonEncode(facturaData)}');
     
     // Validar que hay detalles
     if (facturaData['detallesFacturaInput'].isEmpty) {
@@ -1100,30 +1090,30 @@ class PedidosScreenOffline {
     final facturaService = FacturaService();
     final response = await facturaService.insertarFactura(facturaData);
     
-    print('[DEBUG] Respuesta de sincronización: ${jsonEncode(response)}');
+    //print('[DEBUG] Respuesta de sincronización: ${jsonEncode(response)}');
     
     if (response['success'] != true) {
       final errorMsg = response['message'] ?? 'Error desconocido del servidor';
-      print('[ERROR] Error del servidor: $errorMsg');
+      //print('[ERROR] Error del servidor: $errorMsg');
       throw Exception('Error del servidor: $errorMsg');
     }
     
-    print('[DEBUG] Factura sincronizada exitosamente: ${factura['numeroFactura']}');
+    //print('[DEBUG] Factura sincronizada exitosamente: ${factura['numeroFactura']}');
   }
   
   /// Convierte los detalles de factura offline al formato del API
   static List<Map<String, dynamic>> _convertirDetallesParaAPI(dynamic detalles) {
     final List<Map<String, dynamic>> detallesAPI = [];
     
-    print('[DEBUG] Convirtiendo detalles para API: $detalles');
-    print('[DEBUG] Tipo de detalles: ${detalles.runtimeType}');
+    //print('[DEBUG] Convirtiendo detalles para API: $detalles');
+    //print('[DEBUG] Tipo de detalles: ${detalles.runtimeType}');
     
     if (detalles is List) {
-      print('[DEBUG] Procesando ${detalles.length} detalles...');
+      //print('[DEBUG] Procesando ${detalles.length} detalles...');
       
       for (int i = 0; i < detalles.length; i++) {
         final item = detalles[i];
-        print('[DEBUG] Detalle $i: $item');
+        //print('[DEBUG] Detalle $i: $item');
         
         if (item is Map) {
           // Intentar obtener el ID del producto de diferentes campos posibles
@@ -1139,7 +1129,7 @@ class PedidosScreenOffline {
               ? item['cantidad']
               : int.tryParse(item['cantidad']?.toString() ?? '') ?? 1;
           
-          print('[DEBUG] Detalle $i - prodId: $prodId, cantidad: $cantidad');
+          //print('[DEBUG] Detalle $i - prodId: $prodId, cantidad: $cantidad');
           
           if (prodId > 0 && cantidad > 0) {
             final detalleAPI = {
@@ -1147,19 +1137,19 @@ class PedidosScreenOffline {
               'faDe_Cantidad': cantidad
             };
             detallesAPI.add(detalleAPI);
-            print('[DEBUG] Detalle $i agregado: $detalleAPI');
+            //print('[DEBUG] Detalle $i agregado: $detalleAPI');
           } else {
-            print('[WARNING] Detalle $i omitido - prodId o cantidad inválidos');
+            //print('[WARNING] Detalle $i omitido - prodId o cantidad inválidos');
           }
         } else {
-          print('[WARNING] Detalle $i no es un Map: ${item.runtimeType}');
+          //print('[WARNING] Detalle $i no es un Map: ${item.runtimeType}');
         }
       }
     } else {
-      print('[ERROR] Detalles no es una lista: ${detalles.runtimeType}');
+      //print('[ERROR] Detalles no es una lista: ${detalles.runtimeType}');
     }
     
-    print('[DEBUG] Total detalles convertidos: ${detallesAPI.length}');
+    //print('[DEBUG] Total detalles convertidos: ${detallesAPI.length}');
     return detallesAPI;
   }
 }

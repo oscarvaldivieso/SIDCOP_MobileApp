@@ -490,7 +490,7 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
     return _buildCard(
       title: 'Información Financiera',
       icon: Icons.account_balance_wallet_rounded,
-      color: const Color(0xFF059669),
+      color: const Color.fromARGB(255, 23, 122, 91),
       child: Column(
         children: [
           _buildDetailRow('Valor Inicial', _formatCurrency(cuenta.cpCo_Valor), Icons.receipt_rounded),
@@ -510,7 +510,7 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
     return _buildCard(
       title: 'Fechas Importantes',
       icon: Icons.calendar_today_rounded,
-      color: const Color(0xFF7C3AED),
+      color: const Color.fromARGB(255, 15, 39, 150),
       child: Column(
         children: [
           _buildDetailRow('Fecha Emisión', _formatDate(cuenta.cpCo_FechaEmision), Icons.today_rounded),
@@ -594,14 +594,11 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
   }
 
   Widget _buildPagosContent() {
-    print('🔧 _buildPagosContent llamado: _pagos.length = ${_pagos.length}');
     
     if (_pagos.isEmpty) {
-      print('🔧 _pagos está vacío, mostrando estado sin pagos');
       return _buildNoPagosState();
     }
 
-    print('🔧 _pagos contiene ${_pagos.length} elementos, construyendo lista');
 
     return Column(
       children: [
@@ -646,7 +643,6 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
         ..._pagos.asMap().entries.map((entry) {
           final index = entry.key;
           final pago = entry.value;
-          print('🎨 Renderizando pago $index: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}"');
           return Column(
             children: [
               _buildPagoItem(pago),
@@ -705,7 +701,6 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
 
   Widget _buildPagoItem(PagosCuentasXCobrar pago) {
     // Debug: Verificar los datos del pago
-    print('🎨 Construyendo UI para pago: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}", Ref="${pago.pagoNumeroReferencia}", Fecha=${pago.pagoFecha}');
     
     final bool isAnulado = pago.pagoAnulado;
     final Color statusColor = isAnulado ? Colors.red.shade600 : const Color(0xFF059669);

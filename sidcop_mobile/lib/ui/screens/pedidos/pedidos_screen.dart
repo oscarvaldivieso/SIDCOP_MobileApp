@@ -86,17 +86,15 @@ class _PedidosScreenState extends State<PedidosScreen> {
       
       // Primero actualizar el caché con los pedidos más recientes del servidor
       try {
-        print('Actualizando caché de pedidos desde el servidor...');
         final pedidosServidor = await _service.getPedidos();
         
         if (pedidosServidor.isNotEmpty) {
           await PedidosScreenOffline.guardarPedidos(pedidosServidor);
-          print('Caché actualizado con ${pedidosServidor.length} pedidos del servidor');
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Caché actualizado con ${pedidosServidor.length} pedidos'),
+                content: Text('Pedidos Actualizados'),
                 backgroundColor: Colors.blue,
                 duration: const Duration(seconds: 2),
               ),
@@ -104,7 +102,6 @@ class _PedidosScreenState extends State<PedidosScreen> {
           }
         }
       } catch (e) {
-        print('Error actualizando caché desde servidor: $e');
       }
       
       // Luego sincronizar pedidos pendientes
@@ -112,9 +109,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
         final pedidosPendientes =
             await PedidosScreenOffline.obtenerPedidosPendientes();
         if (pedidosPendientes.isNotEmpty) {
-          print(
-            'Sincronizando ${pedidosPendientes.length} pedidos pendientes...',
-          );
+          
 
           int sincronizados = 0;
           for (final pedido in pedidosPendientes) {

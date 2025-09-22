@@ -50,7 +50,6 @@ class PagosCuentasXCobrar {
   // Constructor para crear desde JSON - MEJORADO para manejar ambos formatos (servidor y cache)
   factory PagosCuentasXCobrar.fromJson(Map<String, dynamic> json) {
     // Debug: Mostrar qué campos están disponibles
-    print('🔧 fromJson recibido: ${json.keys.toList()}');
     
     return PagosCuentasXCobrar(
       pagoId: json['pago_Id'] ?? 0,
