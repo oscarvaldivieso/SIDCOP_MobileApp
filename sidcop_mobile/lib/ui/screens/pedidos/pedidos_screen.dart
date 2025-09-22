@@ -206,7 +206,7 @@ class _PedidosScreenState extends State<PedidosScreen> {
           if (mounted && pedidos.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Caché actualizado con ${pedidos.length} pedidos'),
+                content: Text('Pedidos sincronizados'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
