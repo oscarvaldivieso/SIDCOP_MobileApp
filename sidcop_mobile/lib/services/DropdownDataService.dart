@@ -12,10 +12,7 @@ class DropdownDataService {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/Canal/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -33,10 +30,7 @@ class DropdownDataService {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/EstadosCiviles/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -54,10 +48,7 @@ class DropdownDataService {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/Rutas/Listar'),
-        headers: {
-          'accept': '*/*',
-          'X-Api-Key': _apiKey,
-        },
+        headers: {'accept': '*/*', 'X-Api-Key': _apiKey},
       );
 
       if (response.statusCode == 200) {
@@ -71,20 +62,23 @@ class DropdownDataService {
     }
   }
 
-  Future<Map<String, dynamic>> insertCliente(Map<String, dynamic> clienteData) async {
+  Future<Map<String, dynamic>> insertCliente(
+    Map<String, dynamic> clienteData,
+  ) async {
     try {
       // Set default values if not provided
       clienteData['clie_FechaCreacion'] = DateTime.now().toIso8601String();
       clienteData['clie_DNI'] = clienteData['clie_DNI'] ?? '';
       clienteData['clie_RTN'] = clienteData['clie_RTN'] ?? '';
-      clienteData['clie_Nacionalidad'] = clienteData['clie_Nacionalidad'] ?? 'HND';
+      clienteData['clie_Nacionalidad'] =
+          clienteData['clie_Nacionalidad'] ?? 'HND';
       clienteData['clie_Imagen'] = clienteData['clie_Imagen'] ?? '';
 
       final hasConnection = await SyncService.hasInternetConnection();
 
       if (hasConnection) {
         print('Enviando datos del cliente al servidor: $clienteData');
-        
+
         final response = await http.post(
           Uri.parse('$_baseUrl/Cliente/Insertar'),
           headers: {
@@ -100,13 +94,22 @@ class DropdownDataService {
           print('Respuesta del servidor: $responseData');
           return responseData;
         } else {
-          print('Error del servidor: ${response.statusCode} - ${response.body}');
-          return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+          print(
+            'Error del servidor: ${response.statusCode} - ${response.body}',
+          );
+          return {
+            'success': false,
+            'message': 'Error del servidor: ${response.statusCode}',
+          };
         }
       } else {
         // Guardar cliente localmente si no hay conexión
         await ClientesOfflineService.guardarClientesPendientes([clienteData]);
-        return {'success': false, 'message': 'Cliente guardado localmente. Se sincronizará cuando haya conexión.'};
+        return {
+          'success': false,
+          'message':
+              'Cliente guardado localmente. Se sincronizará cuando haya conexión.',
+        };
       }
     } catch (e) {
       print('Error en insertCliente: $e');

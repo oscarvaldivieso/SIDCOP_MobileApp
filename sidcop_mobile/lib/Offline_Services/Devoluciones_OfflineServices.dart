@@ -616,7 +616,7 @@ class DevolucionesOffline {
     } catch (e) {
       // Intento de recuperación de emergencia
       try {
-        print("🔄 Intentando método alternativo de lectura...");
+        ("🔄 Intentando método alternativo de lectura...");
         final key = "json:$_archivoDevolucionesHistorial";
         final String? rawData = await _secureStorage.read(key: key);
 

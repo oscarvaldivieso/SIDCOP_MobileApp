@@ -36,16 +36,8 @@ class _RutasScreenState extends State<RutasScreen> {
       // Usar VerificarService.verificarConexion() en lugar de implementación directa
       isOnline = await VerificarService.verificarConexion();
 
-      // Añadir logs para depuración
-      if (isOnline) {
-        print('DEBUG: verificarconexion - ONLINE (usando VerificarService)');
-      } else {
-        print('DEBUG: verificarconexion - OFFLINE (usando VerificarService)');
-      }
-
       return isOnline;
     } catch (e) {
-      print('DEBUG: verificarconexion - Error usando VerificarService: $e');
       isOnline = false;
       return false;
     }
@@ -138,15 +130,7 @@ class _RutasScreenState extends State<RutasScreen> {
       }
 
       // Notificar que la sincronización se ha completado
-      if (mounted && isOnline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Datos sincronizados correctamente'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
+      // No mostrar mensaje de éxito; dejamos solo el indicador de carga en la UI
 
       // After attempting to persist all data, load rutas for the UI.
       await _fetchRutas();
@@ -509,25 +493,9 @@ class _RutasScreenState extends State<RutasScreen> {
           await _fetchRutas();
         },
         child: _isLoading
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFFD6B68A),
-                      ),
-                    ),
-                    SizedBox(height: 10),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 40),
-                      child: Text(
-                        'Estamos actualizando información de rutas, clientes y visitas',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                    ),
-                  ],
+            ? const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD6B68A)),
                 ),
               )
             : _vendedorNoIdentificado

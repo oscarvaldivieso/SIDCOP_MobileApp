@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 
 class VentaService {

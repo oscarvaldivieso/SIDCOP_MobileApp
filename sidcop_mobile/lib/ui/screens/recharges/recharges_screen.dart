@@ -197,161 +197,116 @@ class _RechargesScreenState extends State<RechargesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      title: 'Recarga',
-      icon: Icons.sync,
-      permisos: permisos,
-      onRefresh: () async {
-        setState(() {});
-      },
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Historial de solicitudes',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _verTodasLasRecargas = !_verTodasLasRecargas;
-                      });
-                    },
-                    child: Text(
-                      _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
-                        fontFamily: 'Satoshi',
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: AppBackground(
+        title: 'Recarga',
+        icon: Icons.sync,
+        permisos: permisos,
+        onRefresh: () async {
+          await _loadRecargas();
+        },
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Historial de solicitudes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _verTodasLasRecargas = !_verTodasLasRecargas;
+                          });
+                        },
+                        child: Text(
+                          _verTodasLasRecargas ? 'Cerrar' : 'Ver más',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            fontFamily: 'Satoshi',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : Builder(
-                      builder: (context) {
-                        final Map<int, List<RecargasViewModel>> agrupadas = {};
-                        for (final r in _recargas) {
-                          if (r.reca_Id != null) {
-                            agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
-                          }
-                        }
-                        final entriesList = agrupadas.entries.toList();
-                        final mostrarTodas = _verTodasLasRecargas;
-                        final itemsToShow = mostrarTodas
-                            ? entriesList
-                            : entriesList.take(3).toList();
+                  const SizedBox(height: 12),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Builder(
+                          builder: (context) {
+                            final Map<int, List<RecargasViewModel>> agrupadas = {};
+                            for (final r in _recargas) {
+                              if (r.reca_Id != null) {
+                                agrupadas.putIfAbsent(r.reca_Id!, () => []).add(r);
+                              }
+                            }
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (agrupadas.isEmpty)
-                              const Center(child: Text('No hay recargas.'))
-                            else
-                              Column(
-                                children: itemsToShow.map((entry) {
-                                  final recargasGrupo = entry.value;
-                                  final recarga = recargasGrupo.first;
-                                  final totalCantidad = recargasGrupo.fold<int>(0, (
-                                    sum,
-                                    r,
-                                  ) {
-                                    if (r.reDe_Cantidad == null) return sum;
-                                    if (r.reDe_Cantidad is int)
-                                      return sum + (r.reDe_Cantidad as int);
-                                    return sum +
-                                        (int.tryParse(r.reDe_Cantidad.toString()) ?? 0);
-                                  });
-                                  return _buildHistorialCard(
-                                    _mapEstadoFromApi(recarga.reca_Confirmacion),
-                                    recarga.reca_Fecha != null
-                                        ? _formatFechaFromApi(
-                                            recarga.reca_Fecha!.toIso8601String(),
-                                          )
-                                        : '-',
-                                    totalCantidad,
-                                    recargasGrupo: recargasGrupo,
-                                  );
-                                }).toList(),
-                              ),
-                            const SizedBox(height: 24),
-                            const Text(
-                              'Solicitar recarga',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 18,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            GestureDetector(
-                              onTap: _openRecargaModal,
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 18),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF141A2F),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Abrir recarga',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 16,
-                                          fontFamily: 'Satoshi',
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      const Icon(
-                                        Icons.add_shopping_cart_rounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ],
+                            if (agrupadas.isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  'No hay recargas registradas',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
                                   ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-              if (_errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    _errorMessage,
-                    style: TextStyle(
-                      color: Colors.red.shade700,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      fontFamily: 'Satoshi',
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ],
+                              );
+                            }
+
+                            final keys = agrupadas.keys.toList()
+                              ..sort((a, b) => b.compareTo(a));
+
+                            final recargasAMostrar = _verTodasLasRecargas
+                                ? keys
+                                : keys.take(3).toList();
+
+                            return Column(
+                              children: recargasAMostrar.map((recaId) {
+                                final recargasGrupo = agrupadas[recaId]!;
+                                final recarga = recargasGrupo.first;
+                                final cantidadProductos = recargasGrupo.fold(
+                                  0,
+                                  (sum, r) => sum +
+                                      (int.tryParse(r.reDe_Cantidad.toString()) ?? 0),
+                                );
+                                return _buildHistorialCard(
+                                  _mapEstadoFromApi(recarga.reca_Confirmacion),
+                                  recarga.reca_Fecha != null
+                                      ? _formatFechaFromApi(
+                                          recarga.reca_Fecha.toString())
+                                      : 'Fecha no disponible',
+                                  cantidadProductos,
+                                  recargasGrupo: recargasGrupo,
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                ],
+              ),
+            ),
           ),
         ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF141A2F),
+        onPressed: () async {
+          _openRecargaModal();
+        },
+        child: const Icon(Icons.add, color: Colors.white),
+        shape: const CircleBorder(),
+        elevation: 4.0,
       ),
     );
   }
@@ -431,7 +386,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
       case 'Rechazada':
         label = 'Rechazada';
         primaryColor = const Color(0xFFFF3B30);
-        secondaryColor = const Color(0xFFFF6B60);
+        secondaryColor = const Color(0xFF6B60);
         backgroundColor = const Color(0xFFFFE8E6);
         statusIcon = Icons.cancel_rounded;
         break;

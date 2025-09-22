@@ -11,7 +11,7 @@ import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 /// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
 
@@ -92,7 +92,7 @@ class RutasScreenOffline {
       } catch (e) {
         // No abortar todo el proceso si la escritura a disco falla; ya tenemos
         // la copia en secure storage. Loguear para diagnóstico.
-        print('WARN: guardarBytes fallo al escribir en disco: $e');
+        //print('WARN: guardarBytes fallo al escribir en disco: $e');
       }
     } catch (e) {
       rethrow;
@@ -268,7 +268,7 @@ class RutasScreenOffline {
       await guardarJsonSeguro(key, detalles);
     } catch (e) {
       // No interrumpir el flujo de sincronización si falla el guardado local
-      print('WARN: guardarDetallesRuta failed for ruta $rutaId: $e');
+      //print('WARN: guardarDetallesRuta failed for ruta $rutaId: $e');
     }
   }
 
@@ -303,16 +303,12 @@ class RutasScreenOffline {
 
         // Si los datos guardados tienen 0 direcciones, borrarlos y usar fallback
         if (direccionesJson.isEmpty) {
-          print(
-            'DEBUG: leerDetallesRuta - stored details have 0 direcciones, deleting and using fallback',
-          );
+        
           await borrarDetallesRuta(rutaId);
           // Usar fallback inmediatamente
           clientesJson = await cargarClientes();
           final rawDirs = await obtenerDireccionesLocal();
-          print(
-            'DEBUG: leerDetallesRuta - fallback after delete: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-          );
+        
           try {
             direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
           } catch (_) {
@@ -323,15 +319,11 @@ class RutasScreenOffline {
         staticMapUrl = detallesRaw['staticMapUrl']?.toString();
         staticMapLocalPath = detallesRaw['staticMapLocalPath']?.toString();
       } else {
-        print(
-          'DEBUG: leerDetallesRuta - no stored details, using fallback JSONs for ruta $rutaId',
-        );
+     
         // Fallback: usar los JSON locales sincronizados (clientes.json / direcciones.json)
         clientesJson = await cargarClientes();
         final rawDirs = await obtenerDireccionesLocal();
-        print(
-          'DEBUG: leerDetallesRuta - fallback: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-        );
+       
         try {
           direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
         } catch (_) {
@@ -488,7 +480,7 @@ class RutasScreenOffline {
       final key = 'details_ruta_$rutaId';
       await _secureStorage.delete(key: key);
     } catch (e) {
-      print('WARN: borrarDetallesRuta failed for ruta $rutaId: $e');
+      //print('WARN: borrarDetallesRuta failed for ruta $rutaId: $e');
     }
   }
 
@@ -499,12 +491,12 @@ class RutasScreenOffline {
       for (final key in allKeys.keys) {
         if (key.startsWith('details_ruta_')) {
           await _secureStorage.delete(key: key);
-          print('DEBUG: deleted obsolete key: $key');
+          //print('DEBUG: deleted obsolete key: $key');
         }
       }
-      print('DEBUG: limpiarTodosLosDetalles completed');
+      //print('DEBUG: limpiarTodosLosDetalles completed');
     } catch (e) {
-      print('WARN: limpiarTodosLosDetalles failed: $e');
+      //print('WARN: limpiarTodosLosDetalles failed: $e');
     }
   }
 
@@ -545,9 +537,9 @@ class RutasScreenOffline {
       // Log para diagnosticar respuesta remota
       try {
         final lista = List.from(data);
-        print('SYNC: sincronizarRutas fetched ${lista.length} items');
+        //print('SYNC: sincronizarRutas fetched ${lista.length} items');
       } catch (_) {
-        print('SYNC: sincronizarRutas fetched (unknown count)');
+        //print('SYNC: sincronizarRutas fetched (unknown count)');
       }
       // Guardar la respuesta tal cual (normalmente es List)
       await guardarJson('rutas.json', data);
@@ -564,9 +556,9 @@ class RutasScreenOffline {
       final data = await servicio.getClientes();
       try {
         final lista = List.from(data);
-        print('SYNC: sincronizarClientes fetched ${lista.length} items');
+        //print('SYNC: sincronizarClientes fetched ${lista.length} items');
       } catch (_) {
-        print('SYNC: sincronizarClientes fetched (unknown count)');
+        //print('SYNC: sincronizarClientes fetched (unknown count)');
       }
       await guardarJson(_archivoClientes, data);
       // After saving clients JSON, attempt to download and cache business images
@@ -598,7 +590,7 @@ class RutasScreenOffline {
                   filename,
                   Uint8List.fromList(resp.bodyBytes),
                 );
-                print('SYNC: saved negocio image for cliente $id -> $filename');
+                //print('SYNC: saved negocio image for cliente $id -> $filename');
               } else {
                 // ignore non-200
               }
@@ -650,22 +642,18 @@ class RutasScreenOffline {
   /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.
   static Future<List<dynamic>> sincronizarDirecciones() async {
     try {
-      print('DEBUG: sincronizarDirecciones - starting...');
+      //print('DEBUG: sincronizarDirecciones - starting...');
       final servicio = DireccionClienteService();
       final data = await servicio.getDireccionesPorCliente();
-      print(
-        'DEBUG: sincronizarDirecciones - received data type: ${data.runtimeType}',
-      );
+      
       try {
         final lista = List.from(data);
-        print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
+        //print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
         if (lista.isNotEmpty) {
-          print(
-            'DEBUG: sincronizarDirecciones - sample direccion: ${lista.first}',
-          );
+        
         }
       } catch (_) {
-        print('SYNC: sincronizarDirecciones fetched (unknown count)');
+        //print('SYNC: sincronizarDirecciones fetched (unknown count)');
       }
 
       // Convertir objetos DireccionCliente a JSON maps antes de guardar
@@ -674,14 +662,12 @@ class RutasScreenOffline {
         direccionesJson.add(item.toJson());
       }
 
-      print(
-        'DEBUG: sincronizarDirecciones - converted to ${direccionesJson.length} JSON maps',
-      );
+    
       await guardarJson('direcciones.json', direccionesJson);
-      print('DEBUG: sincronizarDirecciones - saved to direcciones.json');
+      //print('DEBUG: sincronizarDirecciones - saved to direcciones.json');
       return direccionesJson;
     } catch (e) {
-      print('ERROR: sincronizarDirecciones failed: $e');
+      //print('ERROR: sincronizarDirecciones failed: $e');
       rethrow;
     }
   }
@@ -694,11 +680,9 @@ class RutasScreenOffline {
       final data = await servicio.listarPorVendedor();
       try {
         final lista = List.from(data);
-        print(
-          'SYNC: sincronizarVisitasHistorial fetched ${lista.length} items',
-        );
+      
       } catch (_) {
-        print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
+        //print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
       }
       await guardarJson('visitas_historial.json', data);
       return data as List<dynamic>;
@@ -731,11 +715,9 @@ class RutasScreenOffline {
       final data = await servicio.listarPorRutas();
       try {
         final lista = List.from(data);
-        print(
-          'SYNC: sincronizarVendedoresPorRutas fetched ${lista.length} items',
-        );
+  
       } catch (_) {
-        print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
+        //print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
       }
 
       // Convertir objetos VendedoresPorRutaModel a JSON
@@ -743,9 +725,7 @@ class RutasScreenOffline {
       for (final item in data) {
         vendedoresJson.add(item.toJson());
       }
-      print(
-        'SYNC: sincronizarVendedoresPorRutas converted ${vendedoresJson.length} objects to JSON',
-      );
+
 
       await guardarJson('vendedores_por_rutas.json', vendedoresJson);
       return vendedoresJson;
@@ -778,9 +758,9 @@ class RutasScreenOffline {
       final data = await servicio.listar();
       try {
         final lista = List.from(data);
-        print('SYNC: sincronizarVendedores fetched ${lista.length} items');
+        //print('SYNC: sincronizarVendedores fetched ${lista.length} items');
       } catch (_) {
-        print('SYNC: sincronizarVendedores fetched (unknown count)');
+        //print('SYNC: sincronizarVendedores fetched (unknown count)');
       }
       await guardarJson('vendedores.json', data);
       return data as List<dynamic>;
@@ -801,15 +781,10 @@ class RutasScreenOffline {
         sincronizarVendedores(),
       ]);
       try {
-        final r = List.from(results[0]);
-        final c = List.from(results[1]);
-        final d = List.from(results[2]);
-        final v = List.from(results[3]);
-        print(
-          'SYNC: sincronizarRutas_Todo results sizes -> rutas=${r.length}, clientes=${c.length}, direcciones=${d.length}, vendedores=${v.length}',
-        );
+  
+      
       } catch (_) {
-        print('SYNC: sincronizarRutas_Todo results sizes unknown');
+        //print('SYNC: sincronizarRutas_Todo results sizes unknown');
       }
       return {
         'rutas': results[0],
@@ -879,13 +854,9 @@ class RutasScreenOffline {
           final localFile = File(localPath);
           final hasLocal = await localFile.exists();
           if (hasLocal) {
-            print(
-              'DEBUG: usar imagen local existente para ruta $rutaId -> $localPath',
-            );
+          
           } else {
-            print(
-              'DEBUG: no se encontró imagen local para ruta $rutaId; no se descargará aquí',
-            );
+        
           }
 
           // Construir detalles y guardarlos (incluye referencia local si existe)
