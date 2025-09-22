@@ -77,7 +77,7 @@ class RecargasScreenOffline {
     try {
       final pendientes = await leerJson(archivoPendientes) as List<dynamic>?;
       if (pendientes == null || pendientes.isEmpty) {
-        print('No hay recargas pendientes para sincronizar.');
+        //print('No hay recargas pendientes para sincronizar.');
         return;
       }
 
@@ -99,14 +99,14 @@ class RecargasScreenOffline {
           }
         } catch (e) {
           noSincronizadas.add(recarga);
-          print('Error al sincronizar recarga: $e');
+          //print('Error al sincronizar recarga: $e');
         }
       }
 
       await guardarJson(archivoPendientes, noSincronizadas);
-      print('Sincronización completada.');
+      //print('Sincronización completada.');
     } catch (e) {
-      print('Error durante la sincronización de recargas pendientes: $e');
+      //print('Error durante la sincronización de recargas pendientes: $e');
     }
   }
 
@@ -132,49 +132,49 @@ class RecargasScreenOffline {
           }
         } catch (e) {
           noSincronizadas.add(recarga);
-          print('Error al sincronizar recarga: $e');
+          //print('Error al sincronizar recarga: $e');
         }
       }
 
       await guardarJson('recargas_pendientes.json', noSincronizadas);
     } catch (e) {
-      print('Error al sincronizar recargas pendientes: $e');
+      //print('Error al sincronizar recargas pendientes: $e');
     }
   }
 
   static Future<int> sincronizarRecargasOffline() async {
     try {
-      print('🔄 Iniciando sincronización simple de recargas offline...');
+      //print('🔄 Iniciando sincronización simple de recargas offline...');
       
       final connectivityResult = await Connectivity().checkConnectivity();
       final online = connectivityResult != ConnectivityResult.none;
       if (!online) {
-        print('❌ No hay conexión a internet');
+        //print('❌ No hay conexión a internet');
         return 0;
       }
 
       final raw = await leerJson('recargas_pendientes.json');
       if (raw == null || raw is! List || raw.isEmpty) {
-        print('✅ No hay recargas pendientes por sincronizar');
+        //print('✅ No hay recargas pendientes por sincronizar');
         return 0;
       }
 
       final pendientes = List<Map<String, dynamic>>.from(raw);
-      print('📋 Encontradas ${pendientes.length} recargas pendientes');
+      //print('📋 Encontradas ${pendientes.length} recargas pendientes');
       
       for (int i = 0; i < pendientes.length; i++) {
         final recarga = pendientes[i];
-        print('\n🔍 DEBUG - Recarga ${i + 1}:');
-        print('   ID: ${recarga['id']}');
-        print('   Usuario: ${recarga['usua_Id']}');
-        print('   Fecha: ${recarga['fecha']}');
-        print('   Offline: ${recarga['offline']}');
-        print('   Detalles (${recarga['detalles'].length} productos):');
+        //print('\n🔍 DEBUG - Recarga ${i + 1}:');
+        //print('   ID: ${recarga['id']}');
+        //print('   Usuario: ${recarga['usua_Id']}');
+        //print('   Fecha: ${recarga['fecha']}');
+        //print('   Offline: ${recarga['offline']}');
+        //print('   Detalles (${recarga['detalles'].length} productos):');
         
         final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
         for (int j = 0; j < detalles.length; j++) {
           final detalle = detalles[j];
-          print('     Producto ${j + 1}: ID=${detalle['prod_Id']}, Cantidad=${detalle['reDe_Cantidad']}');
+          //print('     Producto ${j + 1}: ID=${detalle['prod_Id']}, Cantidad=${detalle['reDe_Cantidad']}');
         }
       }
 
@@ -184,17 +184,17 @@ class RecargasScreenOffline {
       
       for (int i = 0; i < pendientes.length; i++) {
         final recarga = pendientes[i];
-        print('\n🔄 Procesando recarga ${i + 1}/${pendientes.length}');
+        //print('\n🔄 Procesando recarga ${i + 1}/${pendientes.length}');
         
         try {
           final usuaId = recarga['usua_Id'];
           final detalles = List<Map<String, dynamic>>.from(recarga['detalles']);
           
-          print('📤 Enviando recarga - Usuario: $usuaId, Detalles: ${detalles.length} productos');
+          //print('📤 Enviando recarga - Usuario: $usuaId, Detalles: ${detalles.length} productos');
           
-          print('📤 DEBUG - Enviando al servidor:');
-          print('   usuaCreacion: $usuaId');
-          print('   detalles: $detalles');
+          //print('📤 DEBUG - Enviando al servidor:');
+          //print('   usuaCreacion: $usuaId');
+          //print('   detalles: $detalles');
           
           final success = await recargasService.insertarRecarga(
             usuaCreacion: usuaId,
@@ -202,33 +202,33 @@ class RecargasScreenOffline {
           );
           
           if (success) {
-            print('✅ Recarga sincronizada exitosamente');
+            //print('✅ Recarga sincronizada exitosamente');
             sincronizadasExitosas.add(recarga);
           } else {
-            print('❌ Error al sincronizar recarga');
+            //print('❌ Error al sincronizar recarga');
             sincronizadasFallidas.add(recarga);
           }
         } catch (e) {
-          print('❌ Excepción al sincronizar recarga: $e');
+          //print('❌ Excepción al sincronizar recarga: $e');
           sincronizadasFallidas.add(recarga);
         }
       }
 
       if (sincronizadasFallidas.isEmpty) {
         await guardarJson('recargas_pendientes.json', []);
-        print('🗑️ Todas las recargas sincronizadas, archivo limpiado');
+        //print('🗑️ Todas las recargas sincronizadas, archivo limpiado');
       } else {
         await guardarJson('recargas_pendientes.json', sincronizadasFallidas);
-        print('⚠️ Se mantienen ${sincronizadasFallidas.length} recargas fallidas para reintentar');
+        //print('⚠️ Se mantienen ${sincronizadasFallidas.length} recargas fallidas para reintentar');
       }
 
-      print('\n📊 Resumen de sincronización:');
-      print('   ✅ Exitosas: ${sincronizadasExitosas.length}');
-      print('   ❌ Fallidas: ${sincronizadasFallidas.length}');
+      //print('\n📊 Resumen de sincronización:');
+      //print('   ✅ Exitosas: ${sincronizadasExitosas.length}');
+      //print('   ❌ Fallidas: ${sincronizadasFallidas.length}');
       
       return sincronizadasExitosas.length;
     } catch (e) {
-      print('❌ Error general en sincronizarRecargasOffline: $e');
+      //print('❌ Error general en sincronizarRecargasOffline: $e');
       return 0;
     }
   }

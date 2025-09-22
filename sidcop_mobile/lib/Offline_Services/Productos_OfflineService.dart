@@ -41,7 +41,7 @@ class ProductosOffline {
       final contenido = jsonEncode(objeto);
       await _secureStorage.write(key: key, value: contenido);
     } catch (e) {
-      print('Error guardando JSON $nombreArchivo: $e');
+      //print('Error guardando JSON $nombreArchivo: $e');
       rethrow;
     }
   }
@@ -54,7 +54,7 @@ class ProductosOffline {
       if (s == null || s.isEmpty) return null;
       return jsonDecode(s);
     } catch (e) {
-      print('Error leyendo JSON $nombreArchivo: $e');
+      //print('Error leyendo JSON $nombreArchivo: $e');
       return null;
     }
   }
@@ -69,7 +69,7 @@ class ProductosOffline {
       final encoded = base64Encode(bytes);
       await _secureStorage.write(key: key, value: encoded);
     } catch (e) {
-      print('Error guardando bytes $nombreArchivo: $e');
+      //print('Error guardando bytes $nombreArchivo: $e');
       rethrow;
     }
   }
@@ -92,7 +92,7 @@ class ProductosOffline {
       
       return null;
     } catch (e) {
-      print('Error leyendo bytes $nombreArchivo: $e');
+      //print('Error leyendo bytes $nombreArchivo: $e');
       return null;
     }
   }
@@ -130,7 +130,7 @@ class ProductosOffline {
       final archivo = File(ruta);
       if (await archivo.exists()) await archivo.delete();
     } catch (e) {
-      print('Error borrando archivo $nombreArchivo: $e');
+      //print('Error borrando archivo $nombreArchivo: $e');
     }
   }
 
@@ -182,7 +182,7 @@ class ProductosOffline {
       final List<dynamic> lista = List.from(raw as List);
       return lista.map((json) => Productos.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('Error parseando productos: $e');
+      //print('Error parseando productos: $e');
       return [];
     }
   }
@@ -197,7 +197,7 @@ class ProductosOffline {
       final contenido = jsonEncode(objeto);
       await _secureStorage.write(key: key, value: contenido);
     } catch (e) {
-      print('Error guardando JSON seguro $key: $e');
+      //print('Error guardando JSON seguro $key: $e');
       rethrow;
     }
   }
@@ -209,7 +209,7 @@ class ProductosOffline {
       if (s == null || s.isEmpty) return null;
       return jsonDecode(s);
     } catch (e) {
-      print('Error leyendo JSON seguro $key: $e');
+      //print('Error leyendo JSON seguro $key: $e');
       return null;
     }
   }
@@ -244,7 +244,7 @@ class ProductosOffline {
     try {
       await _secureStorage.delete(key: key);
     } catch (e) {
-      print('Error borrando detalles producto $productoId: $e');
+      //print('Error borrando detalles producto $productoId: $e');
     }
   }
 
@@ -285,7 +285,7 @@ class ProductosOffline {
       await guardarProductos(data);
       return data;
     } catch (e) {
-      print('Error sincronizando productos: $e');
+      //print('Error sincronizando productos: $e');
       return [];
     }
   }
@@ -298,7 +298,7 @@ class ProductosOffline {
       await guardarJson('categorias.json', data);
       return data;
     } catch (e) {
-      print('Error sincronizando categorías: $e');
+      //print('Error sincronizando categorías: $e');
       return [];
     }
   }
@@ -311,7 +311,7 @@ class ProductosOffline {
       await guardarJson('subcategorias.json', data);
       return data;
     } catch (e) {
-      print('Error sincronizando subcategorías: $e');
+      //print('Error sincronizando subcategorías: $e');
       return [];
     }
   }
@@ -324,7 +324,7 @@ class ProductosOffline {
       await guardarJson('marcas.json', data);
       return data;
     } catch (e) {
-      print('Error sincronizando marcas: $e');
+      //print('Error sincronizando marcas: $e');
       return [];
     }
   }
@@ -379,7 +379,7 @@ class ProductosOffline {
         'marcas': resultados[3],
       };
     } catch (e) {
-      print('Error en sincronización completa de productos: $e');
+      //print('Error en sincronización completa de productos: $e');
       rethrow;
     }
   }
@@ -416,9 +416,9 @@ class ProductosOffline {
         await guardarDetallesProducto(producto.prod_Id, detalles);
       }
       
-      print('Detalles guardados para ${productos.length} productos');
+      //print('Detalles guardados para ${productos.length} productos');
     } catch (e) {
-      print('Error guardando detalles de productos: $e');
+      //print('Error guardando detalles de productos: $e');
       rethrow;
     }
   }
@@ -434,7 +434,7 @@ class ProductosOffline {
       final List<dynamic> lista = List.from(raw as List);
       return lista.map((json) => Productos.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('Error parseando productos locales: $e');
+      //print('Error parseando productos locales: $e');
       return [];
     }
   }
@@ -451,7 +451,7 @@ class ProductosOffline {
     try {
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
-      print('Error parseando categorías locales: $e');
+      //print('Error parseando categorías locales: $e');
       return [];
     }
   }
@@ -473,7 +473,7 @@ class ProductosOffline {
     try {
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
-      print('Error parseando subcategorías locales: $e');
+      //print('Error parseando subcategorías locales: $e');
       return [];
     }
   }
@@ -495,7 +495,7 @@ class ProductosOffline {
     try {
       return List<Map<String, dynamic>>.from(raw as List);
     } catch (e) {
-      print('Error parseando marcas locales: $e');
+      //print('Error parseando marcas locales: $e');
       return [];
     }
   }
@@ -525,7 +525,7 @@ class ProductosOffline {
       
       return data;
     } catch (e) {
-      print('Error sincronizando productos con descuento: $e');
+      //print('Error sincronizando productos con descuento: $e');
       return [];
     }
   }
@@ -543,7 +543,7 @@ class ProductosOffline {
       final List<dynamic> list = List.from(raw as List);
       return list.map((json) => ProductoConDescuento.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('Error parseando productos con descuento locales: $e');
+      //print('Error parseando productos con descuento locales: $e');
       return [];
     }
   }
@@ -555,7 +555,7 @@ class ProductosOffline {
       final service = ProductosService();
       return await service.getProductosPorFactura(facturaId);
     } catch (e) {
-      print('Error obteniendo productos por factura: $e');
+      //print('Error obteniendo productos por factura: $e');
       return [];
     }
   }
@@ -574,9 +574,9 @@ class ProductosOffline {
   static Future<void> sincronizarTodo() async {
     try {
       await sincronizarProductos_Todo();
-      print('Sincronización completa de productos finalizada');
+      //print('Sincronización completa de productos finalizada');
     } catch (e) {
-      print('Error en sincronización completa: $e');
+      //print('Error en sincronización completa: $e');
       rethrow;
     }
   }

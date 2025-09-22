@@ -69,9 +69,7 @@ final imageCacheService = ProductImageCacheService();
 final success = await imageCacheService.cacheAllProductImages(products);
 
 if (success) {
-  print('Todas las imágenes cacheadas exitosamente');
 } else {
-  print('Caché completado con algunos errores');
 }
 ```
 
