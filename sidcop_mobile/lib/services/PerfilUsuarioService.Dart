@@ -347,8 +347,8 @@ class PerfilUsuarioService {
     if (userData == null) return 'No disponible';
     
     // Mapear desde los campos del API response
-    return userData['correoElectronico'] ?? 
-           userData['correo'] ?? 
+    return userData['correo'] ?? 
+           userData['vend_Correo'] ?? 
            userData['email'] ?? 
            'No disponible';
   }
@@ -359,7 +359,7 @@ class PerfilUsuarioService {
     
     // Mapear desde los campos del API response
     return userData['telefono'] ?? 
-           userData['phone'] ?? 
+           userData['vend_Telefono  '] ?? 
            userData['celular'] ?? 
            userData['numeroTelefono'] ??
            'No disponible';
@@ -382,8 +382,8 @@ class PerfilUsuarioService {
     if (userData == null) return null;
     
     // Mapear desde los campos del API response
-    final imagen = userData['usua_Imagen'] ?? 
-                   userData['imagen'] ?? 
+    final imagen = userData['imagen'] ?? 
+                   userData['usua_Imagen'] ?? 
                    userData['profileImage'] ?? 
                    userData['avatar'];
     

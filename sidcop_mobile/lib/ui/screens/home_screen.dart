@@ -179,40 +179,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
           ),
 
-          const SizedBox(height: 32),
-
-          // Sección de actividad reciente
-          const Text(
-            'Actividad reciente',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF181E34),
-              fontFamily: 'Satoshi',
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _buildActivityItem(
-            'Nuevo cliente registrado',
-            'Juan Pérez se registró en el sistema',
-            Icons.person_add,
-            '2 horas',
-          ),
-
-          _buildActivityItem(
-            'Producto actualizado',
-            'Café Espresso - Stock actualizado',
-            Icons.update,
-            '4 horas',
-          ),
-
-          _buildActivityItem(
-            'Recarga aprobada',
-            'Solicitud #001 fue aprobada',
-            Icons.check_circle,
-            '1 día',
-          ),
+          
         ],
       ),
     );
