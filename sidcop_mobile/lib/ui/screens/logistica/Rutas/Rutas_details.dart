@@ -54,10 +54,8 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
             'url:$url\nbytes:${resp.bodyBytes.length}',
           );
         } catch (_) {}
-        print('DEBUG: detalles - imagen guardada en $path');
       }
     } catch (e) {
-      print('DEBUG: no se pudo descargar imagen de detalles: $e');
     }
   }
 
@@ -162,58 +160,24 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
       widget.ruta.ruta_Id,
     );
     if (detalles == null) {
-      print(
-        'DEBUG: _leerDetallesOffline - no hay detalles para ruta ${widget.ruta.ruta_Id}',
-      );
       return null;
     }
-
-    print('DEBUG: _leerDetallesOffline - detalles keys: ${detalles.keys}');
-    print(
-      'DEBUG: _leerDetallesOffline - clientes count: ${(detalles['clientes'] as List?)?.length ?? 0}',
-    );
-    print(
-      'DEBUG: _leerDetallesOffline - direcciones count: ${(detalles['direcciones'] as List?)?.length ?? 0}',
-    );
 
     // convertir a objetos modelo para el UI
     final clientes =
         (detalles['clientes'] as List?)?.map((j) {
-          print(
-            'DEBUG: converting cliente JSON: ${j.toString().substring(0, 100)}...',
-          );
           return Cliente.fromJson(j);
         }).toList() ??
         [];
     final direcciones =
         (detalles['direcciones'] as List?)?.map((j) {
-          print(
-            'DEBUG: converting direccion JSON: ${j.toString().substring(0, 100)}...',
-          );
           return DireccionCliente.fromJson(j);
         }).toList() ??
         [];
 
-    print(
-      'DEBUG: _leerDetallesOffline - converted clientes: ${clientes.length}',
-    );
-    print(
-      'DEBUG: _leerDetallesOffline - converted direcciones: ${direcciones.length}',
-    );
-
     final mapDirecciones = <int, List<DireccionCliente>>{};
     for (final d in direcciones) {
-      print(
-        'DEBUG: direccion clie_id=${d.clie_id}, dicl_direccionexacta=${d.dicl_direccionexacta}',
-      );
       mapDirecciones.putIfAbsent(d.clie_id, () => []).add(d);
-    }
-
-    for (final c in clientes) {
-      final dirs = mapDirecciones[c.clie_Id ?? -1] ?? [];
-      print(
-        'DEBUG: cliente ${c.clie_NombreNegocio} (id=${c.clie_Id}) tiene ${dirs.length} direcciones',
-      );
     }
 
     return {

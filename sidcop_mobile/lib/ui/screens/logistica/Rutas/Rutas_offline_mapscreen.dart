@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'dart:math';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -114,7 +114,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      print('Error abriendo Google Maps: $e');
     }
   }
 
@@ -139,47 +138,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      print('Error abriendo Waze: $e');
     }
   }
 
-  // Método para depurar el estado de las direcciones
   void _depurarEstadoDirecciones() {
-    print('====== DEPURACIÓN ESTADO DE DIRECCIONES ======');
-    print('Ruta ID: ${widget.rutaId}');
-    print('Total clientes filtrados: ${_clientesFiltradosOffline.length}');
-    print(
-      'Total direcciones filtradas: ${_direccionesFiltradasOffline.length}',
-    );
-    print(
-      'Total direcciones visitadas: ${_direccionesVisitadasOffline.length}',
-    );
-
-    // Mostrar los primeros clientes para verificar
-    print('Primeros 5 clientes:');
-    for (int i = 0; i < min(5, _clientesFiltradosOffline.length); i++) {
-      final cliente = _clientesFiltradosOffline[i];
-      final nombre =
-          cliente['clie_NombreNegocio'] ??
-          cliente['clie_Nombres'] ??
-          'Sin nombre';
-      final id = cliente['clie_Id'] ?? cliente['clieId'] ?? 'desconocido';
-      print('  - $nombre (ID: $id)');
-    }
-
-    // Mostrar las primeras direcciones
-    print('Primeras 5 direcciones:');
-    for (int i = 0; i < min(5, _direccionesFiltradasOffline.length); i++) {
-      final dir = _direccionesFiltradasOffline[i];
-      final diclId = dir['dicl_id'] ?? dir['diCl_Id'] ?? 'desconocido';
-      final clieId = dir['clie_id'] ?? dir['clieId'] ?? 'desconocido';
-      final visitada = _direccionesVisitadasOffline.contains(diclId.toString());
-      print(
-        '  - Dirección ID: $diclId, Cliente ID: $clieId, Visitada: $visitada',
-      );
-    }
-
-    print('==========================================');
   }
 
   Future<void> _setInitialPositionFromDevice() async {
@@ -269,7 +231,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       _server!.listen((HttpRequest request) async {
         try {
           final path = request.uri.path; // e.g. /{z}/{x}/{y}.png
-          print('MBTiles server request: $path');
+
           final parts = path.split('/').where((s) => s.isNotEmpty).toList();
           if (parts.length >= 3) {
             final z = int.tryParse(parts[0]);
@@ -289,7 +251,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 print('Served tile $z/$x/$y (${bytes.length} bytes)');
                 return;
               } else {
-                print('Tile not found in MBTiles: $z/$x/$y');
+
               }
             }
           }
@@ -358,7 +320,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           .map((s) => s!)
           .toSet();
 
-      print('OFFLINE: IDs de clientes encontrados: ${clienteIds.length}');
+
 
       // Build lookup map for quick access when creating marker tap handlers
       _clientesById = Map.fromEntries(
@@ -497,11 +459,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () {
-                  final clIdRaw = rawClId;
-                  final clIdStrLog = clIdRaw == null
-                      ? 'unknown'
-                      : clIdRaw.toString();
-                  print('OFFLINE: marker tapped clId=$clIdStrLog');
                   _showClienteDetails(clienteMap, d);
                 },
                 child: SizedBox(
@@ -610,7 +567,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
 
         // Combinar ambas fuentes para una lista completa
         final visitasLocal = [...visitasHistorial, ...visitasPendientes];
-        print('OFFLINE: Total visitas combinadas: ${visitasLocal.length}');
+
 
         // Obtener los IDs de todas las direcciones en la ruta actual
         final diclIdsInOrden = _ordenParadasOffline
@@ -618,7 +575,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             .where((s) => s.isNotEmpty)
             .toSet();
 
-        print('OFFLINE: Direcciones en orden: ${diclIdsInOrden.length}');
+
 
         // Buscar las visitas que corresponden a direcciones de esta ruta
         final nuevos = <String>{};
@@ -656,7 +613,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           } catch (_) {}
         }
 
-        print('OFFLINE: Direcciones visitadas encontradas: ${nuevos.length}');
+
 
         if (nuevos.isNotEmpty) {
           setState(() {
@@ -668,7 +625,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           // No persistir un archivo separado; el estado de visitas proviene de visitas_historial.json
         }
       } catch (e) {
-        print('OFFLINE: Error al cargar visitas: $e');
+
         // ignore
       }
       if (failures.isNotEmpty) {
@@ -677,10 +634,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         );
       }
 
-      print('OFFLINE: created markers=${_clientMarkers.length}');
+
       setState(() {});
-    } catch (e, st) {
-      print('OFFLINE: error loading clientes offline: $e\n$st');
+    } catch (e) {
+
     }
   }
 
@@ -1129,7 +1086,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       );
     } else if (_hasMbtiles && _serverPort != null) {
       final urlTemplate = 'http://127.0.0.1:$_serverPort/{z}/{x}/{y}.png';
-      print('Using tile url template: $urlTemplate');
+
       // Always show device location marker along with client markers.
       final deviceMarker = Marker(
         point: LatLng(centerLat, centerLng),
