@@ -34,6 +34,7 @@ class CustomDrawer extends StatefulWidget {
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
+  // se almacena el servicio para obtener los datos del usuario
   final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
 
   String _nombreUsuario = 'Cargando...';
@@ -53,6 +54,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     _loadPermisos();
   }
 
+  //se cargan los permisos del usuario en sesión para mostrar las opciones del drawer
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
@@ -70,6 +72,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     setState(() {});
   }
 
+  //funcion para cargar los datos del usuario
   Future<void> _cargarDatosUsuario() async {
     try {
       final nombreCompleto = await _perfilUsuarioService
@@ -87,6 +90,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
       final imagenVendedor = userData?['imagen'] as String?;
       final usuaCreacion = userData?['usua_Id'] as int?;
 
+      //se guarda el tipo de vendedor que inicio sesión
       if(vend_Tipo == 'V'){
         _cargoUsuario = 'Vendedor';
       }else if(vend_Tipo == 'P'){
@@ -125,6 +129,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     return permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
+  //creación del drawer con las opciones dinámicas según permisos
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -219,6 +224,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           const SizedBox(height: 10),
 
+          // Opciones del menú
           ListTile(
             leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
             title: const Text(
@@ -539,6 +545,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     );
   }
 
+  // Construye el avatar del perfil del usuario
   Widget _buildProfileAvatar() {
     if (_isLoading) {
       return CircleAvatar(
