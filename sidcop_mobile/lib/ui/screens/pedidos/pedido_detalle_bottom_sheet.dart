@@ -82,10 +82,10 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
                             color: Colors.black54,
                           ),
                           onPressed: () async {
-                            print('\n=== BOTÓN DE FACTURA PRESIONADO ===');
+                            // print('\n=== BOTÓN DE FACTURA PRESIONADO ===');
                             // Insertar la factura (la navegación se maneja dentro del método)
                             await _insertarFactura();
-                            print('=== BOTÓN DE FACTURA COMPLETADO ===\n');
+                            // print('=== BOTÓN DE FACTURA COMPLETADO ===\n');
                           },
                           tooltip: 'Ver Factura',
                         ),

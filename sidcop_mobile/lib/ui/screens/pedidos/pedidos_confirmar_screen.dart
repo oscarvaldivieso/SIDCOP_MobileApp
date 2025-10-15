@@ -44,7 +44,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
     super.initState();
     _productosEditables = List.from(widget.productosSeleccionados);
   }
-
+ 
+  // Actualiza la cantidad de un producto y recalcula su precio final
   void _actualizarCantidad(int index, int nuevaCantidad) {
     if (nuevaCantidad <= 0) {
       _eliminarProducto(index);
@@ -225,8 +226,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       }
 
       // Debug: Imprimir todos los datos del usuario
-      print('Datos completos del usuario: $datosUsuario');
-      print('Claves disponibles: ${datosUsuario.keys.toList()}');
+      // print('Datos completos del usuario: $datosUsuario');
+      // print('Claves disponibles: ${datosUsuario.keys.toList()}');
 
       final int usuaId = datosUsuario['usua_Id'] is String
           ? int.tryParse(datosUsuario['usua_Id']) ?? 0
@@ -237,9 +238,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           ? int.tryParse(datosUsuario['usua_IdPersona']) ?? 0
           : datosUsuario['usua_IdPersona'] ?? 0;
 
-      print('usuaId obtenido: $usuaId');
-      print('vendId (usuaIdPersona) obtenido: $vendId');
-      print('usuaEsVendedor: ${datosUsuario['usua_EsVendedor']}');
+      // print('usuaId obtenido: $usuaId');
+      // print('vendId (usuaIdPersona) obtenido: $vendId');
+      // print('usuaEsVendedor: ${datosUsuario['usua_EsVendedor']}');
 
       if (usuaId == 0) {
         throw Exception('Usuario ID no válido: $usuaId');
@@ -271,8 +272,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
       }).toList();
 
       // Obtener DiCl_Id de la dirección seleccionada
-      print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
-      print(
+      // print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
+      // print(
         'Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}',
       );
 
@@ -285,7 +286,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           widget.direccionSeleccionada['ID'] ??
           0;
 
-      print('DiCl_Id obtenido: $diClId');
+      // print('DiCl_Id obtenido: $diClId');
 
       // Validar el ID de dirección
       if (diClId == 0) {
@@ -303,7 +304,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         }
       }
 
-      print('DiCl_Id final a usar: $diClId');
+      // print('DiCl_Id final a usar: $diClId');
 
       // Obtener datos necesarios para generar el código del pedido
       final clienteService = ClientesService();
@@ -314,9 +315,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         direcciones = await clienteService.getDireccionesCliente(
           widget.clienteId,
         );
-        print('Direcciones obtenidas: ${direcciones.length}');
+        // print('Direcciones obtenidas: ${direcciones.length}');
       } catch (e) {
-        print('Error obteniendo direcciones: $e');
+        // print('Error obteniendo direcciones: $e');
         // Intentar desde caché offline
         try {
           final direccionesCache =
@@ -324,25 +325,25 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                 widget.clienteId,
               );
           direcciones = direccionesCache;
-          print('Direcciones desde caché: ${direcciones.length}');
+          // print('Direcciones desde caché: ${direcciones.length}');
         } catch (cacheError) {
-          print('Error obteniendo direcciones desde caché: $cacheError');
+          // print('Error obteniendo direcciones desde caché: $cacheError');
         }
       }
 
       try {
         clientes = await clienteService.getClientes();
-        print('Clientes obtenidos: ${clientes.length}');
+        // print('Clientes obtenidos: ${clientes.length}');
       } catch (e) {
-        print('Error obteniendo clientes: $e');
+        // print('Error obteniendo clientes: $e');
         // Intentar desde caché offline
         try {
           final clientesCache =
               await InicioSesionOfflineService.obtenerClientesRutaCache();
           clientes = clientesCache;
-          print('Clientes desde caché: ${clientes.length}');
+          // print('Clientes desde caché: ${clientes.length}');
         } catch (cacheError) {
-          print('Error obteniendo clientes desde caché: $cacheError');
+          // print('Error obteniendo clientes desde caché: $cacheError');
         }
       }
 
@@ -360,7 +361,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           'diCl_EsPrincipal': true,
         };
         direccionesCompletas.add(direccionTemporal);
-        print('Agregada dirección de sesión temporal: $direccionTemporal');
+        // print('Agregada dirección de sesión temporal: $direccionTemporal');
       }
 
       // Generar el código del pedido
@@ -373,17 +374,17 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           direcciones: direccionesCompletas,
           clientes: clientes,
         );
-        print('Código de pedido generado: $pediCodigo');
+        // print('Código de pedido generado: $pediCodigo');
       } catch (e) {
-        print('Error generando código con método normal: $e');
+        // print('Error generando código con método normal: $e');
       }
 
       // Si no se pudo generar el código, usar un código de fallback
       if (pediCodigo.isEmpty) {
-        print('Generando código de fallback...');
+        // print('Generando código de fallback...');
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         pediCodigo = 'PED-TEMP-${widget.clienteId}-$timestamp';
-        print('Código de fallback generado: $pediCodigo');
+        // print('Código de fallback generado: $pediCodigo');
       }
 
       if (pediCodigo.isEmpty) {
@@ -540,42 +541,42 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           ),
         );
       }
-      print('Error completo al crear pedido: $e');
+      // print('Error completo al crear pedido: $e');
     }
   }
 
   Future<void> _confirmarPedidoOffline() async {
     try {
-      print('🔧 DEBUG OFFLINE - Iniciando confirmación de pedido offline...');
+      // print(' DEBUG OFFLINE - Iniciando confirmación de pedido offline...');
 
       // Obtener datos del usuario actual
       final perfilService = PerfilUsuarioService();
       final userData = await perfilService.obtenerDatosUsuario();
 
-      print('👤 DEBUG OFFLINE - Datos del usuario:');
-      print('   - userData completo: $userData');
-      print('   - usua_IdPersona: ${userData?['usua_IdPersona']}');
-      print('   - usua_Id: ${userData?['usua_Id']}');
-      print('   - usua_EsVendedor: ${userData?['usua_EsVendedor']}');
+      // print(' DEBUG OFFLINE - Datos del usuario:');
+      // print('   - userData completo: $userData');
+      // print('   - usua_IdPersona: ${userData?['usua_IdPersona']}');
+      // print('   - usua_Id: ${userData?['usua_Id']}');
+      // print('   - usua_EsVendedor: ${userData?['usua_EsVendedor']}');
 
       final int? vendedorId = userData?['usua_IdPersona'] is String
           ? int.tryParse(userData?['usua_IdPersona'])
           : userData?['usua_IdPersona'];
 
-      print('   - vendedorId procesado: $vendedorId');
+      // print('   - vendedorId procesado: $vendedorId');
 
       // Debug de productos editables
-      print('📦 DEBUG OFFLINE - Productos editables:');
+      // print(' DEBUG OFFLINE - Productos editables:');
       for (int i = 0; i < _productosEditables.length; i++) {
         final p = _productosEditables[i];
-        print('   Producto $i:');
-        print('     - prodId: ${p.prodId}');
-        print('     - nombre: ${p.nombre}');
-        print('     - cantidad: ${p.cantidad}');
-        print('     - precioBase: ${p.precioBase}');
-        print('     - precioFinal: ${p.precioFinal}');
-        print('     - descuento por unidad: ${p.precioBase - p.precioFinal}');
-        print('     - subtotal: ${p.precioFinal * p.cantidad}');
+        // print('   Producto $i:');
+        // print('     - prodId: ${p.prodId}');
+        // print('     - nombre: ${p.nombre}');
+        // print('     - cantidad: ${p.cantidad}');
+        // print('     - precioBase: ${p.precioBase}');
+        // print('     - precioFinal: ${p.precioFinal}');
+        // print('     - descuento por unidad: ${p.precioBase - p.precioFinal}');
+        // print('     - subtotal: ${p.precioFinal * p.cantidad}');
       }
 
       // Preparar detalles del pedido para guardar offline
@@ -590,36 +591,36 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         return detalle;
       }).toList();
 
-      print('📋 DEBUG OFFLINE - Detalles del pedido preparados:');
+      // print(' DEBUG OFFLINE - Detalles del pedido preparados:');
       for (int i = 0; i < detallesPedido.length; i++) {
-        print('   Detalle $i: ${detallesPedido[i]}');
+        // print('   Detalle $i: ${detallesPedido[i]}');
       }
 
       // Debug de dirección seleccionada
-      print('📍 DEBUG OFFLINE - Dirección seleccionada:');
-      print(
-        '   - direccionSeleccionada completa: ${widget.direccionSeleccionada}',
-      );
-      print(
-        '   - claves disponibles: ${widget.direccionSeleccionada.keys.toList()}',
-      );
+      // print(' DEBUG OFFLINE - Dirección seleccionada:');
+      // print(
+      //   '   - direccionSeleccionada completa: ${widget.direccionSeleccionada}',
+      // );
+      // print(
+      //   '   - claves disponibles: ${widget.direccionSeleccionada.keys.toList()}',
+      // );
 
       final direccionId =
           widget.direccionSeleccionada['diCl_Id'] ??
           widget.direccionSeleccionada['DiCl_Id'] ??
           widget.clienteId;
-      print('   - direccionId final: $direccionId');
+      // print('   - direccionId final: $direccionId');
 
-      // Debug de totales
-      print('💰 DEBUG OFFLINE - Totales calculados:');
-      print('   - _total: $_total');
-      print('   - _subtotal: $_subtotal');
-      print('   - _cantidadTotal: $_cantidadTotal');
+      // // Debug de totales
+      // print(' DEBUG OFFLINE - Totales calculados:');
+      // print('   - _total: $_total');
+      // print('   - _subtotal: $_subtotal');
+      // print('   - _cantidadTotal: $_cantidadTotal');
 
       // Generar código de pedido usando el mismo método que los pedidos online
       String pediCodigo = '';
       try {
-        print('🔧 DEBUG OFFLINE - Generando código de pedido...');
+        // print(' DEBUG OFFLINE - Generando código de pedido...');
 
         // Obtener direcciones desde caché offline
         List<dynamic> direcciones = [];
@@ -629,9 +630,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                 widget.clienteId,
               );
           direcciones = direccionesCache;
-          print('   - Direcciones desde caché: ${direcciones.length}');
+          // print('   - Direcciones desde caché: ${direcciones.length}');
         } catch (cacheError) {
-          print('   - Error obteniendo direcciones desde caché: $cacheError');
+          // print('   - Error obteniendo direcciones desde caché: $cacheError');
         }
 
         // Obtener clientes desde caché offline
@@ -640,9 +641,9 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           final clientesCache =
               await InicioSesionOfflineService.obtenerClientesRutaCache();
           clientes = clientesCache;
-          print('   - Clientes desde caché: ${clientes.length}');
+          // print('   - Clientes desde caché: ${clientes.length}');
         } catch (cacheError) {
-          print('   - Error obteniendo clientes desde caché: $cacheError');
+          // print('   - Error obteniendo clientes desde caché: $cacheError');
         }
 
         // Si es una dirección de sesión, agregarla a la lista de direcciones
@@ -658,7 +659,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
             'diCl_EsPrincipal': true,
           };
           direccionesCompletas.add(direccionTemporal);
-          print('   - Agregada dirección de sesión temporal');
+          // print('   - Agregada dirección de sesión temporal');
         }
 
         // Generar el código usando el mismo método que los pedidos online
@@ -668,17 +669,17 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           direcciones: direccionesCompletas,
           clientes: clientes,
         );
-        print('   - Código de pedido generado: $pediCodigo');
+        // print('   - Código de pedido generado: $pediCodigo');
       } catch (e) {
-        print('   - Error generando código con método normal: $e');
+        // print('   - Error generando código con método normal: $e');
       }
 
       // Si no se pudo generar el código, usar un código de fallback
       if (pediCodigo.isEmpty) {
-        print('   - Generando código de fallback...');
+        // print('   - Generando código de fallback...');
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         pediCodigo = 'PED-${widget.clienteId}-$timestamp';
-        print('   - Código de fallback generado: $pediCodigo');
+        // print('   - Código de fallback generado: $pediCodigo');
       }
 
       // Crear objeto de pedido offline
@@ -699,13 +700,13 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
         'sync_attempts': 0,
       };
 
-      print('💾 DEBUG OFFLINE - Objeto pedido offline completo:');
-      print('$pedidoOffline');
+      // print('DEBUG OFFLINE - Objeto pedido offline completo:');
+      // print('$pedidoOffline');
 
       // Guardar el pedido localmente
-      print('💾 DEBUG OFFLINE - Guardando pedido offline...');
+      // print(' DEBUG OFFLINE - Guardando pedido offline...');
       await PedidosScreenOffline.guardarPedidoOffline(pedidoOffline);
-      print('✅ DEBUG OFFLINE - Pedido guardado exitosamente');
+      // print(' DEBUG OFFLINE - Pedido guardado exitosamente');
 
       // Mostrar mensaje de éxito
       if (mounted) {
@@ -737,7 +738,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           ),
         );
       }
-      print('Error en _confirmarPedidoOffline: $e');
+      // print('Error en _confirmarPedidoOffline: $e');
     }
   }
 
@@ -833,8 +834,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                       // print(p.cantidad);
                       // print(p.precioFinal);
                       // print(p.precioBase);
-                      print(p.productoOriginal?.toJson());
-                      print(p.productoOriginal?.prodPagaImpuesto);
+                      // print(p.productoOriginal?.toJson());
+                      // print(p.productoOriginal?.prodPagaImpuesto);
                       if (p.productoOriginal?.descuentosEscala != null) {
                         for (
                           int i = 0;
@@ -898,50 +899,6 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                               ),
                             );
                           },
-                          // child: ListTile( //Cambiar por diseño de ventas WARD
-                          //   title: Text(p.nombre),
-                          //   subtitle: Column(
-                          //     crossAxisAlignment: CrossAxisAlignment.start,
-                          //     children: [
-                          //       Text('Precio: L. ${p.precioFinal.toStringAsFixed(2)}'),
-                          //       Text('Total: L. ${(p.precioFinal * p.cantidad).toStringAsFixed(2)}'),
-                          //     ],
-                          //   ),
-                          //   trailing: SizedBox(
-                          //     width: 110,
-                          //     child: Row(
-                          //       mainAxisSize: MainAxisSize.min,
-                          //       children: [
-                          //         SizedBox(
-                          //           width: 32,
-                          //           child: IconButton(
-                          //             padding: EdgeInsets.zero,
-                          //             constraints: const BoxConstraints(),
-                          //             icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
-                          //             onPressed: () => _actualizarCantidad(index, p.cantidad - 1),
-                          //           ),
-                          //         ),
-                          //         Container(
-                          //           width: 30,
-                          //           child: Text(
-                          //             '${p.cantidad}',
-                          //             textAlign: TextAlign.center,
-                          //             style: const TextStyle(fontWeight: FontWeight.bold),
-                          //           ),
-                          //         ),
-                          //         SizedBox(
-                          //           width: 32,
-                          //           child: IconButton(
-                          //             padding: EdgeInsets.zero,
-                          //             constraints: const BoxConstraints(),
-                          //             icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
-                          //             onPressed: () => _actualizarCantidad(index, p.cantidad + 1),
-                          //           ),
-                          //         ),
-                          //       ],
-                          //     ),
-                          //   ),
-                          // ),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(16),
