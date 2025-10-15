@@ -39,8 +39,6 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
   }
 
   Future<void> _loadGoals() async {
-    debugPrint('[_loadGoals] Iniciando carga de metas...');
-    debugPrint('[_loadGoals] ID de usuario: ${widget.usuaIdPersona}');
 
     if (!_isLoading) {
       setState(() {
@@ -52,36 +50,29 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     try {
       // 1. Intentar cargar desde backend
       final goalsRaw = await _goalsService.getGoalsByVendor(widget.usuaIdPersona);
-      debugPrint('[_loadGoals] Respuesta recibida: ${goalsRaw?.length ?? 0} metas');
 
       List<Metas> metasList = [];
       if (goalsRaw != null && goalsRaw.isNotEmpty) {
         metasList = goalsRaw.map<Metas>((json) => Metas.fromJson(json)).toList();
-        debugPrint('[_loadGoals] Metas mapeadas: ${metasList.length}');
         // Guardar en cache offline
         await MetasOffline.guardarMetas(metasList);
       } else {
         // Si no hay metas online, intentar cargar offline
         metasList = await MetasOffline.obtenerMetasLocal();
-        debugPrint('[_loadGoals] Metas offline cargadas: ${metasList.length}');
       }
 
       if (mounted) {
         setState(() {
           if (metasList.isNotEmpty) {
             _goals = metasList;
-            debugPrint('[_loadGoals] Metas actualizadas en el estado: ${_goals.length}');
             _errorMessage = '';
           } else {
             _errorMessage = 'Conéctate a una red para sincronizar tus metas.';
-            debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
         });
       }
     } catch (e, stackTrace) {
-      debugPrint('[_loadGoals] No hay metas disponibles offline: $e');
-      debugPrint('Stack trace: $stackTrace');
       // Si hay error, intentar cargar offline
       final offlineMetas = await MetasOffline.obtenerMetasLocal();
       if (mounted) {
@@ -91,28 +82,24 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             _errorMessage = '';
           } else {
             _errorMessage = 'Conéctate a una red para sincronizar tus metas.';
-            debugPrint('[_loadGoals] No hay metas offline. Mostrar mensaje especial.');
           }
           _isLoading = false;
         });
       }
     } finally {
       _refreshController.reset();
-      debugPrint('[_loadGoals] Carga de metas finalizada');
     }
   }
 
    // Sincroniza metas en background
   Future<void> _sincronizarMetasEnBackground() async {
   try {
-    debugPrint('Sincronizando metas en background...');
     final nuevasMetas = await MetasOffline.sincronizarMetasPorVendedor(widget.usuaIdPersona);
     if (nuevasMetas.isNotEmpty && mounted) {
       setState(() {
         _goals = nuevasMetas;
         // Si tienes filtros, reaplícalos aquí
       });
-      debugPrint('Metas actualizadas en background: ${nuevasMetas.length}');
     }
   } catch (e) {
     debugPrint('Error en sincronización background: $e');

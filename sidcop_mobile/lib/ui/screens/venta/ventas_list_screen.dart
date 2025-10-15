@@ -53,7 +53,6 @@ class _VentasListScreenState extends State<VentasListScreen> {
       _error = null;
     });
     //Sincronizar ventas pendientes antes de cargar el historial
-    print('[DEBUG] Iniciando carga de ventas...');
     await VentasOfflineService.sincronizarVentasPendientes();
 
     // Usar el vendedorId pasado o el globalVendId, nunca el 13 por defecto

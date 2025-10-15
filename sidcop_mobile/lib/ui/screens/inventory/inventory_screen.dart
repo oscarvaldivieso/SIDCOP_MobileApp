@@ -46,8 +46,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
-    print('usuaIdPersona en InventoryScreen: ${widget.usuaIdPersona}'); 
-    print('usuaCreacion en InventoryScreen: ${widget.usuaCreacion}'); 
     
     _usuaIdPersona = widget.usuaIdPersona;
     _usuaCreacion = widget.usuaCreacion;
@@ -209,7 +207,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     try {
       final hayPendientes = await JornadaOfflineService.hayOperacionesPendientes();
       if (hayPendientes) {
-        debugPrint('🔄 Sincronizando operaciones de jornada pendientes...');
         final success = await JornadaOfflineService.sincronizarOperacionesPendientes();
         
         if (success && mounted) {
@@ -229,7 +226,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         }
       }
     } catch (e) {
-      debugPrint('❌ Error al sincronizar jornadas pendientes: $e');
+      debugPrint('Error al sincronizar jornadas pendientes: $e');
     }
   }
 
@@ -243,16 +240,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     Future<void> _checkActiveJornada() async {
       try {
-        print('_checkActiveJornada called with usuaIdPersona: ${widget.usuaIdPersona}');
         
         setState(() {
           _isCheckingJornada = true;
         });
 
-        print('Calling getJornadaActiva with usuaIdPersona: ${widget.usuaIdPersona}');
         final jornadaResponse = await _inventoryService.getJornadaActiva(widget.usuaIdPersona);
         
-        print('Response from getJornadaActiva: $jornadaResponse');
         
         setState(() {
           _hasActiveJornada = jornadaResponse['data'] != null;
@@ -260,10 +254,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
           _isCheckingJornada = false;
         });
 
-        print('Estado de jornada: ${_hasActiveJornada ? "ACTIVA" : "CERRADA"}');
-        if (_activeJornadaData != null) {
-          print('Jornada ID: ${_activeJornadaData!['jorV_Id']}');
-        }
 
     } catch (e) {
       setState(() {
@@ -272,7 +262,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         _isCheckingJornada = false;
       });
       
-      print('Error al verificar jornada activa: $e');
       // No mostrar error al usuario aquí, solo en caso de operaciones específicas
     }
   }
@@ -1336,20 +1325,16 @@ Widget _buildSummaryItem(String label, String value, Color color) {
       if (_inventoryItems.isNotEmpty) {
         // Usar los datos ya cargados en la pantalla
         inventoryItems = _inventoryItems;
-        debugPrint('📦 Usando inventario ya cargado: ${inventoryItems.length} productos');
       } else {
         // Cargar datos directamente del servicio (offline-first)
         try {
           inventoryItems = await _inventoryService.getInventoryByVendor(widget.usuaIdPersona);
-          debugPrint('📦 Inventario cargado para impresión: ${inventoryItems.length} productos');
         } catch (e) {
-          debugPrint('❌ Error cargando inventario para impresión: $e');
           return {};
         }
       }
 
       if (inventoryItems.isEmpty) {
-        debugPrint('⚠️ No hay productos de inventario para imprimir');
         return {};
       }
 
@@ -1391,18 +1376,12 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         'montoTotal': montoTotal,
       });
 
-      debugPrint('✅ Datos de inventario preparados para impresión');
-      debugPrint('📊 Total productos: ${inventoryItems.length}');
-      debugPrint('📊 Total inicial: $totalInicial, Vendido: $totalVendido, Final: $totalFinal');
-      debugPrint('💰 Monto total: L.$montoTotal');
-
       return {
         'header': header,
         'detalle': detalle,
       };
 
     } catch (e) {
-      debugPrint('❌ Error preparando datos de inventario para impresión: $e');
       return {};
     }
   }
