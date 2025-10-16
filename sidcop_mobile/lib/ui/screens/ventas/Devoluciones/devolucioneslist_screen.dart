@@ -1,3 +1,4 @@
+// Importaciones necesarias para la pantalla de lista de devoluciones
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
@@ -13,6 +14,8 @@ import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
+/// Pantalla que muestra el listado de devoluciones
+/// Soporta modo online y offline con sincronización automática
 class DevolucioneslistScreen extends StatefulWidget {
   const DevolucioneslistScreen({super.key});
 
@@ -20,44 +23,59 @@ class DevolucioneslistScreen extends StatefulWidget {
   State<DevolucioneslistScreen> createState() => _DevolucioneslistScreenState();
 }
 
+/// Estado que maneja la lógica y la interfaz de la pantalla de lista de devoluciones
 class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
     with WidgetsBindingObserver {
+  // Future que contiene la lista de devoluciones
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
+  
+  // Permisos del usuario
   List<dynamic> permisos = [];
-  bool isOnline = true; // Indicador de estado de conexión
-  bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
+  
+  // Indicador de estado de conexión a internet
+  bool isOnline = true;
+  
+  // Evita ejecutar prefetch repetidamente
+  bool _prefetchCompleted = false;
+  
+  // Indica si se está sincronizando devoluciones pendientes
   bool _isSyncingPendientes = false;
+  
+  // Último estado de conexión conocido
   bool? _lastConnectionState;
 
-  // Pendientes locales cargadas desde almacenamiento
+  // Devoluciones pendientes locales (creadas offline)
   final Set<int> _pendingDevolucionesIds = <int>{};
   final Map<int, String> _pendingMessages = {};
-  // Numeración de pendientes (devoluciones creadas offline) por orden
+  
+  // Numeración de pendientes para mostrar en la UI
   final Map<int, int> _pendingDisplayNumber = {};
 
-  // Método para verificar la conexión a internet
+  /// Verifica la conexión a internet y sincroniza pendientes si se detecta reconexión
+  /// Retorna true si hay conexión, false en caso contrario
   Future<bool> verificarConexion() async {
     try {
       final tieneConexion = await VerificarService.verificarConexion();
-      // Detectar transición offline -> online (solo si antes estaba explícitamente offline)
+      // Detectar transición offline -> online para sincronizar pendientes
       if (_lastConnectionState == false && tieneConexion == true) {
-        // Solo ejecutar sincronización de pendientes si no se está ya sincronizando
+        // Evitar sincronizaciones múltiples simultáneas
         if (!_isSyncingPendientes) {
           _isSyncingPendientes = true;
           try {
             print(
               'Transición: Offline -> Online detectada, sincronizando pendientes...',
             );
+            // Sincronizar devoluciones pendientes con el servidor
             final resultado =
                 await DevolucionesOffline.sincronizarPendientesDevoluciones();
             print('Resultado sincronización pendientes: $resultado');
-            // Recargar listado inmediatamente
+            // Recargar el listado después de sincronizar
             if (mounted) {
               setState(() {
                 _devolucionesFuture = _loadDevoluciones();
               });
-              // Informar al usuario solo si se sincronizó al menos una devolución
-              try {
+              // Mostrar mensaje de éxito si se sincronizaron devoluciones
+              try{
                 final int sincronizados = (resultado['success'] ?? 0);
                 if (sincronizados > 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -80,6 +98,7 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
         }
       }
 
+      // Actualizar el último estado de conexión conocido
       _lastConnectionState = tieneConexion;
       setState(() {
         isOnline = tieneConexion;
@@ -98,31 +117,34 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
   @override
   void initState() {
     super.initState();
+    // Registrar observador del ciclo de vida de la app
     WidgetsBinding.instance.addObserver(this);
+    // Cargar permisos del usuario
     _loadPermisos();
-    // Inicializar _devolucionesFuture inmediatamente para evitar LateInitializationError
+    // Inicializar Future inmediatamente para evitar errores
     _devolucionesFuture = _loadDevoluciones();
-    // Luego actualizar después de verificar conexión
+    // Actualizar datos según el estado de conexión
     _actualizarDatosSegunConexion();
     print('DevolucioneslistScreen initialized');
   }
 
   @override
   void dispose() {
+    // Remover observador del ciclo de vida
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Al regresar a foreground, verificar conexión para sincronizar pendientes
+    // Al regresar a la app, verificar conexión y sincronizar
     if (state == AppLifecycleState.resumed) {
       _actualizarDatosSegunConexion();
     }
     super.didChangeAppLifecycleState(state);
   }
 
-  // Método para actualizar los datos según la conexión
+  /// Actualiza los datos de devoluciones según el estado de conexión
   Future<void> _actualizarDatosSegunConexion() async {
     // Verificar si hay conexión a internet
     await verificarConexion();
@@ -134,6 +156,8 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
       });
     }
   }
+
+  /// Carga los permisos del usuario desde el perfil
 
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
