@@ -390,6 +390,7 @@ class _VentaScreenState extends State<VentaScreen> {
     ErrorHandler.showErrorToast(mensaje);
   }
 
+  
   void mostrarResumen() {
     showDialog(
       context: context,
@@ -555,6 +556,7 @@ class _VentaScreenState extends State<VentaScreen> {
     }
   }
 
+  // Resetear el formulario
   void _resetearFormulario() {
     setState(() {
       currentStep = 0;
