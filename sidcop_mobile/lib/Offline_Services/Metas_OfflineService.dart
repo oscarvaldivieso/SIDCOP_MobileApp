@@ -37,11 +37,11 @@ class MetasOffline {
     final s = await _secureStorage.read(key: 'json:$_archivoMetas');
     if (s == null || s.isEmpty) return [];
     try {
-      print('Contenido metas offline: $s');
+      //print('Contenido metas offline: $s');
       final List<dynamic> lista = jsonDecode(s);
       return lista.map((json) => Metas.fromJson(json)).toList();
     } catch (e) {
-      print('Error parseando metas: $e');
+    //  print('Error parseando metas: $e');
       return [];
     }
   }
@@ -55,7 +55,7 @@ class MetasOffline {
       await guardarMetas(metas);
       return metas;
     } catch (e) {
-      print('Error sincronizando metas: $e');
+      //print('Error sincronizando metas: $e');
       return [];
     }
   }
