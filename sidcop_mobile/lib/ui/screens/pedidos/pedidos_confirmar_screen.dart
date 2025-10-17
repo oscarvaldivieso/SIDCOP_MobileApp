@@ -273,9 +273,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
 
       // Obtener DiCl_Id de la dirección seleccionada
       // print('Dirección seleccionada completa: ${widget.direccionSeleccionada}');
-      // print(
-        'Claves disponibles en dirección: ${widget.direccionSeleccionada.keys.toList()}',
-      );
+      
 
       int diClId =
           widget.direccionSeleccionada['diCl_Id'] ??

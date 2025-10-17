@@ -138,6 +138,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  //Metodo para mostrar las opciones de impresion
   void _showPrintOptions() {
   showModalBottomSheet(
     context: context,
@@ -375,6 +376,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   );
 }
 
+  //Metodo para imprimir la factura
   Future<void> _printInvoice({required bool isOriginal}) async {
     if (_facturaData == null) return;
 
@@ -691,6 +693,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
+  //Metodo para compartir la factura
   void _showFloatingShareMenu(BuildContext context) async {
     if (_facturaData == null) return;
 
@@ -760,6 +763,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     Overlay.of(context).insert(overlayEntry);
   }
 
+
   Widget _buildIconButton({required IconData icon, required Color color, required VoidCallback onPressed}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -774,6 +778,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       ),
     );
   }
+
 
   void _showDownloadProgress(File pdfFile) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
@@ -881,44 +886,44 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   // Tu widget principal con la corrección
-Widget _buildInvoiceContent() {
-  if (_facturaData == null) return const SizedBox();
+  Widget _buildInvoiceContent() {
+    if (_facturaData == null) return const SizedBox();
 
-  final factura = _facturaData!;
+    final factura = _facturaData!;
 
-  return SingleChildScrollView(
-    child: Container(
-      margin: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 255, 255, 255),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipPath(
-        clipper: TornPaperClipper(),
-        child: Column(
-          children: [
-            // Agrega un padding superior aquí
-            Padding(
-              padding: const EdgeInsets.only(top: 0), // Ajusta este valor
-              child: _buildCompanyHeader(factura),
+    return SingleChildScrollView(
+      child: Container(
+        margin: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 255, 255, 255),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
-            _buildInvoiceHeader(factura),
-            _buildProductsTable(factura),
-            _buildTotalsSection(factura),
-            const SizedBox(height: 20),
           ],
         ),
+        child: ClipPath(
+          clipper: TornPaperClipper(),
+          child: Column(
+            children: [
+              // Agrega un padding superior aquí
+              Padding(
+                padding: const EdgeInsets.only(top: 0), // Ajusta este valor
+                child: _buildCompanyHeader(factura),
+              ),
+              _buildInvoiceHeader(factura),
+              _buildProductsTable(factura),
+              _buildTotalsSection(factura),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 
 
@@ -1139,6 +1144,7 @@ Widget _buildDefaultLogo() {
     );
   }
 
+  //Tabla de detalle de los productos de la venta
   Widget _buildProductsTable(Map<String, dynamic> factura) {
     final detalles = factura['detalleFactura'] as List<dynamic>? ?? [];
     
@@ -1378,6 +1384,8 @@ Widget _buildDefaultLogo() {
   );
 }
 
+
+  //Totales calculados
   Widget _buildTotalRow(String label, String value, {bool isFinal = false, bool isNegative = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
