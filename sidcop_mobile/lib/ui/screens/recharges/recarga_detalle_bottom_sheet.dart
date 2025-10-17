@@ -15,6 +15,8 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
   static const Color textTertiary = Color(0xFF94A3B8);
   static const Color surfaceColor = Color(0xFFF8FAFC);
   static const Color borderColor = Color(0xFFE2E8F0);
+  
+  // Función para convertir estado a texto legible
   String _estadoLegible(dynamic estado) {
     switch (estado) {
       case 'A':
@@ -28,6 +30,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
     }
   }
 
+  //ajustar el color e icono según el estado
   Color _getStatusColor(dynamic estado) {
     switch (estado) {
       case 'A':
@@ -59,6 +62,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
 
   const RecargaDetalleBottomSheet({Key? key, required this.recargasGrupo, this.onRecargaUpdated}) : super(key: key);
 
+  // Función para abrir el modal con proposito de edición de alguna recarga
   void _openEditRecargaModal(BuildContext context, List<RecargasViewModel> recargasGrupo) {
     final recaId = recargasGrupo.isNotEmpty ? recargasGrupo.first.reca_Id : null;
     showModalBottomSheet(
@@ -85,6 +89,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
     });
   }
 
+  //Creación del widget para los detalles de una recarga
   @override
   Widget build(BuildContext context) {
     final recarga = recargasGrupo.first;
@@ -124,7 +129,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle bar
+              // Indicador de arrastre
               Center(
                 child: Container(
                   margin: const EdgeInsets.only(top: 16),
@@ -137,7 +142,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                 ),
               ),
               
-              // Header section
+              // Título y botón de cerrar
               Container(
                 padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
                 child: Column(
@@ -205,7 +210,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                     
                     const SizedBox(height: 28),
                     
-                    // Info cards
+                    // Información de la recarga
                     Row(
                       children: [
                         Expanded(
@@ -230,7 +235,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                 ),
               ),
               
-              // Products section
+              // sección de productos
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28.0),
                 child: Text(
@@ -304,6 +309,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
     );
   }
   
+  //Información de la recarga
   Widget _buildInfoCard({
     required IconData icon,
     required String title,
@@ -366,6 +372,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
     );
   }
   
+  //creacion de las tarjetas según su estado
   Widget _buildStatusCard({required dynamic estado}) {
     final color = _getStatusColor(estado);
     final icon = _getStatusIcon(estado);
@@ -427,6 +434,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
     );
   }
   
+  //información de los productos de la recarga
   Widget _buildProductCard(RecargasViewModel detalle, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -455,7 +463,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Product image
+          // imagen del producto
           Container(
             width: 68,
             height: 68,
@@ -498,7 +506,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
           
           const SizedBox(width: 20),
           
-          // Product info
+          // información del producto
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
