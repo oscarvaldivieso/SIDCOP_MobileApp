@@ -1,3 +1,4 @@
+// Importaciones necesarias para la pantalla de clientes
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
@@ -10,6 +11,9 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
+/// Pantalla principal que muestra la lista de clientes con funcionalidades de búsqueda y filtrado
+
+/// Widget Stateful que representa la pantalla principal de clientes
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
 
@@ -17,12 +21,21 @@ class clientScreen extends StatefulWidget {
   State<clientScreen> createState() => _clientScreenState();
 }
 
+/// Estado que maneja la lógica y la interfaz de usuario de la pantalla de clientes
+
 class _clientScreenState extends State<clientScreen> {
+  // Lista de permisos del usuario
   List<dynamic> permisos = [];
+  
+  // Lista de clientes y lista filtrada
   late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
+  
+  // Controlador para la barra de búsqueda
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
+  
+  // Servicio para operaciones con clientes
   final ClientesService _clienteService = ClientesService();
 
   // --- Ubicaciones: Departamentos, Municipios, Colonias ---
@@ -32,17 +45,24 @@ class _clientScreenState extends State<clientScreen> {
   List<dynamic> _direccionesPorCliente = [];
   List<dynamic> _cuentasPorCobrar = [];
 
-  String? _selectedDepa;
-  String? _selectedMuni;
-  int? _selectedColo;
+  // Filtros de ubicación seleccionados
+  String? _selectedDepa;  // Código de departamento seleccionado
+  String? _selectedMuni;  // Código de municipio seleccionado
+  int? _selectedColo;     // ID de colonia seleccionada
 
   @override
   @override
   void initState() {
     super.initState();
+    // Cargar datos de clientes al iniciar la pantalla
     _loadAllClientData();
   }
 
+  /// Carga todos los datos necesarios para mostrar la lista de clientes
+  /// Incluye datos de clientes, direcciones y ubicaciones
+
+  /// Carga todos los datos de clientes, tanto en línea como fuera de línea
+  /// Maneja la sincronización de datos y el almacenamiento en caché
   Future<void> _loadAllClientData() async {
     try {
       // Verificar conexión a internet
@@ -50,19 +70,23 @@ class _clientScreenState extends State<clientScreen> {
       List<Map<String, dynamic>> clientes = [];
 
       if (hasConnection) {
-        // Cargar direcciones por cliente
+        // Cargar direcciones por cliente desde el servidor
         final direcciones = await _clienteService.getDireccionesPorCliente();
         setState(() {
           _direccionesPorCliente = direcciones;
         });
 
-        // Cargar clientes desde el servidor
+        // Obtener ID de la persona del usuario actual
         final usuaIdPersona = await _getUsuarioIdPersona();
+        
+        // Cargar clientes según los permisos del usuario
         if (usuaIdPersona != null) {
+          // Si el usuario tiene ID de persona, cargar solo sus clientes asignados
           clientes = (await _clienteService.getClientesPorRuta(
             usuaIdPersona,
           )).cast<Map<String, dynamic>>();
         } else {
+          // Si no tiene ID de persona, cargar todos los clientes (solo para administradores)
           clientes = (await SyncService.getClients())
               .cast<Map<String, dynamic>>();
         }
@@ -70,11 +94,11 @@ class _clientScreenState extends State<clientScreen> {
         // Guardar clientes en almacenamiento local para uso offline
         await ClientesOfflineService.guardarClientes(clientes);
 
-        // Sincronizar clientes pendientes
+        // Sincronizar clientes pendientes (creados sin conexión)
         final clientesSincronizados =
             await ClientesOfflineService.sincronizarClientesPendientes();
 
-        // Mostrar mensaje de sincronización si se sincronizaron clientes
+        // Mostrar notificación si se sincronizaron clientes
         if (clientesSincronizados > 0 && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -86,35 +110,46 @@ class _clientScreenState extends State<clientScreen> {
             ),
           );
         }
-
-        // Sincronizar clientes pendientes
-        //await ClientesOfflineService.sincronizarClientesPendientes();
       } else {
+        // Modo sin conexión: cargar datos del almacenamiento local
         print('Sin conexión - cargando datos offline');
-
-        // Cargar clientes desde almacenamiento local
         clientes = await ClientesOfflineService.cargarClientes();
       }
 
-      // Procesar URLs de imágenes - concatenar baseUrl solo si no contiene 'http'
+      // Procesar URLs de imágenes para asegurar que sean accesibles
       for (var cliente in clientes) {
         if (cliente['clie_ImagenDelNegocio'] != null &&
             cliente['clie_ImagenDelNegocio'].toString().isNotEmpty) {
           String imagenUrl = cliente['clie_ImagenDelNegocio'].toString();
+          // Asegurarse de que la URL de la imagen sea absoluta
           cliente['clie_ImagenDelNegocio'] = imagenUrl.contains('http')
               ? imagenUrl
               : apiServer + imagenUrl;
         }
       }
 
+      // Actualizar el estado con los datos cargados
       setState(() {
         filteredClientes = clientes;
         clientesList = Future.value(clientes);
       });
     } catch (e) {
+      // Manejar errores durante la carga de datos
       print('Error cargando datos de clientes: $e');
+      // Mostrar mensaje de error al usuario si es necesario
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al cargar los clientes. Intente nuevamente.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
+
+  /// Obtiene el ID de persona del usuario actual
+  /// Retorna null si el usuario no tiene una persona asociada
 
   Future<int?> _getUsuarioIdPersona() async {
     final perfilService = PerfilUsuarioService();

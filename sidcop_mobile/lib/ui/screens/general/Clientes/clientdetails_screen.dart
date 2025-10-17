@@ -1,3 +1,4 @@
+// Importaciones necesarias para la pantalla de detalles del cliente
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
@@ -10,6 +11,8 @@ import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
+/// Pantalla que muestra los detalles completos de un cliente específico
+/// Incluye información personal, direcciones, imagen y acciones disponibles
 class ClientdetailsScreen extends StatefulWidget {
   final int clienteId;
 
@@ -20,53 +23,76 @@ class ClientdetailsScreen extends StatefulWidget {
 }
 
 class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
+  // Servicio para operaciones con clientes
   final ClientesService _clientesService = ClientesService();
+  
+  // Datos del cliente
   Map<String, dynamic>? _cliente;
+  
+  // Lista de direcciones del cliente
   List<dynamic> _direcciones = [];
+  
+  // Estado de carga
   bool _isLoading = true;
+  
+  // Mensaje de error si ocurre algún problema
   String _errorMessage = '';
+  
+  // Tipo de vendedor (P = Pedidos, V = Ventas)
   String? _vendTipo;
 
   @override
   void initState() {
     super.initState();
+    // Cargar datos del cliente y tipo de vendedor al iniciar
     _loadCliente();
     _loadTipoVendedor();
   }
 
+  // ID de persona del usuario actual
   String? _usuaIdPersona;
   
   Future<void> _loadTipoVendedor() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
     setState(() {
+      // Extraer tipo de vendedor de los datos del usuario
       _vendTipo =
           userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+      // Extraer ID de persona del usuario
       _usuaIdPersona = userData?['usua_IdPersona']?.toString();
     });
   }
 
+  /// Carga los datos completos del cliente desde el servidor o almacenamiento local
+  /// Maneja tanto el flujo online como offline
+
   Future<void> _loadCliente() async {
     try {
+      // Verificar si hay conexión a internet
       final hasConnection = await SyncService.hasInternetConnection();
       Map<String, dynamic>? cliente;
 
       if (hasConnection) {
+        // FLUJO ONLINE: Obtener datos del servidor
         cliente = await _clientesService.getClienteById(widget.clienteId);
-        // Guardar cliente en almacenamiento local
+        // Guardar en almacenamiento local para uso offline
         await ClientesOfflineService.guardarDetalleCliente(cliente);
       } else {
-        // Cargar cliente desde almacenamiento local
+        // FLUJO OFFLINE: Cargar desde almacenamiento local
         cliente = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId);
       }
 
+      // Actualizar el estado con los datos del cliente
       setState(() {
         _cliente = cliente;
         _isLoading = false;
       });
 
+      // Cargar las direcciones del cliente
       await _loadDireccionesCliente();
     } catch (e) {
+      // Manejar errores durante la carga
       setState(() {
         _errorMessage = 'Error al cargar los datos del cliente';
         _isLoading = false;
@@ -74,34 +100,42 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     }
   }
 
+  /// Carga todas las direcciones del cliente
+  /// Filtra las direcciones para mostrar solo las del cliente actual
+
   Future<void> _loadDireccionesCliente() async {
     if (!mounted) return;
 
     try {
+      // Verificar conexión a internet
       final hasConnection = await SyncService.hasInternetConnection();
       List<dynamic> direcciones;
 
       if (hasConnection) {
+        // FLUJO ONLINE: Obtener direcciones del servidor
         direcciones = await _clientesService.getDireccionesPorCliente();
-        // Guardar direcciones en almacenamiento local
+        // Guardar en almacenamiento local
         await ClientesOfflineService.guardarJson('direcciones.json', direcciones);
       } else {
-        // Cargar direcciones desde almacenamiento local
+        // FLUJO OFFLINE: Cargar desde almacenamiento local
         final raw = await ClientesOfflineService.leerJson('direcciones.json');
         direcciones = raw != null ? List<dynamic>.from(raw) : [];
       }
 
+      // Filtrar solo las direcciones del cliente actual
       final direccionesFiltradas = direcciones.where((dir) {
         final clienteId = dir['clie_Id'];
         return clienteId == widget.clienteId;
       }).toList();
 
+      // Actualizar el estado con las direcciones filtradas
       if (mounted) {
         setState(() {
           _direcciones = direccionesFiltradas;
         });
       }
     } catch (e) {
+      // Manejar errores durante la carga de direcciones
       if (mounted) {
         setState(() {
           _errorMessage = 'Error cargando direcciones: ${e.toString()}';
@@ -109,6 +143,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
       }
     }
   }
+
+  /// Construye un campo de información con etiqueta y valor
+  /// Utilizado para mostrar los datos del cliente de forma consistente
 
   // Build a field with label above value
   Widget _buildInfoField({required String label, required String value}) {
@@ -138,6 +175,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     );
   }
 
+  /// Construye la interfaz de usuario de la pantalla
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,9 +187,11 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
           AppBackground(
             title: 'Detalles del Cliente',
             icon: Icons.person_outline,
+            // Función de recarga al deslizar hacia abajo
             onRefresh: () async {
               _loadCliente();
             },
+            // Mostrar diferentes estados: cargando, error, sin datos, o contenido
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
@@ -172,11 +212,12 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Client Name with Back Button
+                        // Nombre del cliente con botón de regreso
                         Padding(
                           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
                           child: Row(
                             children: [
+                              // Botón de regreso
                               InkWell(
                                 onTap: () => Navigator.of(context).pop(),
                                 child: const Icon(
@@ -186,6 +227,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                 ),
                               ),
                               const SizedBox(width: 16),
+                              // Nombre completo del cliente
                               Expanded(
                                 child: Text(
                                   '${_cliente!['clie_Nombres'] ?? ''} ${_cliente!['clie_Apellidos'] ?? ''}'
@@ -201,7 +243,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           ),
                         ),
 
-                        // Client Image
+                        // Imagen del negocio del cliente
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24.0,
@@ -223,6 +265,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(14),
+                              // Mostrar imagen del negocio o avatar por defecto
                               child: _cliente!['clie_ImagenDelNegocio'] != null
                                   ? ClientImageCacheService().getCachedClientImage(
                                       imageUrl: _cliente!['clie_ImagenDelNegocio'],
@@ -237,7 +280,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           ),
                         ),
 
-                        // Client Information
+                        // Información detallada del cliente
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24.0,
@@ -246,7 +289,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Cliente
+                              // Nombre completo del cliente
                               _buildInfoField(
                                 label: 'Cliente:',
                                 value:
@@ -255,7 +298,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                               ),
                               const SizedBox(height: 12),
 
-                              // RTN
+                              // RTN (Registro Tributario Nacional)
                               if (_cliente!['clie_RTN'] != null &&
                                   _cliente!['clie_RTN'].toString().isNotEmpty)
                                 Column(
@@ -269,7 +312,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   ],
                                 ),
 
-                              // Correo
+                              // Correo electrónico del cliente
                               if (_cliente!['clie_Correo'] != null &&
                                   _cliente!['clie_Correo']
                                       .toString()
@@ -286,7 +329,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   ],
                                 ),
 
-                              // Teléfono
+                              // Número de teléfono del cliente
                               if (_cliente!['clie_Telefono'] != null &&
                                   _cliente!['clie_Telefono']
                                       .toString()
@@ -303,7 +346,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   ],
                                 ),
 
-                              // Ruta
+                              // Ruta asignada al cliente
                               if (_cliente!['ruta_Descripcion'] != null &&
                                   _cliente!['ruta_Descripcion']
                                       .toString()
@@ -317,19 +360,22 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                           ),
                         ),
 
-                        // Ir a la Ubicación Button
+                        // Botón para ver las ubicaciones del cliente en el mapa
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24.0,
                             vertical: 8.0,
                           ),
                           child: Opacity(
+                            // Deshabilitar visualmente si no hay direcciones
                             opacity: _direcciones.isNotEmpty ? 1.0 : 0.5,
                             child: AbsorbPointer(
+                              // Deshabilitar interacción si no hay direcciones
                               absorbing: _direcciones.isEmpty,
                               child: CustomButton(
                                 text: 'IR A LA UBICACIÓN',
                                 onPressed: () {
+                                  // Navegar a la pantalla de ubicaciones
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -359,7 +405,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Sección de botones de acción
+                        // Sección de botones de acción (Pedido/Venta y Cobrar)
                         if (_cliente != null &&
                             !_isLoading &&
                             _errorMessage.isEmpty)
@@ -370,6 +416,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             ),
                             child: Row(
                               children: [
+                                // Botón de Pedido o Venta según el tipo de vendedor
                                 if (_vendTipo == "P" || _vendTipo == "V")
                                   Expanded(
                                     child: CustomButton(
@@ -380,6 +427,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                           : "ACCIÓN",
                                       onPressed: () {
                                         if (_vendTipo == "P") {
+                                          // Navegar a crear pedido
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
@@ -390,6 +438,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                             ),
                                           );
                                         } else {
+                                          // Navegar a crear venta
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
@@ -418,6 +467,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                 if (_vendTipo == "P" || _vendTipo == "V")
                                   const SizedBox(width: 12),
 
+                                // Botón de cobro
                                 Expanded(
                                   child: CustomButton(
                                     text: 'COBRAR',
@@ -449,6 +499,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     );
   }
 
+  /// Construye un avatar por defecto cuando no hay imagen del cliente
   Widget _buildDefaultAvatar() {
     return const Icon(
       Icons.person,
