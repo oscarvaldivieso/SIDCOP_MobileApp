@@ -152,7 +152,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
     }
   }
 
-  // Nota: la pantalla ya no guarda detalles de ruta en almacenamiento.
+
 
   // Lee los detalles encriptados offline por ruta usando RutasScreenOffline
   Future<Map<String, dynamic>?> _leerDetallesOffline() async {
@@ -670,7 +670,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
 
   Future<void> _abrirMapaSegunConexion() async {
     try {
-      // Quick connectivity probe
+      // prueba de conexion simple
       final resp = await http
           .get(Uri.parse('https://www.google.com'))
           .timeout(const Duration(seconds: 5));
@@ -686,7 +686,7 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
           ),
         );
       } else {
-        // fallback to offline map
+        //si no hay conexion, se inician metodos offline
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RutasOfflineMapScreen(
@@ -697,7 +697,6 @@ class _RutasDetailsScreenState extends State<RutasDetailsScreen> {
         );
       }
     } catch (e) {
-      // On timeout or any network error, open offline map
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => RutasOfflineMapScreen(

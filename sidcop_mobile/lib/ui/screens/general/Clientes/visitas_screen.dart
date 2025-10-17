@@ -26,7 +26,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // Estados para el filtro
+  // Estados para filtrar
   List<Map<String, dynamic>> _estadosVisita = [];
   Set<String> _selectedStatuses = {};
 
@@ -44,7 +44,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       _errorMessage = '';
     });
 
-    // Sincronizar datos maestros para mantener dropdowns actualizados
+    // Sincronizar datos maestros para mantener los menús desplegables actualizados
     try {
       await VisitasOffline.sincronizarEstadosVisita();
     } catch (_) {}
@@ -55,13 +55,13 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
       await VisitasOffline.sincronizarDirecciones();
     } catch (_) {}
 
-    // Verificar visitas pendientes al iniciar
+    // Verificar visitas pendientes al inicio
     try {
       await VisitasOffline.obtenerVisitasPendientesLocal();
     } catch (e) {
     }
 
-    // Intentar enviar visitas pendientes guardadas en modo offline.
+    // Intentar enviar visitas pendientes guardadas en modo sin conexión.
     try {
       final pendientesEnviadas = await VisitasOffline.sincronizarPendientes();
       if (mounted && pendientesEnviadas > 0) {
@@ -76,7 +76,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         );
       }
     } catch (_) {
-      // No interrumpir la carga si falla la sincronización de pendientes
+      // No interrumpir la carga si falla la sincronización de visitas pendientes
     }
 
     // Iniciar sincronización de imágenes en segundo plano
@@ -85,12 +85,12 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     try {
       final visitas = await _service.listarPorVendedor();
 
-      // Guardar la lista remota localmente para permitir lectura offline
+      // Guardar la lista remota localmente para permitir lectura sin conexión
       try {
         final visitasJson = visitas.map((v) => v.toJson()).toList();
 
         // Fusionar con visitas pendientes para no sobrescribir visitas guardadas
-        // en modo offline cuando la API devuelva una lista vacía o parcial.
+        // en modo sin conexión cuando la API devuelva una lista vacía o parcial.
         try {
           final pendientes =
               await VisitasOffline.obtenerVisitasPendientesLocal();
@@ -138,7 +138,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      // Si hay error al obtener remoto, intentar cargar la copia local
+      // Si hay error al obtener datos remotos, intentar cargar la copia local
       try {
         // Combinar datos históricos y pendientes
         final raw = await VisitasOffline.obtenerTodasLasVisitas();
@@ -151,7 +151,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
               .map((m) => VisitasViewModel.fromJson(m as Map<String, dynamic>))
               .toList();
 
-          // Filtrar solo las visitas de hoy (mismo filtro que en modo online)
+          // Filtrar solo las visitas de hoy (mismo filtro que en modo en línea)
           final visitasHoy = localVisitas.where((visita) {
             try {
               if (visita.clVi_Fecha == null) return false;
@@ -994,8 +994,8 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             ],
           ),
         ),
-      ),
-    );
+         ),
+      );
   }
 
   Widget _infoRow(IconData icon, String label, String value) {

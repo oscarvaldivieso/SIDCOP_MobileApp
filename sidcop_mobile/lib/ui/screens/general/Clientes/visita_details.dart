@@ -86,7 +86,6 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
         });
       }
     } catch (e) {
-      print('Error cargando imágenes: $e');
       setState(() {
         _errorMessage = 'Error al cargar las imágenes de la visita';
         _isLoading = false;
@@ -169,7 +168,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
     );
   }
 
-  // Build a field with label above value (similar to ClientDetailsScreen)
+  // Construye un campo con etiqueta sobre el valor (similar a ClientDetailsScreen)
   Widget _buildInfoField({required String label, required String value}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,12 +227,10 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
           height: height,
           fit: fit,
           errorBuilder: (context, error, stackTrace) {
-            print('Error al mostrar imagen Base64: $error');
             return _buildDefaultImage();
           },
         );
       } catch (e) {
-        print('Error al decodificar Base64: $e');
         return _buildDefaultImage();
       }
     } else if (rutaLocal != null) {
@@ -329,7 +326,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Visit Title with Back Button
+                        // Título de la Visita con Botón de Regreso
                         Padding(
                           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
                           child: Row(
@@ -357,7 +354,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                           ),
                         ),
 
-                        // Visit Information
+                        // Información de la Visita
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24.0,
@@ -376,7 +373,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                           ),
                         ),
 
-                        // Featured Image (similar to client image)
+                        // Imagen Destacada (similar a la imagen del cliente)
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24.0,
@@ -439,7 +436,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                           ),
                         ),
 
-                        // Gallery Title
+                        // Título de la Galería
                         if (_imagenes.length > 1)
                           const Padding(
                             padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -454,7 +451,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                             ),
                           ),
 
-                        // Image Gallery
+                        // Galería de Imágenes
                         if (_imagenes.length > 1)
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -529,7 +526,7 @@ class _VisitaDetailsScreenState extends State<VisitaDetailsScreen> {
                         // Espacio adicional para separar la galería del final
                         if (_imagenes.isNotEmpty) const SizedBox(height: 24),
 
-                        // Empty state if no images
+                        // Estado vacío si no hay imágenes
                         if (_imagenes.isEmpty &&
                             !_isLoading &&
                             _errorMessage.isEmpty)
