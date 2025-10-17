@@ -9,6 +9,12 @@ import 'package:sidcop_mobile/Offline_Services/Pedidos_OfflineService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/invoice_preview_screen.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/factura_ticket_screen.dart';
 
+/// Bottom sheet que muestra el detalle de un pedido y permite acciones
+/// relacionadas como ver/insertar factura (online u offline) y sincronizar
+/// facturas pendientes.
+/// - Renderiza con información del negocio, fechas y lista de productos.
+/// - Permite insertar la factura (si hay conexión hace inserción online,
+///   si no, guarda una factura offline y encola la sincronización).
 class PedidoDetalleBottomSheet extends StatefulWidget {
   final PedidosViewModel pedido;
   const PedidoDetalleBottomSheet({super.key, required this.pedido});
@@ -182,6 +188,10 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     );
   }
 
+  /// Construye la pantalla principal del widget.
+  /// que representa el bottom sheet con la información
+  ///   del pedido y las acciones disponibles (ver factura, sincronizar, cerrar).
+
   Widget _buildInfoCard({
     required IconData icon,
     required String title,
@@ -224,6 +234,15 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   }
 
   List<dynamic> _parseDetalles(String? detallesJson) {
+    /// Intenta convertir el string JSON [detallesJson] a una lista de detalles.
+    ///
+    /// Comportamiento y casos:
+    /// - Si detallesJson es null o vacío, intenta devolver la pantalla
+    ///   si está disponible, de lo contrario retorna lista vacía.
+    /// - Si el JSON parseado es una lista la devuelve directamente.
+    /// - Si es un mapa y contiene 'detalles' como lista, devuelve esa lista.
+    /// - Ante cualquier error de parseo, devuelve detalles o []
+    ///   como fallback.
     try {
       if (detallesJson == null || detallesJson.isEmpty) {
         // Si no hay detallesJson, verificar si hay detalles directos en el pedido
@@ -260,7 +279,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   }
 
   Widget _buildDetalleItem(dynamic item) {
-    // Handle different possible field names for product details
+    // Construye el widget que representa un ítem (producto) en la lista.
+    // Maneja distintas formas en las que el backend puede enviar los campos.
     final Map<String, dynamic> itemMap = item is Map
         ? Map<String, dynamic>.from(item)
         : {};
@@ -293,8 +313,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
           itemMap['precioProducto'],
     );
 
-    // Debug print to see the actual item structure
-    print('Detalle del ítem: $itemMap');
+
+  //print('Detalle del ítem: $itemMap');
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,6 +358,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   // Helper method to parse int from dynamic value
   int _parseIntFromDynamic(dynamic value) {
+    /// Convierte distintos tipos dinámicos a int de forma segura.
+    /// Devuelve 0 si la conversión falla o el valor es null.
     if (value == null) return 0;
     if (value is int) return value;
     if (value is double) return value.toInt();
@@ -346,6 +368,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   // Helper method to parse double from dynamic value
   double _parseDoubleFromDynamic(dynamic value) {
+    /// Convierte distintos tipos dinámicos a double de forma segura.
+    /// Devuelve 0.0 si la conversión falla o el valor es null.
     if (value == null) return 0.0;
     if (value is double) return value;
     if (value is int) return value.toDouble();
@@ -353,6 +377,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   }
 
   String _formatFecha(dynamic fecha) {
+    /// Formatea una fecha (String ISO o DateTime) a un formato legible
+    /// en español: "D de Mes del YYYY". Devuelve '-' si no puede formatear.
     if (fecha == null) return '-';
     DateTime? f;
     if (fecha is DateTime) {
@@ -382,6 +408,17 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   }
 
   Future<void> _insertarFactura() async {
+    /// Inicia el proceso de inserción de una factura a partir del pedido actual.
+    ///
+    /// Comportamiento:
+    /// - Evita reentradas si ya está en proceso mediante [_isInsertingInvoice].
+    /// - Verifica conectividad con [SyncService.hasInternetConnection()].
+    /// - Si hay conexión, delega a [_insertarFacturaOnline].
+    /// - Si no hay conexión, delega a [_insertarFacturaOffline].
+    ///
+    /// Errores:
+    /// - Captura excepciones y muestra mensajes apropiados (dialogo para
+    ///   inventario insuficiente, snackbar para otros errores).
     print('\n=== _insertarFactura INICIADO ===');
 
     if (_isInsertingInvoice) {
@@ -473,6 +510,15 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   }
 
   Future<void> _insertarFacturaOnline() async {
+    /// Flujo para insertar la factura cuando se detecta conexión a internet.
+    ///
+    /// Pasos principales:
+    /// - Parsear los detalles del pedido y construir detallesFactura en el
+    ///   formato esperado por la API.
+    /// - Construir facturaData con los campos requeridos.
+    /// - Llamar a _facturaService.insertarFactura y manejar la respuesta.
+    /// - En caso de éxito, navegar a la pantalla InvoicePreviewScreen.
+
     print('=== INICIANDO INSERCIÓN DE FACTURA ONLINE ===');
     print('PEDIDO ID: ${widget.pedido.pediId}');
     print('CLIENTE ID: ${widget.pedido.clieId}');
@@ -623,6 +669,14 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
   // Actualiza tu método _insertarFacturaOffline en PedidoDetalleBottomSheet
 
   Future<void> _insertarFacturaOffline() async {
+    /// Crea y guarda una representación 'offline' de la factura cuando no
+    /// existe conexión. Esto permite que la factura sea sincronizada luego.
+    ///
+    /// Salida/efecto:
+    /// - Guarda la factura en almacenamiento local mediante
+    ///   PedidosScreenOffline.guardarFacturaOffline.
+    /// - Muestra una confirmación visual (Snackbar + diálogo) y navega a la
+    ///   pantalla de ticket (FacturaTicketScreen) usando los datos offline.
     final List<dynamic> detalles = _parseDetalles(widget.pedido.detallesJson);
 
     final int usuaIdToUse = 1;
@@ -716,6 +770,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   /// Muestra un diálogo de confirmación para factura offline
   void _mostrarDialogoFacturaOffline(Map<String, dynamic> facturaOffline) {
+    /// Muestra un diálogo modal informando que la factura fue guardada
+    /// offline y se sincronizará automáticamente cuando haya conexión.
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -772,6 +828,14 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   /// Intenta sincronización inmediata en caso de que la conexión haya regresado
   Future<void> _intentarSincronizacionInmediata() async {
+    /// Intenta sincronizar facturas offline de forma inmediata (usado justo
+    /// después de guardar una factura offline) para aprovechar si la
+    /// conexión volvió.
+    ///
+    /// Comportamiento:
+    /// - Espera 2 segundos para no interrumpir la UX inmediatamente.
+    /// - Si hay conexión, llama a FacturaSyncService.sincronizarFacturasPendientes().
+    /// - Muestra un SnackBar con el resultado si hay cambios.
 
     // Esperar un momento para que el usuario vea el mensaje
     await Future.delayed(const Duration(seconds: 2));
@@ -820,6 +884,10 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     Map<String, dynamic> facturaData,
     List<dynamic> detalles,
   ) async {
+    /// Construye la lista de ProductoFactura a partir de los detalles offline
+    /// y navega a FacturaTicketScreen para mostrar la factura al usuario.
+    ///
+
     // Preparar los productos para la pantalla de factura
     List<ProductoFactura> productos = [];
     double subtotal = 0.0;
@@ -919,6 +987,8 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
 
   /// Método para sincronizar facturas offline manualmente
   Future<void> _sincronizarFacturasOffline() async {
+    /// Sincroniza manualmente todas las facturas que se encuentran en estado
+    /// offline/pendiente.
     if (_isSyncing) return; // Evitar múltiples sincronizaciones simultáneas
 
     setState(() {
