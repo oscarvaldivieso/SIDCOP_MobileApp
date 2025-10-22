@@ -39,13 +39,13 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   // Controller for programmatic map movements
   final MapController _mapController = MapController();
 
-  // Palette copied from Rutas_mapscreen (dark theme)
+  // Paleta copiada de Rutas_mapscreen (tema oscuro)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
   static const Color _body = Color(0xFFE6E8EC);
   static const Color _bodyDim = Color(0xFFB5B8BF);
 
-  // Simple LRU cache for tiles (key = z/x/y)
+  // Caché LRU simple para mosaicos (clave = z/x/y)
   final Map<String, Uint8List> _tileCache = {};
   final List<String> _cacheOrder = [];
   final int _cacheMaxEntries = 200;
@@ -54,19 +54,19 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   List<Map<String, dynamic>> _clientesFiltradosOffline = [];
   List<Map<String, dynamic>> _direccionesFiltradasOffline = [];
   List<Marker> _clientMarkers = [];
-  // Quick lookup by cliente id (string)
+  // Búsqueda rápida por ID de cliente (cadena)
   Map<String, Map<String, dynamic>> _clientesById = {};
   // Orden de paradas para el drawer (versión offline)
   List<Map<String, dynamic>> _ordenParadasOffline = [];
-  // scaffold key to open endDrawer from AppBar (parity with online screen)
+  // Clave del scaffold para abrir el endDrawer desde la AppBar (paridad con la pantalla en línea)
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  // Track visited addresses (store dicl_id as string)
+  // Seguimiento de direcciones visitadas (almacenar dicl_id como cadena)
   final Set<String> _direccionesVisitadasOffline = {};
-  // (visit-tracking will be sourced from visitas_historial.json; do not persist a separate order)
+  // (el seguimiento de visitas se obtendrá de visitas_historial.json; no persistir un orden separado)
 
-  // Device-based center (may be null until obtained). Fallback coords are
-  // initialized to a sensible default but will be updated from the device
-  // (last known position or current) when available.
+  // Centro basado en el dispositivo (puede ser nulo hasta que se obtenga). Las coordenadas de respaldo están
+  // inicializadas con un valor predeterminado razonable pero se actualizarán desde el dispositivo
+  // (última posición conocida o actual) cuando esté disponible.
   double? _centerLat;
   double? _centerLng;
   double _fallbackLat = 15.505456;
@@ -75,10 +75,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   @override
   void initState() {
     super.initState();
-    // Start obtaining device location and initialize server in parallel.
+    // Comenzar a obtener la ubicación del dispositivo e inicializar el servidor en paralelo.
     _setInitialPositionFromDevice();
     _initMbtilesServer();
-    // Also load offline clients immediately so markers appear even without MBTiles
+    // También cargar clientes offline inmediatamente para que los marcadores aparezcan incluso sin MBTiles
     _loadClientesOffline().then((_) {
       // Depurar estado de las direcciones después de cargar
       _depurarEstadoDirecciones();
@@ -92,12 +92,12 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     final origin = '$_centerLat,$_centerLng';
     final dest = '${destino.latitude},${destino.longitude}';
 
-    // Prefer Google Maps app scheme
+    // Preferir esquema de aplicación de Google Maps
     final googleMapsUri = Uri.parse(
       'google.navigation:q=${destino.latitude},${destino.longitude}&mode=d',
     );
 
-    // Fallback to web directions
+    // Alternativa a direcciones web
     final webUri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving',
     );
@@ -197,7 +197,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       }
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
-        // no permission, keep fallback
+        // sin permiso, mantener respaldo
         return;
       }
       final pos = await Geolocator.getCurrentPosition(
@@ -256,26 +256,26 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         return;
       }
 
-      // Open the MBTiles database read-only
+      // Abrir la base de datos MBTiles en modo solo lectura
       _mbtilesDb = await openDatabase(mbtilesFile.path, readOnly: true);
 
-      // Start a loopback HTTP server to serve tiles
+      // Iniciar un servidor HTTP de loopback para servir mosaicos
       _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       _serverPort = _server!.port;
       print(
-        'MBTiles HTTP server started on port $_serverPort, file=${mbtilesFile.path}',
+        'Servidor HTTP MBTiles iniciado en el puerto $_serverPort, archivo=${mbtilesFile.path}',
       );
 
       _server!.listen((HttpRequest request) async {
         try {
           final path = request.uri.path; // e.g. /{z}/{x}/{y}.png
-          print('MBTiles server request: $path');
+
           final parts = path.split('/').where((s) => s.isNotEmpty).toList();
           if (parts.length >= 3) {
             final z = int.tryParse(parts[0]);
             final x = int.tryParse(parts[1]);
             var yStr = parts[2];
-            // strip possible extension
+            // eliminar posible extensión
             if (yStr.contains('.')) yStr = yStr.split('.').first;
             final y = int.tryParse(yStr);
 
@@ -286,7 +286,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 request.response.headers.set('Content-Type', mime);
                 request.response.add(bytes);
                 await request.response.close();
-                print('Served tile $z/$x/$y (${bytes.length} bytes)');
+                print('Se sirvió el mosaico $z/$x/$y (${bytes.length} bytes)');
                 return;
               } else {
                 print('Tile not found in MBTiles: $z/$x/$y');
@@ -294,7 +294,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             }
           }
 
-          // Not found
+          // No encontrado
           request.response.statusCode = HttpStatus.notFound;
           await request.response.close();
         } catch (_) {
@@ -314,7 +314,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await _loadClientesOffline();
       } catch (_) {}
     } catch (e) {
-      // If anything fails, fall back to no-mbtiles UI
+      // Si algo falla, volver a la interfaz sin mbtiles
       setState(() {
         _starting = false;
         _hasMbtiles = false;
