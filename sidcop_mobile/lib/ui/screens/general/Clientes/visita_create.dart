@@ -6,10 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.Dart';
-// Removed unused imports: provider, ClientesVisitaHistorialModel, cloudinary_service
+import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
 import 'package:sidcop_mobile/Offline_Services/Visitas_OfflineServices.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 
@@ -50,8 +49,8 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
   List<File> _selectedImages = [];
   List<Uint8List> _selectedImagesBytes = [];
   bool _isLoading = false;
-  // submission state handled inline; removed unused _isSubmitting
-  // if the screen was opened with route arguments, store them to apply after data loads
+  // Estado de envío manejado en línea; se eliminó _isSubmitting no utilizado
+  // Si la pantalla se abrió con argumentos de ruta, guárdalos para aplicarlos después de cargar los datos
   Map<String, dynamic>? _initialRouteArgs;
 
   // Flag para determinar si venimos desde el mapa offline
@@ -72,7 +71,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     super.initState();
     _fechaController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _selectedDate = DateTime.now();
-    // Capture any incoming route arguments after the first frame and then load data
+    // Capturar cualquier argumento de ruta entrante después del primer fotograma y luego cargar los datos
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -84,13 +83,9 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           setState(() {
             _desdeMapaOffline = true;
           });
-          print(
-            '⚠️ Visita iniciada desde mapa offline. Los campos cliente y dirección se bloquearán.',
-          );
         }
       }
-      // Now load initial data (clients/states/directions). This ensures
-      // _initialRouteArgs is available for preselection inside _cargarDatosIniciales.
+      // Ahora carga los datos iniciales (clientes/estados/direcciones)
       _cargarDatosIniciales();
     });
   }
@@ -114,8 +109,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
     });
 
     try {
-      // Verificar conectividad consultando Google. Si responde usamos endpoints remotos,
-      // si no, caemos a los datos guardados por el Offline Service.
+      // Verificar conectividad consultando Google. Si responde, usamos endpoints remotos; si no, usamos los datos guardados por el servicio offline.
       final online = await _verificarConexion();
 
       if (online) {
@@ -132,7 +126,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
         } else if (_initialRouteArgs != null &&
             _initialRouteArgs!['clienteId'] != null &&
             _initialRouteArgs!['rutaId'] != null) {
-          // If the screen was opened with a clienteId, try to preselect it
+          // Si la pantalla se abrió con un clienteId, intenta preseleccionarlo
           try {
             final cidNum = _initialRouteArgs!['clienteId'] as num?;
             final cid = cidNum?.toInt();
@@ -140,14 +134,14 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
               _selectedCliente = _clientes.firstWhere(
                 (c) => (c['clie_Id'] as num?)?.toInt() == cid,
               );
-              // load addresses and try to preselect a direccion if provided
+              // Cargar direcciones e intentar preseleccionar una dirección si se proporciona
               await _cargarDireccionesCliente(
                 _selectedCliente!['clie_Id'],
                 selectDiclId: (_initialRouteArgs!['diclId'] as num?)?.toInt(),
               );
             }
           } catch (_) {
-            // ignore failures and continue
+            // ignorar fallos y continuar
           }
         }
       } else {
@@ -558,7 +552,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             ? _observacionesController.text
             : '',
         'clVi_Fecha': _selectedDate?.toIso8601String() ?? now.toIso8601String(),
-        'usua_Creacion': 57,
+        'usua_Creacion': globalUsuaId,
         'clVi_FechaCreacion': now.toIso8601String(),
       };
 
@@ -606,24 +600,8 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           if (args.containsKey('veRu_Id') && args['veRu_Id'] != null) {
             visitaLocal['veRu_Id'] =
                 int.tryParse(args['veRu_Id'].toString()) ?? 0;
-            print(
-              '✅ Usando veRu_Id=${visitaLocal['veRu_Id']} pasado desde el mapa',
-            );
           }
-
-          print('\n===== CREANDO VISITA DESDE MAPA OFFLINE =====');
-          print(
-            'Cliente ID: ${visitaLocal['clie_Id']} (${visitaLocal['clie_Id'].runtimeType})',
-          );
-          print(
-            'Dirección ID: ${visitaLocal['diCl_Id']} (${visitaLocal['diCl_Id'].runtimeType})',
-          );
-          print(
-            'Ruta ID: ${visitaLocal['ruta_Id']} (${visitaLocal['ruta_Id'].runtimeType})',
-          );
         }
-
-        print('===== GUARDANDO VISITA OFFLINE CON USUARIO ID: 57 =====');
 
         // Mostrar toda la estructura JSON que se va a guardar
         print('\n===== GUARDANDO VISITA OFFLINE - JSON COMPLETO =====');
@@ -649,7 +627,6 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             final idEnPendiente = v['diCl_Id']?.toString() ?? '';
             if (idEnPendiente == diClId) {
               encontrada = true;
-              print('✅ VISITA ENCONTRADA EN PENDIENTES: diCl_Id=$diClId');
               break;
             }
           }
@@ -721,7 +698,6 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             final uploadData = jsonDecode(responseData) as Map<String, dynamic>;
             final String rutaImagen = uploadData['ruta'];
 
-            print('rutaImagen: $rutaImagen');
             // 4.2 Asociar la imagen a la visita usando /ImagenVisita/Insertar
             await _visitaService.asociarImagenAVisita(
               visitaId: visitaId,
@@ -757,27 +733,6 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
       }
     }
   }
-
-  // Future<String?> _uploadImageToCloudinary(Uint8List imageBytes) async {
-  //   try {
-  //     final cloudinaryService = CloudinaryService();
-  //     if (kIsWeb) {
-  //       return await cloudinaryService.uploadImageFromBytes(imageBytes);
-  //     } else {
-  //       // Crear archivo temporal para subir
-  //       final tempDir = await getTemporaryDirectory();
-  //       final file = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
-  //       await file.writeAsBytes(imageBytes);
-  //       return await cloudinaryService.uploadImage(file);
-  //     }
-  //   } catch (e) {
-  //     debugPrint('Error al subir imagen a Cloudinary: $e');
-  //     return null;
-  //   }
-  // }
-
-  // Esta función fue eliminada ya que no se está utilizando y el SP
-  // siempre requiere que se utilice el ID 57
 
   void _mostrarError(String mensaje) {
     if (mounted) {

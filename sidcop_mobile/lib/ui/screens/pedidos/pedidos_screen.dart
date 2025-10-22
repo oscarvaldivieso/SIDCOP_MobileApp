@@ -82,15 +82,36 @@ class _PedidosScreenState extends State<PedidosScreen> {
   // Manejar cambios en la conectividad
   Future<void> _handleConnectivityChange(ConnectivityResult result) async {
     if (result != ConnectivityResult.none) {
-      // Hay conexión, intentar sincronizar pedidos pendientes
+      print('Conectividad restaurada, actualizando caché y sincronizando...');
+      
+      // Primero actualizar el caché con los pedidos más recientes del servidor
+      try {
+        final pedidosServidor = await _service.getPedidos();
+        
+        if (pedidosServidor.isNotEmpty) {
+          await PedidosScreenOffline.guardarPedidos(pedidosServidor);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Pedidos Actualizados'),
+                backgroundColor: Colors.blue,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+      }
+      
+      // Luego sincronizar pedidos pendientes
       try {
         final pedidosPendientes =
             await PedidosScreenOffline.obtenerPedidosPendientes();
         if (pedidosPendientes.isNotEmpty) {
-          print(
-            'Sincronizando ${pedidosPendientes.length} pedidos pendientes...',
-          );
+          
 
+          int sincronizados = 0;
           for (final pedido in pedidosPendientes) {
             try {
               // Intentar enviar el pedido al servidor
@@ -118,23 +139,27 @@ class _PedidosScreenState extends State<PedidosScreen> {
                 await PedidosScreenOffline.eliminarPedidoPendiente(
                   pedido.pediId,
                 );
+                sincronizados++;
               }
             } catch (e) {
               print('Error al sincronizar pedido ${pedido.pediId}: $e');
             }
           }
 
-          // Actualizar la lista de pedidos
+          // Actualizar la lista de pedidos después de la sincronización
           if (mounted) {
             setState(() {});
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${pedidosPendientes.length} pedidos sincronizados correctamente',
+            if (sincronizados > 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '$sincronizados pedidos sincronizados correctamente',
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 3),
                 ),
-                backgroundColor: Colors.green,
-              ),
-            );
+              );
+            }
           }
         }
       } catch (e) {
@@ -173,13 +198,22 @@ class _PedidosScreenState extends State<PedidosScreen> {
           print('Obteniendo pedidos desde el servidor...');
           pedidos = await _service.getPedidos();
 
-          // Si obtuvimos datos del servidor, actualizar la caché local
-          if (pedidos.isNotEmpty) {
-            print('Actualizando caché local con ${pedidos.length} pedidos...');
-            await PedidosScreenOffline.guardarPedidos(pedidos);
+          // SIEMPRE actualizar la caché local cuando estamos online
+          print('Actualizando caché local con ${pedidos.length} pedidos...');
+          await PedidosScreenOffline.guardarPedidos(pedidos);
+          
+          // Mostrar notificación de actualización de caché
+          if (mounted && pedidos.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Pedidos sincronizados'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
           }
 
-          // Si no hay pedidos, intentar cargar del caché
+          // Si no hay pedidos del servidor, intentar cargar del caché como fallback
           if (pedidos.isEmpty) {
             print(
               'No se encontraron pedidos en línea, intentando cargar del caché...',
@@ -191,10 +225,30 @@ class _PedidosScreenState extends State<PedidosScreen> {
           // Si falla la conexión al servidor, usar datos offline
           print('Fallback: usando datos offline...');
           pedidos = await PedidosScreenOffline.obtenerPedidos();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error de conexión, usando datos offline'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         }
       } else {
         print('Sin conexión, obteniendo pedidos offline...');
         pedidos = await PedidosScreenOffline.obtenerPedidos();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Modo offline - usando datos en caché'),
+              backgroundColor: Colors.grey,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
 
       print('Total de pedidos obtenidos: ${pedidos.length}');

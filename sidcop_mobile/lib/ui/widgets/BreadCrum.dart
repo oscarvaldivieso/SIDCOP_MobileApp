@@ -16,6 +16,7 @@ class BreadCrum extends StatelessWidget {
     this.titleStyle,
   });
 
+  //creación del breadcrum para usar de forma reutilizable en las distintas pantallas
   @override
   Widget build(BuildContext context) {
     return Card(

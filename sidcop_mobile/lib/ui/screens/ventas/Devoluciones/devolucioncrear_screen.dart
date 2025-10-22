@@ -1,3 +1,5 @@
+// Importaciones necesarias para la pantalla de crear devoluciones
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
@@ -15,24 +17,28 @@ import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart' show showModalBottomSheet;
 
+// Constantes de estilo de texto para tipografía consistente
 final TextStyle _titleStyle = const TextStyle(
   fontFamily: 'Satoshi',
   fontSize: 18,
   fontWeight: FontWeight.bold,
 );
 
-// Text style constants for consistent typography
+// Estilo para etiquetas de campos
 final TextStyle _labelStyle = const TextStyle(
   fontFamily: 'Satoshi',
   fontSize: 14,
   fontWeight: FontWeight.w500,
 );
 
+// Estilo para texto de ayuda (hints)
 final TextStyle _hintStyle = const TextStyle(
   fontFamily: 'Satoshi',
   color: Colors.grey,
 );
 
+/// Pantalla para crear una nueva devolución
+/// Permite seleccionar cliente, factura, productos y motivo de devolución
 class DevolucioncrearScreen extends StatefulWidget {
   const DevolucioncrearScreen({super.key});
 
@@ -40,26 +46,29 @@ class DevolucioncrearScreen extends StatefulWidget {
   State<DevolucioncrearScreen> createState() => _DevolucioncrearScreenState();
 }
 
+/// Estado que maneja la lógica y la interfaz de la pantalla de crear devoluciones
 class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
+  // Clave del formulario para validación
   final _formKey = GlobalKey<FormState>();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
 
-  // Services
+  // Servicios necesarios
   final FacturaService _facturaService = FacturaService();
   final ProductosService _productosService = ProductosService();
   final DevolucionesService _devolucionesService = DevolucionesService();
 
-  // Form controllers
+  // Controladores de los campos del formulario
   final TextEditingController _fechaController = TextEditingController();
   final TextEditingController _motivoController = TextEditingController();
 
-  // Form values
+  // Valores del formulario
   int? _selectedClienteId;
   int? _selectedFacturaId;
   int? usuaIdPersona;
   bool? esAdmin;
   int? usuaId;
+  int? rutaId;
 
   // Services are already declared above
 
@@ -68,28 +77,33 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   bool _isLoadingProducts = false;
   String? _productosError;
 
-  // Dropdown data
+  // Datos para los dropdowns
   List<DireccionCliente> _direcciones = [];
   DireccionCliente? _selectedDireccion;
   List<Map<String, dynamic>> _facturas = [];
   List<dynamic> _filteredFacturas = [];
 
-  // Controllers
+  // Controlador para el campo de cliente
   final TextEditingController _clienteController = TextEditingController();
 
-  // Loading states
+  // Estados de carga
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    // Inicializar la fecha con la fecha actual
     _fechaController.text = DateFormat(
       'yyyy-MM-dd-HH:mm:ss',
     ).format(DateTime.now());
+    // Cargar datos necesarios al iniciar
     _loadData();
     _loadAllClientData();
   }
+
+  /// Construye la opción de cliente en el dropdown
+  /// Muestra nombre, negocio y dirección del cliente
 
   Widget _buildClienteOption(BuildContext context, DireccionCliente direccion) {
     return Container(
@@ -125,12 +139,15 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     );
   }
 
+  /// Formatea el nombre del cliente para mostrarlo
+  /// Prioriza nombre completo, luego negocio, luego código
   String _formatClienteName(DireccionCliente direccion) {
     final nombre = (direccion.clie_Nombres ?? '').trim();
     final apellido = (direccion.clie_Apellidos ?? '').trim();
     final negocio = (direccion.clie_NombreNegocio ?? '').trim();
     final codigo = (direccion.clie_Codigo ?? '').trim();
 
+    // Prioridad 1: Nombre completo
     if (nombre.isNotEmpty || apellido.isNotEmpty) {
       final parts = [
         if (nombre.isNotEmpty) nombre,
@@ -139,20 +156,42 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       return parts.join(' ');
     }
 
+    // Prioridad 2: Nombre del negocio
     if (negocio.isNotEmpty) return negocio;
+    // Prioridad 3: Código del cliente
     if (codigo.isNotEmpty) return codigo;
     return 'Cliente sin nombre';
   }
 
+  /// Carga los datos del usuario actual (ID, permisos, ruta)
+  /// Extrae el rutaId desde rutasDelDiaJson
   Future<void> _loadAllClientData() async {
-    // Obtener el usua_IdPersona del usuario logueado
+    // Obtener datos del usuario logueado
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
 
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
-
-    // Extraer rutasDelDiaJson y Ruta_Id
+    
+    // Extraer y parsear el JSON de rutas del día
+    final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
+    
+    if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+      try {
+        // Decodificar el JSON de rutas
+        final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
+        print('DEBUG: rutasDelDiaJson parseado = $rutasList');
+        
+        // Obtener el ID de la primera ruta asignada
+        if (rutasList.isNotEmpty) {
+          rutaId = rutasList[0]['Ruta_Id'] as int?;
+        }
+      } catch (e) {
+        print('ERROR al parsear rutasDelDiaJson: $e');
+      }
+    }
+    
+    print('DEBUG: rutaId = $rutaId');
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
@@ -177,6 +216,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       );
       print('DEBUG: Solicitando lista de clientes por permisos');
     }
+  }
+
+  /// Verifica si un cliente pertenece a la ruta del usuario
+  bool _clienteBelongsToRuta(String? clieCode) {
+    if (rutaId == null || clieCode == null) return true;
+    
+    // Aquí puedes implementar la lógica específica para verificar
+    // si el cliente pertenece a la ruta. Por ahora, retornamos true
+    // para permitir todos los clientes hasta que se implemente la lógica específica
+    return true;
   }
 
   void _onClienteChanged(DireccionCliente? direccion) {
@@ -224,10 +273,18 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
           if (!mounted) return;
           setState(() {
+            // Filtrar direcciones por rutaId si el usuario no es admin
             _direcciones = direccionesList
                 .where(
-                  (direccion) =>
-                      esAdmin == true || direccion.usua_creacion == usuaId,
+                  (direccion) {
+                    // Si es admin, mostrar todas las direcciones
+                    if (esAdmin == true) return true;
+                    
+                    // Si no es admin, filtrar solo por rutaId
+                    bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                    
+                    return matchesRuta;
+                  },
                 )
                 .toList();
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
@@ -263,10 +320,18 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       if (!mounted) return;
 
       setState(() {
+        // Filtrar direcciones por rutaId si el usuario no es admin
         _direcciones = direccionesData
             .where(
-              (direccion) =>
-                  esAdmin == true || direccion.usua_creacion == usuaId,
+              (direccion) {
+                // Si es admin, mostrar todas las direcciones
+                if (esAdmin == true) return true;
+                
+                // Si no es admin, filtrar solo por rutaId
+                bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                
+                return matchesRuta;
+              },
             )
             .toList();
         _facturas = List<Map<String, dynamic>>.from(facturasData);
@@ -287,10 +352,18 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
         if (!mounted) return;
         setState(() {
+          // Filtrar direcciones por rutaId si el usuario no es admin
           _direcciones = direccionesList
               .where(
-                (direccion) =>
-                    esAdmin == true || direccion.usua_creacion == usuaId,
+                (direccion) {
+                  // Si es admin, mostrar todas las direcciones
+                  if (esAdmin == true) return true;
+                  
+                  // Si no es admin, filtrar solo por rutaId
+                  bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+                  
+                  return matchesRuta;
+                },
               )
               .toList();
           _facturas = List<Map<String, dynamic>>.from(localFacturas);
@@ -523,8 +596,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           }
         } else {
           // Guardar devolución offline
+          final clienteNombre = _selectedDireccion != null
+              ? _formatClienteName(_selectedDireccion!)
+              : '';
+
           final pending = {
             'clie_Id': _selectedClienteId,
+            'clie_Nombre': clienteNombre,
+            // También incluir claves alternativas que el ViewModel busca
+            'clie_NombreNegocio': clienteNombre,
+            'clieNombreNegocio': clienteNombre,
             'fact_Id': _selectedFacturaId,
             'devo_Motivo': _motivoController.text,
             'usua_Creacion': usuaId ?? 0,

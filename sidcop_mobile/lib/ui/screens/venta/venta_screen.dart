@@ -15,6 +15,7 @@ import 'dart:math';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
 // Modelo centralizado para los datos
 class FormData {
@@ -22,6 +23,7 @@ class FormData {
   String datosCliente = '';
   String productos = '';
   bool confirmacion = false;
+  double total = 0;
 }
 
 class VentaScreen extends StatefulWidget {
@@ -40,7 +42,7 @@ class _VentaScreenState extends State<VentaScreen> {
   final VentaService _ventaService = VentaService();
   final ProductosService _productosService = ProductosService();
   final ClientesService _clientesService = ClientesService();
-final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   late VentaInsertarViewModel _ventaModel;
   
@@ -56,7 +58,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     final random = Random();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final randomDigits = 100000 + random.nextInt(900000); // Número de 6 dígitos
-    return 'FACT-${timestamp}_$randomDigits';
+    return '-- ---- --- -- --------';
   }
   
   // Método para construir una fila de información de crédito
@@ -168,13 +170,24 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     
     setState(() => _isLoadingAddresses = true);
     try {
-      _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
-      
+      final hasConnection = await SyncService.hasInternetConnection();
+
+      if (hasConnection) {
+        _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
+      }else {
+        final raw = await ClientesOfflineService.leerJson('direcciones.json');
+        final direcciones = raw != null ? List<dynamic>.from(raw) : [];
+        _clientAddresses = direcciones.where((dir) {
+          final clienteId = dir['clie_Id'];
+          return clienteId == widget.clienteId;
+        }).toList();
+      }
       // Seleccionar la primera dirección por defecto si hay direcciones disponibles
       if (_clientAddresses.isNotEmpty) {
         _selectedAddress = _clientAddresses.first;
         _ventaModel.diClId = _selectedAddress!['diCl_Id'] ?? 0;
       }
+      setState(() {});
     } catch (e) {
       debugPrint('Error cargando direcciones: $e');
     } finally {
@@ -196,9 +209,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     _loadClientAddresses();
     _searchController.addListener(_applyProductFilter);
     
-    // Debug print to verify the values
-    debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
-
     // Verificar crédito al iniciar si ya hay un cliente seleccionado
     if (widget.clienteId != null) {
       _verificarCreditoCliente();
@@ -230,9 +240,19 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
           widget.vendedorId!,
         );
       } else {
+        //Obtner nombre del Cliente offline y setear el data
+        final clienteOffline = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
+        final nombreCliente = clienteOffline?['clie_Nombres'] ?? '';
+        final apellidoCliente = clienteOffline?['clie_Apellidos'] ?? '';
+        final nombreCompleto = '$nombreCliente $apellidoCliente'.trim();
+        setState(() {
+         formData.datosCliente = nombreCompleto.isEmpty ? 'Cliente general' : nombreCompleto;
+        });
+
+        //Apartado de Productos Offline-- Mandando el clie id y vend id para que coincida con la clave de algun json guardado
         _allProducts = await VentasOfflineService.cargarProductosConDescuentoOffline(
-          1158,
-          13,
+          widget.clienteId!,
+          widget.vendedorId!,
         );
         if (_allProducts.isEmpty) {
           ErrorHandler.showErrorToast('No hay productos disponibles offline');
@@ -250,10 +270,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       for (var producto in _allProducts) {
         _productosConDescuento[producto.prodId] = producto;
       }
-
-      debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
     } catch (e) {
-      debugPrint('Error cargando productos con descuento: $e');
       ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
     } finally {
       setState(() => _isLoadingProducts = false);
@@ -373,6 +390,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     ErrorHandler.showErrorToast(mensaje);
   }
 
+  
   void mostrarResumen() {
     showDialog(
       context: context,
@@ -412,6 +430,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   }
 
   Future<void> _procesarVenta() async {
+    final hasConnection = await SyncService.hasInternetConnection();
     // Validar crédito si el método de pago es CRÉDITO
     if (formData.metodoPago == 'CREDITO' && widget.clienteId != null) {
       final totalVenta = _calculateTotal();
@@ -442,11 +461,9 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     );
 
     try {
-      print('Iniciando procesamiento de venta...');
       
       // Generar un nuevo número de factura único
       final newInvoiceNumber = _generateInvoiceNumber();
-      print('Nuevo número de factura generado: $newInvoiceNumber');
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
@@ -471,44 +488,63 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       //_ventaModel.vendId = 12;
       _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
-      // Validar el modelo antes de enviar
-      print('Validando modelo de venta...');
-      print('Direccion por cliente ID: ${_ventaModel.diClId}');
-      print('Vendedor ID: ${_ventaModel.vendId}');
-      print('Productos: ${_ventaModel.detallesFacturaInput.length}');
-      print('Detalles de productos:');
-      for (var detalle in _ventaModel.detallesFacturaInput) {
-        print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
-      }
-      
-      // Enviar venta al backend
-      print('Enviando datos al servidor...');
-      final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
-      
-      // Cerrar indicador de carga
-      if (Navigator.canPop(loadingContext)) {
-        Navigator.of(loadingContext, rootNavigator: true).pop();
-      }
-      
-      print('Respuesta del servidor: $resultado');
-      
-      if (resultado?['success'] == true) {
-        // Venta exitosa - mostrar toast y dialog
-        ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
-        
+
+      if(hasConnection){
+        // Enviar venta al backend
+        final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
+
+        // Cerrar indicador de carga
+        if (Navigator.canPop(loadingContext)) {
+          Navigator.of(loadingContext, rootNavigator: true).pop();
+        }
+
+
+        if (resultado?['success'] == true) {
+          // Venta exitosa - mostrar toast y dialog
+          ErrorHandler.showSuccessToast('¡Venta procesada exitosamente!');
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
+          );
+        } else {
+          // Error en la venta - usar toast en lugar de dialog
+          ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
+        }
+      } else {
+        // Guardar venta offline
+        await VentasOfflineService.guardarVentaOffline(
+          ventaModel: _ventaModel,
+          selectedProducts: _selectedProducts,
+          allProducts: _allProducts,
+          metodoPago: formData.metodoPago,
+          clienteId: widget.clienteId,
+          vendedorId: widget.vendedorId,
+          selectedAddress: _selectedAddress,
+          clienteNombre: formData.datosCliente,
+          totalCuenta: formData.total
+        );
+
+        // Cerrar indicador de carga
+        if (Navigator.canPop(loadingContext)) {
+          Navigator.of(loadingContext, rootNavigator: true).pop();
+        }
+
+        // Después de guardar offline...
+        ErrorHandler.showSuccessToast('¡Venta guardada offline! Se enviará cuando haya conexión.');
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (_) => _buildModernSuccessDialog(context, resultado!['data']),
+          builder: (_) => _buildModernSuccessDialog(context, {
+            'offline': true,
+            'fact_Numero': _ventaModel.factNumero,
+            'ventaModel': _ventaModel.toJson(),
+            // Puedes agregar más campos si quieres mostrar detalles
+          }),
         );
-      } else {
-        // Error en la venta - usar toast en lugar de dialog
-        ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
-        print('Error al procesar venta: $resultado');
       }
     } catch (e, stackTrace) {
-      print('Excepción al procesar venta: $e');
-      print('Stack trace: $stackTrace');
       
       // Cerrar indicador de carga si está abierto
       if (Navigator.canPop(loadingContext)) {
@@ -520,6 +556,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     }
   }
 
+  // Resetear el formulario
   void _resetearFormulario() {
     setState(() {
       currentStep = 0;
@@ -527,6 +564,7 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
       formData.datosCliente = '';
       formData.productos = '';
       formData.confirmacion = false;
+      formData.total = 0;
       _selectedProducts.clear();
       _ventaModel = VentaInsertarViewModel.empty();
       _pageController.jumpToPage(0);
@@ -790,7 +828,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     // Intentar extraer el ID del message_Status
     if (facturaData['message_Status'] != null) {
       facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
-      print('ID extraído del message_Status: $facturaId');
     }
     
     // Fallback: intentar obtener de otros campos
@@ -801,7 +838,6 @@ final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
     
     final facturaNumero = _ventaModel.factNumero ?? 'N/A';
     
-    print('Navegando a InvoiceDetailScreen con ID: $facturaId, Número: $facturaNumero');
     
     // Navigate to InvoiceDetailScreen
     Navigator.push(
@@ -1310,25 +1346,51 @@ Widget paso1() {
     setState(() => _verificandoCredito = true);
     
     try {
-      final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
-      
-      final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
-      final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
-      final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
-      
-      setState(() {
-        _limiteCredito = limiteCredito;
-        _saldoActual = saldoActual;
-        _creditoDisponible = creditoDisponible;
-        _tieneCredito = creditoDisponible > 0;
-      });
-      
-      // Si no hay crédito disponible, volver a efectivo
-      if (!_tieneCredito) {
+      final isOffline = !(await SyncService.hasInternetConnection());
+      if (isOffline) {
+        final creditInfo = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
+        
+        final limiteCredito = (creditInfo?['clie_LimiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo?['clie_Saldo'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = limiteCredito - saldoActual;
+
         setState(() {
-          formData.metodoPago = 'EFECTIVO';
-          _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
         });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
+        
+      }
+      else{
+        final creditInfo = await _cuentasService.getClienteCreditInfo(widget.clienteId!);
+      
+        final limiteCredito = (creditInfo['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+        final saldoActual = (creditInfo['saldoActual'] as num?)?.toDouble() ?? 0.0;
+        final creditoDisponible = (creditInfo['creditoDisponible'] as num?)?.toDouble() ?? 0.0;
+
+        setState(() {
+          _limiteCredito = limiteCredito;
+          _saldoActual = saldoActual;
+          _creditoDisponible = creditoDisponible;
+          _tieneCredito = creditoDisponible > 0;
+        });
+
+        // Si no hay crédito disponible, volver a efectivo
+        if (!_tieneCredito) {
+          setState(() {
+            formData.metodoPago = 'EFECTIVO';
+            _ventaModel.factTipoVenta = 'CO'; // CO for Efectivo
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -2956,6 +3018,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double impuestos = baseImponible * porcentajeImpuesto;
     
     final double total = subtotalConDescuento + impuestos;
+    
+    setState(() {
+      formData.total = total;
+    });
 
     return Padding(
       padding: const EdgeInsets.all(24),

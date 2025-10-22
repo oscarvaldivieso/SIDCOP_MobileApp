@@ -5,7 +5,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.Dart';
 import 'package:sidcop_mobile/ui/screens/venta/invoice_detail_screen.dart';
 import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
 import 'dart:convert';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class VentasListScreen extends StatefulWidget {
   const VentasListScreen({super.key, this.vendedorId});
@@ -47,17 +47,21 @@ class _VentasListScreenState extends State<VentasListScreen> {
     setState(() {});
   }
 
+  //Cargar las ventas
   Future<void> _loadVentas() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
+    //Sincronizar ventas pendientes antes de cargar el historial
+    await VentasOfflineService.sincronizarVentasPendientes();
 
     // Usar el vendedorId pasado o el globalVendId, nunca el 13 por defecto
     final vendedorId = widget.vendedorId ?? globalVendId;
     if (vendedorId == null || vendedorId == 0) {
       setState(() {
-        _error = 'No se pudo identificar el vendedor. Inicie sesión nuevamente.';
+        _error =
+            'No se pudo identificar el vendedor. Inicie sesión nuevamente.';
         _isLoading = false;
       });
       return;
@@ -107,14 +111,13 @@ class _VentasListScreenState extends State<VentasListScreen> {
     }
   }
 
+  //Navegar a la pantalla de detalle de la factura
   void _navigateToInvoiceDetail(int factId) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => InvoiceDetailScreen(
-          facturaId: factId,
-          facturaNumero: 'N/A',
-        ),
+        builder: (context) =>
+            InvoiceDetailScreen(facturaId: factId, facturaNumero: 'N/A'),
       ),
     );
   }
@@ -168,11 +171,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Color(0xFFFF3B30),
-          ),
+          const Icon(Icons.error_outline, size: 64, color: Color(0xFFFF3B30)),
           const SizedBox(height: 16),
           Text(
             _error!,
@@ -207,6 +206,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  //Widget para mostrar el mensaje de que no hay ventas
   Widget _buildEmptyWidget() {
     return Center(
       child: Column(
@@ -253,13 +253,14 @@ class _VentasListScreenState extends State<VentasListScreen> {
       },
     );
   }
-  
 
+  //Widget que muestra cada una de las ventas
   Widget _buildVentaCard(dynamic venta) {
     final factId = venta['fact_Id'] ?? 0;
     final factNumero = venta['fact_Numero']?.toString() ?? 'N/A';
     final fechaEmision = venta['fact_FechaEmision'] ?? '';
-    final tipoDocumento = venta['fact_TipoDeDocumento']?.toString() ?? 'Factura';
+    final tipoDocumento =
+        venta['fact_TipoDeDocumento']?.toString() ?? 'Factura';
     final clienteNombre = venta['cliente'] ?? 'Cliente General';
     final total = venta['fact_Total'] ?? 0.0;
     final estado = venta['fact_Anulado'] ?? 'Completada';
@@ -545,6 +546,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  //Formato de fecha
   String _formatFechaFromApi(String fechaIso) {
     try {
       final date = DateTime.parse(fechaIso);

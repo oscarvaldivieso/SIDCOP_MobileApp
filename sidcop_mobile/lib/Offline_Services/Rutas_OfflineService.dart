@@ -11,7 +11,7 @@ import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/services/VendedoresService.dart';
 import 'package:sidcop_mobile/services/ClientesVisitaHistorialService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 /// Servicios para operaciones offline: guardar/leer JSON y archivos binarios.
 
@@ -37,22 +37,19 @@ class RutasScreenOffline {
     return ruta;
   }
 
-  /// Guarda cualquier objeto JSON-serializable en `nombreArchivo` (por ejemplo: 'clientes.json').
-  /// La escritura es atómica: escribe en un temporal y renombra.
+  /// Guarda objeto JSON en nombreArchivo con escritura atómica
   static Future<void> guardarJson(String nombreArchivo, Object objeto) async {
     try {
-      // Guardar JSON en almacenamiento seguro (clave 'json:<nombreArchivo>').
-      // Usamos secure storage porque el requerimiento es que todos los JSON se guarden allí.
+      // Guardar JSON en almacenamiento seguro
       final contenido = jsonEncode(objeto);
       final key = 'json:$nombreArchivo';
       await _secureStorage.write(key: key, value: contenido);
     } catch (e) {
-      // Si falla, lanzar la excepción para que el llamador la maneje
       rethrow;
     }
   }
 
-  /// Lee y decodifica JSON desde `nombreArchivo`. Devuelve null si no existe.
+  /// Lee y decodifica JSON desde nombreArchivo
   static Future<dynamic> leerJson(String nombreArchivo) async {
     try {
       final key = 'json:$nombreArchivo';
@@ -64,47 +61,39 @@ class RutasScreenOffline {
     }
   }
 
-  /// Guarda bytes en un archivo (por ejemplo imágenes, mbtiles). Escritura atómica.
+  /// Guarda bytes con escritura atómica (imágenes, mbtiles)
   static Future<void> guardarBytes(
     String nombreArchivo,
     Uint8List bytes,
   ) async {
     try {
-      // Guardar bytes en secure storage como base64 (fallback) y también
-      // escribir un archivo en disco dentro de la carpeta 'offline' para
-      // que consumidores que esperan ruta/archivo local funcionen offline.
+      // Guardar bytes en secure storage y disco para acceso offline
       final key = 'bin:$nombreArchivo';
       final encoded = base64Encode(bytes);
       await _secureStorage.write(key: key, value: encoded);
 
-      // Escribir a disco de forma atómica: escribir en un temporal y renombrar.
+      // Escritura atómica en disco
       try {
         final ruta = await _rutaArchivo(nombreArchivo);
         final targetFile = File(ruta);
         final tempPath = '$ruta.tmp';
         final tempFile = File(tempPath);
-        // Asegurar que el directorio padre existe ( _rutaArchivo ya lo crea )
         await tempFile.writeAsBytes(bytes, flush: true);
         if (await targetFile.exists()) {
           await targetFile.delete();
         }
         await tempFile.rename(ruta);
       } catch (e) {
-        // No abortar todo el proceso si la escritura a disco falla; ya tenemos
-        // la copia en secure storage. Loguear para diagnóstico.
-        print('WARN: guardarBytes fallo al escribir en disco: $e');
+        // Continuar si falla escritura en disco (ya está en secure storage)
       }
     } catch (e) {
       rethrow;
     }
   }
 
-  /// Lee bytes desde un archivo. Devuelve null si no existe.
+  /// Lee bytes desde archivo, intentando disco primero y luego secure storage
   static Future<Uint8List?> leerBytes(String nombreArchivo) async {
     try {
-      // Intentar leer desde disco primero (mejor rendimiento y compatibilidad
-      // con consumidores que esperan archivos locales). Si no existe en disco,
-      // intentar leer desde secure storage.
       final ruta = await _rutaArchivo(nombreArchivo);
       try {
         final archivo = File(ruta);
@@ -112,17 +101,15 @@ class RutasScreenOffline {
           final bytes = await archivo.readAsBytes();
           return Uint8List.fromList(bytes);
         }
-      } catch (_) {
-        // si fallo leyendo disco, seguir con secure storage
-      }
+      } catch (_) {}
 
-      // Fallback: leer desde secure storage
+      // Fallback desde secure storage
       final key = 'bin:$nombreArchivo';
       try {
         final s = await _secureStorage.read(key: key);
         if (s != null) {
           final decoded = base64Decode(s);
-          // Escribir una copia en disco para futuros accesos rápidos
+          // Copiar a disco para accesos futuros
           try {
             final rutaSave = await _rutaArchivo(nombreArchivo);
             final archivoSave = File(rutaSave);
@@ -139,9 +126,8 @@ class RutasScreenOffline {
     }
   }
 
-  /// Comprueba si un archivo existe en la carpeta offline.
+  /// Comprueba si archivo existe en carpeta offline
   static Future<bool> existe(String nombreArchivo) async {
-    // Comprobar secure storage (json o bin) y disco
     if (nombreArchivo.toLowerCase().endsWith('.json')) {
       final key = 'json:$nombreArchivo';
       final s = await _secureStorage.read(key: key);
@@ -170,7 +156,7 @@ class RutasScreenOffline {
         await _secureStorage.delete(key: binKey);
         return;
       }
-      // Si no estaba en secure storage, borrar archivo en disco
+      // Borrar archivo en disco si no está en secure storage
       final ruta = await _rutaArchivo(nombreArchivo);
       final archivo = File(ruta);
       if (await archivo.exists()) await archivo.delete();
@@ -179,9 +165,8 @@ class RutasScreenOffline {
     }
   }
 
-  /// Lista los nombres de archivos dentro de la carpeta offline (no recursivo).
+  /// Lista archivos en carpeta offline (no recursivo)
   static Future<List<String>> listarArchivos() async {
-    // Listar archivos en carpeta offline + JSON almacenados en secure storage
     final archivos = <String>[];
     final docs = await _directorioDocuments();
     final carpeta = Directory(p.join(docs.path, _carpetaOffline));
@@ -191,7 +176,7 @@ class RutasScreenOffline {
         if (it is File) archivos.add(p.basename(it.path));
       }
     }
-    // Añadir keys guardadas en secure storage (prefijo 'json:' y 'bin:')
+    // Añadir keys de secure storage
     try {
       final all = await _secureStorage.readAll();
       for (final k in all.keys) {
@@ -201,13 +186,11 @@ class RutasScreenOffline {
           archivos.add(k.replaceFirst('bin:', ''));
         }
       }
-    } catch (_) {
-      // ignorar problemas con secure storage en el listado
-    }
+    } catch (_) {}
     return archivos;
   }
 
-  // Funciones de conveniencia para clientes (json en 'clientes.json')
+  // Funciones para clientes
   static const String _archivoClientes = 'clientes.json';
 
   static Future<void> guardarClientes(
@@ -220,7 +203,6 @@ class RutasScreenOffline {
     final raw = await leerJson(_archivoClientes);
     if (raw == null) return [];
     try {
-      // Asegurar lista de mapas
       final lista = List<Map<String, dynamic>>.from(raw as List);
       return lista;
     } catch (e) {
@@ -228,11 +210,10 @@ class RutasScreenOffline {
     }
   }
 
-  // Instancia de secure storage para valores sensibles (pequeños/medianos)
+  // Instancia de secure storage
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
-  /// Guarda un objeto JSON (serializable) en el almacenamiento seguro bajo la clave `key`.
-  /// Nota: secure storage está pensado para strings pequeños/medianos. No usar para archivos muy grandes.
+  /// Guarda JSON en almacenamiento seguro
   static Future<void> guardarJsonSeguro(String key, Object objeto) async {
     try {
       final contenido = jsonEncode(objeto);
@@ -242,7 +223,7 @@ class RutasScreenOffline {
     }
   }
 
-  /// Lee y decodifica un JSON almacenado en secure storage bajo `key`. Devuelve null si no existe.
+  /// Lee JSON desde secure storage
   static Future<dynamic> leerJsonSeguro(String key) async {
     try {
       final s = await _secureStorage.read(key: key);
@@ -253,12 +234,7 @@ class RutasScreenOffline {
     }
   }
 
-  // -----------------------------
-  // Helpers específicos para 'details' de ruta
-  // -----------------------------
-  /// Guarda los detalles de una ruta en secure storage bajo la clave 'details_ruta_<id>'
-  // Detalles de ruta: funcionalidad removida intencionalmente.
-  // Se conserva la firma como stub para evitar romper llamadas externas.
+  /// Guarda detalles de ruta en secure storage
   static Future<void> guardarDetallesRuta(
     int rutaId,
     Map<String, dynamic> detalles,
@@ -266,16 +242,12 @@ class RutasScreenOffline {
     try {
       final key = 'details_ruta_$rutaId';
       await guardarJsonSeguro(key, detalles);
-    } catch (e) {
-      // No interrumpir el flujo de sincronización si falla el guardado local
-      print('WARN: guardarDetallesRuta failed for ruta $rutaId: $e');
-    }
+    } catch (e) {}
   }
 
-  /// Lee los detalles de una ruta desde secure storage; devuelve null si no existe
+  /// Lee detalles de ruta desde secure storage
   static Future<Map<String, dynamic>?> leerDetallesRuta(int rutaId) async {
     try {
-      // Primero intentar leer detalles específicos por ruta (si fueron guardados antes)
       final key = 'details_ruta_$rutaId';
       final detallesRaw = await leerJsonSeguro(key);
 
@@ -285,7 +257,6 @@ class RutasScreenOffline {
       String? staticMapLocalPath;
 
       if (detallesRaw != null) {
-        // Aceptar estructuras flexibles
         try {
           clientesJson = List<Map<String, dynamic>>.from(
             detallesRaw['clientes'] as List? ?? [],
@@ -301,18 +272,14 @@ class RutasScreenOffline {
           direccionesJson = [];
         }
 
-        // Si los datos guardados tienen 0 direcciones, borrarlos y usar fallback
+        // Si no hay direcciones, usar fallback
         if (direccionesJson.isEmpty) {
-          print(
-            'DEBUG: leerDetallesRuta - stored details have 0 direcciones, deleting and using fallback',
-          );
+        
           await borrarDetallesRuta(rutaId);
           // Usar fallback inmediatamente
           clientesJson = await cargarClientes();
           final rawDirs = await obtenerDireccionesLocal();
-          print(
-            'DEBUG: leerDetallesRuta - fallback after delete: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-          );
+        
           try {
             direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
           } catch (_) {
@@ -323,15 +290,11 @@ class RutasScreenOffline {
         staticMapUrl = detallesRaw['staticMapUrl']?.toString();
         staticMapLocalPath = detallesRaw['staticMapLocalPath']?.toString();
       } else {
-        print(
-          'DEBUG: leerDetallesRuta - no stored details, using fallback JSONs for ruta $rutaId',
-        );
+     
         // Fallback: usar los JSON locales sincronizados (clientes.json / direcciones.json)
         clientesJson = await cargarClientes();
         final rawDirs = await obtenerDireccionesLocal();
-        print(
-          'DEBUG: leerDetallesRuta - fallback: cargarClientes=${clientesJson.length}, obtenerDireccionesLocal=${rawDirs.length}',
-        );
+       
         try {
           direccionesJson = List<Map<String, dynamic>>.from(rawDirs);
         } catch (_) {
@@ -487,9 +450,7 @@ class RutasScreenOffline {
     try {
       final key = 'details_ruta_$rutaId';
       await _secureStorage.delete(key: key);
-    } catch (e) {
-      print('WARN: borrarDetallesRuta failed for ruta $rutaId: $e');
-    }
+    } catch (e) {}
   }
 
   /// Borra todos los detalles de rutas guardados para forzar regeneración
@@ -499,57 +460,30 @@ class RutasScreenOffline {
       for (final key in allKeys.keys) {
         if (key.startsWith('details_ruta_')) {
           await _secureStorage.delete(key: key);
-          print('DEBUG: deleted obsolete key: $key');
         }
       }
-      print('DEBUG: limpiarTodosLosDetalles completed');
-    } catch (e) {
-      print('WARN: limpiarTodosLosDetalles failed: $e');
-    }
+    } catch (e) {}
   }
 
-  /// Devuelve la ruta absoluta en Documents para un nombre de archivo simple
-  /// (no usa la carpeta 'offline'). Esto replica el comportamiento de
-  /// `guardarImagenDeMapaStatic` en `Rutas_mapscreen.dart` que guarda en
-  /// Documents directamente.
+  /// Devuelve ruta absoluta en Documents para archivo
   static Future<String> rutaEnDocuments(String nombreArchivo) async {
     final docs = await _directorioDocuments();
     return p.join(docs.path, nombreArchivo);
   }
 
-  /// Descarga una imagen desde `imageUrl` y la guarda en Documents con el
-  /// nombre `nombreArchivo.png`. Devuelve la ruta del archivo guardado o
-  /// null si ocurrió un error. Replica el comportamiento de
-  /// `guardarImagenDeMapaStatic` en `Rutas_mapscreen.dart`.
+  /// Guarda imagen de mapa estático (placeholder)
   static Future<String?> guardarImagenDeMapaStatic(
     String imageUrl,
     String nombreArchivo,
   ) async {
-    // Per requirement: offline service must not download or call remote static
-    // map endpoints. Image caching must be handled by the UI while online.
-    // Keep a placeholder implementation for legacy callers.
     return null;
   }
 
-  // -----------------------------
-  // Métodos de sincronización con los endpoints usados en pantalla 'Rutas'
-  // Estos métodos consultan los servicios remotos y almacenan la copia
-  // local utilizando las funciones anteriores (guardarJson).
-  // -----------------------------
-
-  /// Sincroniza las rutas desde el endpoint y las guarda en 'rutas.json'.
+  /// Sincroniza rutas desde endpoint y las guarda en rutas.json
   static Future<List<dynamic>> sincronizarRutas() async {
     try {
       final servicio = RutasService();
       final data = await servicio.getRutas();
-      // Log para diagnosticar respuesta remota
-      try {
-        final lista = List.from(data);
-        print('SYNC: sincronizarRutas fetched ${lista.length} items');
-      } catch (_) {
-        print('SYNC: sincronizarRutas fetched (unknown count)');
-      }
-      // Guardar la respuesta tal cual (normalmente es List)
       await guardarJson('rutas.json', data);
       return data;
     } catch (e) {
@@ -557,26 +491,19 @@ class RutasScreenOffline {
     }
   }
 
-  /// Sincroniza los clientes desde el endpoint y los guarda en 'clientes.json'.
+  /// Sincroniza clientes y los guarda en clientes.json
   static Future<List<Map<String, dynamic>>> sincronizarClientes() async {
     try {
       final servicio = ClientesService();
       final data = await servicio.getClientes();
-      try {
-        final lista = List.from(data);
-        print('SYNC: sincronizarClientes fetched ${lista.length} items');
-      } catch (_) {
-        print('SYNC: sincronizarClientes fetched (unknown count)');
-      }
       await guardarJson(_archivoClientes, data);
-      // After saving clients JSON, attempt to download and cache business images
+      // Descargar y cachear imágenes de negocios
       try {
         for (final c in data) {
           try {
             if (c is! Map) continue;
             final id = (c['clie_Id'] ?? c['clieId'] ?? c['id'])?.toString();
             if (id == null || id.isEmpty) continue;
-            // Support several possible image keys
             final imageUrl =
                 (c['clie_ImagenDelNegocio'] ??
                         c['clieImagenDelNegocio'] ??
@@ -588,8 +515,8 @@ class RutasScreenOffline {
             if (imageUrl.isEmpty) continue;
             final filename = 'foto_negocio_${id}.jpg';
             final exists = await existe(filename);
-            if (exists) continue; // skip if already stored
-            try {
+            if (exists) continue;
+            try{
               final resp = await http
                   .get(Uri.parse(imageUrl))
                   .timeout(const Duration(seconds: 8));
@@ -598,26 +525,20 @@ class RutasScreenOffline {
                   filename,
                   Uint8List.fromList(resp.bodyBytes),
                 );
-                print('SYNC: saved negocio image for cliente $id -> $filename');
-              } else {
-                // ignore non-200
               }
-            } catch (_) {
-              // Ignore download failures per-client to avoid aborting sync
-            }
+            } catch (_) {}
           } catch (_) {
             continue;
           }
         }
       } catch (_) {}
-      // Intentar convertir a lista de mapas
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       rethrow;
     }
   }
 
-  /// Guarda la foto de negocio de un cliente (nombre: 'foto_negocio_<clienteId>.jpg').
+  /// Guarda foto de negocio del cliente
   static Future<void> guardarFotoNegocio(
     String clienteId,
     Uint8List bytes,
@@ -626,16 +547,14 @@ class RutasScreenOffline {
     await guardarBytes(filename, bytes);
   }
 
-  /// Lee la foto de negocio de un cliente si existe.
+  /// Lee foto de negocio del cliente
   static Future<Uint8List?> leerFotoNegocio(String clienteId) async {
     final filename = 'foto_negocio_${clienteId}.jpg';
     return await leerBytes(filename);
   }
 
-  /// Devuelve la ruta absoluta en disco del archivo de foto del negocio si
-  /// existe, o null si no está disponible en disco. Esto es útil para
-  /// widgets que prefieren `Image.file(File(path))`.
-  static Future<String?> rutaFotoNegocioLocal(String clienteId) async {
+  /// Devuelve ruta absoluta de foto de negocio en disco
+  static Future<String?> rutaFotoNegocioLocal(String clienteId) async{
     final filename = 'foto_negocio_${clienteId}.jpg';
     try {
       final ruta = await _rutaArchivo(filename);
@@ -647,59 +566,30 @@ class RutasScreenOffline {
     }
   }
 
-  /// Sincroniza las direcciones de clientes y las guarda en 'direcciones.json'.
+  /// Sincroniza direcciones de clientes y las guarda en direcciones.json
   static Future<List<dynamic>> sincronizarDirecciones() async {
     try {
-      print('DEBUG: sincronizarDirecciones - starting...');
       final servicio = DireccionClienteService();
       final data = await servicio.getDireccionesPorCliente();
-      print(
-        'DEBUG: sincronizarDirecciones - received data type: ${data.runtimeType}',
-      );
-      try {
-        final lista = List.from(data);
-        print('SYNC: sincronizarDirecciones fetched ${lista.length} items');
-        if (lista.isNotEmpty) {
-          print(
-            'DEBUG: sincronizarDirecciones - sample direccion: ${lista.first}',
-          );
-        }
-      } catch (_) {
-        print('SYNC: sincronizarDirecciones fetched (unknown count)');
-      }
 
-      // Convertir objetos DireccionCliente a JSON maps antes de guardar
+      // Convertir objetos a JSON
       List<Map<String, dynamic>> direccionesJson = [];
       for (final item in data) {
         direccionesJson.add(item.toJson());
       }
 
-      print(
-        'DEBUG: sincronizarDirecciones - converted to ${direccionesJson.length} JSON maps',
-      );
       await guardarJson('direcciones.json', direccionesJson);
-      print('DEBUG: sincronizarDirecciones - saved to direcciones.json');
       return direccionesJson;
     } catch (e) {
-      print('ERROR: sincronizarDirecciones failed: $e');
       rethrow;
     }
   }
 
-  /// Sincroniza el historial de visitas (ClientesVisitaHistorialService.listar)
-  /// y lo guarda en 'visitas_historial.json'.
+  /// Sincroniza historial de visitas y lo guarda en visitas_historial.json
   static Future<List<dynamic>> sincronizarVisitasHistorial() async {
     try {
       final servicio = ClientesVisitaHistorialService();
       final data = await servicio.listarPorVendedor();
-      try {
-        final lista = List.from(data);
-        print(
-          'SYNC: sincronizarVisitasHistorial fetched ${lista.length} items',
-        );
-      } catch (_) {
-        print('SYNC: sincronizarVisitasHistorial fetched (unknown count)');
-      }
       await guardarJson('visitas_historial.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -707,45 +597,34 @@ class RutasScreenOffline {
     }
   }
 
-  /// Guarda manualmente una lista de visitas en el almacenamiento local (secure storage).
+  /// Guarda lista de visitas en almacenamiento local
   static Future<void> guardarVisitasHistorial(List<dynamic> visitas) async {
     await guardarJson('visitas_historial.json', visitas);
   }
 
-  /// Lee el historial de visitas almacenado localmente o devuelve lista vacía.
+  /// Lee historial de visitas local
   static Future<List<dynamic>> obtenerVisitasHistorialLocal() async {
     final raw = await leerJson('visitas_historial.json');
     if (raw == null) return [];
     return List.from(raw as List);
   }
 
-  /// Wrapper que fuerza lectura/sincronización remota para visitas (si se necesita).
+  /// Fuerza sincronización remota de visitas
   static Future<List<dynamic>> leerVisitasHistorial() async {
     return await sincronizarVisitasHistorial();
   }
 
-  /// Sincroniza vendedores_por_rutas (VendedoresService.listarPorRutas) y guarda en 'vendedores_por_rutas.json'.
+  /// Sincroniza vendedores por rutas y guarda en vendedores_por_rutas.json
   static Future<List<dynamic>> sincronizarVendedoresPorRutas() async {
     try {
       final servicio = VendedoresService();
       final data = await servicio.listarPorRutas();
-      try {
-        final lista = List.from(data);
-        print(
-          'SYNC: sincronizarVendedoresPorRutas fetched ${lista.length} items',
-        );
-      } catch (_) {
-        print('SYNC: sincronizarVendedoresPorRutas fetched (unknown count)');
-      }
 
-      // Convertir objetos VendedoresPorRutaModel a JSON
+      // Convertir objetos a JSON
       final vendedoresJson = <Map<String, dynamic>>[];
       for (final item in data) {
         vendedoresJson.add(item.toJson());
       }
-      print(
-        'SYNC: sincronizarVendedoresPorRutas converted ${vendedoresJson.length} objects to JSON',
-      );
 
       await guardarJson('vendedores_por_rutas.json', vendedoresJson);
       return vendedoresJson;
@@ -754,34 +633,28 @@ class RutasScreenOffline {
     }
   }
 
-  /// Guarda manualmente la estructura de vendedores por rutas.
+  /// Guarda vendedores por rutas
   static Future<void> guardarVendedoresPorRutas(List<dynamic> datos) async {
     await guardarJson('vendedores_por_rutas.json', datos);
   }
 
-  /// Lee vendedores por rutas desde almacenamiento local.
+  /// Lee vendedores por rutas local
   static Future<List<dynamic>> obtenerVendedoresPorRutasLocal() async {
     final raw = await leerJson('vendedores_por_rutas.json');
     if (raw == null) return [];
     return List.from(raw as List);
   }
 
-  /// Wrapper para forzar lectura remota
+  /// Fuerza lectura remota
   static Future<List<dynamic>> leerVendedoresPorRutas() async {
     return await sincronizarVendedoresPorRutas();
   }
 
-  /// Sincroniza la lista de vendedores (útil para filtros/permisos) y la guarda en 'vendedores.json'.
+  /// Sincroniza vendedores y los guarda en vendedores.json
   static Future<List<dynamic>> sincronizarVendedores() async {
     try {
       final servicio = VendedoresService();
       final data = await servicio.listar();
-      try {
-        final lista = List.from(data);
-        print('SYNC: sincronizarVendedores fetched ${lista.length} items');
-      } catch (_) {
-        print('SYNC: sincronizarVendedores fetched (unknown count)');
-      }
       await guardarJson('vendedores.json', data);
       return data as List<dynamic>;
     } catch (e) {
@@ -789,8 +662,7 @@ class RutasScreenOffline {
     }
   }
 
-  /// Sincroniza Rutas, Clientes, Direcciones y Vendedores en paralelo y devuelve
-  /// un mapa con los resultados. Si alguna falla, la excepción se propaga.
+  /// Sincroniza todo en paralelo y devuelve mapa con resultados
   static Future<Map<String, dynamic>> sincronizarRutas_Todo() async {
     try {
       final results = await Future.wait([
@@ -800,17 +672,6 @@ class RutasScreenOffline {
         sincronizarVisitasHistorial(),
         sincronizarVendedores(),
       ]);
-      try {
-        final r = List.from(results[0]);
-        final c = List.from(results[1]);
-        final d = List.from(results[2]);
-        final v = List.from(results[3]);
-        print(
-          'SYNC: sincronizarRutas_Todo results sizes -> rutas=${r.length}, clientes=${c.length}, direcciones=${d.length}, vendedores=${v.length}',
-        );
-      } catch (_) {
-        print('SYNC: sincronizarRutas_Todo results sizes unknown');
-      }
       return {
         'rutas': results[0],
         'clientes': results[1],
@@ -822,12 +683,9 @@ class RutasScreenOffline {
     }
   }
 
-  /// Genera y guarda los detalles (clientes, direcciones, mapa estático) para
-  /// todas las rutas disponibles. Usa datos locales si existen, o sincroniza
-  /// las rutas remotas si no hay datos locales.
+  /// Genera y guarda detalles para todas las rutas
   static Future<void> guardarDetallesTodasRutas({bool forzar = false}) async {
     try {
-      // Obtener rutas locales; si no hay, sincronizar desde remoto
       List<dynamic> rutas = await obtenerRutasLocal();
       if (rutas.isEmpty) {
         rutas = await sincronizarRutas();
@@ -879,13 +737,9 @@ class RutasScreenOffline {
           final localFile = File(localPath);
           final hasLocal = await localFile.exists();
           if (hasLocal) {
-            print(
-              'DEBUG: usar imagen local existente para ruta $rutaId -> $localPath',
-            );
+          
           } else {
-            print(
-              'DEBUG: no se encontró imagen local para ruta $rutaId; no se descargará aquí',
-            );
+        
           }
 
           // Construir detalles y guardarlos (incluye referencia local si existe)

@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/user_verification_model.dart';
 import '../models/reset_password_request.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class UserVerificationService {
   // Base URL - Update this with your actual base URL
@@ -48,7 +48,8 @@ class UserVerificationService {
         body: jsonEncode({
           'usua_Usuario': username,
           'usua_Clave': '',
-          'role_Descripcion': '' // Required field, but can be empty for verification
+          'role_Descripcion':
+              '', // Required field, but can be empty for verification
         }),
       );
 

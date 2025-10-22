@@ -34,6 +34,7 @@ class CustomDrawer extends StatefulWidget {
 }
 
 class _CustomDrawerState extends State<CustomDrawer> {
+  // se almacena el servicio para obtener los datos del usuario
   final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
 
   String _nombreUsuario = 'Cargando...';
@@ -43,6 +44,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   int? _usuaIdPersona; 
   int? _usuaCreacion;
   bool _isLoading = true;
+  String? _vendTipo;
   List<dynamic> permisos = [];
 
   @override
@@ -52,6 +54,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     _loadPermisos();
   }
 
+  //se cargan los permisos del usuario en sesión para mostrar las opciones del drawer
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
@@ -69,11 +72,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
     setState(() {});
   }
 
+  //funcion para cargar los datos del usuario
   Future<void> _cargarDatosUsuario() async {
     try {
       final nombreCompleto = await _perfilUsuarioService
           .obtenerNombreCompleto();
-      final cargo = await _perfilUsuarioService.obtenerCargo();
       final imagenUsuario = await _perfilUsuarioService.obtenerImagenUsuario();
 
       // Obtener usuaIdPersona desde los datos guardados
@@ -81,13 +84,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
       print("userData drawer para inve: $userData");
       // Priorizar personaId del endpoint sobre usua_IdPersona
       final usuaIdPersona = (userData?['personaId'] as int?) ?? (userData?['usua_IdPersona'] as int?);
+      final vend_Tipo = userData?['datosVendedor']?['vend_Tipo'] as String?;
+      print("vend_Tipo drawer para inve: $vend_Tipo");
+      _vendTipo = vend_Tipo;
       final imagenVendedor = userData?['imagen'] as String?;
       final usuaCreacion = userData?['usua_Id'] as int?;
+
+      //se guarda el tipo de vendedor que inicio sesión
+      if(vend_Tipo == 'V'){
+        _cargoUsuario = 'Vendedor';
+      }else if(vend_Tipo == 'P'){
+        _cargoUsuario = 'Preventista';
+      }else if(vend_Tipo == 'E'){
+        _cargoUsuario = 'Entregador';
+      }else{
+        _cargoUsuario = 'Usuario';
+      }
 
       if (mounted) {
         setState(() {
           _nombreUsuario = nombreCompleto;
-          _cargoUsuario = cargo;
+          _cargoUsuario = _cargoUsuario;
           _imagenUsuario = imagenUsuario;
           _usuaIdPersona = usuaIdPersona;
           _imagenVendedor = imagenVendedor;
@@ -112,6 +129,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     return permisos.any((p) => p['Pant_Id'] == pantId);
   }
 
+  //creación del drawer con las opciones dinámicas según permisos
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -188,7 +206,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       tooltip: 'Cerrar sesión',
                       onPressed: () async {
                         await _perfilUsuarioService.limpiarDatosUsuario();
-                        // Solo desactivamos el "Remember me" sin borrar las credenciales
+                        // Solo limpiamos la sesión activa, los datos permanentes se conservan para login offline
                         await LoginScreen.clearSavedCredentials();
                         if (!mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
@@ -206,6 +224,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           ),
           const SizedBox(height: 10),
 
+          // Opciones del menú
           ListTile(
             leading: const Icon(Icons.home, color: Color(0xFFD6B68A)),
             title: const Text(
@@ -303,28 +322,29 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           if (tienePermiso(57)) // MVentas
-            ListTile(
-              leading: const Icon(
-                Icons.sell_outlined,
-                color: Color(0xFFD6B68A),
-              ),
-              title: const Text(
-                'Ventas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w500,
+            if(_vendTipo == 'V')
+              ListTile(
+                leading: const Icon(
+                  Icons.sell_outlined,
+                  color: Color(0xFFD6B68A),
                 ),
+                title: const Text(
+                  'Ventas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const VentasListScreen()),
+                    (route) => false,
+                  );
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const VentasListScreen()),
-                  (route) => false,
-                );
-              },
-            ),
             ListTile(
             leading: const Icon(
               Icons.location_history,
@@ -349,6 +369,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           if (tienePermiso(35)) // Devoluciones
+            if(_vendTipo != 'P')
               ListTile(
                 leading: const Icon(
                   Icons.restart_alt_outlined,
@@ -372,22 +393,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
 
           ListTile(
-  leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
-  title: const Text(
-    'Pedidos',
-    style: TextStyle(
-      color: Colors.white,
-      fontFamily: 'Satoshi',
-      fontWeight: FontWeight.w500,
-    ),
-  ),
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => PedidosScreen()),
-    );
-  },
-),
+            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+            title: const Text(
+              'Pedidos',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => PedidosScreen()),
+              );
+            },
+          ),
           if (tienePermiso(10)) // MClientes
             ListTile(
               leading: const Icon(
@@ -437,32 +458,34 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
 
           if (tienePermiso(29)) // MRecargas
-            ListTile(
-              leading: Transform.flip(
-                flipX: true,
-                child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
-              ),
-              title: const Text(
-                'Recargas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Satoshi',
-                  fontWeight: FontWeight.w500,
+            if(_vendTipo != 'P')
+              ListTile(
+                leading: Transform.flip(
+                  flipX: true,
+                  child: const Icon(Icons.replay, color: Color(0xFFD6B68A)),
                 ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RechargesScreen(),
+                title: const Text(
+                  'Recargas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Satoshi',
+                    fontWeight: FontWeight.w500,
                   ),
-                  (route) => false,
-                );
-              },
-            ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RechargesScreen(),
+                    ),
+                    (route) => false,
+                  );
+                },
+              ),
           //   if(usuario!.usua_Admin)
           if (tienePermiso(58)) // MInventario
+            if(_vendTipo != 'P')
             ListTile(
               leading: const Icon(
                 Icons.assignment_turned_in_outlined,
@@ -522,6 +545,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     );
   }
 
+  // Construye el avatar del perfil del usuario
   Widget _buildProfileAvatar() {
     if (_isLoading) {
       return CircleAvatar(

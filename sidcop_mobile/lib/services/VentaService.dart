@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 
 class VentaService {
@@ -16,19 +16,12 @@ class VentaService {
   ) async {
     final url = Uri.parse('$_apiServer/Facturas/Insertar');
 
-    print(' [VentaService] Iniciando inserción de factura');
-    print(' [VentaService] URL: $url');
-    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
 
     try {
       // Convertir el modelo a JSON
-      print(' [VentaService] Convirtiendo modelo a JSON...');
       final body = venta.toJson();
       final bodyJson = jsonEncode(body);
 
-      print(' [VentaService] Enviando solicitud POST...');
-      print(' [VentaService] Cuerpo de la solicitud:');
-      print(bodyJson);
 
       final stopwatch = Stopwatch()..start();
       final response = await http
@@ -40,24 +33,16 @@ class VentaService {
           .timeout(const Duration(seconds: 30));
 
       stopwatch.stop();
-      print(
-        ' [VentaService] Respuesta recibida en ${stopwatch.elapsedMilliseconds}ms',
-      );
-      print(' [VentaService] Código de estado: ${response.statusCode}');
-      print(' [VentaService] Cuerpo de la respuesta:');
-      print(response.body);
 
       // Procesar la respuesta
       Map<String, dynamic> responseData;
       try {
         responseData = jsonDecode(response.body);
       } catch (e) {
-        print(' [VentaService] Error al decodificar la respuesta JSON: $e');
         throw Exception('Respuesta del servidor no es un JSON válido');
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print(' [VentaService] Factura insertada exitosamente');
         return {
           'success': true,
           'data': responseData['data'] ?? responseData,
@@ -66,9 +51,6 @@ class VentaService {
         };
       } else {
         final errorMsg = responseData['message'] ?? 'Error desconocido';
-        print(
-          ' [VentaService] Error al insertar factura (${response.statusCode}): $errorMsg',
-        );
         return {
           'success': false,
           'error': true,
@@ -78,7 +60,6 @@ class VentaService {
         };
       }
     } on http.ClientException catch (e) {
-      print(' [VentaService] Error de conexión: ${e.message}');
       return {
         'success': false,
         'error': true,
@@ -86,7 +67,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } on TimeoutException catch (e) {
-      print(' [VentaService] Tiempo de espera agotado: $e');
       return {
         'success': false,
         'error': true,
@@ -94,8 +74,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } catch (e, stackTrace) {
-      print(' [VentaService] Error inesperado: $e');
-      print(' [VentaService] Stack trace: $stackTrace');
       return {
         'success': false,
         'error': true,
@@ -108,44 +86,26 @@ class VentaService {
 
   /// Método auxiliar para validar los datos de la venta antes de enviar
   bool validarVenta(VentaInsertarViewModel venta) {
-    print(' [VentaService] Validando datos de la venta...');
 
     // Validaciones básicas
     if (venta.diClId <= 0) {
-      print(
-        ' [VentaService] Validación fallida: Cliente ID no válido (${venta.diClId})',
-      );
       return false;
     }
 
     if (venta.vendId <= 0) {
-      print(
-        ' [VentaService] Validación fallida: Vendedor ID no válido (${venta.vendId})',
-      );
       return false;
     }
 
     if (venta.detallesFacturaInput.isEmpty) {
-      print(
-        ' [VentaService] Validación fallida: No hay productos en la factura',
-      );
       return false;
     }
 
     // Validar que todos los productos tengan cantidad mayor a 0
     for (var detalle in venta.detallesFacturaInput) {
       if (detalle.faDeCantidad <= 0) {
-        print(
-          ' [VentaService] Validación fallida: Producto ${detalle.prodId} tiene cantidad inválida (${detalle.faDeCantidad})',
-        );
         return false;
       }
     }
-
-    print(' [VentaService] Validación de datos exitosa');
-    print('   - Cliente ID: ${venta.diClId}');
-    print('   - Vendedor ID: ${venta.vendId}');
-    print('   - Productos: ${venta.detallesFacturaInput.length}');
 
     return true;
   }
@@ -174,14 +134,7 @@ class VentaService {
   Future<Map<String, dynamic>?> obtenerFacturaCompleta(int facturaId) async {
     final url = Uri.parse('$_apiServer/Facturas/ObtenerCompleta/$facturaId');
 
-    print(' [VentaService] Obteniendo factura completa');
-    print(' [VentaService] URL: $url');
-    print(' [VentaService] Factura ID: $facturaId');
-    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
-
     try {
-      print(' [VentaService] Enviando solicitud GET...');
-
       final stopwatch = Stopwatch()..start();
       final response = await http
           .get(
@@ -191,21 +144,9 @@ class VentaService {
           .timeout(const Duration(seconds: 30));
 
       stopwatch.stop();
-      print(
-        ' [VentaService] Respuesta recibida en ${stopwatch.elapsedMilliseconds}ms',
-      );
-      print(' [VentaService] Código de estado: ${response.statusCode}');
-      print(' [VentaService] Headers: ${response.headers}');
-      print(' [VentaService] Cuerpo de la respuesta (primeros 500 chars):');
-      print(
-        response.body.length > 500
-            ? '${response.body.substring(0, 500)}...'
-            : response.body,
-      );
 
       // Verificar si la respuesta está vacía
       if (response.body.isEmpty) {
-        print(' [VentaService] Error: Respuesta vacía del servidor');
         return {
           'success': false,
           'error': true,
@@ -216,17 +157,10 @@ class VentaService {
 
       // Verificar el Content-Type
       final contentType = response.headers['content-type'] ?? '';
-      print(' [VentaService] Content-Type: $contentType');
 
       // Si no es JSON, probablemente sea un error HTML
       if (!contentType.toLowerCase().contains('application/json')) {
-        print(
-          ' [VentaService] Advertencia: Content-Type no es JSON: $contentType',
-        );
         if (contentType.toLowerCase().contains('text/html')) {
-          print(
-            ' [VentaService] El servidor devolvió HTML, probablemente una página de error',
-          );
           return {
             'success': false,
             'error': true,
@@ -251,22 +185,12 @@ class VentaService {
         }
 
         responseData = jsonDecode(cleanBody);
-        print(' [VentaService] JSON decodificado exitosamente');
-        print(' [VentaService] Estructura de respuesta: ${responseData.keys}');
       } catch (e) {
-        print(' [VentaService] Error al decodificar la respuesta JSON: $e');
-        print(' [VentaService] Respuesta completa que causó el error:');
-        print('--- INICIO RESPUESTA ---');
-        print(response.body);
-        print('--- FIN RESPUESTA ---');
-        print(' [VentaService] Longitud de respuesta: ${response.body.length}');
         if (response.body.isNotEmpty) {
           final preview = response.body.substring(
             0,
             response.body.length > 10 ? 10 : response.body.length,
           );
-          print(' [VentaService] Primeros caracteres: "$preview"');
-          print(' [VentaService] Códigos ASCII: ${preview.codeUnits}');
         }
 
         return {
@@ -281,7 +205,6 @@ class VentaService {
 
       // Verificar el código de estado HTTP
       if (response.statusCode == 200) {
-        print(' [VentaService] Factura obtenida exitosamente');
 
         // Verificar la estructura de la respuesta según el formato esperado
         if (responseData.containsKey('success') &&
@@ -316,9 +239,6 @@ class VentaService {
         }
       } else {
         final errorMsg = responseData['message'] ?? 'Error desconocido';
-        print(
-          ' [VentaService] Error al obtener factura (${response.statusCode}): $errorMsg',
-        );
         return {
           'success': false,
           'error': true,
@@ -328,7 +248,6 @@ class VentaService {
         };
       }
     } on http.ClientException catch (e) {
-      print(' [VentaService] Error de conexión: ${e.message}');
       return {
         'success': false,
         'error': true,
@@ -336,7 +255,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } on TimeoutException catch (e) {
-      print(' [VentaService] Tiempo de espera agotado: $e');
       return {
         'success': false,
         'error': true,
@@ -344,8 +262,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } catch (e, stackTrace) {
-      print(' [VentaService] Error inesperado: $e');
-      print(' [VentaService] Stack trace: $stackTrace');
       return {
         'success': false,
         'error': true,
@@ -359,14 +275,7 @@ class VentaService {
   Future<Map<String, dynamic>?> listarVentasPorVendedor(int vendedorId) async {
     final url = Uri.parse('$_apiServer/Facturas/ListarPorVendedor/$vendedorId');
 
-    print(' [VentaService] Listando ventas por vendedor');
-    print(' [VentaService] URL: $url');
-    print(' [VentaService] Vendedor ID: $vendedorId');
-    print(' [VentaService] API Key: ${_apiKey.substring(0, 5)}...');
-
     try {
-      print(' [VentaService] Enviando solicitud GET...');
-
       final stopwatch = Stopwatch()..start();
       final response = await http
           .get(
@@ -376,19 +285,12 @@ class VentaService {
           .timeout(const Duration(seconds: 30));
 
       stopwatch.stop();
-      print(
-        ' [VentaService] Respuesta recibida en ${stopwatch.elapsedMilliseconds}ms',
-      );
-      print(' [VentaService] Código de estado: ${response.statusCode}');
-      print(' [VentaService] Cuerpo de la respuesta:');
-      print(response.body);
 
       // Procesar la respuesta
       Map<String, dynamic> responseData;
       try {
         responseData = jsonDecode(response.body);
       } catch (e) {
-        print(' [VentaService] Error al decodificar JSON: $e');
         return {
           'success': false,
           'error': true,
@@ -398,10 +300,6 @@ class VentaService {
       }
 
       if (response.statusCode == 200) {
-        print(' [VentaService] Ventas obtenidas exitosamente');
-        print(
-          ' [VentaService] Número de ventas: ${responseData['data']?.length ?? 0}',
-        );
 
         return {
           'success': true,
@@ -413,9 +311,6 @@ class VentaService {
         };
       } else {
         final errorMsg = responseData['message'] ?? 'Error desconocido';
-        print(
-          ' [VentaService] Error al obtener ventas (${response.statusCode}): $errorMsg',
-        );
         return {
           'success': false,
           'error': true,
@@ -425,7 +320,6 @@ class VentaService {
         };
       }
     } on http.ClientException catch (e) {
-      print(' [VentaService] Error de conexión: ${e.message}');
       return {
         'success': false,
         'error': true,
@@ -433,7 +327,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } on TimeoutException catch (e) {
-      print(' [VentaService] Tiempo de espera agotado: $e');
       return {
         'success': false,
         'error': true,
@@ -441,8 +334,6 @@ class VentaService {
         'exception': e.toString(),
       };
     } catch (e, stackTrace) {
-      print(' [VentaService] Error inesperado: $e');
-      print(' [VentaService] Stack trace: $stackTrace');
       return {
         'success': false,
         'error': true,

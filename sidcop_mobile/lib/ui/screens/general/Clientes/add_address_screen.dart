@@ -1,3 +1,5 @@
+// Pantalla que se usa para añadir las direcciones por cada cliente
+// Importaciones necesarias para el funcionamiento de la pantalla
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -12,26 +14,29 @@ import 'package:sidcop_mobile/ui/widgets/AppBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/map_widget.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
-// Text style constants for consistent typography
+// Estilo para los títulos de la aplicación
 final TextStyle _titleStyle = const TextStyle(
   fontFamily: 'Satoshi',
   fontSize: 18,
   fontWeight: FontWeight.bold,
 );
 
+// Constante de tipografia
 final TextStyle _labelStyle = const TextStyle(
   fontFamily: 'Satoshi',
   fontSize: 14,
   fontWeight: FontWeight.w500,
 );
 
+// Constante de tipografia
 final TextStyle _hintStyle = const TextStyle(
   fontFamily: 'Satoshi',
   color: Colors.grey,
 );
 
+// Clase principal que representa la pantalla para agregar una dirección
 class AddAddressScreen extends StatefulWidget {
-  final int clientId;
+  final int clientId;  // ID del cliente al que se le agregará la dirección
 
   const AddAddressScreen({Key? key, required this.clientId}) : super(key: key);
 
@@ -39,98 +44,115 @@ class AddAddressScreen extends StatefulWidget {
   _AddAddressScreenState createState() => _AddAddressScreenState();
 }
 
+// Clase que maneja el estado de la pantalla de agregar dirección
 class _AddAddressScreenState extends State<AddAddressScreen> {
+  // Clave para el formulario de la dirección
   final _formKey = GlobalKey<FormState>();
+  
+  // Servicio para manejar las operaciones de dirección del cliente
   final _direccionClienteService = DireccionClienteService();
-  final TextEditingController _direccionExactaController =
-      TextEditingController();
-  final TextEditingController _observacionesController =
-      TextEditingController();
+  
+  // Controlador para el campo de dirección exacta
+  final TextEditingController _direccionExactaController = TextEditingController();
+  // Controlador para el campo de observaciones
+  final TextEditingController _observacionesController = TextEditingController();
+  
+  // Controlador para el campo de búsqueda de colonia
   final TextEditingController _coloniaController = TextEditingController();
 
+  // Lista de colonias disponibles para seleccionar
   List<Colonia> _colonias = [];
+  
+  // Colonia actualmente seleccionada
   Colonia? _selectedColonia;
+  
+  // Estado de carga inicial
   bool _isLoading = true;
+  
+  // Estado de envío del formulario
   bool _isSubmitting = false;
+  
+  // ID de persona del usuario actual
   int? usuaIdPersona;
+  
+  // Indica si el usuario es administrador
   bool? esAdmin;
+  
+  // ID del usuario actual
   int? usuaId;
 
-
-  // Map variables
-  LatLng _selectedLocation = const LatLng(
-    15.5,
-    -86.8,
-  ); // Default to Honduras center
+  // Ubicación seleccionada en el mapa (por defecto: centro de Honduras)
+  LatLng _selectedLocation = const LatLng(15.5, -86.8);
 
   @override
   void initState() {
     super.initState();
+    // Cargar las colonias y los datos del cliente al iniciar la pantalla
     _loadColonias();
     _loadAllClientData();
   }
 
+  // Carga la lista de colonias desde el servicio o caché local
   Future<void> _loadColonias() async {
     try {
+      // Intenta cargar desde caché primero, si no hay conexión
       final coloniasMap = await ClientesOfflineService.manejarColoniasOffline(
+        // Si no hay datos en caché, obtiene las colonias del servicio
         () async => (await _direccionClienteService.getColonias())
             .map((colonia) => colonia.toJson())
             .toList(),
       );
 
+      // Convierte los mapas a objetos Colonia
       final colonias = coloniasMap.map((map) => Colonia.fromJson(map)).toList();
 
       setState(() {
         _colonias = colonias;
-        _isLoading = false;
+        _isLoading = false; // Finaliza la carga
       });
     } catch (e) {
       setState(() {
-        _isLoading = false;
+        _isLoading = false; // Finaliza la carga incluso si hay error
       });
       _showError('Error al cargar las colonias: $e');
     }
   }
 
+  // Carga los datos del cliente y verifica los permisos del usuario
   Future<void> _loadAllClientData() async {
-
-    // Obtener el usua_IdPersona del usuario logueado
+    // Obtener datos del perfil del usuario actual
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
 
+    // Depuración: mostrar datos del usuario
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
-    
-    // Extraer rutasDelDiaJson y Ruta_Id
 
+    // Extraer información del usuario
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
     esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
     usuaId = userData?['usua_Id'] as int?;
 
-    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    // Lista para almacenar los clientes
     List<dynamic> clientes = [];
 
+    // Lógica de permisos para cargar clientes
     if (esVendedor && usuaIdPersona != null) {
-      print(
-        'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
-      );
+      // Usuario es vendedor con ID de persona válido
+      print('DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona');
     } else if (esVendedor && usuaIdPersona == null) {
-      print(
-        'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
-      );
+      // Usuario es vendedor pero sin ID de persona
+      print('DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes');
       clientes = [];
       print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
     } else {
-      print(
-        'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
-      );
+      // Usuario no es vendedor ni admin
+      print('DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes');
       clientes = await SyncService.getClients();
       print('DEBUG: Lista de clientes vacía por seguridad (sin permisos)');
     }
-    }
-    
-
+  }
 
   Future<void> _showMapModal() async {
     final newLocation = await MapWidget.showAsDialog(

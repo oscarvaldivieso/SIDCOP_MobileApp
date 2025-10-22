@@ -64,7 +64,6 @@ class VentaInsertarViewModel {
     };
     
     // Imprimir el JSON completo para depuración
-    print('VentaInsertarViewModel.toJson():');
     final jsonString = '''
     {
       "fact_Numero": "${ventaData['fact_Numero']}",
@@ -82,7 +81,6 @@ class VentaInsertarViewModel {
       "detallesFacturaInput": ${_formatDetalles(ventaData['detallesFacturaInput'] as List)}
     }
     ''';
-    print(jsonString);
     
     return ventaData;
   }
@@ -176,7 +174,6 @@ class DetalleFacturaInput {
       'prod_Id': prodId,
       'faDe_Cantidad': faDeCantidad.toInt(), // Convertir a entero
     };
-    print('DetalleFacturaInput.toJson(): $json');
     return json;
   }
 
@@ -184,7 +181,6 @@ class DetalleFacturaInput {
   factory DetalleFacturaInput.fromJson(Map<String, dynamic> json) {
     // Try both possible field names for backward compatibility
     final cantidad = (json['faDeCantidad'] ?? json['faDe_Cantidad'] ?? 0).toDouble();
-    print('DetalleFacturaInput.fromJson(): $json, cantidad: $cantidad');
     return DetalleFacturaInput(
       prodId: json['prod_Id'] ?? 0,
       faDeCantidad: cantidad,

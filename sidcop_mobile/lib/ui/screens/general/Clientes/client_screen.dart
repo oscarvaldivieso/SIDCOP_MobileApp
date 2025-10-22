@@ -1,14 +1,19 @@
+// Importaciones necesarias para la pantalla de clientes
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.Dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientdetails_screen.dart';
 import 'package:sidcop_mobile/ui/screens/general/Clientes/clientcreate_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/ui/widgets/custom_button.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
+/// Pantalla principal que muestra la lista de clientes con funcionalidades de búsqueda y filtrado
+
+/// Widget Stateful que representa la pantalla principal de clientes
 class clientScreen extends StatefulWidget {
   const clientScreen({super.key});
 
@@ -16,12 +21,21 @@ class clientScreen extends StatefulWidget {
   State<clientScreen> createState() => _clientScreenState();
 }
 
+/// Estado que maneja la lógica y la interfaz de usuario de la pantalla de clientes
+
 class _clientScreenState extends State<clientScreen> {
+  // Lista de permisos del usuario
   List<dynamic> permisos = [];
+  
+  // Lista de clientes y lista filtrada
   late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
+  
+  // Controlador para la barra de búsqueda
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
+  
+  // Servicio para operaciones con clientes
   final ClientesService _clienteService = ClientesService();
 
   // --- Ubicaciones: Departamentos, Municipios, Colonias ---
@@ -31,17 +45,24 @@ class _clientScreenState extends State<clientScreen> {
   List<dynamic> _direccionesPorCliente = [];
   List<dynamic> _cuentasPorCobrar = [];
 
-  String? _selectedDepa;
-  String? _selectedMuni;
-  int? _selectedColo;
+  // Filtros de ubicación seleccionados
+  String? _selectedDepa;  // Código de departamento seleccionado
+  String? _selectedMuni;  // Código de municipio seleccionado
+  int? _selectedColo;     // ID de colonia seleccionada
 
   @override
   @override
   void initState() {
     super.initState();
+    // Cargar datos de clientes al iniciar la pantalla
     _loadAllClientData();
   }
 
+  /// Carga todos los datos necesarios para mostrar la lista de clientes
+  /// Incluye datos de clientes, direcciones y ubicaciones
+
+  /// Carga todos los datos de clientes, tanto en línea como fuera de línea
+  /// Maneja la sincronización de datos y el almacenamiento en caché
   Future<void> _loadAllClientData() async {
     try {
       // Verificar conexión a internet
@@ -49,41 +70,86 @@ class _clientScreenState extends State<clientScreen> {
       List<Map<String, dynamic>> clientes = [];
 
       if (hasConnection) {
-        // Cargar direcciones por cliente
+        // Cargar direcciones por cliente desde el servidor
         final direcciones = await _clienteService.getDireccionesPorCliente();
         setState(() {
           _direccionesPorCliente = direcciones;
         });
 
-        // Cargar clientes desde el servidor
+        // Obtener ID de la persona del usuario actual
         final usuaIdPersona = await _getUsuarioIdPersona();
+        
+        // Cargar clientes según los permisos del usuario
         if (usuaIdPersona != null) {
-          clientes = (await _clienteService.getClientesPorRuta(usuaIdPersona))
-              .cast<Map<String, dynamic>>();
+          // Si el usuario tiene ID de persona, cargar solo sus clientes asignados
+          clientes = (await _clienteService.getClientesPorRuta(
+            usuaIdPersona,
+          )).cast<Map<String, dynamic>>();
         } else {
-          clientes = (await SyncService.getClients()).cast<Map<String, dynamic>>();
+          // Si no tiene ID de persona, cargar todos los clientes (solo para administradores)
+          clientes = (await SyncService.getClients())
+              .cast<Map<String, dynamic>>();
         }
 
         // Guardar clientes en almacenamiento local para uso offline
         await ClientesOfflineService.guardarClientes(clientes);
 
-        // Sincronizar clientes pendientes
-        await ClientesOfflineService.sincronizarClientesPendientes();
-      } else {
-        print('Sin conexión - cargando datos offline');
+        // Sincronizar clientes pendientes (creados sin conexión)
+        final clientesSincronizados =
+            await ClientesOfflineService.sincronizarClientesPendientes();
 
-        // Cargar clientes desde almacenamiento local
+        // Mostrar notificación si se sincronizaron clientes
+        if (clientesSincronizados > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '$clientesSincronizados Cliente(s) sincronizados exitosamente',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // Modo sin conexión: cargar datos del almacenamiento local
+        print('Sin conexión - cargando datos offline');
         clientes = await ClientesOfflineService.cargarClientes();
       }
 
+      // Procesar URLs de imágenes para asegurar que sean accesibles
+      for (var cliente in clientes) {
+        if (cliente['clie_ImagenDelNegocio'] != null &&
+            cliente['clie_ImagenDelNegocio'].toString().isNotEmpty) {
+          String imagenUrl = cliente['clie_ImagenDelNegocio'].toString();
+          // Asegurarse de que la URL de la imagen sea absoluta
+          cliente['clie_ImagenDelNegocio'] = imagenUrl.contains('http')
+              ? imagenUrl
+              : apiServer + imagenUrl;
+        }
+      }
+
+      // Actualizar el estado con los datos cargados
       setState(() {
         filteredClientes = clientes;
         clientesList = Future.value(clientes);
       });
     } catch (e) {
+      // Manejar errores durante la carga de datos
       print('Error cargando datos de clientes: $e');
+      // Mostrar mensaje de error al usuario si es necesario
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al cargar los clientes. Intente nuevamente.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
+
+  /// Obtiene el ID de persona del usuario actual
+  /// Retorna null si el usuario no tiene una persona asociada
 
   Future<int?> _getUsuarioIdPersona() async {
     final perfilService = PerfilUsuarioService();
@@ -250,7 +316,8 @@ class _clientScreenState extends State<clientScreen> {
           // FILTRO POR DEPARTAMENTO
           if (_selectedDepa != null) {
             // Verificar si alguna dirección del cliente pertenece al departamento seleccionado
-            final bool clienteTieneDepartamentoSeleccionado = direccionesCliente.any((
+            final bool
+            clienteTieneDepartamentoSeleccionado = direccionesCliente.any((
               direccionCliente,
             ) {
               final int? coloId = direccionCliente['colo_Id'] as int?;
@@ -431,7 +498,12 @@ class _clientScreenState extends State<clientScreen> {
           // Contador de resultados
           Text(
             '$resultCount resultados',
-            style: const TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w500, fontFamily: 'Satoshi'),
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Satoshi',
+            ),
           ),
           const Spacer(),
           // Mostrar botón "Limpiar filtros" si hay filtros activos
@@ -460,320 +532,328 @@ class _clientScreenState extends State<clientScreen> {
   }
 
   Widget _buildClientesList() {
-  return FutureBuilder<List<dynamic>>(
-    future: clientesList,
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
-          ),
-        );
-      } else if (snapshot.hasError) {
-        return Center(
-          child: Text(
-            'Error: ${snapshot.error}',
-            style: const TextStyle(
-              fontFamily: 'Satoshi',
-              color: Colors.red,
+    return FutureBuilder<List<dynamic>>(
+      future: clientesList,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141A2F)),
             ),
-          ));
-      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-        return const Center(
-          child: Text(
-            'No hay clientes',
-            style: TextStyle(
-              fontFamily: 'Satoshi',
-              fontSize: 16,
-              color: Colors.grey,
+          );
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: const TextStyle(fontFamily: 'Satoshi', color: Colors.red),
             ),
-          ),
-        );
-      } else {
-        // Verificar si hay algún filtro activo (texto o ubicación)
-        final bool hasTextFilter = _searchController.text.isNotEmpty;
-        final bool hasLocationFilter =
-            _selectedDepa != null ||
-            _selectedMuni != null ||
-            _selectedColo != null;
-        final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
-
-        // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
-        final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
-
-        if (clientes.isEmpty) {
+          );
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(
             child: Text(
-              'No se encontraron clientes con ese criterio',
+              'No hay clientes',
               style: TextStyle(
                 fontFamily: 'Satoshi',
                 fontSize: 16,
                 color: Colors.grey,
               ),
-              textAlign: TextAlign.center,
             ),
           );
-        }
-        
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: clientes.length,
-          itemBuilder: (context, index) {
-            final cliente = clientes[index];
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    offset: const Offset(0, 4),
-                    blurRadius: 20,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Material(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.white,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ClientdetailsScreen(
-                          clienteId: cliente['clie_Id'],
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    height: 190,
-                    child: Row(
-                      children: [
-                        // Imagen del cliente con overlay de estado
-                        Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(12),
-                                bottomLeft: Radius.circular(12),
-                              ),
-                              child: ClientImageCacheService().getCachedClientImage(
-                                imageUrl: cliente['clie_ImagenDelNegocio'],
-                                clientId: cliente['clie_Id'].toString(),
-                                height: 190,
-                                width: 130,
-                                fit: BoxFit.cover,
-                                errorWidget: Container(
-                                  height: 190,
-                                  width: 130,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.grey[200]!,
-                                        Colors.grey[300]!,
-                                      ],
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.storefront,
-                                    size: 40,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            
-                            // Badge de estado (crédito/deuda)
-                            Positioned(
-                              top: 12,
-                              left: 12,
-                              child: Builder(
-                                builder: (context) {
-                                  final amount = _getBadgeAmount(
-                                    cliente['clie_Id'],
-                                    cliente['clie_LimiteCredito'],
-                                  );
-                                  final badgeColor = _getBadgeColor(
-                                    cliente['clie_Id'],
-                                    amount: amount,
-                                  );
-                                  final isRed = badgeColor == Colors.red;
-                                  final shouldShowSinCredito = amount == 0 && !isRed;
+        } else {
+          // Verificar si hay algún filtro activo (texto o ubicación)
+          final bool hasTextFilter = _searchController.text.isNotEmpty;
+          final bool hasLocationFilter =
+              _selectedDepa != null ||
+              _selectedMuni != null ||
+              _selectedColo != null;
+          final bool hasAnyFilter = hasTextFilter || hasLocationFilter;
 
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: badgeColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: badgeColor.withOpacity(0.3),
-                                          offset: const Offset(0, 2),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      shouldShowSinCredito
-                                          ? 'Sin crédito'
-                                          : isRed
-                                          ? 'L. ${amount.toStringAsFixed(2)}'
-                                          : 'L. ${amount.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 10,
-                                        fontFamily: 'Satoshi',
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        // Contenido de la card
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Header con nombre del negocio
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '${cliente['clie_NombreNegocio'] ?? ''}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          fontFamily: 'Satoshi',
-                                          color: Color(0xFF141A2F),
-                                          letterSpacing: -0.5,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF141A2F).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 14,
-                                        color: Color(0xFF141A2F),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                
-                                const SizedBox(height: 8),
-                                
-                                // Información del cliente
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.person_outline,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[700],
-                                          fontFamily: 'Satoshi',
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                
-                                const SizedBox(height: 6),
-                                
-                                // Teléfono
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.phone_outlined,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      cliente['clie_Telefono'] ?? 'Sin teléfono',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[600],
-                                        fontFamily: 'Satoshi',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6)
-                                  ],
-                                ),
-                                
-                                const Spacer(),
-                                
-                                // Botón de acción moderno
-                                Container(
-                                  width: double.infinity,
-                                  height: 44,
-                                  child: CustomButton(
-                                    text: 'Ver Detalles',
-                                    onPressed: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ClientdetailsScreen(
-                                            clienteId: cliente['clie_Id'],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    height: 40,
-                                    fontSize: 14,
-                                    width: double.infinity,
-                                    icon: const Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                ),
-                              ],
-                            ),
+          // Usar la lista filtrada si hay algún filtro activo, sino usar todos los datos
+          final clientes = hasAnyFilter ? filteredClientes : snapshot.data!;
+
+          if (clientes.isEmpty) {
+            return const Center(
+              child: Text(
+                'No se encontraron clientes con ese criterio',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: clientes.length,
+            itemBuilder: (context, index) {
+              final cliente = clientes[index];
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      offset: const Offset(0, 4),
+                      blurRadius: 20,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Material(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ClientdetailsScreen(
+                            clienteId: cliente['clie_Id'],
                           ),
                         ),
-                      ],
+                      );
+                    },
+                    child: Container(
+                      height: 190,
+                      child: Row(
+                        children: [
+                          // Imagen del cliente con overlay de estado
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(12),
+                                  bottomLeft: Radius.circular(12),
+                                ),
+                                child: ClientImageCacheService()
+                                    .getCachedClientImage(
+                                      imageUrl:
+                                          cliente['clie_ImagenDelNegocio'],
+                                      clientId: cliente['clie_Id'].toString(),
+                                      height: 190,
+                                      width: 130,
+                                      fit: BoxFit.cover,
+                                      errorWidget: Container(
+                                        height: 190,
+                                        width: 130,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              Colors.grey[200]!,
+                                              Colors.grey[300]!,
+                                            ],
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.storefront,
+                                          size: 40,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                              ),
+
+                              // Badge de estado (crédito/deuda)
+                              Positioned(
+                                top: 12,
+                                left: 12,
+                                child: Builder(
+                                  builder: (context) {
+                                    final amount = _getBadgeAmount(
+                                      cliente['clie_Id'],
+                                      cliente['clie_LimiteCredito'],
+                                    );
+                                    final badgeColor = _getBadgeColor(
+                                      cliente['clie_Id'],
+                                      amount: amount,
+                                    );
+                                    final isRed = badgeColor == Colors.red;
+                                    final shouldShowSinCredito =
+                                        amount == 0 && !isRed;
+
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: badgeColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: badgeColor.withOpacity(0.3),
+                                            offset: const Offset(0, 2),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        shouldShowSinCredito
+                                            ? 'Sin crédito'
+                                            : isRed
+                                            ? 'L. ${amount.toStringAsFixed(2)}'
+                                            : 'L. ${amount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 10,
+                                          fontFamily: 'Satoshi',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // Contenido de la card
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Header con nombre del negocio
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${cliente['clie_NombreNegocio'] ?? ''}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            fontFamily: 'Satoshi',
+                                            color: Color(0xFF141A2F),
+                                            letterSpacing: -0.5,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF141A2F,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.arrow_forward_ios,
+                                          size: 14,
+                                          color: Color(0xFF141A2F),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  // Información del cliente
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.person_outline,
+                                        size: 16,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          '${cliente['clie_Nombres']} ${cliente['clie_Apellidos']}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[700],
+                                            fontFamily: 'Satoshi',
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 6),
+
+                                  // Teléfono
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.phone_outlined,
+                                        size: 16,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        cliente['clie_Telefono'] ??
+                                            'Sin teléfono',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                          fontFamily: 'Satoshi',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                    ],
+                                  ),
+
+                                  const Spacer(),
+
+                                  // Botón de acción moderno
+                                  Container(
+                                    width: double.infinity,
+                                    height: 44,
+                                    child: CustomButton(
+                                      text: 'Ver Detalles',
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ClientdetailsScreen(
+                                                  clienteId: cliente['clie_Id'],
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      height: 40,
+                                      fontSize: 14,
+                                      width: double.infinity,
+                                      icon: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-            ));
+              );
             },
-        );
-      }
-    },
-  );
-}
+          );
+        }
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1299,10 +1379,11 @@ class _clientScreenState extends State<clientScreen> {
                     ),
                   );
                 },
-              ));
-            },
-          );
-        },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

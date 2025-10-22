@@ -515,7 +515,7 @@ class VisitasOffline {
   }
 
   /// Busca el veRu_Id (ID de VendedorPorRuta) basado en el ID del cliente y la ruta
-  static Future<int> _buscarVendedorRutaId(int clienteId, int rutaId) async {
+  static Future<int> _buscarVendedorRutaId(int vendId, int rutaId) async {
     try {
       // Intentar leer los vendedores por rutas desde el archivo local
       final raw = await RutasScreenOffline.obtenerVendedoresPorRutasLocal();
@@ -529,33 +529,33 @@ class VisitasOffline {
         raw.map((e) => e is Map ? Map<String, dynamic>.from(e) : {}),
       );
 
-      // Primero buscar coincidencia exacta por clienteId y rutaId
+      // Primero buscar coincidencia exacta por vendId y rutaId
       for (final vpr in vendedoresPorRuta) {
-        final veRuClieId =
-            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuVendId =
+            int.tryParse('${vpr['vend_Id'] ?? vpr['vendId'] ?? 0}') ?? 0;
         final veRuRutaId =
             int.tryParse('${vpr['ruta_Id'] ?? vpr['rutaId'] ?? 0}') ?? 0;
         final veRuId =
             int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
 
-        if (veRuClieId == clienteId && veRuRutaId == rutaId && veRuId > 0) {
+        if (veRuVendId == vendId && veRuRutaId == rutaId && veRuId > 0) {
           print(
-            '✅ Se encontró veRu_Id=$veRuId para cliente=$clienteId y ruta=$rutaId',
+            '✅ Se encontró veRu_Id=$veRuId para vendId=$vendId y ruta=$rutaId',
           );
           return veRuId;
         }
       }
 
-      // Si no hay coincidencia exacta, buscar solo por clienteId
+      // Si no hay coincidencia exacta, buscar solo por vendId
       for (final vpr in vendedoresPorRuta) {
-        final veRuClieId =
-            int.tryParse('${vpr['clie_Id'] ?? vpr['clieId'] ?? 0}') ?? 0;
+        final veRuVendId =
+            int.tryParse('${vpr['vend_Id'] ?? vpr['vendId'] ?? 0}') ?? 0;
         final veRuId =
             int.tryParse('${vpr['veRu_Id'] ?? vpr['veRuId'] ?? 0}') ?? 0;
 
-        if (veRuClieId == clienteId && veRuId > 0) {
+        if (veRuVendId == vendId && veRuId > 0) {
           print(
-            '⚠️ Se encontró veRu_Id=$veRuId para cliente=$clienteId (ignorando rutaId)',
+            '⚠️ Se encontró veRu_Id=$veRuId para vendId=$vendId (ignorando rutaId)',
           );
           return veRuId;
         }
@@ -570,14 +570,14 @@ class VisitasOffline {
 
         if (veRuRutaId == rutaId && veRuId > 0) {
           print(
-            '⚠️ Se encontró veRu_Id=$veRuId para ruta=$rutaId (ignorando clienteId)',
+            '⚠️ Se encontró veRu_Id=$veRuId para ruta=$rutaId (ignorando vendId)',
           );
           return veRuId;
         }
       }
 
       print(
-        '❌ No se encontró ningún veRu_Id para cliente=$clienteId y ruta=$rutaId',
+        '❌ No se encontró ningún veRu_Id para vendId=$vendId y ruta=$rutaId',
       );
       return 0;
     } catch (e) {
@@ -586,7 +586,7 @@ class VisitasOffline {
     }
   }
 
-  /// Lee los estados de visita preferiendo el cache local. Si no hay datos
+  /// Lee los estados de visita preferindo el cache local. Si no hay datos
   /// locales, intenta sincronizar desde el servicio remoto y los guarda.
   /// Útil para poblar dropdowns: primero intenta usar lo ya descargado.
   static Future<List<Map<String, dynamic>>> leerEstadosVisita() async {

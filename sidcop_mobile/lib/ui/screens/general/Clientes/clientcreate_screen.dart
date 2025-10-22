@@ -1,3 +1,4 @@
+// Importaciones necesarias para la pantalla de creación de clientes
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -18,7 +19,7 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
 
-// Text style constants for consistent typography
+// Constantes de estilo de texto para tipografía consistente
 final TextStyle _titleStyle = const TextStyle(
   fontFamily: 'Satoshi',
   fontSize: 18,
@@ -41,6 +42,7 @@ final TextStyle _hintStyle = const TextStyle(
   color: Colors.grey,
 );
 
+/// Pantalla para crear un nuevo cliente con información básica, direcciones e imagen
 class ClientCreateScreen extends StatefulWidget {
   const ClientCreateScreen({Key? key}) : super(key: key);
 
@@ -48,52 +50,71 @@ class ClientCreateScreen extends StatefulWidget {
   _ClientCreateScreenState createState() => _ClientCreateScreenState();
 }
 
+/// Estado que maneja la lógica y la interfaz de usuario de la pantalla de creación de clientes
+
 class _ClientCreateScreenState extends State<ClientCreateScreen> {
+  // Clave del formulario para validación
   final _formKey = GlobalKey<FormState>();
+  
+  // Estado de envío del formulario
   bool _isSubmitting = false;
+  
+  // Imagen seleccionada (archivo o bytes para web)
   File? _selectedImage;
   Uint8List? _selectedImageBytes;
+  
+  // Selector de imágenes
   final ImagePicker _picker = ImagePicker();
+  
+  // Servicios necesarios
   final DropdownDataService _dropdownService = DropdownDataService();
   final DireccionClienteService _direccionClienteService =
       DireccionClienteService();
   final ClientesOfflineService _clientesOfflineService = ClientesOfflineService();
 
-  // Gender selection
+  // Selección de género (M = Masculino, F = Femenino)
   String _selectedGender = 'M';
 
-  // Form controllers
+  // Controladores de los campos del formulario
   final _nombresController = TextEditingController();
   final _apellidosController = TextEditingController();
   final _dniController = TextEditingController();
   final _nombreNegocioController = TextEditingController();
   final _telefonoController = TextEditingController();
   final _rtnController = TextEditingController();
+  // Lista de direcciones agregadas al cliente
   final List<DireccionCliente> _direcciones = [];
-  int? usuaIdPersona;
-  int? rutaId;
-  bool? esAdmin;
-  int? usuaId;
+  
+  // Datos del usuario actual
+  int? usuaIdPersona;  // ID de persona del usuario
+  int? rutaId;         // ID de la ruta asignada al usuario
+  bool? esAdmin;       // Indica si el usuario es administrador
+  int? usuaId;         // ID del usuario
 
+  // Formateadores de texto con máscaras para campos específicos
+  
+  // Máscara para número de teléfono (0000-0000)
   var MKTelefono = new MaskTextInputFormatter(
     mask: '####-####', 
     filter: { "#": RegExp(r'[0-9]') },
     type: MaskAutoCompletionType.lazy
   );
 
+  // Máscara para número de identidad (0000-0000-00000)
   var MKIdentidad = new MaskTextInputFormatter(
     mask: '####-####-#####', 
     filter: { "#": RegExp(r'[0-9]') },
     type: MaskAutoCompletionType.lazy
   );
 
+  // Máscara para RTN (0000-0000-000000)
   var MKRTN = new MaskTextInputFormatter(
     mask: '####-####-######', 
     filter: { "#": RegExp(r'[0-9]') },
     type: MaskAutoCompletionType.lazy
   );
 
-  // Error text states
+  // Mensajes de error para cada campo del formulario
   String? _nombresError;
   String? _apellidosError;
   String? _dniError;
@@ -104,11 +125,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
   @override
   void initState() {
     super.initState();
+    // Cargar datos del usuario al iniciar la pantalla
     _loadAllClientData();
   }
 
   @override
   void dispose() {
+    // Liberar recursos de los controladores
     _nombresController.dispose();
     _apellidosController.dispose();
     _dniController.dispose();
@@ -116,24 +139,28 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     super.dispose();
   }
 
+  /// Carga los datos del usuario actual y extrae información relevante
+  /// como el ID de persona, ID de ruta, y permisos de administrador
+
   Future<void> _loadAllClientData() async {
 
-    // Obtener el usua_IdPersona del usuario logueado
+    // Obtener los datos del usuario logueado desde el servicio de perfil
     final perfilService = PerfilUsuarioService();
     final userData = await perfilService.obtenerDatosUsuario();
 
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
     
-    // Extraer rutasDelDiaJson y Ruta_Id
+    // Extraer y parsear el JSON de rutas del día
     final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
     
     if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
       try {
+        // Decodificar el JSON de rutas
         final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
         print('DEBUG: rutasDelDiaJson parseado = $rutasList');
         
-        // Obtener el primer elemento de la lista de rutas y extraer Ruta_Id
+        // Obtener el ID de la primera ruta asignada al usuario
         if (rutasList.isNotEmpty) {
           rutaId = rutasList[0]['Ruta_Id'] as int?;
         }
@@ -144,18 +171,23 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     
     print('DEBUG: rutaId = $rutaId');
 
+    // Extraer información del usuario
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
     final esAdmin = userData?['usua_EsAdmin'] as bool? ?? false;
     usuaId = userData?['usua_Id'] as int?;
-    // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
+    
+    // Cargar clientes según el rol del usuario
     List<dynamic> clientes = [];
 
+    // Determinar qué clientes puede ver el usuario según su rol
     if (esVendedor && usuaIdPersona != null) {
+      // Usuario vendedor con ID de persona válido
       print(
         'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
       );
     } else if (esAdmin) {
+      // Usuario administrador puede ver todos los clientes
       print('DEBUG: Usuario es ADMINISTRADOR - Mostrando todos los clientes');
       try {
         clientes = await SyncService.getClients();
@@ -165,12 +197,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         clientes = [];
       }
     } else if (esVendedor && usuaIdPersona == null) {
+      // Usuario vendedor sin ID de persona válido (seguridad)
       print(
         'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
       );
       clientes = [];
       print('DEBUG: Lista de clientes vacía por seguridad (vendedor sin ID)');
     } else {
+      // Usuario sin permisos específicos
       print(
         'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
       );
@@ -179,40 +213,54 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Valida todos los campos requeridos del formulario
+  /// Retorna true si todos los campos son válidos, false en caso contrario
+
   bool _validateFields() {
     setState(() {
+      // Validar campo de nombres (requerido)
       _nombresError = _nombresController.text.trim().isEmpty
           ? 'Este campo es requerido'
           : null;
+      // Validar campo de apellidos (requerido)
       _apellidosError = _apellidosController.text.trim().isEmpty
           ? 'Este campo es requerido'
           : null;
-      _dniError = null; // Identity field is now optional
-      _rtnError = null; // RTN field is now optional
+      // Identidad es opcional
+      _dniError = null;
+      // RTN es opcional
+      _rtnError = null;
+      // Validar nombre del negocio (requerido)
       _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty
           ? 'Este campo es requerido'
           : null;
+      // Validar teléfono (requerido)
       _telefonoError = _telefonoController.text.trim().isEmpty ? 'Este campo es requerido' : null;
     });
+    // Retornar true solo si no hay errores
     return _nombresError == null && _apellidosError == null && _nombreNegocioError == null && _telefonoError == null;
   }
 
+  /// Navega a la pantalla de agregar dirección y agrega la dirección retornada a la lista
+
   Future<void> _agregarUbicacion() async {
+    // Navegar a la pantalla de agregar dirección
     final direccion = await Navigator.push<DireccionCliente>(
       context,
       MaterialPageRoute(
         builder: (context) => AddAddressScreen(
-          clientId: 0, // Will be updated after client creation
+          clientId: 0, // Se actualizará después de crear el cliente
         ),
       ),
     );
 
+    // Si se retornó una dirección, agregarla a la lista
     if (direccion != null) {
       setState(() {
         _direcciones.add(direccion);
       });
 
-      // Show success message
+      // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Dirección agregada exitosamente', style: _labelStyle),
@@ -221,12 +269,16 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Elimina una dirección de la lista por su índice
+
   void _removeAddress(int index) {
     setState(() {
       _direcciones.removeAt(index);
     });
   }
 
+  /// Envía el formulario y crea el cliente con sus direcciones
+  /// Maneja tanto el flujo online (con conexión) como offline (sin conexión)
   Future<void> _submitForm() async {
     if (!_validateFields()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -253,22 +305,24 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
     if (!mounted) return;
 
+    // Activar estado de envío
     setState(() {
       _isSubmitting = true;
     });
 
     try {
+      // Verificar conectividad a internet
       final isConnected = await _checkConnectivity();
       Uint8List? imageBytes;
 
-      // Obtener los bytes de la imagen si existe
+      // Obtener los bytes de la imagen si existe (para web o móvil)
       if (_selectedImageBytes != null) {
         imageBytes = _selectedImageBytes;
       } else if (_selectedImage != null) {
         imageBytes = await _selectedImage!.readAsBytes();
       }
 
-      // Preparar los datos del cliente
+      // Preparar el objeto con todos los datos del cliente
       final clienteData = {
         'clie_Codigo': 'CLI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
         'clie_Nacionalidad': 'HND',
@@ -300,19 +354,21 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       print('Datos del cliente a enviar: ${jsonEncode(clienteData)}');
 
       if (isConnected) {
-        // Subir imagen primero
+        // FLUJO ONLINE: Hay conexión a internet
+        
+        // Subir imagen primero si existe
         if (imageBytes != null) {
           final imageUrl = await _uploadImage();
           if (imageUrl != null) {
-            clienteData['clie_ImagenDelNegocio'] = imageUrl; // Asignar la URL de la imagen
+            clienteData['clie_ImagenDelNegocio'] = imageUrl;
           }
         }
 
-        // Enviar datos del cliente
+        // Enviar datos del cliente al servidor
         final response = await _dropdownService.insertCliente(clienteData);
 
         if (response['success'] == true) {
-          // Extraer el clientId de la respuesta
+          // Extraer el ID del cliente creado de la respuesta
           final clientData = response['data'];
           if (clientData == null || clientData['data'] == null) {
             throw Exception('No se recibió un ID de cliente válido del servidor');
@@ -330,18 +386,27 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
           print('Client ID extraído: $clientId (${clientId.runtimeType})');
 
-          // Enviar direcciones al servidor
+          // Enviar cada dirección al servidor asociándola con el cliente creado
           int successfulAddresses = 0;
 
+          // Iterar sobre todas las direcciones agregadas
           for (var direccion in _direcciones) {
             try {
-              // Actualizar el ID del cliente en cada dirección
+              // Actualizar el ID del cliente en la dirección
               final direccionData = direccion.copyWith(clie_id: clientId);
 
-              print('=== Enviando dirección para cliente $clientId ===');
-              print('Datos completos: ${direccionData.toJson()}');
+              // Validar y completar los datos de la dirección con valores predeterminados
+              final direccionJson = direccionData.toJson();
+              direccionJson['colo_Descripcion'] ??= 'Sin descripción';
+              direccionJson['muni_Descripcion'] ??= 'Sin descripción';
+              direccionJson['depa_Descripcion'] ??= 'Sin descripción';
 
-              final result = await _direccionClienteService.insertDireccionCliente(direccionData);
+              print('=== Enviando dirección para cliente $clientId ===');
+              print('Datos completos: ${jsonEncode(direccionJson)}');
+
+              // Convertir a objeto DireccionCliente y enviar al servidor
+              final direccionClienteObj = DireccionCliente.fromJson(direccionJson);
+              final result = await _direccionClienteService.insertDireccionCliente(direccionClienteObj);
 
               print('Respuesta del servidor para dirección: $result');
 
@@ -356,13 +421,14 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             }
           }
 
+          // Verificar si todas las direcciones se guardaron correctamente
           if (successfulAddresses < _direcciones.length) {
             print(
               'Advertencia: No todas las direcciones se guardaron correctamente ($successfulAddresses/${_direcciones.length} guardadas)',
             );
           }
 
-          // Mostrar mensaje de éxito
+          // Mostrar mensaje de éxito al usuario
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -382,13 +448,15 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           throw Exception(response['message'] ?? 'Error al crear el cliente');
         }
       } else {
-        // Flujo offline: guardar datos localmente
+        // FLUJO OFFLINE: No hay conexión a internet
+        // Guardar datos localmente para sincronizar después
         await ClientesOfflineService.saveClienteOffline(
           clienteData,
           _direcciones.map((d) => d.toJson()).toList(),
           imageBytes: imageBytes,
         );
 
+        // Notificar al usuario que los datos se guardaron localmente
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -400,6 +468,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         }
       }
     } catch (e) {
+      // Manejar errores durante el envío
       print('Error en _submitForm: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -410,6 +479,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         );
       }
     } finally {
+      // Desactivar estado de envío
       if (mounted) {
         setState(() {
           _isSubmitting = false;
@@ -418,6 +488,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Verifica si hay conexión a internet
+  /// Retorna true si hay conexión, false en caso contrario
   Future<bool> _checkConnectivity() async {
     try {
       final result = await InternetAddress.lookup('example.com');
@@ -427,6 +499,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Obtiene los bytes de la imagen seleccionada
+  /// Maneja tanto imágenes de web (bytes) como de móvil (archivo)
   Future<Uint8List> _getImageBytes() async {
     if (kIsWeb) {
       return _selectedImageBytes!;
@@ -435,14 +509,19 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Sube la imagen seleccionada al servicio de almacenamiento en la nube
+  /// Retorna la URL de la imagen subida o null si hay un error
+
   Future<String?> _uploadImage() async {
     try {
       final imageUploadService = ImageUploadService();
       final imageBytes = await _getImageBytes();
+      // Subir imagen según la plataforma (web o móvil)
       return kIsWeb
           ? await imageUploadService.uploadImageFromBytes(imageBytes)
           : await imageUploadService.uploadImage(_selectedImage!);
     } catch (e) {
+      // Mostrar error si falla la subida
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al subir la imagen')),
@@ -452,6 +531,8 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     }
   }
 
+  /// Muestra un modal para seleccionar la fuente de la imagen (galería o cámara)
+
   Future<void> _pickImage() async {
     await showModalBottomSheet(
       context: context,
@@ -459,6 +540,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
         return SafeArea(
           child: Wrap(
             children: <Widget>[
+              // Opción para seleccionar de la galería
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('Galería de fotos'),
@@ -467,6 +549,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   _handleImageSelection(ImageSource.gallery);
                 },
               ),
+              // Opción para tomar una foto con la cámara
               ListTile(
                 leading: const Icon(Icons.camera_alt),
                 title: const Text('Tomar foto'),
@@ -482,41 +565,48 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     );
   }
 
+  /// Maneja la selección de imagen desde la fuente especificada (galería o cámara)
+  /// Procesa la imagen y la almacena en el estado
+
   Future<void> _handleImageSelection(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        imageQuality: 80, // Reduce image quality for faster uploads
-        maxWidth: 1200, // Limit image dimensions
+        imageQuality: 80, // Reducir calidad para subidas más rápidas
+        maxWidth: 1200, // Limitar dimensiones de la imagen
         maxHeight: 1200,
       );
 
       if (image == null || !mounted) return;
 
+      // Procesar imagen según la plataforma
       if (kIsWeb) {
+        // Para web, almacenar como bytes
         final bytes = await image.readAsBytes();
         if (bytes.isEmpty) {
           throw Exception('La imagen seleccionada está vacía');
         }
         setState(() {
           _selectedImageBytes = bytes;
-          _selectedImage = null; // Clear any previous file
+          _selectedImage = null; // Limpiar archivo previo
         });
       } else {
+        // Para móvil, almacenar como archivo
         final file = File(image.path);
         setState(() {
           _selectedImage = file;
-          _selectedImageBytes = null; // Clear any previous bytes
+          _selectedImageBytes = null; // Limpiar bytes previos
         });
       }
 
-      // Show success message
+      // Mostrar mensaje de éxito
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Imagen seleccionada exitosamente')),
         );
       }
     } catch (e) {
+      // Manejar errores durante la selección
       print('Error al seleccionar imagen: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -528,6 +618,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       }
     }
   }
+
+  /// Construye un campo de texto personalizado con validación
+  /// Utiliza el widget CustomInput para mantener consistencia en la UI
 
   Widget _buildTextField({
     required String label,
@@ -542,7 +635,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: CustomInput(
-        label: '$label${isRequired ? ' *' : ''}',
+        label: '$label${isRequired ? ' *' : ''}', // Agregar asterisco si es requerido
         hint: hint,
         controller: controller,
         keyboardType: keyboardType,
@@ -553,6 +646,9 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     );
   }
 
+  /// Construye la sección de direcciones del cliente
+  /// Muestra la lista de direcciones agregadas y el botón para agregar nuevas
+
   Widget _buildLocationButton() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -562,6 +658,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           style: _titleStyle.copyWith(fontSize: 16),
         ),
         const SizedBox(height: 8),
+        // Mostrar lista de direcciones agregadas
         ..._direcciones.asMap().entries.map((entry) {
           final index = entry.key;
           final direccion = entry.value;
@@ -589,11 +686,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
           );
         }).toList(),
         const SizedBox(height: 8),
+        // Botón para agregar nueva dirección
         CustomButton(
           text: 'Agregar Ubicacion',
           onPressed: _agregarUbicacion,
           icon: const Icon(Icons.add_location, color: Colors.white),
         ),
+        // Mensaje cuando no hay direcciones
         if (_direcciones.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),

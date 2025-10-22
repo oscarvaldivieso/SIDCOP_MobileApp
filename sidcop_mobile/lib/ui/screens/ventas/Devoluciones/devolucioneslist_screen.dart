@@ -1,3 +1,4 @@
+// Importaciones necesarias para la pantalla de lista de devoluciones
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
@@ -6,13 +7,15 @@ import 'package:sidcop_mobile/services/DevolucionesService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductosService.Dart';
 import 'package:sidcop_mobile/services/FacturaService.dart';
-import 'package:sidcop_mobile/services/GlobalService.Dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucion_detalle_bottom_sheet.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioncrear_screen.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 
+/// Pantalla que muestra el listado de devoluciones
+/// Soporta modo online y offline con sincronización automática
 class DevolucioneslistScreen extends StatefulWidget {
   const DevolucioneslistScreen({super.key});
 
@@ -20,19 +23,83 @@ class DevolucioneslistScreen extends StatefulWidget {
   State<DevolucioneslistScreen> createState() => _DevolucioneslistScreenState();
 }
 
-class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
+/// Estado que maneja la lógica y la interfaz de la pantalla de lista de devoluciones
+class _DevolucioneslistScreenState extends State<DevolucioneslistScreen>
+    with WidgetsBindingObserver {
+  // Future que contiene la lista de devoluciones
   late Future<List<DevolucionesViewModel>> _devolucionesFuture;
+  
+  // Permisos del usuario
   List<dynamic> permisos = [];
-  bool isOnline = true; // Indicador de estado de conexión
-  bool _prefetchCompleted = false; // evita ejecutar prefetch repetidamente
-  // Pendientes locales cargadas desde almacenamiento
+  
+  // Indicador de estado de conexión a internet
+  bool isOnline = true;
+  
+  // Evita ejecutar prefetch repetidamente
+  bool _prefetchCompleted = false;
+  
+  // Indica si se está sincronizando devoluciones pendientes
+  bool _isSyncingPendientes = false;
+  
+  // Último estado de conexión conocido
+  bool? _lastConnectionState;
+
+  // Devoluciones pendientes locales (creadas offline)
   final Set<int> _pendingDevolucionesIds = <int>{};
   final Map<int, String> _pendingMessages = {};
+  
+  // Numeración de pendientes para mostrar en la UI
+  final Map<int, int> _pendingDisplayNumber = {};
 
-  // Método para verificar la conexión a internet
+  /// Verifica la conexión a internet y sincroniza pendientes si se detecta reconexión
+  /// Retorna true si hay conexión, false en caso contrario
   Future<bool> verificarConexion() async {
     try {
       final tieneConexion = await VerificarService.verificarConexion();
+      // Detectar transición offline -> online para sincronizar pendientes
+      if (_lastConnectionState == false && tieneConexion == true) {
+        // Evitar sincronizaciones múltiples simultáneas
+        if (!_isSyncingPendientes) {
+          _isSyncingPendientes = true;
+          try {
+            print(
+              'Transición: Offline -> Online detectada, sincronizando pendientes...',
+            );
+            // Sincronizar devoluciones pendientes con el servidor
+            final resultado =
+                await DevolucionesOffline.sincronizarPendientesDevoluciones();
+            print('Resultado sincronización pendientes: $resultado');
+            // Recargar el listado después de sincronizar
+            if (mounted) {
+              setState(() {
+                _devolucionesFuture = _loadDevoluciones();
+              });
+              // Mostrar mensaje de éxito si se sincronizaron devoluciones
+              try{
+                final int sincronizados = (resultado['success'] ?? 0);
+                if (sincronizados > 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ' $sincronizados devoluciones sincronizadas',
+                      ),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (_) {}
+            }
+          } catch (e) {
+            print('Error sincronizando pendientes tras reconexión: $e');
+          } finally {
+            _isSyncingPendientes = false;
+          }
+        }
+      }
+
+      // Actualizar el último estado de conexión conocido
+      _lastConnectionState = tieneConexion;
       setState(() {
         isOnline = tieneConexion;
       });
@@ -50,15 +117,34 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
   @override
   void initState() {
     super.initState();
+    // Registrar observador del ciclo de vida de la app
+    WidgetsBinding.instance.addObserver(this);
+    // Cargar permisos del usuario
     _loadPermisos();
-    // Inicializar _devolucionesFuture inmediatamente para evitar LateInitializationError
+    // Inicializar Future inmediatamente para evitar errores
     _devolucionesFuture = _loadDevoluciones();
-    // Luego actualizar después de verificar conexión
+    // Actualizar datos según el estado de conexión
     _actualizarDatosSegunConexion();
     print('DevolucioneslistScreen initialized');
   }
 
-  // Método para actualizar los datos según la conexión
+  @override
+  void dispose() {
+    // Remover observador del ciclo de vida
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Al regresar a la app, verificar conexión y sincronizar
+    if (state == AppLifecycleState.resumed) {
+      _actualizarDatosSegunConexion();
+    }
+    super.didChangeAppLifecycleState(state);
+  }
+
+  /// Actualiza los datos de devoluciones según el estado de conexión
   Future<void> _actualizarDatosSegunConexion() async {
     // Verificar si hay conexión a internet
     await verificarConexion();
@@ -70,6 +156,8 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       });
     }
   }
+
+  /// Carga los permisos del usuario desde el perfil
 
   Future<void> _loadPermisos() async {
     final perfilService = PerfilUsuarioService();
@@ -95,26 +183,19 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
       List<DevolucionesViewModel> devoluciones = [];
 
       // Cargar devoluciones pendientes locales y prepararlas para mostrarse
+      try {
+        // Asegurar que las devoluciones pendientes tengan un ID asignado
+        await DevolucionesOffline.PendientesTenganId();
+      } catch (_) {}
       _pendingDevolucionesIds.clear();
       _pendingMessages.clear();
+      final List<DevolucionesViewModel> _pendingModels = [];
       try {
         final pendingLocal =
             await DevolucionesOffline.obtenerDevolucionesPendientesLocal();
         if (pendingLocal.isNotEmpty) {
           for (int i = 0; i < pendingLocal.length; i++) {
             final pendingMap = Map<String, dynamic>.from(pendingLocal[i]);
-            // Si tiene un ID asignado por alguna razón, usarlo; si no, crear uno sintético negativo
-            int devoId = 0;
-            if (pendingMap['devo_Id'] != null) {
-              devoId = int.tryParse(pendingMap['devo_Id'].toString()) ?? 0;
-            } else if (pendingMap['devoId'] != null) {
-              devoId = int.tryParse(pendingMap['devoId'].toString()) ?? 0;
-            }
-            if (devoId == 0) {
-              // crear id sintético negativo para evitar colisiones
-              devoId = -(DateTime.now().millisecondsSinceEpoch + i);
-              pendingMap['devo_Id'] = devoId;
-            }
 
             // Asegurar campos mínimos para convertir a modelo
             if (!pendingMap.containsKey('devo_Fecha')) {
@@ -127,9 +208,12 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
 
             try {
               final model = DevolucionesViewModel.fromJson(pendingMap);
-              devoluciones.add(model);
+              // no agregamos aún a 'devoluciones' para evitar sobreescritura por la carga del servidor
+              _pendingModels.add(model);
               _pendingDevolucionesIds.add(model.devoId);
-              _pendingMessages[model.devoId] = 'Sincronización pendiente';
+              _pendingMessages[model.devoId] = 'Devolución pendiente';
+              // Asignar número de visualización según el orden en el almacenamiento local (1..N)
+              _pendingDisplayNumber[model.devoId] = i + 1;
             } catch (e) {
               // si falla la conversión, omitir pero intentar conservar el registro en pendientes
             }
@@ -147,6 +231,14 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
             isOnline:
                 isOnline, // Pasar el estado de conexión para que el método sepa si debe obtener del servidor o localmente
           );
+
+      if (isOnline) {
+        try {
+          await DevolucionesOffline.guardarDevolucionesHistorial(
+            devolucionesData,
+          );
+        } catch (saveErr) {}
+      }
 
       // Convertir a modelos con manejo mejorado de errores
       try {
@@ -201,6 +293,34 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
             final facturaService = FacturaService();
             final facturasData = await facturaService
                 .getFacturasDevolucionesLimite();
+
+            // Guardar las facturas obtenidas localmente para uso en la pantalla de crear
+            try {
+              if (facturasData.isNotEmpty) {
+                final List<Map<String, dynamic>> facturasToSave = facturasData
+                    .map<Map<String, dynamic>>((f) {
+                      if (f is Map) return Map<String, dynamic>.from(f);
+                      try {
+                        // Algunos servicios devuelven objetos con toJson()
+                        final dynamic json = f.toJson();
+                        if (json is Map) return Map<String, dynamic>.from(json);
+                      } catch (_) {}
+                      return <String, dynamic>{};
+                    })
+                    .toList();
+
+                if (facturasToSave.isNotEmpty) {
+                  await DevolucionesOffline.guardarFacturasCreate(
+                    facturasToSave,
+                  );
+                  print(
+                    'Facturas guardadas localmente (${facturasToSave.length})',
+                  );
+                }
+              }
+            } catch (saveErr) {
+              print('Error guardando facturas localmente: $saveErr');
+            }
 
             final int? vendIdActual = globalVendId; // desde GlobalService
             final Set<int> factIdsSet = {};
@@ -406,22 +526,16 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
         _pendingDevolucionesIds.removeWhere((id) => endpointIds.contains(id));
       }
 
-      // Merge pending devoluciones into the final list
-      devoluciones.addAll(
-        _pendingDevolucionesIds.map(
-          (id) => devoluciones.firstWhere(
-            (d) => d.devoId == id,
-            orElse: () => DevolucionesViewModel(
-              devoId: id,
-              devoMotivo: 'Devolución pendiente (offline)',
-              devoFecha: DateTime.now(),
-              devoFechaCreacion: DateTime.now(),
-              devoEstado: false, // Assuming false indicates pending
-              usuaCreacion: 0, // Assuming 0 represents an offline user
-            ),
-          ),
-        ),
-      );
+      // Merge pending devoluciones into the final list using the original pending models
+      // Pendientes no sincronizados deben ir al inicio (top) de la lista
+      if (_pendingModels.isNotEmpty) {
+        final toPrepend = _pendingModels
+            .where((m) => _pendingDevolucionesIds.contains(m.devoId))
+            .toList();
+        if (toPrepend.isNotEmpty) {
+          devoluciones = [...toPrepend, ...devoluciones];
+        }
+      }
 
       return devoluciones;
     } catch (e) {
@@ -698,25 +812,87 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (devolucion.devoId > 0)
-                                Text(
-                                  'Devolución #${devolucion.devoId}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    fontFamily: 'Satoshi',
-                                  ),
+                              Text(
+                                devolucion.devoId > 0
+                                    ? 'Devolución #${devolucion.devoId}'
+                                    : (_pendingDisplayNumber[devolucion
+                                                  .devoId] !=
+                                              null
+                                          ? 'Devolución pendiente #${_pendingDisplayNumber[devolucion.devoId]}'
+                                          : 'Devolución pendiente'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontFamily: 'Satoshi',
                                 ),
+                              ),
                               // No mostrar el mensaje visual aquí
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        // Si es una devolución pendiente, mostrar botón de borrar
+                        if (devolucion.devoId < 0)
+                          IconButton(
+                            onPressed: () async {
+                              // Confirmar eliminación
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text(
+                                    'Eliminar devolución pendiente',
+                                  ),
+                                  content: const Text(
+                                    '¿Estás seguro de que quieres eliminar esta devolución pendiente? Esta acción no se puede deshacer.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(true),
+                                      child: const Text('Eliminar'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                final success =
+                                    await DevolucionesOffline.eliminarDevolucionPendiente(
+                                      devolucion.devoId,
+                                    );
+                                if (mounted) {
+                                  setState(() {
+                                    _devolucionesFuture = _loadDevoluciones();
+                                  });
+                                }
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      success
+                                          ? 'Devolución pendiente eliminada'
+                                          : 'No se pudo eliminar la devolución pendiente',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white,
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                       ],
                     ),
                   ),
@@ -728,6 +904,12 @@ class _DevolucioneslistScreenState extends State<DevolucioneslistScreen> {
                       children: [
                         // Fila de cliente
                         const SizedBox(height: 12),
+                        _buildDetailRow(
+                          Icons.business_outlined,
+                          'Cliente',
+                          devolucion.clieNombreNegocio ?? 'Cliente desconocido',
+                        ),
+                        const SizedBox(height: 8),
                         // Fila de motivo
                         _buildDetailRow(
                           Icons.receipt_long_outlined,

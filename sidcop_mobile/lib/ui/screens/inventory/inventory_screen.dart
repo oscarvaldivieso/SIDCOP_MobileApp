@@ -5,6 +5,8 @@ import '../../widgets/appBackground.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/PerfilUsuarioService.dart';
 import '../../../services/printer_service.dart';
+import '../../../services/InventoryImageCacheService.dart';
+import '../../../services/JornadaOfflineService.dart';
 
 class InventoryScreen extends StatefulWidget {
   final int usuaIdPersona;
@@ -32,6 +34,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   
   final PrinterService _printerService = PrinterService();
   final InventoryService _inventoryService = InventoryService();
+  final InventoryImageCacheService _imageCacheService = InventoryImageCacheService();
   Map<String, dynamic>? _facturaData;
   String? _error;
   List<Map<String, dynamic>> _inventoryItems = [];
@@ -43,8 +46,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
-    print('usuaIdPersona en InventoryScreen: ${widget.usuaIdPersona}'); 
-    print('usuaCreacion en InventoryScreen: ${widget.usuaCreacion}'); 
     
     _usuaIdPersona = widget.usuaIdPersona;
     _usuaCreacion = widget.usuaCreacion;
@@ -104,6 +105,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     try {
       final success = await _inventoryService.syncInventoryData(widget.usuaIdPersona);
+      
+      // Sincronizar operaciones de jornada pendientes
+      await _sincronizarJornadasPendientes();
+      
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -120,6 +125,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         );
         // Recargar datos después de la sincronización
         await _loadInventoryData();
+        await _checkActiveJornada();
       }
     } catch (e) {
       print('Error en sincronización automática: $e');
@@ -142,6 +148,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     try {
       final success = await _inventoryService.syncInventoryData(widget.usuaIdPersona);
+      
+      // Sincronizar operaciones de jornada pendientes
+      await _sincronizarJornadasPendientes();
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -164,6 +174,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         
         if (success) {
           await _loadInventoryData();
+          await _checkActiveJornada();
         }
       }
     } catch (e) {
@@ -191,6 +202,34 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  /// Sincroniza operaciones de jornada pendientes
+  Future<void> _sincronizarJornadasPendientes() async {
+    try {
+      final hayPendientes = await JornadaOfflineService.hayOperacionesPendientes();
+      if (hayPendientes) {
+        final success = await JornadaOfflineService.sincronizarOperacionesPendientes();
+        
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.sync, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Operaciones de jornada sincronizadas'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al sincronizar jornadas pendientes: $e');
+    }
+  }
+
   Future<void> _loadInitialData() async {
       await Future.wait([
         _checkActiveJornada(),
@@ -201,16 +240,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     Future<void> _checkActiveJornada() async {
       try {
-        print('_checkActiveJornada called with usuaIdPersona: ${widget.usuaIdPersona}');
         
         setState(() {
           _isCheckingJornada = true;
         });
 
-        print('Calling getJornadaActiva with usuaIdPersona: ${widget.usuaIdPersona}');
         final jornadaResponse = await _inventoryService.getJornadaActiva(widget.usuaIdPersona);
         
-        print('Response from getJornadaActiva: $jornadaResponse');
         
         setState(() {
           _hasActiveJornada = jornadaResponse['data'] != null;
@@ -218,10 +254,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
           _isCheckingJornada = false;
         });
 
-        print('Estado de jornada: ${_hasActiveJornada ? "ACTIVA" : "CERRADA"}');
-        if (_activeJornadaData != null) {
-          print('Jornada ID: ${_activeJornadaData!['jorV_Id']}');
-        }
 
     } catch (e) {
       setState(() {
@@ -230,7 +262,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         _isCheckingJornada = false;
       });
       
-      print('Error al verificar jornada activa: $e');
       // No mostrar error al usuario aquí, solo en caso de operaciones específicas
     }
   }
@@ -262,15 +293,33 @@ class _InventoryScreenState extends State<InventoryScreen> {
         throw Exception('ID de usuario no válido para iniciar jornada');
       }
       
-      final result = await _inventoryService.startJornada(_usuaCreacion!, _usuaIdPersona!);
+      // Usar método offline-first
+      final result = await _inventoryService.startJornadaOfflineFirst(_usuaCreacion!, _usuaIdPersona!);
 
       if (mounted) Navigator.of(context).pop();
 
-      if (mounted) {
+      if (mounted && result != null) {
+        final isOffline = result['offline'] == true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Jornada iniciada exitosamente'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  isOffline ? Icons.offline_pin : Icons.check_circle,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isOffline 
+                      ? 'Jornada iniciada offline - se sincronizará automáticamente'
+                      : 'Jornada iniciada exitosamente',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: isOffline ? Colors.orange : Colors.green,
+            duration: Duration(seconds: isOffline ? 4 : 2),
           ),
         );
         
@@ -376,8 +425,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
     );
 
-    // Call the closeJornada method
-    final result = await _inventoryService.closeJornada(widget.usuaIdPersona);
+    // Call the closeJornadaOfflineFirst method
+    final result = await _inventoryService.closeJornadaOfflineFirst(widget.usuaIdPersona);
     
     // Close the loading dialog
     if (mounted) Navigator.of(context).pop();
@@ -388,6 +437,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
       await _loadInitialData();
 
       if (mounted) {
+        final isOffline = result['offline'] == true;
+        
+        // Show notification first
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  isOffline ? Icons.offline_pin : Icons.check_circle,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isOffline 
+                      ? 'Jornada cerrada offline - se sincronizará automáticamente'
+                      : 'Jornada cerrada exitosamente',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: isOffline ? Colors.orange : Colors.green,
+            duration: Duration(seconds: isOffline ? 4 : 2),
+          ),
+        );
         showDialog(
           context: context,
           builder: (context) => Dialog(
@@ -1251,20 +1325,16 @@ Widget _buildSummaryItem(String label, String value, Color color) {
       if (_inventoryItems.isNotEmpty) {
         // Usar los datos ya cargados en la pantalla
         inventoryItems = _inventoryItems;
-        debugPrint('📦 Usando inventario ya cargado: ${inventoryItems.length} productos');
       } else {
         // Cargar datos directamente del servicio (offline-first)
         try {
           inventoryItems = await _inventoryService.getInventoryByVendor(widget.usuaIdPersona);
-          debugPrint('📦 Inventario cargado para impresión: ${inventoryItems.length} productos');
         } catch (e) {
-          debugPrint('❌ Error cargando inventario para impresión: $e');
           return {};
         }
       }
 
       if (inventoryItems.isEmpty) {
-        debugPrint('⚠️ No hay productos de inventario para imprimir');
         return {};
       }
 
@@ -1306,18 +1376,12 @@ Widget _buildSummaryItem(String label, String value, Color color) {
         'montoTotal': montoTotal,
       });
 
-      debugPrint('✅ Datos de inventario preparados para impresión');
-      debugPrint('📊 Total productos: ${inventoryItems.length}');
-      debugPrint('📊 Total inicial: $totalInicial, Vendido: $totalVendido, Final: $totalFinal');
-      debugPrint('💰 Monto total: L.$montoTotal');
-
       return {
         'header': header,
         'detalle': detalle,
       };
 
     } catch (e) {
-      debugPrint('❌ Error preparando datos de inventario para impresión: $e');
       return {};
     }
   }
@@ -1991,39 +2055,32 @@ Widget _buildSummaryItem(String label, String value, Color color) {
     final String statusText = status['text'];
     final double percentage = status['percentage'];
 
-    // Widget para la imagen del producto
+    // Widget para la imagen del producto usando caché offline
+    final String productId = _getStringValue(item, 'prod_Id', '0');
     Widget productImage = prodImagen.isNotEmpty
         ? ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              prodImagen,
+            child: _imageCacheService.getCachedInventoryImage(
+              imageUrl: prodImagen,
+              productId: productId,
               width: 55,
               height: 55,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return _getProductIcon(subcDescripcion);
-              },
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  width: 55,
-                  height: 55,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(14),
+              errorWidget: _getProductIcon(subcDescripcion),
+              placeholder: Container(
+                width: 55,
+                height: 55,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFC2AF86),
+                    strokeWidth: 2,
                   ),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: const Color(0xFFC2AF86),
-                      strokeWidth: 2,
-                    ),
-                  ),
-                );
-              },
+                ),
+              ),
             ),
           )
         : Container(
@@ -2681,12 +2738,5 @@ Widget _buildSummaryItem(String label, String value, Color color) {
     ),
   );
 }
-
-
-  
+ 
 }
-
-
-
-
-

@@ -43,12 +43,14 @@ class ConnectivitySyncService {
     _isSyncing = true;
     
     try {
-      print('ConnectivitySyncService: Conectividad restaurada, sincronizando pedidos offline...');
+      print('ConnectivitySyncService: Conectividad restaurada, sincronizando datos offline...');
       
-      // Debug: List all storage keys
-      await PedidosScreenOffline.listarTodasLasClaves();
+      // Debug: Starting sync process
+      print('ConnectivitySyncService: Iniciando proceso de sincronización...');
       
-      // Check if there are pending orders to sync using simple method
+      int totalSincronizados = 0;
+      
+      // Sync pending orders
       final pendientesRaw = await PedidosScreenOffline.leerJson('pedidos_pendientes.json');
       
       print('ConnectivitySyncService DEBUG: pendientesRaw = $pendientesRaw');
@@ -59,7 +61,7 @@ class ConnectivitySyncService {
         final pendientes = List<Map<String, dynamic>>.from(pendientesRaw);
         print('ConnectivitySyncService: Encontrados ${pendientes.length} pedidos pendientes para sincronizar');
         
-        // Show sync notification
+        // Show sync notification for orders
         if (_context != null && _context!.mounted) {
           ScaffoldMessenger.of(_context!).showSnackBar(
             SnackBar(
@@ -71,30 +73,59 @@ class ConnectivitySyncService {
         }
         
         // Sync the orders using simple method
-        final sincronizadas = await PedidosScreenOffline.sincronizarPendientes();
+        final pedidosSincronizados = await PedidosScreenOffline.sincronizarPendientes();
+        totalSincronizados += pedidosSincronizados;
         
-        // Show success notification
-        if (_context != null && _context!.mounted && sincronizadas > 0) {
+        print('ConnectivitySyncService: Sincronización de pedidos completada - $pedidosSincronizados sincronizados');
+      } else {
+        print('ConnectivitySyncService: No hay pedidos pendientes para sincronizar');
+      }
+      
+      // Sync pending invoices
+      final facturasRaw = await PedidosScreenOffline.leerJson('facturas_pendientes.json');
+      
+      if (facturasRaw != null && facturasRaw.isNotEmpty) {
+        final facturas = List<Map<String, dynamic>>.from(facturasRaw);
+        print('ConnectivitySyncService: Encontradas ${facturas.length} facturas pendientes para sincronizar');
+        
+        // Show sync notification for invoices
+        if (_context != null && _context!.mounted) {
           ScaffoldMessenger.of(_context!).showSnackBar(
             SnackBar(
-              content: Text('¡$sincronizadas pedidos sincronizados exitosamente!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              content: Text('Sincronizando ${facturas.length} facturas offline...'),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
         
-        print('ConnectivitySyncService: Sincronización de pedidos completada - $sincronizadas sincronizados');
+        // Sync the invoices
+        final facturasSincronizadas = await PedidosScreenOffline.sincronizarFacturasPendientes();
+        totalSincronizados += facturasSincronizadas;
+        
+        print('ConnectivitySyncService: Sincronización de facturas completada - $facturasSincronizadas sincronizadas');
       } else {
-        print('ConnectivitySyncService: No hay pedidos pendientes para sincronizar');
+        print('ConnectivitySyncService: No hay facturas pendientes para sincronizar');
       }
+      
+      // Show success notification for total synced items
+      if (_context != null && _context!.mounted && totalSincronizados > 0) {
+        ScaffoldMessenger.of(_context!).showSnackBar(
+          SnackBar(
+            content: Text('¡$totalSincronizados elementos sincronizados exitosamente!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
     } catch (e) {
-      print('ConnectivitySyncService: Error sincronizando pedidos offline: $e');
+      print('ConnectivitySyncService: Error sincronizando datos offline: $e');
       
       if (_context != null && _context!.mounted) {
         ScaffoldMessenger.of(_context!).showSnackBar(
           SnackBar(
-            content: Text('Error sincronizando pedidos: ${e.toString()}'),
+            content: Text('Error sincronizando datos: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),

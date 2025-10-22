@@ -31,11 +31,10 @@ class PrinterService {
   // CAMBIO PRINCIPAL: Usar la característica que SÍ es escribible
   static const String ZEBRA_WRITE_UUID = "38eb4a82-c570-11e3-9507-0002a5d5c51b";
 
-  // Check and request Bluetooth permissions
+  // Revisar los permisos de Bluetooth
   Future<bool> _checkPermissions() async {
     try {
       if (await FlutterBluePlus.isSupported == false) {
-        debugPrint("Bluetooth not supported by this device");
         return false;
       }
 
@@ -61,7 +60,7 @@ class PrinterService {
     }
   }
 
-  // Start scanning for Bluetooth devices
+  // Iniciar la busqueda de dispositivos Bluetooth
   Future<List<BluetoothDevice>> startScan() async {
     if (!await _checkPermissions()) {
       throw Exception('Se requieren permisos de Bluetooth para continuar');
@@ -105,7 +104,7 @@ class PrinterService {
     }
   }
 
-  // Connect to a Bluetooth device - OPTIMIZADO PARA ZQ310
+  // Conectar a un dispositivo Bluetooth - OPTIMIZADO PARA ZQ310
   Future<bool> connect(BluetoothDevice device) async {
     try {
       if (_isConnected) {
@@ -113,7 +112,6 @@ class PrinterService {
       }
 
       _connectedDevice = device;
-      debugPrint('Connecting to ${device.platformName} (${device.remoteId})');
 
       // Conectar con timeout más largo para ZQ310
       await device.connect(
@@ -133,7 +131,6 @@ class PrinterService {
       // Configurar MTU para mejor transferencia de datos
       try {
         int mtu = await device.requestMtu(512);
-        debugPrint('MTU set to: $mtu');
       } catch (e) {
         debugPrint('Could not set MTU: $e');
       }
@@ -150,14 +147,12 @@ class PrinterService {
       }
 
       _isConnected = true;
-      debugPrint('Successfully connected to ${device.platformName}');
 
       // NO inicializar impresora automáticamente - puede causar problemas
       // await _initializePrinter();
 
       return true;
     } catch (e) {
-      debugPrint('Error connecting to device: $e');
       _isConnected = false;
       _connectedDevice = null;
       _writeCharacteristic = null;
@@ -175,28 +170,18 @@ class PrinterService {
     // Examinar TODOS los servicios y características
     for (BluetoothService service in services) {
       String serviceUuid = service.uuid.toString().toLowerCase();
-      debugPrint('Service: $serviceUuid');
 
       bool isZebraService =
           serviceUuid.contains('38eb4a80') || serviceUuid.contains('c570-11e3');
-      if (isZebraService) {
-        debugPrint('>>> ZEBRA SERVICE FOUND <<<');
-      }
+      
 
       for (BluetoothCharacteristic char in service.characteristics) {
         String charUuid = char.uuid.toString().toLowerCase();
-        debugPrint('  Characteristic: $charUuid');
-        debugPrint(
-          '    Properties: write=${char.properties.write}, writeWithoutResponse=${char.properties.writeWithoutResponse}, notify=${char.properties.notify}, indicate=${char.properties.indicate}',
-        );
 
         // PRIORIDAD 1: Zebra 38eb4a82 (la que SÍ es escribible)
         if (isZebraService &&
             charUuid.contains('38eb4a82') &&
             char.properties.write) {
-          debugPrint(
-            '  >>> ZEBRA WRITABLE CHARACTERISTIC FOUND (38eb4a82) <<<',
-          );
           zebraChar = char;
           break; // Esta es la que queremos
         }
@@ -205,16 +190,12 @@ class PrinterService {
         if (isZebraService &&
             charUuid.contains('38eb4a84') &&
             char.properties.write) {
-          debugPrint(
-            '  >>> ZEBRA ALTERNATIVE WRITABLE CHARACTERISTIC FOUND (38eb4a84) <<<',
-          );
           if (zebraChar == null) zebraChar = char;
         }
 
         // Fallback: Cualquier característica escribible
         if ((char.properties.writeWithoutResponse || char.properties.write) &&
             fallbackChar == null) {
-          debugPrint('    >>> WRITABLE CHARACTERISTIC FOUND (fallback) <<<');
           fallbackChar = char;
         }
       }
@@ -228,29 +209,20 @@ class PrinterService {
 
     // Prioridad: Zebra específica > Fallback writable
     if (zebraChar != null) {
-      debugPrint('Using Zebra characteristic: ${zebraChar.uuid}');
       return zebraChar;
     } else if (fallbackChar != null) {
-      debugPrint(
-        'Using fallback writable characteristic: ${fallbackChar.uuid}',
-      );
       return fallbackChar;
     }
 
-    debugPrint('❌ No writable characteristic found');
     return null;
   }
 
   // MÉTODO SIMPLIFICADO: Sin inicialización automática
   Future<void> _initializePrinter() async {
     try {
-      debugPrint('Initializing Zebra printer...');
-
-      // Solo un comando simple de status
       await _sendRawCommand('~HS');
 
       await Future.delayed(const Duration(milliseconds: 500));
-      debugPrint('Printer initialization complete');
     } catch (e) {
       debugPrint('Error initializing printer: $e');
     }
@@ -269,13 +241,12 @@ class PrinterService {
       } else if (_writeCharacteristic!.properties.write) {
         await _writeCharacteristic!.write(bytes, withoutResponse: false);
       } else {
-        debugPrint('❌ Characteristic does not support writing');
+        
         return false;
       }
 
       return true;
     } catch (e) {
-      debugPrint('Error sending raw command: $e');
       return false;
     }
   }
@@ -290,9 +261,7 @@ class PrinterService {
       _connectedDevice = null;
       _writeCharacteristic = null;
       _isConnected = false;
-      debugPrint('Disconnected from printer');
     } catch (e) {
-      debugPrint('Error disconnecting: $e');
       _connectedDevice = null;
       _writeCharacteristic = null;
       _isConnected = false;
@@ -308,9 +277,6 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== PRINTING ZPL FOR ZQ310 ===');
-      debugPrint('ZPL Content: $zplContent');
-
       // Asegurar que el ZPL termine correctamente
       if (!zplContent.endsWith('^XZ')) {
         zplContent += '^XZ';
@@ -319,7 +285,6 @@ class PrinterService {
       // NO modificar el ZPL automáticamente - puede causar problemas
 
       List<int> bytes = utf8.encode(zplContent);
-      debugPrint('Total bytes to send: ${bytes.length}');
 
       // MÉTODO CORREGIDO: Determinar si usar writeWithoutResponse o write
       bool useWithoutResponse =
@@ -348,10 +313,8 @@ class PrinterService {
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      debugPrint('ZPL sent successfully');
       return true;
     } catch (e) {
-      debugPrint('Error printing ZPL: $e');
       return false;
     }
   }
@@ -363,14 +326,11 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== ULTRA SIMPLE TEST ===');
-
       // El ZPL más simple posible
       String ultraSimpleZPL = '^XA^FO50,50^A0N,30,30^FDTEST^FS^XZ';
 
       return await printZPL(ultraSimpleZPL);
     } catch (e) {
-      debugPrint('Error in simple test: $e');
       return false;
     }
   }
@@ -382,8 +342,6 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== STARTING PROFESSIONAL ZPL TEST ===');
-
       // ZPL más simple y confiable para ZQ310
       String professionalZPL =
           '''^XA
@@ -406,13 +364,11 @@ class PrinterService {
       bool success = await printZPL(professionalZPL);
 
       if (success) {
-        debugPrint('✅ Professional test print sent successfully');
         await Future.delayed(const Duration(seconds: 2));
       }
 
       return success;
     } catch (e) {
-      debugPrint('Error in professional test print: $e');
       return false;
     }
   }
@@ -426,7 +382,6 @@ class PrinterService {
     final zplContent = _generateInventoryZPL(inventoryData);
     return await printZPL(zplContent);
   } catch (e) {
-    debugPrint('Error printing inventory: $e');
     rethrow;
   }
 }
@@ -717,7 +672,6 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
       final zplContent = _generateInvoiceZPL(invoiceData, isOriginal: isOriginal);
       return await printZPL(zplContent);
     } catch (e) {
-      debugPrint('Error printing invoice: $e');
       rethrow;
     }
   }
@@ -1206,6 +1160,7 @@ $footerZPL
         return null;
       }
 
+      //Mostrar dialogo de seleccion de impresora
       return await showDialog<BluetoothDevice?>(
         context: context,
         builder: (context) => Dialog(

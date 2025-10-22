@@ -24,52 +24,52 @@ class InicioSesionOfflineService {
   /// Cachea todos los datos necesarios durante el inicio de sesión
   static Future<void> cachearDatosInicioSesion(Map<String, dynamic> userData) async {
     try {
-      print('=== INICIANDO CACHÉ DE DATOS DE LOGIN ===');
+     // //print('=== INICIANDO CACHÉ DE DATOS DE LOGIN ===');
       
       // Verificar conectividad
       final hasConnection = await _hasInternetConnection();
       if (!hasConnection) {
-        print('Sin conexión a internet, no se puede cachear datos');
+        //print('Sin conexión a internet, no se puede cachear datos');
         return;
       }
       
-      print('Conexión verificada, procediendo con el caché...');
+      //print('Conexión verificada, procediendo con el caché...');
       
       // Establecer tiempo de expiración
       await _establecerExpiracionCache();
-      print('Expiración del caché establecida');
+      //print('Expiración del caché establecida');
       
       // Cachear datos del usuario (sin contraseña)
-      print('Iniciando caché de datos de usuario...');
+      //print('Iniciando caché de datos de usuario...');
       await _cachearDatosUsuario(userData);
-      print('Datos de usuario cacheados');
+      //print('Datos de usuario cacheados');
       
       // Cachear clientes por ruta
-      print('Iniciando caché de clientes por ruta...');
+      //print('Iniciando caché de clientes por ruta...');
       await _cachearClientesPorRuta(userData);
-      print('Clientes por ruta cacheados');
+      //print('Clientes por ruta cacheados');
       
       // Cachear productos básicos - CRÍTICO PARA PEDIDOS OFFLINE
-      print('=== INICIANDO CACHÉ DE PRODUCTOS BÁSICOS ===');
+      //print('=== INICIANDO CACHÉ DE PRODUCTOS BÁSICOS ===');
       await _cachearProductosBasicos();
-      print('=== CACHÉ DE PRODUCTOS BÁSICOS COMPLETADO ===');
+      //print('=== CACHÉ DE PRODUCTOS BÁSICOS COMPLETADO ===');
       
       // Cachear pedidos con detalles
-      print('Iniciando caché de pedidos...');
+      //print('Iniciando caché de pedidos...');
       await _cachearPedidosConDetalles(userData);
-      print('Pedidos cacheados');
+      //print('Pedidos cacheados');
       
-      print('=== CACHÉ DE DATOS DE LOGIN COMPLETADO EXITOSAMENTE ===');
+      //print('=== CACHÉ DE DATOS DE LOGIN COMPLETADO EXITOSAMENTE ===');
     } catch (e) {
-      print('ERROR CRÍTICO en caché de datos de login: $e');
-      print('Stack trace: ${e.toString()}');
+      //print('ERROR CRÍTICO en caché de datos de login: $e');
+      //print('Stack trace: ${e.toString()}');
     }
   }
 
   /// Cachea los datos del usuario (filtrados, sin contraseña)
   static Future<void> _cachearDatosUsuario(Map<String, dynamic> userData) async {
     try {
-      print('Cacheando datos del usuario...');
+      //print('Cacheando datos del usuario...');
       
       // Filtrar datos sensibles
       final datosLimpios = Map<String, dynamic>.from(userData);
@@ -81,16 +81,16 @@ class InicioSesionOfflineService {
         value: jsonEncode(datosLimpios),
       );
       
-      print('Datos del usuario cacheados correctamente');
+      //print('Datos del usuario cacheados correctamente');
     } catch (e) {
-      print('Error cacheando datos del usuario: $e');
+      //print('Error cacheando datos del usuario: $e');
     }
   }
 
   /// Cachea clientes organizados por ruta para vendedores
   static Future<void> _cachearClientesPorRuta(Map<String, dynamic> userData) async {
     try {
-      print('Cacheando clientes por ruta...');
+      //print('Cacheando clientes por ruta...');
       
       final tipoUsuario = userData['usua_TipoUsuario'] as String?;
       final vendedorId = userData['usua_IdPersona'] as int?;
@@ -111,11 +111,11 @@ class InicioSesionOfflineService {
           // Usar el nuevo método optimizado de ClientesOfflineService
           await ClientesOfflineService.syncDireccionesForAllClients(clientesRuta);
           
-          print('Clientes por ruta cacheados: ${clientesRuta.length}');
+          //print('Clientes por ruta cacheados: ${clientesRuta.length}');
         }
       }
     } catch (e) {
-      print('Error cacheando clientes por ruta: $e');
+      //print('Error cacheando clientes por ruta: $e');
     }
   }
 
@@ -123,7 +123,7 @@ class InicioSesionOfflineService {
   /// Cachea productos básicos para la creación de pedidos
   static Future<void> _cachearProductosBasicos() async {
     try {
-      print('>>> Iniciando caché de productos básicos...');
+      //print('>>> Iniciando caché de productos básicos...');
       
       List<ProductosPedidosViewModel> productosConvertidos = [];
       bool cacheExitoso = false;
@@ -134,19 +134,19 @@ class InicioSesionOfflineService {
       
       for (int clienteId in clientesIds) {
         try {
-          print('>>> Intentando obtener productos para cliente ID: $clienteId');
+          //print('>>> Intentando obtener productos para cliente ID: $clienteId');
           final productos = await pedidosService.getProductosConListaPrecio(clienteId);
           
           if (productos.isNotEmpty) {
             productosConvertidos = productos;
-            print('>>> ✓ Productos obtenidos desde API (cliente $clienteId): ${productosConvertidos.length}');
+            //print('>>> ✓ Productos obtenidos desde API (cliente $clienteId): ${productosConvertidos.length}');
             cacheExitoso = true;
             break;
           } else {
-            print('>>> Cliente $clienteId no tiene productos disponibles');
+            //print('>>> Cliente $clienteId no tiene productos disponibles');
           }
         } catch (e) {
-          print('>>> Error con cliente $clienteId: $e');
+          //print('>>> Error con cliente $clienteId: $e');
           continue;
         }
       }
@@ -154,9 +154,9 @@ class InicioSesionOfflineService {
       // Estrategia 2: Si no hay productos desde API, intentar desde servicio offline
       if (!cacheExitoso) {
         try {
-          print('>>> Intentando productos desde servicio offline...');
+          //print('>>> Intentando productos desde servicio offline...');
           final productosOffline = await ProductosOffline.obtenerProductosLocal();
-          print('>>> Productos offline encontrados: ${productosOffline.length}');
+          //print('>>> Productos offline encontrados: ${productosOffline.length}');
           
           if (productosOffline.isNotEmpty) {
             productosConvertidos = productosOffline.map((prod) {
@@ -175,17 +175,17 @@ class InicioSesionOfflineService {
               );
             }).toList();
             cacheExitoso = true;
-            print('>>> ✓ Productos convertidos desde offline: ${productosConvertidos.length}');
+            //print('>>> ✓ Productos convertidos desde offline: ${productosConvertidos.length}');
           }
         } catch (offlineError) {
-          print('>>> Error obteniendo productos offline: $offlineError');
+          //print('>>> Error obteniendo productos offline: $offlineError');
         }
       }
       
       // Guardar en caché
       if (productosConvertidos.isNotEmpty) {
-        print('>>> Guardando ${productosConvertidos.length} productos en caché...');
-        print('>>> Primer producto: ${productosConvertidos.first.prodDescripcionCorta}');
+        //print('>>> Guardando ${productosConvertidos.length} productos en caché...');
+        //print('>>> Primer producto: ${productosConvertidos.first.prodDescripcionCorta}');
         
         final jsonData = jsonEncode(productosConvertidos.map((p) => p.toJson()).toList());
         await _secureStorage.write(
@@ -196,20 +196,20 @@ class InicioSesionOfflineService {
         // Verificar que se guardó correctamente
         final verificacion = await _secureStorage.read(key: _productosBasicosKey);
         if (verificacion != null && verificacion.isNotEmpty) {
-          print('>>> ✓ PRODUCTOS CACHEADOS EXITOSAMENTE: ${productosConvertidos.length}');
+          //print('>>> ✓ PRODUCTOS CACHEADOS EXITOSAMENTE: ${productosConvertidos.length}');
         } else {
-          print('>>> ✗ ERROR: No se pudo verificar el caché de productos');
+          //print('>>> ✗ ERROR: No se pudo verificar el caché de productos');
         }
       } else {
-        print('>>> ⚠ No se encontraron productos - guardando caché vacío');
+        //print('>>> ⚠ No se encontraron productos - guardando caché vacío');
         await _secureStorage.write(
           key: _productosBasicosKey,
           value: jsonEncode([]),
         );
       }
     } catch (e) {
-      print('>>> ✗ ERROR CRÍTICO cacheando productos básicos: $e');
-      print('>>> Stack trace: ${e.toString()}');
+      //print('>>> ✗ ERROR CRÍTICO cacheando productos básicos: $e');
+      //print('>>> Stack trace: ${e.toString()}');
       
       // Asegurar que hay algo en el caché aunque sea vacío
       try {
@@ -218,7 +218,7 @@ class InicioSesionOfflineService {
           value: jsonEncode([]),
         );
       } catch (storageError) {
-        print('>>> ✗ ERROR guardando caché vacío: $storageError');
+        //print('>>> ✗ ERROR guardando caché vacío: $storageError');
       }
     }
   }
@@ -226,7 +226,7 @@ class InicioSesionOfflineService {
   /// Cachea pedidos existentes con sus detalles completos
   static Future<void> _cachearPedidosConDetalles(Map<String, dynamic> userData) async {
     try {
-      print('Cacheando pedidos con detalles...');
+      //print('Cacheando pedidos con detalles...');
       
       final pedidosService = PedidosService();
       
@@ -250,7 +250,7 @@ class InicioSesionOfflineService {
               detallesMap[pedido.pediId.toString()] = detalle;
             }
           } catch (e) {
-            print('Error obteniendo detalle del pedido ${pedido.pediId}: $e');
+            //print('Error obteniendo detalle del pedido ${pedido.pediId}: $e');
           }
         }
         
@@ -259,13 +259,13 @@ class InicioSesionOfflineService {
             key: _pedidosDetalleKey,
             value: jsonEncode(detallesMap),
           );
-          print('Detalles de pedidos cacheados: ${detallesMap.length}');
+          //print('Detalles de pedidos cacheados: ${detallesMap.length}');
         }
         
-        print('Pedidos cacheados: ${pedidos.length}');
+        //print('Pedidos cacheados: ${pedidos.length}');
       }
     } catch (e) {
-      print('Error cacheando pedidos con detalles: $e');
+      //print('Error cacheando pedidos con detalles: $e');
     }
   }
 
@@ -277,9 +277,9 @@ class InicioSesionOfflineService {
         key: _cacheExpirationKey,
         value: expiracion.millisecondsSinceEpoch.toString(),
       );
-      print('Expiración del caché establecida: $expiracion');
+      //print('Expiración del caché establecida: $expiracion');
     } catch (e) {
-      print('Error estableciendo expiración del caché: $e');
+      //print('Error estableciendo expiración del caché: $e');
     }
   }
 
@@ -292,7 +292,7 @@ class InicioSesionOfflineService {
       final expiracion = DateTime.fromMillisecondsSinceEpoch(int.parse(expiracionStr));
       return DateTime.now().isAfter(expiracion);
     } catch (e) {
-      print('Error verificando expiración del caché: $e');
+      //print('Error verificando expiración del caché: $e');
       return true;
     }
   }
@@ -301,7 +301,7 @@ class InicioSesionOfflineService {
   static Future<Map<String, dynamic>?> obtenerDatosUsuarioCache() async {
     try {
       if (await _cacheHaExpirado()) {
-        print('Caché de usuario expirado');
+        //print('Caché de usuario expirado');
         return null;
       }
       
@@ -310,7 +310,7 @@ class InicioSesionOfflineService {
       
       return Map<String, dynamic>.from(jsonDecode(datosStr));
     } catch (e) {
-      print('Error obteniendo datos del usuario desde caché: $e');
+      //print('Error obteniendo datos del usuario desde caché: $e');
       return null;
     }
   }
@@ -319,7 +319,7 @@ class InicioSesionOfflineService {
   static Future<List<Map<String, dynamic>>> obtenerClientesRutaCache() async {
     try {
       if (await _cacheHaExpirado()) {
-        print('Caché de clientes expirado');
+        //print('Caché de clientes expirado');
         return [];
       }
       
@@ -336,65 +336,65 @@ class InicioSesionOfflineService {
   /// Obtiene direcciones de clientes desde el caché
   static Future<List<Map<String, dynamic>>> obtenerDireccionesClienteCache(int clienteId) async {
     try {
-      print('=== OBTENIENDO DIRECCIONES DESDE CACHÉ ===');
-      print('Cliente ID solicitado: $clienteId');
+      //print('=== OBTENIENDO DIRECCIONES DESDE CACHÉ ===');
+      //print('Cliente ID solicitado: $clienteId');
       
       // Verificar expiración del caché
       final cacheExpirado = await _cacheHaExpirado();
-      print('Caché expirado: $cacheExpirado');
+      //print('Caché expirado: $cacheExpirado');
       
       // Verificar conectividad para decidir si usar caché expirado
       final hasConnection = await _hasInternetConnection();
-      print('Conexión disponible: $hasConnection');
+      //print('Conexión disponible: $hasConnection');
       
       if (cacheExpirado && hasConnection) {
-        print('⚠ Caché expirado y hay conexión - debería refrescarse online');
+        //print('⚠ Caché expirado y hay conexión - debería refrescarse online');
         // En este caso, el método que llama debería manejar el refresh
         // Pero seguimos intentando leer el caché como fallback
       } else if (cacheExpirado && !hasConnection) {
-        print('⚠ Caché expirado pero SIN conexión - usando caché expirado como fallback');
+        //print('⚠ Caché expirado pero SIN conexión - usando caché expirado como fallback');
       }
       
       // Leer datos del caché de direcciones (incluso si está expirado en modo offline)
       final direccionesStr = await _secureStorage.read(key: _clientesDireccionesKey);
-      print('Datos leídos del caché: ${direccionesStr?.length ?? 0} caracteres');
+      //print('Datos leídos del caché: ${direccionesStr?.length ?? 0} caracteres');
       
       if (direccionesStr == null || direccionesStr.isEmpty) {
-        print('⚠ No hay datos de direcciones en el caché');
+        //print('⚠ No hay datos de direcciones en el caché');
         return [];
       }
       
       // Decodificar JSON
       final direccionesMap = Map<String, dynamic>.from(jsonDecode(direccionesStr));
-      print('Clientes con direcciones en caché: ${direccionesMap.keys.toList()}');
+      //print('Clientes con direcciones en caché: ${direccionesMap.keys.toList()}');
       
       // Buscar direcciones del cliente específico
       final clienteKey = clienteId.toString();
-      print('Buscando direcciones para cliente key: "$clienteKey"');
+      //print('Buscando direcciones para cliente key: "$clienteKey"');
       
       final direccionesCliente = direccionesMap[clienteKey];
       
       if (direccionesCliente != null) {
         final direcciones = List<Map<String, dynamic>>.from(direccionesCliente);
-        print('✓ Direcciones encontradas para cliente $clienteId: ${direcciones.length}');
+        //print('✓ Direcciones encontradas para cliente $clienteId: ${direcciones.length}');
         
         if (cacheExpirado && !hasConnection) {
-          print('⚠ USANDO DIRECCIONES DE CACHÉ EXPIRADO (modo offline)');
+          //print('⚠ USANDO DIRECCIONES DE CACHÉ EXPIRADO (modo offline)');
         }
         
         // Log de la primera dirección para debug
         if (direcciones.isNotEmpty) {
-          print('Primera dirección: ${direcciones[0]}');
+          //print('Primera dirección: ${direcciones[0]}');
         }
         
         return direcciones;
       } else {
-        print('⚠ No se encontraron direcciones para cliente $clienteId');
-        print('Clientes disponibles en caché: ${direccionesMap.keys.join(", ")}');
+        //print('⚠ No se encontraron direcciones para cliente $clienteId');
+        //print('Clientes disponibles en caché: ${direccionesMap.keys.join(", ")}');
         
         // Si estamos offline y no hay direcciones, crear una dirección por defecto
         if (!hasConnection) {
-          print('>>> Creando dirección por defecto para modo offline');
+          //print('>>> Creando dirección por defecto para modo offline');
           final direccionPorDefecto = {
             'diCl_Id': 1159, // ID temporal para offline
             'diCl_Direccion': 'Dirección por defecto (offline)',
@@ -408,13 +408,13 @@ class InicioSesionOfflineService {
         return [];
       }
     } catch (e) {
-      print('✗ ERROR obteniendo direcciones del cliente desde caché: $e');
-      print('Stack trace: ${e.toString()}');
+      //print('✗ ERROR obteniendo direcciones del cliente desde caché: $e');
+      //print('Stack trace: ${e.toString()}');
       
       // Si hay error y estamos offline, crear dirección por defecto
       final hasConnection = await _hasInternetConnection();
       if (!hasConnection) {
-        print('>>> Error en caché pero offline - creando dirección por defecto');
+        //print('>>> Error en caché pero offline - creando dirección por defecto');
         final direccionPorDefecto = {
           'diCl_Id': 999999, // ID temporal para offline
           'diCl_Direccion': 'Dirección por defecto (offline)',
@@ -432,43 +432,43 @@ class InicioSesionOfflineService {
   /// Obtiene productos básicos del caché
   static Future<List<ProductosPedidosViewModel>> obtenerProductosBasicosCache() async {
     try {
-      print('>>> Iniciando lectura de productos desde caché...');
+      //print('>>> Iniciando lectura de productos desde caché...');
       
       // Verificar si el caché ha expirado
       final cacheExpirado = await _cacheHaExpirado();
-      print('>>> Caché expirado: $cacheExpirado');
+      //print('>>> Caché expirado: $cacheExpirado');
       
       if (cacheExpirado) {
-        print('>>> Caché de productos expirado');
+        //print('>>> Caché de productos expirado');
         
         // Intentar refrescar si hay conexión
         final hasConnection = await _hasInternetConnection();
-        print('>>> Conexión disponible: $hasConnection');
+        //print('>>> Conexión disponible: $hasConnection');
         
         if (hasConnection) {
-          print('>>> Hay conexión, refrescando caché automáticamente...');
+          //print('>>> Hay conexión, refrescando caché automáticamente...');
           await _cachearProductosBasicos();
           await _establecerExpiracionCache();
         } else {
-          print('>>> Sin conexión, intentando usar caché expirado como fallback');
+          //print('>>> Sin conexión, intentando usar caché expirado como fallback');
         }
       }
       
       // Leer del caché
       final productosJson = await _secureStorage.read(key: _productosBasicosKey);
-      print('>>> Datos JSON leídos del caché: ${productosJson?.length ?? 0} caracteres');
+      //print('>>> Datos JSON leídos del caché: ${productosJson?.length ?? 0} caracteres');
       
       if (productosJson == null || productosJson.isEmpty) {
-        print('>>> ⚠ No hay productos en el caché - JSON vacío o nulo');
+        //print('>>> ⚠ No hay productos en el caché - JSON vacío o nulo');
         return [];
       }
       
       try {
         final List<dynamic> productosList = jsonDecode(productosJson);
-        print('>>> Lista decodificada: ${productosList.length} elementos');
+        //print('>>> Lista decodificada: ${productosList.length} elementos');
         
         if (productosList.isEmpty) {
-          print('>>> ⚠ Lista de productos vacía en el caché');
+          //print('>>> ⚠ Lista de productos vacía en el caché');
           return [];
         }
         
@@ -476,18 +476,18 @@ class InicioSesionOfflineService {
             .map((json) => ProductosPedidosViewModel.fromJson(json))
             .toList();
         
-        print('>>> ✓ Productos cargados desde cache: ${productos.length}');
+        //print('>>> ✓ Productos cargados desde cache: ${productos.length}');
         if (productos.isNotEmpty) {
-          print('>>> Primer producto: ${productos.first.prodDescripcionCorta}');
+          //print('>>> Primer producto: ${productos.first.prodDescripcionCorta}');
         }
         return productos;
       } catch (parseError) {
-        print('>>> ✗ Error parseando JSON del caché: $parseError');
+        //print('>>> ✗ Error parseando JSON del caché: $parseError');
         return [];
       }
     } catch (e) {
-      print('>>> ✗ Error obteniendo productos básicos del caché: $e');
-      print('>>> Stack trace: ${e.toString()}');
+      //print('>>> ✗ Error obteniendo productos básicos del caché: $e');
+      //print('>>> Stack trace: ${e.toString()}');
       return [];
     }
   }
@@ -496,7 +496,7 @@ class InicioSesionOfflineService {
   static Future<List<PedidosViewModel>> obtenerPedidosCache() async {
     try {
       if (await _cacheHaExpirado()) {
-        print('Caché de pedidos expirado');
+        //print('Caché de pedidos expirado');
         return [];
       }
       
@@ -508,7 +508,7 @@ class InicioSesionOfflineService {
           .map((p) => PedidosViewModel.fromJson(Map<String, dynamic>.from(p)))
           .toList();
     } catch (e) {
-      print('Error obteniendo pedidos desde caché: $e');
+      //print('Error obteniendo pedidos desde caché: $e');
       return [];
     }
   }
@@ -517,7 +517,7 @@ class InicioSesionOfflineService {
   static Future<dynamic> obtenerDetallePedidoCache(int pedidoId) async {
     try {
       if (await _cacheHaExpirado()) {
-        print('Caché de detalles de pedidos expirado');
+        //print('Caché de detalles de pedidos expirado');
         return null;
       }
       
@@ -527,7 +527,7 @@ class InicioSesionOfflineService {
       final detallesMap = Map<String, dynamic>.from(jsonDecode(detallesStr));
       return detallesMap[pedidoId.toString()];
     } catch (e) {
-      print('Error obteniendo detalle del pedido desde caché: $e');
+      //print('Error obteniendo detalle del pedido desde caché: $e');
       return null;
     }
   }
@@ -542,9 +542,9 @@ class InicioSesionOfflineService {
       await _secureStorage.delete(key: _pedidosKey);
       await _secureStorage.delete(key: _pedidosDetalleKey);
       await _secureStorage.delete(key: _cacheExpirationKey);
-      print('Caché de login limpiado completamente');
+      //print('Caché de login limpiado completamente');
     } catch (e) {
-      print('Error limpiando caché de login: $e');
+      //print('Error limpiando caché de login: $e');
     }
   }
 
@@ -567,7 +567,7 @@ class InicioSesionOfflineService {
         'tienePedidos': pedidos != null,
       };
     } catch (e) {
-      print('Error verificando estado del caché: $e');
+      //print('Error verificando estado del caché: $e');
       return {'error': e.toString()};
     }
   }
@@ -578,7 +578,7 @@ class InicioSesionOfflineService {
       final connectivityResult = await Connectivity().checkConnectivity();
       return connectivityResult != ConnectivityResult.none;
     } catch (e) {
-      print('Error verificando conectividad: $e');
+      //print('Error verificando conectividad: $e');
       return false;
     }
   }
@@ -592,7 +592,7 @@ class InicioSesionOfflineService {
       final userData = await _secureStorage.read(key: _userDataKey);
       return userData != null;
     } catch (e) {
-      print('Error verificando datos válidos en caché: $e');
+      //print('Error verificando datos válidos en caché: $e');
       return false;
     }
   }
@@ -600,14 +600,14 @@ class InicioSesionOfflineService {
   /// Fuerza el refresco del caché de productos
   static Future<void> refrescarCacheProductos() async {
     try {
-      print('Forzando refresco del caché de productos...');
+      //print('Forzando refresco del caché de productos...');
       await _cachearProductosBasicos();
       
       // Actualizar la expiración del caché
       await _establecerExpiracionCache();
-      print('Caché de productos refrescado exitosamente');
+      //print('Caché de productos refrescado exitosamente');
     } catch (e) {
-      print('Error refrescando caché de productos: $e');
+      //print('Error refrescando caché de productos: $e');
     }
   }
 }

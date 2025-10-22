@@ -34,6 +34,10 @@ class CuentasPorCobrarOfflineService {
 
   // Instancia de secure storage para valores sensibles
   static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  
+  // CONTROL DE SINCRONIZACIÓN CONCURRENTE
+  static bool _sincronizacionEnProceso = false;
+  static Completer<int>? _completadorSincronizacion;
 
   // Devuelve el directorio de documents
   static Future<Directory> _directorioDocuments() async {
@@ -184,13 +188,13 @@ class CuentasPorCobrarOfflineService {
       final servicio = CuentasXCobrarService();
       final data = await servicio.getCuentasPorCobrar();
       
-      print('SYNC: sincronizarCuentasPorCobrar fetched ${data.length} items');
+      ('SYNC: sincronizarCuentasPorCobrar fetched ${data.length} items');
       
       // Guardar la respuesta
       await guardarJson(_archivoCuentasPorCobrar, data);
       return data;
     } catch (e) {
-      print('Error sincronizando cuentas por cobrar: $e');
+      ('Error sincronizando cuentas por cobrar: $e');
       rethrow;
     }
   }
@@ -201,7 +205,7 @@ class CuentasPorCobrarOfflineService {
       final servicio = PagoCuentasXCobrarService();
       final data = await servicio.getFormasPago();
       
-      print('SYNC: sincronizarFormasPago fetched ${data.length} items');
+      ('SYNC: sincronizarFormasPago fetched ${data.length} items');
       
       // Convertir a JSON para almacenar
       final jsonData = data.map((formaPago) => formaPago.toJson()).toList();
@@ -209,7 +213,7 @@ class CuentasPorCobrarOfflineService {
       
       return data;
     } catch (e) {
-      print('Error sincronizando formas de pago: $e');
+      ('Error sincronizando formas de pago: $e');
       rethrow;
     }
   }
@@ -220,12 +224,12 @@ class CuentasPorCobrarOfflineService {
       final servicio = CuentasXCobrarService();
       final data = await servicio.getResumenCliente();
       
-      print('SYNC: sincronizarResumenClientes fetched ${data.length} items');
+      ('SYNC: sincronizarResumenClientes fetched ${data.length} items');
       
       await guardarJson(_archivoResumenClientes, data);
       return data;
     } catch (e) {
-      print('Error sincronizando resumen clientes: $e');
+      ('Error sincronizando resumen clientes: $e');
       rethrow;
     }
   }
@@ -236,7 +240,7 @@ class CuentasPorCobrarOfflineService {
       final servicio = CuentasXCobrarService();
       final data = await servicio.getTimelineCliente(clienteId);
       
-      print('SYNC: sincronizarTimelineCliente para cliente $clienteId fetched ${data.length} items');
+      ('SYNC: sincronizarTimelineCliente para cliente $clienteId fetched ${data.length} items');
       
       // Guardar con clave específica del cliente
       final key = 'timeline_cliente_$clienteId';
@@ -244,7 +248,7 @@ class CuentasPorCobrarOfflineService {
       
       return data;
     } catch (e) {
-      print('Error sincronizando timeline cliente $clienteId: $e');
+      ('Error sincronizando timeline cliente $clienteId: $e');
       rethrow;
     }
   }
@@ -264,7 +268,7 @@ class CuentasPorCobrarOfflineService {
           final timeline = await sincronizarTimelineCliente(clienteId);
           return MapEntry(clienteId, timeline);
         } catch (e) {
-          print('Error sincronizando cliente $clienteId: $e');
+          ('Error sincronizando cliente $clienteId: $e');
           return MapEntry(clienteId, <dynamic>[]);
         }
       });
@@ -280,7 +284,7 @@ class CuentasPorCobrarOfflineService {
       }
     }
     
-    print('✅ Sincronización de ${clienteIds.length} timelines de clientes completada');
+    ('✅ Sincronización de ${clienteIds.length} timelines de clientes completada');
     return resultados;
   }
 
@@ -304,21 +308,21 @@ class CuentasPorCobrarOfflineService {
             clienteIds.add(clienteId);
           }
         } catch (e) {
-          print('Error extrayendo cliente ID: $e');
+          ('Error extrayendo cliente ID: $e');
         }
       }
       
       // Sincronizar timelines de clientes en background (no bloquear la respuesta principal)
       if (clienteIds.isNotEmpty) {
-        print('🔄 Iniciando sincronización de ${clienteIds.length} timelines de clientes...');
+        ('🔄 Iniciando sincronización de ${clienteIds.length} timelines de clientes...');
         
         // Ejecutar sincronización de timelines en background
         Future.microtask(() async {
           try {
             await sincronizarTimelineMultiplesClientes(clienteIds);
-            print('✅ Sincronización de timelines completada para ${clienteIds.length} clientes');
+            ('✅ Sincronización de timelines completada para ${clienteIds.length} clientes');
           } catch (e) {
-            print('⚠️ Error en sincronización de timelines: $e');
+            ('⚠️ Error en sincronización de timelines: $e');
           }
         });
       }
@@ -331,7 +335,7 @@ class CuentasPorCobrarOfflineService {
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('Error en sincronización completa: $e');
+      ('Error en sincronización completa: $e');
       rethrow;
     }
   }
@@ -356,7 +360,7 @@ class CuentasPorCobrarOfflineService {
       final lista = List.from(raw as List);
       return lista.map((item) => FormaPago.fromJson(item)).toList();
     } catch (e) {
-      print('Error convirtiendo formas de pago: $e');
+      ('Error convirtiendo formas de pago: $e');
       return [];
     }
   }
@@ -379,7 +383,7 @@ class CuentasPorCobrarOfflineService {
   /// Pre-carga todos los datos necesarios para un cliente específico
   static Future<void> precargarDatosCliente(int clienteId) async {
     try {
-      print('🔄 Pre-cargando datos para cliente $clienteId...');
+      ('🔄 Pre-cargando datos para cliente $clienteId...');
       
       // Verificar si ya tenemos datos del timeline
       final timelineExistente = await obtenerTimelineClienteLocal(clienteId);
@@ -388,12 +392,12 @@ class CuentasPorCobrarOfflineService {
         // Si no hay timeline, intentar sincronizar
         try {
           await sincronizarTimelineCliente(clienteId);
-          print('✅ Timeline sincronizado para cliente $clienteId');
+          ('✅ Timeline sincronizado para cliente $clienteId');
         } catch (e) {
-          print('⚠️ Error sincronizando timeline cliente $clienteId: $e');
+          ('⚠️ Error sincronizando timeline cliente $clienteId: $e');
         }
       } else {
-        print('✅ Timeline ya disponible offline para cliente $clienteId (${timelineExistente.length} elementos)');
+        ('✅ Timeline ya disponible offline para cliente $clienteId (${timelineExistente.length} elementos)');
       }
       
       // También verificar y pre-cargar información de crédito si es necesario
@@ -403,14 +407,14 @@ class CuentasPorCobrarOfflineService {
           final servicio = CuentasXCobrarService();
           final creditInfo = await servicio.getClienteCreditInfo(clienteId);
           await guardarInfoCreditoCliente(clienteId, creditInfo);
-          print('✅ Información de crédito sincronizada para cliente $clienteId');
+          ('✅ Información de crédito sincronizada para cliente $clienteId');
         } catch (e) {
-          print('⚠️ Error sincronizando info crédito cliente $clienteId: $e');
+          ('⚠️ Error sincronizando info crédito cliente $clienteId: $e');
         }
       }
       
     } catch (e) {
-      print('Error en pre-carga de datos cliente $clienteId: $e');
+      ('Error en pre-carga de datos cliente $clienteId: $e');
     }
   }
 
@@ -430,14 +434,36 @@ class CuentasPorCobrarOfflineService {
       // Obtener pagos pendientes existentes
       final pendientes = await obtenerPagosPendientesLocal();
       
+      // VALIDACIÓN ANTI-DUPLICADOS: Verificar que no exista un pago idéntico pendiente
+      final pagoYaExiste = pendientes.any((item) {
+        try {
+          final pagoExistente = item['pago'] as Map<String, dynamic>;
+          return pagoExistente['CPCo_Id'] == pago.cpCoId &&
+                 pagoExistente['Pago_Monto'] == pago.pagoMonto &&
+                 pagoExistente['Pago_NumeroReferencia'] == pago.pagoNumeroReferencia &&
+                 item['sincronizado'] != true; // Solo considerar pagos no sincronizados
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (pagoYaExiste) {
+        ('⚠️ Pago duplicado detectado en cola offline, omitiendo...');
+        return;
+      }
+      
+      // Generar ID temporal único para evitar duplicados
+      final idTemporal = '${DateTime.now().millisecondsSinceEpoch}_${pago.cpCoId}_${pago.pagoMonto.toStringAsFixed(2)}';
+      
       // Agregar el nuevo pago con timestamp y metadatos optimizados
       final pagoConMetadata = {
         'pago': pago.toJson(),
         'timestamp': DateTime.now().toIso8601String(),
         'intentos': 0,
-        'id_temporal': DateTime.now().millisecondsSinceEpoch.toString(),
+        'id_temporal': idTemporal,
         'sincronizado': false,
         'prioridad': 'alta', // Para sincronización prioritaria
+        'hash_validacion': _generarHashPago(pago), // Hash para validación de duplicados
       };
       
       pendientes.add(pagoConMetadata);
@@ -451,9 +477,9 @@ class CuentasPorCobrarOfflineService {
       // Actualizar timeline inmediatamente
       await _actualizarTimelineInmediato(pago);
       
-      print('✅ Pago guardado con actualización inmediata. Total pendientes: ${pendientes.length}');
+      ('✅ Pago guardado con actualización inmediata. ID temporal: $idTemporal, Total pendientes: ${pendientes.length}');
     } catch (e) {
-      print('❌ Error guardando pago con actualización inmediata: $e');
+      ('❌ Error guardando pago con actualización inmediata: $e');
       rethrow;
     }
   }
@@ -486,9 +512,9 @@ class CuentasPorCobrarOfflineService {
       // IMPORTANTE: Simular el pago localmente actualizando el saldo
       await _simularPagoLocal(pago);
       
-      print('Pago pendiente guardado. Total pendientes: ${pendientes.length}');
+      ('Pago pendiente guardado. Total pendientes: ${pendientes.length}');
     } catch (e) {
-      print('Error guardando pago pendiente: $e');
+      ('Error guardando pago pendiente: $e');
       rethrow;
     }
   }
@@ -517,45 +543,27 @@ class CuentasPorCobrarOfflineService {
         }
       }
 
-      // 2. Obtener el saldo actual (incluyendo pagos pendientes ya aplicados)
-      double saldoActual = 0;
-      if (cuentaDetalle != null) {
-        saldoActual = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
-      } else {
-        // Buscar en resumen de clientes
-        final resumenClientes = await obtenerResumenClientesLocal();
-        for (final item in resumenClientes) {
-          if (item['cpCo_Id'] == cpCoId) {
-            saldoActual = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
-            break;
-          }
-        }
-      }
+      // 2. CORRECCIÓN: Obtener el saldo real actualizado (mismo que ve el usuario)
+      // Este saldo YA incluye todos los pagos pendientes offline aplicados
+      final saldoRealActualizado = await obtenerSaldoRealCuentaActualizado(cpCoId);
+      
+      ('💰 Validación de pago - Cuenta: $cpCoId');
+      ('   - Monto solicitado: ${_formatCurrency(montoPago)}');
+      ('   - Saldo real disponible: ${_formatCurrency(saldoRealActualizado)}');
 
-      // 3. Validar que el monto no exceda el saldo pendiente
-      if (montoPago > saldoActual) {
+      // 3. Validar que el monto no exceda el saldo disponible real
+      if (montoPago > saldoRealActualizado) {
         return {
           'valido': false,
-          'mensaje': 'El monto del pago (${_formatCurrency(montoPago)}) excede el saldo pendiente (${_formatCurrency(saldoActual)})'
+          'mensaje': 'El monto del pago (${_formatCurrency(montoPago)}) excede el saldo disponible (${_formatCurrency(saldoRealActualizado)})'
         };
       }
 
-      // 4. Validar que no haya pagos duplicados pendientes para la misma cuenta
-      final pagosPendientes = await obtenerPagosPendientesLocal();
-      double montoPagosYaPendientes = 0;
-      
-      for (final pendiente in pagosPendientes) {
-        final pagoData = pendiente['pago'] as Map<String, dynamic>;
-        if (pagoData['CPCo_Id'] == cpCoId) {
-          montoPagosYaPendientes += (pagoData['Pago_Monto'] ?? 0).toDouble();
-        }
-      }
-
-      final saldoDisponible = saldoActual - montoPagosYaPendientes;
-      if (montoPago > saldoDisponible) {
+      // 4. Validación adicional: verificar que el saldo sea positivo
+      if (saldoRealActualizado <= 0) {
         return {
           'valido': false,
-          'mensaje': 'Ya hay pagos pendientes por ${_formatCurrency(montoPagosYaPendientes)}. Saldo disponible: ${_formatCurrency(saldoDisponible)}'
+          'mensaje': 'Esta cuenta ya está completamente saldada. Saldo actual: ${_formatCurrency(saldoRealActualizado)}'
         };
       }
 
@@ -584,8 +592,8 @@ class CuentasPorCobrarOfflineService {
       return {
         'valido': true,
         'mensaje': 'Pago válido',
-        'saldoActual': saldoActual,
-        'saldoDisponible': saldoDisponible
+        'saldoRealActualizado': saldoRealActualizado,
+        'saldoDisponible': saldoRealActualizado
       };
 
     } catch (e) {
@@ -602,7 +610,7 @@ class CuentasPorCobrarOfflineService {
       final cpCoId = pago.cpCoId;
       final montoPago = pago.pagoMonto;
       
-      print('🔄 Simulando pago local para cuenta $cpCoId: ${_formatCurrency(montoPago)}');
+      ('🔄 Simulando pago local para cuenta $cpCoId: ${_formatCurrency(montoPago)}');
       
       // 1. Actualizar el detalle de la cuenta si existe
       final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
@@ -623,7 +631,7 @@ class CuentasPorCobrarOfflineService {
         final cuentaActualizada = CuentasXCobrar.fromJson(cuentaJson);
         await guardarDetalleCuenta(cpCoId, cuentaActualizada);
         
-        print('✅ Detalle de cuenta actualizado: Saldo ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
+        ('✅ Detalle de cuenta actualizado: Saldo ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
       }
       
       // 2. Actualizar el resumen de clientes
@@ -654,7 +662,7 @@ class CuentasPorCobrarOfflineService {
           // Actualizar el item en la lista
           resumenClientes[i] = cuentaJson;
           resumenActualizado = true;
-          print('✅ Resumen de cliente actualizado: Pendiente ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
+          ('✅ Resumen de cliente actualizado: Pendiente ${_formatCurrency(saldoAnterior)} → ${_formatCurrency(nuevoSaldo)}');
           break;
         }
       }
@@ -670,9 +678,9 @@ class CuentasPorCobrarOfflineService {
       // 4. Actualizar el timeline del cliente inmediatamente
       await _actualizarTimelineInmediato(pago);
       
-      print('✅ Simulación de pago local completada para cuenta $cpCoId');
+      ('✅ Simulación de pago local completada para cuenta $cpCoId');
     } catch (e) {
-      print('❌ Error simulando pago local: $e');
+      ('❌ Error simulando pago local: $e');
       rethrow;
     }
   }
@@ -714,22 +722,22 @@ class CuentasPorCobrarOfflineService {
             totalPagosPendientes += montoPago;
           }
         } catch (e) {
-          print('Error procesando pago pendiente: $e');
+          ('Error procesando pago pendiente: $e');
         }
       }
 
       // 3. Restar también pagos ya aplicados en el historial local (evitar doble conteo)
       // Solo para verificación, no se restan del saldo base ya que ya están considerados
       final historialPagos = await obtenerHistorialPagosLocal(cpCoId);
-      print('📄 Historial de pagos cuenta $cpCoId: ${historialPagos.length} pagos encontrados');
+      ('📄 Historial de pagos cuenta $cpCoId: ${historialPagos.length} pagos encontrados');
 
       final saldoActualizado = saldoBase - totalPagosPendientes;
       
-      print('📊 Saldo actualizado cuenta $cpCoId: Base=${_formatCurrency(saldoBase)}, Pendientes=${_formatCurrency(totalPagosPendientes)}, Final=${_formatCurrency(saldoActualizado)}');
+      ('📊 Saldo actualizado cuenta $cpCoId: Base=${_formatCurrency(saldoBase)}, Pendientes=${_formatCurrency(totalPagosPendientes)}, Final=${_formatCurrency(saldoActualizado)}');
       
       return saldoActualizado > 0 ? saldoActualizado : 0;
     } catch (e) {
-      print('Error obteniendo saldo real actualizado de cuenta $cpCoId: $e');
+      ('Error obteniendo saldo real actualizado de cuenta $cpCoId: $e');
       return 0;
     }
   }
@@ -756,7 +764,7 @@ class CuentasPorCobrarOfflineService {
 
       return saldoBase;
     } catch (e) {
-      print('Error obteniendo saldo real de cuenta $cpCoId: $e');
+      ('Error obteniendo saldo real de cuenta $cpCoId: $e');
       return 0;
     }
   }
@@ -772,9 +780,9 @@ class CuentasPorCobrarOfflineService {
       listaPagos.insert(0, pago.toFullJson());
       
       await guardarJsonSeguro(key, listaPagos);
-      print('Pago agregado al historial local de cuenta ${pago.cpCoId}');
+      ('Pago agregado al historial local de cuenta ${pago.cpCoId}');
     } catch (e) {
-      print('Error agregando pago al historial local: $e');
+      ('Error agregando pago al historial local: $e');
     }
   }
 
@@ -784,36 +792,36 @@ class CuentasPorCobrarOfflineService {
       final key = 'pagos_cuenta_$cpCoId';
       final raw = await leerJsonSeguro(key);
       if (raw == null) {
-        print('📋 No hay pagos en cache para cuenta $cpCoId');
+        ('📋 No hay pagos en cache para cuenta $cpCoId');
         return [];
       }
       
-      print('📋 Datos raw encontrados para cuenta $cpCoId: ${raw.toString().length} caracteres');
+      ('📋 Datos raw encontrados para cuenta $cpCoId: ${raw.toString().length} caracteres');
       
       final lista = List.from(raw as List);
-      print('📋 Lista deserializada: ${lista.length} elementos');
+      ('📋 Lista deserializada: ${lista.length} elementos');
       
       // Debug: Mostrar el primer elemento si existe
       if (lista.isNotEmpty) {
-        print('🔍 Primer elemento raw: ${lista[0]}');
+        ('🔍 Primer elemento raw: ${lista[0]}');
       }
       
       final pagos = lista.map((item) {
         try {
           final pago = PagosCuentasXCobrar.fromJson(item);
-          print('✅ Pago convertido: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}"');
+          ('✅ Pago convertido: ID=${pago.pagoId}, Monto=${pago.pagoMonto}, FormaPago="${pago.pagoFormaPago}"');
           return pago;
         } catch (e) {
-          print('❌ Error convirtiendo pago: $e');
-          print('   Datos del item: $item');
+          ('❌ Error convirtiendo pago: $e');
+          ('   Datos del item: $item');
           rethrow;
         }
       }).toList();
       
-      print('📋 Obtenidos ${pagos.length} pagos desde cache para cuenta $cpCoId');
+      ('📋 Obtenidos ${pagos.length} pagos desde cache para cuenta $cpCoId');
       return pagos;
     } catch (e) {
-      print('❌ Error obteniendo historial de pagos local para cuenta $cpCoId: $e');
+      ('❌ Error obteniendo historial de pagos local para cuenta $cpCoId: $e');
       return [];
     }
   }
@@ -851,9 +859,9 @@ class CuentasPorCobrarOfflineService {
       }).toList();
       await guardarJsonSeguro(key, pagosJson);
       
-      print('✅ Historial de pagos sincronizado para cuenta $cpCoId (${pagos.length} pagos)');
+      ('✅ Historial de pagos sincronizado para cuenta $cpCoId (${pagos.length} pagos)');
     } catch (e) {
-      print('❌ Error sincronizando historial de pagos para cuenta $cpCoId: $e');
+      ('❌ Error sincronizando historial de pagos para cuenta $cpCoId: $e');
       rethrow;
     }
   }
@@ -880,11 +888,11 @@ class CuentasPorCobrarOfflineService {
             item['fechaSincronizacion'] = DateTime.now().toIso8601String();
             encontrado = true;
             
-            print('✅ Pago marcado como sincronizado: Cuenta ${pago.cpCoId}, Monto ${_formatCurrency(pago.pagoMonto)}');
+            ('✅ Pago marcado como sincronizado: Cuenta ${pago.cpCoId}, Monto ${_formatCurrency(pago.pagoMonto)}');
             break;
           }
         } catch (e) {
-          print('Error procesando item de pago pendiente: $e');
+          ('Error procesando item de pago pendiente: $e');
         }
       }
       
@@ -895,10 +903,10 @@ class CuentasPorCobrarOfflineService {
         // Opcional: Limpiar pagos ya sincronizados después de un tiempo
         await _limpiarPagosSincronizadosAntiguos();
       } else {
-        print('⚠️ No se encontró el pago para marcar como sincronizado');
+        ('⚠️ No se encontró el pago para marcar como sincronizado');
       }
     } catch (e) {
-      print('❌ Error marcando pago como sincronizado: $e');
+      ('❌ Error marcando pago como sincronizado: $e');
     }
   }
 
@@ -933,10 +941,10 @@ class CuentasPorCobrarOfflineService {
       
       if (pendientesFiltrados.length < pendientes.length) {
         await guardarJson(_archivoPagosPendientes, pendientesFiltrados);
-        print('🧹 Cache de pagos limpiado: ${pendientes.length - pendientesFiltrados.length} pagos antiguos removidos');
+        ('🧹 Cache de pagos limpiado: ${pendientes.length - pendientesFiltrados.length} pagos antiguos removidos');
       }
     } catch (e) {
-      print('Error limpiando pagos sincronizados antiguos: $e');
+      ('Error limpiando pagos sincronizados antiguos: $e');
     }
   }
 
@@ -947,48 +955,264 @@ class CuentasPorCobrarOfflineService {
     return List.from(raw as List);
   }
 
-  /// Sincroniza los pagos pendientes con el servidor.
+  /// Sincroniza los pagos pendientes con el servidor (con control de concurrencia).
   static Future<int> sincronizarPagosPendientes() async {
-    final pendientes = await obtenerPagosPendientesLocal();
-    if (pendientes.isEmpty) return 0;
+    // CONTROL DE CONCURRENCIA: Si ya hay una sincronización en proceso, esperar a que termine
+    if (_sincronizacionEnProceso) {
+      ('⏳ Sincronización ya en proceso, esperando...');
+      if (_completadorSincronizacion != null) {
+        return await _completadorSincronizacion!.future;
+      }
+      return 0;
+    }
 
-    final servicio = PagoCuentasXCobrarService();
-    int sincronizados = 0;
-    List<dynamic> restantes = [];
+    // Marcar que la sincronización está en proceso
+    _sincronizacionEnProceso = true;
+    _completadorSincronizacion = Completer<int>();
 
-    for (final item in pendientes) {
-      try {
-        final pagoData = item['pago'] as Map<String, dynamic>;
-        final pago = PagosCuentasXCobrar.fromJson(pagoData);
-        
-        // Intentar enviar el pago
-        final resultado = await servicio.insertarPago(pago);
-        
-        if (resultado['success'] == true) {
-          sincronizados++;
-          print('Pago sincronizado exitosamente: ${item['id_temporal']}');
-        } else {
-          // Incrementar intentos y mantener en pendientes si no ha excedido el límite
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      if (pendientes.isEmpty) {
+        _completadorSincronizacion!.complete(0);
+        return 0;
+      }
+
+      final servicio = PagoCuentasXCobrarService();
+      int sincronizados = 0;
+      List<dynamic> restantes = [];
+
+      ('🔄 Iniciando sincronización de ${pendientes.length} pagos pendientes...');
+      
+      // Limpiar duplicados offline antes de sincronizar
+      final duplicadosEliminados = await limpiarPagosDuplicadosOffline();
+      if (duplicadosEliminados > 0) {
+        ('🧹 Pre-limpieza: $duplicadosEliminados duplicados eliminados');
+        // Recargar la lista actualizada
+        final pendientesLimpios = await obtenerPagosPendientesLocal();
+        pendientes.clear();
+        pendientes.addAll(pendientesLimpios);
+      }
+
+      for (final item in pendientes) {
+        try {
+          // VALIDACIÓN ADICIONAL: Solo procesar pagos no sincronizados
+          if (item['sincronizado'] == true) {
+            ('⏭️ Saltando pago ya sincronizado: ${item['id_temporal']}');
+            restantes.add(item);
+            continue;
+          }
+
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          final pago = PagosCuentasXCobrar.fromJson(pagoData);
+          
+          ('🔍 VERIFICANDO DUPLICADOS - ID Temporal: ${item['id_temporal']}, CpCo: ${pago.cpCoId}, Monto: ${pago.pagoMonto}, Ref: ${pago.pagoNumeroReferencia}');
+          
+          // VALIDACIÓN ANTI-DUPLICADOS: Verificar si ya existe en el servidor
+          final existeEnServidor = await _verificarPagoExisteEnServidor(pago);
+          if (existeEnServidor) {
+            ('⚠️ DUPLICADO DETECTADO - Pago ya existe en servidor, marcando como sincronizado: ${item['id_temporal']}');
+            item['sincronizado'] = true;
+            item['fechaSincronizacion'] = DateTime.now().toIso8601String();
+            item['razon_sincronizacion'] = 'duplicado_detectado';
+            restantes.add(item);
+            continue;
+          }
+          
+          ('📤 ENVIANDO AL SERVIDOR - ID Temporal: ${item['id_temporal']}');
+          // Intentar enviar el pago
+          final resultado = await servicio.insertarPago(pago);
+          
+          if (resultado['success'] == true) {
+            sincronizados++;
+            // Marcar como sincronizado en lugar de eliminarlo
+            item['sincronizado'] = true;
+            item['fechaSincronizacion'] = DateTime.now().toIso8601String();
+            restantes.add(item);
+            ('✅ Pago sincronizado exitosamente: ${item['id_temporal']}');
+          } else {
+            // Incrementar intentos y mantener en pendientes si no ha excedido el límite
+            item['intentos'] = (item['intentos'] ?? 0) + 1;
+            if (item['intentos'] < 3) {
+              restantes.add(item);
+            } else {
+              ('❌ Pago descartado después de 3 intentos: ${item['id_temporal']}');
+            }
+            ('⚠️ Error sincronizando pago: ${resultado['message']}');
+          }
+        } catch (e) {
+          // Incrementar intentos en caso de excepción
           item['intentos'] = (item['intentos'] ?? 0) + 1;
           if (item['intentos'] < 3) {
             restantes.add(item);
+          } else {
+            ('❌ Pago descartado después de 3 intentos por error: ${item['id_temporal']}');
           }
-          print('Error sincronizando pago: ${resultado['message']}');
-        }
-      } catch (e) {
-        // Incrementar intentos en caso de excepción
-        item['intentos'] = (item['intentos'] ?? 0) + 1;
-        if (item['intentos'] < 3) {
-          restantes.add(item);
+          ('❌ Error procesando pago: $e');
         }
       }
-    }
 
-    // Actualizar la lista de pendientes
-    await guardarJson(_archivoPagosPendientes, restantes);
-    
-    print('Sincronización de pagos completada. Sincronizados: $sincronizados, Pendientes: ${restantes.length}');
-    return sincronizados;
+      // Actualizar la lista de pendientes
+      await guardarJson(_archivoPagosPendientes, restantes);
+      
+      // Limpiar pagos sincronizados antiguos para evitar acumulación
+      await limpiarPagosSincronizadosAntiguos();
+      
+      final pendientesRestantes = restantes.where((item) => item['sincronizado'] != true).length;
+      ('🔄 Sincronización completada. Sincronizados: $sincronizados, Pendientes: $pendientesRestantes');
+      
+      _completadorSincronizacion!.complete(sincronizados);
+      return sincronizados;
+    } catch (e) {
+      ('❌ Error general en sincronización: $e');
+      _completadorSincronizacion!.completeError(e);
+      rethrow;
+    } finally {
+      // Limpiar el estado de sincronización
+      _sincronizacionEnProceso = false;
+      _completadorSincronizacion = null;
+    }
+  }
+
+  /// Verifica si un pago ya existe en el servidor para evitar duplicados
+  static Future<bool> _verificarPagoExisteEnServidor(PagosCuentasXCobrar pago) async {
+    try {
+      final servicio = PagoCuentasXCobrarService();
+      final pagosServidor = await servicio.listarPagosPorCuenta(pago.cpCoId);
+      
+      ('🔍 Verificando duplicados - Cuenta: ${pago.cpCoId}, Pagos en servidor: ${pagosServidor.length}');
+      ('🔍 Pago a verificar - Monto: ${pago.pagoMonto}, Ref: "${pago.pagoNumeroReferencia}", Fecha: ${pago.pagoFecha}');
+      
+      // Buscar pagos con características similares (mismo monto, referencia y fecha cercana)
+      final fechaPago = pago.pagoFecha;
+      for (final pagoServidor in pagosServidor) {
+        ('  📊 Comparando con servidor - ID: ${pagoServidor.pagoId}, Monto: ${pagoServidor.pagoMonto}, Ref: "${pagoServidor.pagoNumeroReferencia}", Fecha: ${pagoServidor.pagoFecha}');
+        
+        // Comparar por monto exacto Y referencia exacta (no vacía)
+        if (pagoServidor.pagoMonto == pago.pagoMonto && 
+            pagoServidor.pagoNumeroReferencia.isNotEmpty &&
+            pago.pagoNumeroReferencia.isNotEmpty &&
+            pagoServidor.pagoNumeroReferencia == pago.pagoNumeroReferencia) {
+          
+          // Verificar si la fecha es del mismo día (tolerancia de 2 horas para ser más estricto)
+          final diferenciaTiempo = pagoServidor.pagoFecha.difference(fechaPago).abs();
+          if (diferenciaTiempo.inHours <= 2) {
+            ('❌ DUPLICADO CONFIRMADO: Servidor ID=${pagoServidor.pagoId}, Local Monto=${pago.pagoMonto}, Ref="${pago.pagoNumeroReferencia}", Diferencia: ${diferenciaTiempo.inMinutes} minutos');
+            return true;
+          } else {
+            ('✅ SIMILAR PERO DIFERENTE TIEMPO: Diferencia de ${diferenciaTiempo.inHours} horas');
+          }
+        } else {
+          ('  ➡️ No coincide - Monto: ${pagoServidor.pagoMonto == pago.pagoMonto ? "✓" : "✗"}, Ref: "${pagoServidor.pagoNumeroReferencia}" vs "${pago.pagoNumeroReferencia}"');
+        }
+      }
+      
+      ('✅ No se encontraron duplicados para este pago');
+      return false;
+    } catch (e) {
+      ('❌ Error verificando duplicados en servidor: $e');
+      // En caso de error, asumir que no existe para intentar el envío
+      return false;
+    }
+  }
+
+  /// Genera un hash único para un pago para validación de duplicados
+  static String _generarHashPago(PagosCuentasXCobrar pago) {
+    final contenido = '${pago.cpCoId}_${pago.pagoMonto}_${pago.pagoNumeroReferencia}_${pago.pagoFecha.toIso8601String().substring(0, 10)}';
+    return contenido.hashCode.toString();
+  }
+
+  /// Limpia pagos ya sincronizados que tienen más de 7 días
+  static Future<void> limpiarPagosSincronizadosAntiguos() async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      final ahora = DateTime.now();
+      
+      // Mantener solo pagos no sincronizados o sincronizados recientes (últimos 7 días)
+      final pagosFiltrados = pendientes.where((item) {
+        if (item['sincronizado'] != true) {
+          return true; // Mantener pagos no sincronizados
+        }
+        
+        // Para pagos sincronizados, verificar la fecha
+        try {
+          final fechaSincronizacion = DateTime.parse(item['fechaSincronizacion']);
+          final diferencia = ahora.difference(fechaSincronizacion).inDays;
+          return diferencia <= 7; // Mantener solo los últimos 7 días
+        } catch (e) {
+          return false; // Si no se puede parsear la fecha, eliminar
+        }
+      }).toList();
+      
+      if (pagosFiltrados.length < pendientes.length) {
+        await guardarJson(_archivoPagosPendientes, pagosFiltrados);
+        final eliminados = pendientes.length - pagosFiltrados.length;
+        ('🧹 Limpieza automática: $eliminados pagos sincronizados antiguos eliminados');
+      }
+    } catch (e) {
+      ('⚠️ Error en limpieza de pagos sincronizados: $e');
+    }
+  }
+
+  /// Limpia manualmente pagos duplicados de la cola offline
+  static Future<int> limpiarPagosDuplicadosOffline() async {
+    try {
+      final pendientes = await obtenerPagosPendientesLocal();
+      if (pendientes.isEmpty) return 0;
+
+      final Map<String, dynamic> hashesVistosYaEnviados = {};
+      final List<dynamic> pagosFiltrados = [];
+      int eliminados = 0;
+
+      for (final item in pendientes) {
+        try {
+          final pagoData = item['pago'] as Map<String, dynamic>;
+          final hash = _generarHashPago(PagosCuentasXCobrar.fromJson(pagoData));
+          
+          // Si ya está marcado como sincronizado, mantenerlo pero no duplicar
+          if (item['sincronizado'] == true) {
+            if (!hashesVistosYaEnviados.containsKey(hash)) {
+              hashesVistosYaEnviados[hash] = item;
+              pagosFiltrados.add(item);
+            } else {
+              eliminados++;
+              ('🗑️ Eliminado pago sincronizado duplicado: ${item['id_temporal']}');
+            }
+          } else {
+            // Para pagos no sincronizados, verificar si hay duplicados
+            final hashExiste = pagosFiltrados.any((existente) {
+              try {
+                final existenteData = existente['pago'] as Map<String, dynamic>;
+                final hashExistente = _generarHashPago(PagosCuentasXCobrar.fromJson(existenteData));
+                return hashExistente == hash && existente['sincronizado'] != true;
+              } catch (e) {
+                return false;
+              }
+            });
+
+            if (!hashExiste) {
+              pagosFiltrados.add(item);
+            } else {
+              eliminados++;
+              ('🗑️ Eliminado pago pendiente duplicado: ${item['id_temporal']}');
+            }
+          }
+        } catch (e) {
+          // Si hay error procesando el item, mantenerlo para no perder datos
+          pagosFiltrados.add(item);
+          ('⚠️ Error procesando item para limpieza: $e');
+        }
+      }
+
+      if (eliminados > 0) {
+        await guardarJson(_archivoPagosPendientes, pagosFiltrados);
+        ('🧹 Limpieza de duplicados completada: $eliminados pagos eliminados, ${pagosFiltrados.length} restantes');
+      }
+
+      return eliminados;
+    } catch (e) {
+      ('❌ Error en limpieza de duplicados: $e');
+      return 0;
+    }
   }
 
   /// Elimina todos los pagos pendientes (usar con precaución).
@@ -1061,7 +1285,7 @@ class CuentasPorCobrarOfflineService {
     try {
       return CuentasXCobrar.fromJson(Map<String, dynamic>.from(raw as Map));
     } catch (e) {
-      print('Error convirtiendo detalle cuenta: $e');
+      ('Error convirtiendo detalle cuenta: $e');
       return null;
     }
   }
@@ -1133,9 +1357,9 @@ class CuentasPorCobrarOfflineService {
         }
       }
       
-      print('Todos los datos offline de Cuentas por Cobrar han sido limpiados');
+      ('Todos los datos offline de Cuentas por Cobrar han sido limpiados');
     } catch (e) {
-      print('Error limpiando datos offline: $e');
+      ('Error limpiando datos offline: $e');
       rethrow;
     }
   }
@@ -1208,16 +1432,16 @@ class CuentasPorCobrarOfflineService {
     final inicioTiempo = DateTime.now();
 
     try {
-      print('🚀 Iniciando sincronización completa optimizada...');
+      ('🚀 Iniciando sincronización completa optimizada...');
 
       // 1. Sincronizar pagos pendientes con alta prioridad
       try {
         final pagosSincronizados = await sincronizarPagosPendientes();
         resultado['pagosSincronizados'] = pagosSincronizados;
-        print('✅ Pagos sincronizados: $pagosSincronizados');
+        ('✅ Pagos sincronizados: $pagosSincronizados');
       } catch (e) {
         resultado['errores'].add('Error sincronizando pagos: $e');
-        print('❌ Error sincronizando pagos: $e');
+        ('❌ Error sincronizando pagos: $e');
       }
 
       // 2. Sincronizar datos básicos en paralelo (formas de pago, etc.)
@@ -1227,10 +1451,10 @@ class CuentasPorCobrarOfflineService {
           // Otros datos críticos se pueden agregar aquí
         ]);
         resultado['datosSincronizados'] = true;
-        print('✅ Datos básicos sincronizados');
+        ('✅ Datos básicos sincronizados');
       } catch (e) {
         resultado['errores'].add('Error sincronizando datos básicos: $e');
-        print('❌ Error sincronizando datos básicos: $e');
+        ('❌ Error sincronizando datos básicos: $e');
       }
 
       // 3. Sincronización de datos detallados (en background, baja prioridad)
@@ -1240,33 +1464,33 @@ class CuentasPorCobrarOfflineService {
       
     } catch (e) {
       resultado['errores'].add('Error general en sincronización: $e');
-      print('❌ Error general en sincronización completa: $e');
+      ('❌ Error general en sincronización completa: $e');
     }
 
     final tiempoEjecucion = DateTime.now().difference(inicioTiempo).inMilliseconds;
     resultado['tiempoEjecucion'] = tiempoEjecucion;
     
-    print('⏱️ Sincronización completa finalizada en ${tiempoEjecucion}ms');
+    ('⏱️ Sincronización completa finalizada en ${tiempoEjecucion}ms');
     return resultado;
   }
 
   /// Sincroniza datos detallados en background sin bloquear operaciones críticas
   static Future<void> _sincronizarDatosDetalladosEnBackground() async {
     try {
-      print('📡 Iniciando sincronización de datos detallados en background...');
+      ('📡 Iniciando sincronización de datos detallados en background...');
       
       // Sincronizar datos menos críticos sin await para no bloquear
       Future.wait([
         sincronizarCuentasPorCobrar(),
         sincronizarResumenClientes(),
       ]).then((_) {
-        print('✅ Datos detallados sincronizados en background');
+        ('✅ Datos detallados sincronizados en background');
       }).catchError((e) {
-        print('⚠️ Error en sincronización de background: $e');
+        ('⚠️ Error en sincronización de background: $e');
       });
       
     } catch (e) {
-      print('Error iniciando sincronización de background: $e');
+      ('Error iniciando sincronización de background: $e');
     }
   }
 
@@ -1285,20 +1509,20 @@ class CuentasPorCobrarOfflineService {
       try {
         await sincronizarTodo();
         resultado['sincronizacionDatos'] = true;
-        print('✅ Datos sincronizados correctamente');
+        ('✅ Datos sincronizados correctamente');
       } catch (e) {
         resultado['errores'].add('Error sincronizando datos: $e');
-        print('❌ Error sincronizando datos: $e');
+        ('❌ Error sincronizando datos: $e');
       }
 
       // 2. Enviar pagos pendientes
       try {
         final pagosSincronizados = await sincronizarPagosPendientes();
         resultado['pagosSincronizados'] = pagosSincronizados;
-        print('✅ $pagosSincronizados pagos sincronizados');
+        ('✅ $pagosSincronizados pagos sincronizados');
       } catch (e) {
         resultado['errores'].add('Error sincronizando pagos: $e');
-        print('❌ Error sincronizando pagos: $e');
+        ('❌ Error sincronizando pagos: $e');
       }
 
       // 3. Determinar éxito general
@@ -1315,16 +1539,16 @@ class CuentasPorCobrarOfflineService {
   /// Inicializa la sincronización automática al iniciar la aplicación
   static Future<void> inicializarSincronizacionAutomatica() async {
     try {
-      print('🔄 Inicializando sincronización automática...');
+      ('🔄 Inicializando sincronización automática...');
       
       // Verificar conectividad inmediatamente
       final connectivityResult = await Connectivity().checkConnectivity();
       if (connectivityResult != ConnectivityResult.none) {
         // Ejecutar sincronización inmediata en background
         sincronizacionCompleta().then((resultado) {
-          print('✅ Sincronización inicial completada: ${resultado['pagosSincronizados']} pagos sincronizados');
+          ('✅ Sincronización inicial completada: ${resultado['pagosSincronizados']} pagos sincronizados');
         }).catchError((e) {
-          print('⚠️ Error en sincronización inicial: $e');
+          ('⚠️ Error en sincronización inicial: $e');
         });
       }
       
@@ -1332,36 +1556,39 @@ class CuentasPorCobrarOfflineService {
       _configurarSincronizacionPeriodica();
       
     } catch (e) {
-      print('Error inicializando sincronización automática: $e');
+      ('Error inicializando sincronización automática: $e');
     }
   }
 
   /// Configura la sincronización periódica
   static void _configurarSincronizacionPeriodica() {
     try {
-      // Usar un timer para verificar periódicamente si hay datos pendientes
-      Timer.periodic(const Duration(minutes: 5), (timer) async {
+      // Usar un timer para verificar periódicamente si hay datos pendientes (cada 15 minutos)
+      Timer.periodic(const Duration(minutes: 15), (timer) async {
         try {
           final connectivityResult = await Connectivity().checkConnectivity();
           if (connectivityResult != ConnectivityResult.none) {
             final pendientes = await obtenerPagosPendientesLocal();
-            if (pendientes.isNotEmpty) {
-              print('🔄 Sincronización periódica: ${pendientes.length} pagos pendientes detectados');
+            final pagosNoSincronizados = pendientes.where((item) => item['sincronizado'] != true).length;
+            if (pagosNoSincronizados > 0) {
+              ('🔄 Sincronización periódica: $pagosNoSincronizados pagos no sincronizados detectados');
               sincronizarPagosPendientes().then((sincronizados) {
                 if (sincronizados > 0) {
-                  print('✅ Sincronización periódica: $sincronizados pagos sincronizados');
+                  ('✅ Sincronización periódica: $sincronizados pagos sincronizados');
                 }
               }).catchError((e) {
-                print('⚠️ Error en sincronización periódica: $e');
+                ('⚠️ Error en sincronización periódica: $e');
               });
+            } else if (pendientes.isNotEmpty) {
+              ('ℹ️ Sincronización periódica: ${pendientes.length} pagos en cola pero todos ya sincronizados');
             }
           }
         } catch (e) {
-          print('Error en verificación periódica: $e');
+          ('Error en verificación periódica: $e');
         }
       });
     } catch (e) {
-      print('Error configurando sincronización periódica: $e');
+      ('Error configurando sincronización periódica: $e');
     }
   }
 
@@ -1370,12 +1597,12 @@ class CuentasPorCobrarOfflineService {
   static Future<void> sincronizarCuentasPorCobrar_Todo() async {
     try {
       final resultado = await sincronizacionCompleta();
-      print('✅ Sincronización completa de Cuentas por Cobrar finalizada');
-      print('   - Éxito: ${resultado['exito']}');
-      print('   - Datos sincronizados: ${resultado['sincronizacionDatos']}');
-      print('   - Pagos sincronizados: ${resultado['pagosSincronizados']}');
+      ('✅ Sincronización completa de Cuentas por Cobrar finalizada');
+      ('   - Éxito: ${resultado['exito']}');
+      ('   - Datos sincronizados: ${resultado['sincronizacionDatos']}');
+      ('   - Pagos sincronizados: ${resultado['pagosSincronizados']}');
     } catch (e) {
-      print('❌ Error en sincronización completa de Cuentas por Cobrar: $e');
+      ('❌ Error en sincronización completa de Cuentas por Cobrar: $e');
       rethrow;
     }
   }
@@ -1402,7 +1629,7 @@ class CuentasPorCobrarOfflineService {
         
         // Guardar el detalle actualizado
         await guardarDetalleCuenta(cpCoId, cuentaActualizada);
-        print('📊 Detalle cuenta $cpCoId actualizado: Saldo=${_formatCurrency(nuevoSaldo)}');
+        ('📊 Detalle cuenta $cpCoId actualizado: Saldo=${_formatCurrency(nuevoSaldo)}');
       }
 
       // 2. Actualizar también en el resumen de clientes
@@ -1420,7 +1647,7 @@ class CuentasPorCobrarOfflineService {
           item['cpCo_Saldo'] = nuevoSaldo > 0 ? nuevoSaldo : 0;
           
           clienteActualizado = true;
-          print('📋 Resumen cliente actualizado: Cuenta $cpCoId, Nuevo saldo=${_formatCurrency(nuevoSaldo)}');
+          ('📋 Resumen cliente actualizado: Cuenta $cpCoId, Nuevo saldo=${_formatCurrency(nuevoSaldo)}');
           break;
         }
       }
@@ -1433,9 +1660,9 @@ class CuentasPorCobrarOfflineService {
       // 3. Agregar el pago al historial local inmediatamente
       await _agregarPagoAlHistorialLocal(pago);
       
-      print('✅ Datos locales actualizados inmediatamente para cuenta $cpCoId');
+      ('✅ Datos locales actualizados inmediatamente para cuenta $cpCoId');
     } catch (e) {
-      print('❌ Error actualizando datos locales con pago: $e');
+      ('❌ Error actualizando datos locales con pago: $e');
       rethrow;
     }
   }
@@ -1490,11 +1717,11 @@ class CuentasPorCobrarOfflineService {
         // Guardar el timeline actualizado si se hicieron cambios
         if (cuentaActualizada) {
           await guardarJsonSeguro(timelineKey, listaTimeline);
-          print('✅ Timeline de cliente $clienteId actualizado inmediatamente');
+          ('✅ Timeline de cliente $clienteId actualizado inmediatamente');
         }
       }
     } catch (e) {
-      print('⚠️ Error actualizando timeline inmediatamente: $e');
+      ('⚠️ Error actualizando timeline inmediatamente: $e');
     }
   }
 }
