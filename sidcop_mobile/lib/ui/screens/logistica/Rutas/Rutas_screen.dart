@@ -421,7 +421,8 @@ class _RutasScreenState extends State<RutasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      drawer: CustomDrawer(permisos: permisos),
+      endDrawer: CustomDrawer(permisos: permisos),
+      endDrawerEnableOpenDragGesture: false,
       body: AppBackground(
         title: 'Rutas',
         icon: Icons.map,

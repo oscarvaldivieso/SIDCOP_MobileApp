@@ -987,7 +987,8 @@ class _VentaScreenState extends State<VentaScreen> {
 
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(permisos: []),
+      endDrawer: const CustomDrawer(permisos: []),
+      endDrawerEnableOpenDragGesture: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

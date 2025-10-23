@@ -376,110 +376,23 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   );
 }
 
-  //Metodo para imprimir la factura
+  //Metodo para imprimir la factura - OPTIMIZADO
   Future<void> _printInvoice({required bool isOriginal}) async {
     if (_facturaData == null) return;
 
     try {
-      // Mostrar diálogo de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Preparando impresión...'),
-            ],
-          ),
-        ),
-      );
-
-      // Seleccionar impresora y conectar
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      // Cerrar diálogo de carga
-      if (mounted) Navigator.of(context).pop();
-      
-      if (selectedDevice == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Impresión cancelada'),
-              backgroundColor: Colors.orange,
-            ),
+      // Usar el nuevo método optimizado con reconexión automática
+      final printSuccess = await _printerService.printWithAutoConnect(
+        context,
+        () async {
+          // Función de impresión
+          return await _printerService.printInvoice(
+            _facturaData!,
+            isOriginal: isOriginal,
           );
-        }
-        return;
-      }
-
-      // Mostrar diálogo de conexión
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Conectando a impresora...'),
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Conectar a la impresora
-      final connected = await _printerService.connect(selectedDevice);
-      
-      // Cerrar diálogo de conexión
-      if (mounted) Navigator.of(context).pop();
-      
-      if (!connected) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al conectar con la impresora'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Mostrar diálogo de impresión
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Imprimiendo factura...'),
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Imprimir usando el PrinterService con el tipo de copia
-      final printSuccess = await _printerService.printInvoice(
-        _facturaData!,
-        isOriginal: isOriginal,
+        },
+        loadingMessage: 'Preparando impresión de factura...',
       );
-      
-      // Cerrar diálogo de impresión
-      if (mounted) Navigator.of(context).pop();
-      
-      // Desconectar automáticamente
-      await _printerService.disconnect();
       
       if (mounted) {
         if (printSuccess) {
@@ -514,14 +427,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       }
       
     } catch (e) {
-      // Cerrar cualquier diálogo abierto
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-      
-      // Desconectar en caso de error
-      await _printerService.disconnect();
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -65,6 +65,7 @@ class _AppBarWidgetState extends State<AppBarWidget>
         backgroundColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: 100,
+        actions: const <Widget>[SizedBox.shrink()],
         flexibleSpace: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -155,7 +156,7 @@ class _AppBarWidgetState extends State<AppBarWidget>
                       splashColor: const Color(0xFF6B7280).withOpacity(0.1),
                       highlightColor: const Color(0xFF9CA3AF).withOpacity(0.05),
                       onTap: () {
-                        Scaffold.of(context).openDrawer();
+                        Scaffold.of(context).openEndDrawer();
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(8),
