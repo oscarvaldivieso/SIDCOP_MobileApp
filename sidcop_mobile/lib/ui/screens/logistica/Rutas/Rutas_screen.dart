@@ -485,7 +485,8 @@ class _RutasScreenState extends State<RutasScreen> {
     // fallback use for map API key is available as mapApikey
     return Scaffold(
       backgroundColor: Colors.transparent,
-      drawer: CustomDrawer(permisos: permisos),
+      endDrawer: CustomDrawer(permisos: permisos),
+      endDrawerEnableOpenDragGesture: false,
       body: AppBackground(
         title: 'Rutas',
         icon: Icons.map,

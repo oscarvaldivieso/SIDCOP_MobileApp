@@ -31,7 +31,8 @@ class AppBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: CustomDrawer(permisos: permisos),
+      endDrawer: CustomDrawer(permisos: permisos),
+      endDrawerEnableOpenDragGesture: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
