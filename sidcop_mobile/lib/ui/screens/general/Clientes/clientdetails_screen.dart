@@ -433,7 +433,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                           ? "PEDIDO"
                                           : "ACCIÓN",
                                       onPressed: () {
-                                        if (_vendTipo == "P") {
+                                        if (__roleId == 83) {
                                           // Navegar a crear pedido
                                           Navigator.push(
                                             context,
