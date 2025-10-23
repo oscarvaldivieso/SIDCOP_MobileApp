@@ -168,10 +168,7 @@ class _RutaMapScreenState extends State<RutaMapScreen> {
           )
           .toList();
 
-      // Mostrar las visitas ya filtradas (modelos) para diagnóstico
-      print(
-        'Visitas filtradas (models): ${visitasFiltradasModel.map((h) => {'clVi_Id': h.clVi_Id, 'diCl_Id': h.diCl_Id, 'vend_Id': h.vend_Id}).toList()}',
-      );
+
 
       final direccionesPrevias = visitasFiltradasModel
           .map((h) => h.diCl_Id!)
