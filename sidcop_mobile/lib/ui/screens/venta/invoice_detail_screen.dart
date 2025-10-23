@@ -138,6 +138,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  //Metodo para mostrar las opciones de impresion
   void _showPrintOptions() {
   showModalBottomSheet(
     context: context,
@@ -375,109 +376,23 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   );
 }
 
+  //Metodo para imprimir la factura - OPTIMIZADO
   Future<void> _printInvoice({required bool isOriginal}) async {
     if (_facturaData == null) return;
 
     try {
-      // Mostrar diálogo de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Preparando impresión...'),
-            ],
-          ),
-        ),
-      );
-
-      // Seleccionar impresora y conectar
-      final selectedDevice = await _printerService.showPrinterSelectionDialog(context);
-      
-      // Cerrar diálogo de carga
-      if (mounted) Navigator.of(context).pop();
-      
-      if (selectedDevice == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Impresión cancelada'),
-              backgroundColor: Colors.orange,
-            ),
+      // Usar el nuevo método optimizado con reconexión automática
+      final printSuccess = await _printerService.printWithAutoConnect(
+        context,
+        () async {
+          // Función de impresión
+          return await _printerService.printInvoice(
+            _facturaData!,
+            isOriginal: isOriginal,
           );
-        }
-        return;
-      }
-
-      // Mostrar diálogo de conexión
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Conectando a impresora...'),
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Conectar a la impresora
-      final connected = await _printerService.connect(selectedDevice);
-      
-      // Cerrar diálogo de conexión
-      if (mounted) Navigator.of(context).pop();
-      
-      if (!connected) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al conectar con la impresora'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Mostrar diálogo de impresión
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Imprimiendo factura...'),
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Imprimir usando el PrinterService con el tipo de copia
-      final printSuccess = await _printerService.printInvoice(
-        _facturaData!,
-        isOriginal: isOriginal,
+        },
+        loadingMessage: 'Preparando impresión de factura...',
       );
-      
-      // Cerrar diálogo de impresión
-      if (mounted) Navigator.of(context).pop();
-      
-      // Desconectar automáticamente
-      await _printerService.disconnect();
       
       if (mounted) {
         if (printSuccess) {
@@ -512,14 +427,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       }
       
     } catch (e) {
-      // Cerrar cualquier diálogo abierto
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-      
-      // Desconectar en caso de error
-      await _printerService.disconnect();
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -691,6 +598,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
+  //Metodo para compartir la factura
   void _showFloatingShareMenu(BuildContext context) async {
     if (_facturaData == null) return;
 
@@ -760,6 +668,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     Overlay.of(context).insert(overlayEntry);
   }
 
+
   Widget _buildIconButton({required IconData icon, required Color color, required VoidCallback onPressed}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -774,6 +683,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       ),
     );
   }
+
 
   void _showDownloadProgress(File pdfFile) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
@@ -881,44 +791,44 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   // Tu widget principal con la corrección
-Widget _buildInvoiceContent() {
-  if (_facturaData == null) return const SizedBox();
+  Widget _buildInvoiceContent() {
+    if (_facturaData == null) return const SizedBox();
 
-  final factura = _facturaData!;
+    final factura = _facturaData!;
 
-  return SingleChildScrollView(
-    child: Container(
-      margin: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 255, 255, 255),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipPath(
-        clipper: TornPaperClipper(),
-        child: Column(
-          children: [
-            // Agrega un padding superior aquí
-            Padding(
-              padding: const EdgeInsets.only(top: 0), // Ajusta este valor
-              child: _buildCompanyHeader(factura),
+    return SingleChildScrollView(
+      child: Container(
+        margin: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 255, 255, 255),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
-            _buildInvoiceHeader(factura),
-            _buildProductsTable(factura),
-            _buildTotalsSection(factura),
-            const SizedBox(height: 20),
           ],
         ),
+        child: ClipPath(
+          clipper: TornPaperClipper(),
+          child: Column(
+            children: [
+              // Agrega un padding superior aquí
+              Padding(
+                padding: const EdgeInsets.only(top: 0), // Ajusta este valor
+                child: _buildCompanyHeader(factura),
+              ),
+              _buildInvoiceHeader(factura),
+              _buildProductsTable(factura),
+              _buildTotalsSection(factura),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 
 
@@ -1139,6 +1049,7 @@ Widget _buildDefaultLogo() {
     );
   }
 
+  //Tabla de detalle de los productos de la venta
   Widget _buildProductsTable(Map<String, dynamic> factura) {
     final detalles = factura['detalleFactura'] as List<dynamic>? ?? [];
     
@@ -1378,6 +1289,8 @@ Widget _buildDefaultLogo() {
   );
 }
 
+
+  //Totales calculados
   Widget _buildTotalRow(String label, String value, {bool isFinal = false, bool isNegative = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),

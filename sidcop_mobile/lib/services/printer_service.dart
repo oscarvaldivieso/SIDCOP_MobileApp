@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/numero_en_letras.dart';
 import '../models/PedidosViewModel.Dart';
 
@@ -31,11 +32,10 @@ class PrinterService {
   // CAMBIO PRINCIPAL: Usar la característica que SÍ es escribible
   static const String ZEBRA_WRITE_UUID = "38eb4a82-c570-11e3-9507-0002a5d5c51b";
 
-  // Check and request Bluetooth permissions
+  // Revisar los permisos de Bluetooth
   Future<bool> _checkPermissions() async {
     try {
       if (await FlutterBluePlus.isSupported == false) {
-        debugPrint("Bluetooth not supported by this device");
         return false;
       }
 
@@ -61,7 +61,7 @@ class PrinterService {
     }
   }
 
-  // Start scanning for Bluetooth devices
+  // Iniciar la busqueda de dispositivos Bluetooth
   Future<List<BluetoothDevice>> startScan() async {
     if (!await _checkPermissions()) {
       throw Exception('Se requieren permisos de Bluetooth para continuar');
@@ -105,7 +105,7 @@ class PrinterService {
     }
   }
 
-  // Connect to a Bluetooth device - OPTIMIZADO PARA ZQ310
+  // Conectar a un dispositivo Bluetooth - OPTIMIZADO PARA ZQ310
   Future<bool> connect(BluetoothDevice device) async {
     try {
       if (_isConnected) {
@@ -113,7 +113,6 @@ class PrinterService {
       }
 
       _connectedDevice = device;
-      debugPrint('Connecting to ${device.platformName} (${device.remoteId})');
 
       // Conectar con timeout más largo para ZQ310
       await device.connect(
@@ -133,7 +132,6 @@ class PrinterService {
       // Configurar MTU para mejor transferencia de datos
       try {
         int mtu = await device.requestMtu(512);
-        debugPrint('MTU set to: $mtu');
       } catch (e) {
         debugPrint('Could not set MTU: $e');
       }
@@ -150,14 +148,15 @@ class PrinterService {
       }
 
       _isConnected = true;
-      debugPrint('Successfully connected to ${device.platformName}');
+
+      // Guardar impresora automáticamente cuando se conecte exitosamente
+      await _saveSavedPrinter(device);
 
       // NO inicializar impresora automáticamente - puede causar problemas
       // await _initializePrinter();
 
       return true;
     } catch (e) {
-      debugPrint('Error connecting to device: $e');
       _isConnected = false;
       _connectedDevice = null;
       _writeCharacteristic = null;
@@ -175,28 +174,18 @@ class PrinterService {
     // Examinar TODOS los servicios y características
     for (BluetoothService service in services) {
       String serviceUuid = service.uuid.toString().toLowerCase();
-      debugPrint('Service: $serviceUuid');
 
       bool isZebraService =
           serviceUuid.contains('38eb4a80') || serviceUuid.contains('c570-11e3');
-      if (isZebraService) {
-        debugPrint('>>> ZEBRA SERVICE FOUND <<<');
-      }
+      
 
       for (BluetoothCharacteristic char in service.characteristics) {
         String charUuid = char.uuid.toString().toLowerCase();
-        debugPrint('  Characteristic: $charUuid');
-        debugPrint(
-          '    Properties: write=${char.properties.write}, writeWithoutResponse=${char.properties.writeWithoutResponse}, notify=${char.properties.notify}, indicate=${char.properties.indicate}',
-        );
 
         // PRIORIDAD 1: Zebra 38eb4a82 (la que SÍ es escribible)
         if (isZebraService &&
             charUuid.contains('38eb4a82') &&
             char.properties.write) {
-          debugPrint(
-            '  >>> ZEBRA WRITABLE CHARACTERISTIC FOUND (38eb4a82) <<<',
-          );
           zebraChar = char;
           break; // Esta es la que queremos
         }
@@ -205,16 +194,12 @@ class PrinterService {
         if (isZebraService &&
             charUuid.contains('38eb4a84') &&
             char.properties.write) {
-          debugPrint(
-            '  >>> ZEBRA ALTERNATIVE WRITABLE CHARACTERISTIC FOUND (38eb4a84) <<<',
-          );
           if (zebraChar == null) zebraChar = char;
         }
 
         // Fallback: Cualquier característica escribible
         if ((char.properties.writeWithoutResponse || char.properties.write) &&
             fallbackChar == null) {
-          debugPrint('    >>> WRITABLE CHARACTERISTIC FOUND (fallback) <<<');
           fallbackChar = char;
         }
       }
@@ -228,29 +213,20 @@ class PrinterService {
 
     // Prioridad: Zebra específica > Fallback writable
     if (zebraChar != null) {
-      debugPrint('Using Zebra characteristic: ${zebraChar.uuid}');
       return zebraChar;
     } else if (fallbackChar != null) {
-      debugPrint(
-        'Using fallback writable characteristic: ${fallbackChar.uuid}',
-      );
       return fallbackChar;
     }
 
-    debugPrint('❌ No writable characteristic found');
     return null;
   }
 
   // MÉTODO SIMPLIFICADO: Sin inicialización automática
   Future<void> _initializePrinter() async {
     try {
-      debugPrint('Initializing Zebra printer...');
-
-      // Solo un comando simple de status
       await _sendRawCommand('~HS');
 
       await Future.delayed(const Duration(milliseconds: 500));
-      debugPrint('Printer initialization complete');
     } catch (e) {
       debugPrint('Error initializing printer: $e');
     }
@@ -269,13 +245,12 @@ class PrinterService {
       } else if (_writeCharacteristic!.properties.write) {
         await _writeCharacteristic!.write(bytes, withoutResponse: false);
       } else {
-        debugPrint('❌ Characteristic does not support writing');
+        
         return false;
       }
 
       return true;
     } catch (e) {
-      debugPrint('Error sending raw command: $e');
       return false;
     }
   }
@@ -290,12 +265,88 @@ class PrinterService {
       _connectedDevice = null;
       _writeCharacteristic = null;
       _isConnected = false;
-      debugPrint('Disconnected from printer');
     } catch (e) {
-      debugPrint('Error disconnecting: $e');
       _connectedDevice = null;
       _writeCharacteristic = null;
       _isConnected = false;
+    }
+  }
+
+  // Guardar impresora en SharedPreferences
+  Future<void> _saveSavedPrinter(BluetoothDevice device) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('saved_printer_id', device.remoteId.toString());
+      await prefs.setString('saved_printer_name', device.platformName);
+      debugPrint('Impresora guardada: ${device.platformName}');
+    } catch (e) {
+      debugPrint('Error al guardar impresora: $e');
+    }
+  }
+
+  // Recuperar impresora guardada
+  Future<Map<String, String>?> getSavedPrinter() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final printerId = prefs.getString('saved_printer_id');
+      final printerName = prefs.getString('saved_printer_name');
+      
+      if (printerId != null && printerName != null) {
+        return {
+          'id': printerId,
+          'name': printerName,
+        };
+      }
+    } catch (e) {
+      debugPrint('Error al recuperar impresora guardada: $e');
+    }
+    return null;
+  }
+
+  // Limpiar impresora guardada
+  Future<void> clearSavedPrinter() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('saved_printer_id');
+      await prefs.remove('saved_printer_name');
+      debugPrint('Impresora guardada eliminada');
+    } catch (e) {
+      debugPrint('Error al limpiar impresora guardada: $e');
+    }
+  }
+
+  // Intentar reconectar a la última impresora guardada
+  Future<bool> tryReconnectToSavedPrinter() async {
+    try {
+      final savedPrinter = await getSavedPrinter();
+      if (savedPrinter == null) {
+        debugPrint('No hay impresora guardada');
+        return false;
+      }
+
+      debugPrint('Intentando reconectar a: ${savedPrinter['name']}');
+
+      // Buscar el dispositivo en los dispositivos vinculados
+      List<BluetoothDevice> bondedDevices = await FlutterBluePlus.bondedDevices;
+      
+      final device = bondedDevices.firstWhere(
+        (d) => d.remoteId.toString() == savedPrinter['id'],
+        orElse: () => throw Exception('Dispositivo no encontrado'),
+      );
+
+      // Intentar conectar
+      final connected = await connect(device);
+      
+      if (connected) {
+        debugPrint('Reconectado exitosamente a: ${device.platformName}');
+        return true;
+      } else {
+        debugPrint('No se pudo reconectar a la impresora guardada');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error al reconectar a impresora guardada: $e');
+      return false;
     }
   }
 
@@ -308,9 +359,6 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== PRINTING ZPL FOR ZQ310 ===');
-      debugPrint('ZPL Content: $zplContent');
-
       // Asegurar que el ZPL termine correctamente
       if (!zplContent.endsWith('^XZ')) {
         zplContent += '^XZ';
@@ -319,7 +367,6 @@ class PrinterService {
       // NO modificar el ZPL automáticamente - puede causar problemas
 
       List<int> bytes = utf8.encode(zplContent);
-      debugPrint('Total bytes to send: ${bytes.length}');
 
       // MÉTODO CORREGIDO: Determinar si usar writeWithoutResponse o write
       bool useWithoutResponse =
@@ -330,8 +377,8 @@ class PrinterService {
         throw Exception('La característica no soporta escritura');
       }
 
-      // Usar chunks más pequeños para BLE
-      const int chunkSize = 20;
+      // Usar chunks optimizados para BLE (150 bytes es seguro y rápido)
+      const int chunkSize = 150;
 
       for (int i = 0; i < bytes.length; i += chunkSize) {
         int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
@@ -340,18 +387,16 @@ class PrinterService {
         // Usar el método apropiado según las propiedades de la característica
         if (useWithoutResponse) {
           await _writeCharacteristic!.write(chunk, withoutResponse: true);
+          // Sin delay para writeWithoutResponse (más rápido)
         } else {
           await _writeCharacteristic!.write(chunk, withoutResponse: false);
+          // Delay mínimo solo para write normal
+          await Future.delayed(const Duration(milliseconds: 15));
         }
-
-        // Delay para estabilidad
-        await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      debugPrint('ZPL sent successfully');
       return true;
     } catch (e) {
-      debugPrint('Error printing ZPL: $e');
       return false;
     }
   }
@@ -363,14 +408,11 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== ULTRA SIMPLE TEST ===');
-
       // El ZPL más simple posible
       String ultraSimpleZPL = '^XA^FO50,50^A0N,30,30^FDTEST^FS^XZ';
 
       return await printZPL(ultraSimpleZPL);
     } catch (e) {
-      debugPrint('Error in simple test: $e');
       return false;
     }
   }
@@ -382,8 +424,6 @@ class PrinterService {
     }
 
     try {
-      debugPrint('=== STARTING PROFESSIONAL ZPL TEST ===');
-
       // ZPL más simple y confiable para ZQ310
       String professionalZPL =
           '''^XA
@@ -406,13 +446,11 @@ class PrinterService {
       bool success = await printZPL(professionalZPL);
 
       if (success) {
-        debugPrint('✅ Professional test print sent successfully');
         await Future.delayed(const Duration(seconds: 2));
       }
 
       return success;
     } catch (e) {
-      debugPrint('Error in professional test print: $e');
       return false;
     }
   }
@@ -426,7 +464,6 @@ class PrinterService {
     final zplContent = _generateInventoryZPL(inventoryData);
     return await printZPL(zplContent);
   } catch (e) {
-    debugPrint('Error printing inventory: $e');
     rethrow;
   }
 }
@@ -714,15 +751,19 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
         throw Exception('Impresora no conectada');
       }
 
-      final zplContent = _generateInvoiceZPL(invoiceData, isOriginal: isOriginal);
+      // Generar ZPL con logo en ambas facturas
+      final zplContent = _generateInvoiceZPL(
+        invoiceData, 
+        isOriginal: isOriginal,
+        includeLogo: true, // Logo en todas las facturas
+      );
       return await printZPL(zplContent);
     } catch (e) {
-      debugPrint('Error printing invoice: $e');
       rethrow;
     }
   }
 
-  String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true}) {
+  String _generateInvoiceZPL(Map<String, dynamic> invoiceData, {bool isOriginal = true, bool includeLogo = true}) {
     // Extraer información de la empresa
     final empresaNombre = invoiceData['coFa_NombreEmpresa'] ?? 'SIDCOP';
     final empresaDireccion = invoiceData['coFa_DireccionEmpresa'] ?? 'Col. Satelite Norte, Bloque 3';
@@ -832,7 +873,7 @@ for (var detalle in detalles) {
 yPosition += 20; // Espacio antes de totales
 final totalesY = yPosition;
 
-// Generar sección de totales dinámicamente
+// Generar sección de totales dinámicamente - OPTIMIZADO
 String totalesZPL = '';
 int totalY = totalesY + 15; // Posición inicial de totales
 
@@ -841,38 +882,59 @@ final int anchoEtiqueta = 360; // ancho en puntos
 final int margenDerecho = 10;
 final int anchoTexto = anchoEtiqueta - margenDerecho;
 
-// MOSTRAR TODOS LOS CAMPOS alineados a la derecha
-// Subtotal
+// OPTIMIZACIÓN: Solo mostrar campos con valores > 0 (reduce tamaño ZPL)
+// Subtotal (siempre mostrar)
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDSubtotal: L$subtotal^FS\n';
 totalY += 25;
 
-// Descuento (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
-totalY += 25;
+// Descuento (solo si > 0)
+final descuentoVal = double.tryParse(descuento) ?? 0.0;
+if (descuentoVal > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
+  totalY += 25;
+}
 
-// Importe Exento (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
-totalY += 25;
+// Importe Exento (solo si > 0)
+final exentoVal = double.tryParse(importeExento) ?? 0.0;
+if (exentoVal > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
+  totalY += 25;
+}
 
-// Importe Exonerado (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
-totalY += 25;
+// Importe Exonerado (solo si > 0)
+final exoneradoVal = double.tryParse(importeExonerado) ?? 0.0;
+if (exoneradoVal > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
+  totalY += 25;
+}
 
-// Gravado 15% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
-totalY += 25;
+// Gravado 15% (solo si > 0)
+final gravado15Val = double.tryParse(importeGravado15) ?? 0.0;
+if (gravado15Val > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
+  totalY += 25;
+}
 
-// Gravado 18% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
-totalY += 25;
+// Gravado 18% (solo si > 0)
+final gravado18Val = double.tryParse(importeGravado18) ?? 0.0;
+if (gravado18Val > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
+  totalY += 25;
+}
 
-// ISV 15% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
-totalY += 25;
+// ISV 15% (solo si > 0)
+final isv15Val = double.tryParse(impuesto15) ?? 0.0;
+if (isv15Val > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
+  totalY += 25;
+}
 
-// ISV 18% (siempre mostrar)
-totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
-totalY += 25;
+// ISV 18% (solo si > 0)
+final isv18Val = double.tryParse(impuesto18) ?? 0.0;
+if (isv18Val > 0) {
+  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
+  totalY += 25;
+}
 
 // Línea divisoria antes del total (centrada o de extremo a extremo)
 totalY += 5;
@@ -968,19 +1030,27 @@ totalY += 10; // Espacio adicional para el total en letras
     final alturaTotal = currentFooterY + (anulada ? 100 : 50);
 
 
-    // Logo GFA (formato correcto y completo)
+    // Logo GFA (formato correcto y completo) - OPCIONAL
     const String logoZPL = '''^FX ===== LOGO CENTRADO =====
 ^FO130,60
 ^GFA,1950,1666,17,
 ,::::::M07U018O0M0EU01EO0L01EV0FO00000807EV0F802L00001807CV0FC06L00001C0FCV07E07L00003C1FCV07E07L00003C1F8V03F0FL00003E3FW03F0F8K00003E3F0001F8Q01F8F8K00003E3E00071CR0F8F8K00007E3C000E0CR078F8K00007E21801E0CQ0318F8K00003E07001ES03C0F8K00003E0F003ES01E0F8K00003E3F003ES01F0F8K00043C3E007CS01F8F0800000061C7E007CT0FC70C000000618FE007CT0FE21C000000F00FC007CT07E01C000000F81F80078T07E03C000000F81F80078T03F03C000000F81F000F8T01F07C000000FC1E000FV0F07C000000FC12000FV0907C0000007C06000EV0C0FC0000007C0E001EV0E0FC0000007C1E001C0000FFFF8M0F0F80000003C3C00380007F7FFEM0F8F80000003C7C0070001E03C1FM0FC7K0001CFC00FE003807C078L07C7040000608FC01FFC06007C078L07E60C0000701F80787E0C0078078L07E01C0000781F80F01F180078078L03F03C00007C1F00E00F980078078L03F07C00007E1F004007F000F00FM01F0F800007E1E200003F060F01EL010F1F800003F1C6K0F8F0F03CL01871F800003F00EK079F0FFF8L01C13F000001F80EK03FE1EFEM01E03F000001F81EL0FC1E3CM01F03E000000F83EN01C3CM01F07E000000783EN03C1EM01F87C000000383EN03C1EM01F83K01C087EN0381EN0F82070000F007EN0780FN0FC03E0000FC07CN0780FN0FC0FE00007F07CN0700F8M07C1FC00007F8784M0F0078L047C3F800003FC78CM0E0078L063C7F800001FE71CM0E003CL071CFF000000FE43CM0C003EL0708FE0000007E03CP01EL0F81F80000001F03CP01FL0F81FK0K07CQ0F8K0F81L0070007C2P07800C10FC003C00003F007C3P03C00C18FC01F800003FC07C7P01E00C187C0FF000001FF0FC7Q0F81C3C7C1FF000000FF87C78P07E383C7C3FE0000007FC78F8P01FE03C7C7FC0000003FC78F8T03E3CFFK0000FE70F88R043E18FEK00003E20F8CR047E08F8K0M0F8ER0E7EO0M0F8FQ01E7EO0000FE00F8FQ03E3E01FEK0000FFC0F8F8P03E3E0FFCK00007FF0F0F8P07E3C1FF8K00003FF870FCP07E1C3FFL00000FFC60FCP07C087FEL000003FC007C6M01CFC00FF8L0K0FC007C7CL0F8FC00FEM0O07E3FK03F8F8Q0L03C03C3FC00007F0F80F8N0K0FFF83C1FE0001FE0F07FFCM0K07FFE1C0FF0003FE060FFFCM0K03FFF0C07F8003FC041FFF8M0L0FFF0003F8007F8001FFEN0L01FC0000FC007E00007FO0P0E003C007801ER0O0FFCN07FEQ0N03FFE00038000FFF8P0N0FFFC00078000FFFEP0M01FFF80F0781E03FFFP0N07FE0FFC38FFC0FF8P0Q03FFE00FFFT0Q0FFFC007FFCS0P01FFF0003FFFS0Q07FC0000FFCS0,
 ^FS''';
 
-    return '''^XA
-    ^LL$alturaTotal
-^LH0,0
+    // Construir ZPL dinámicamente
+    final StringBuffer zplBuffer = StringBuffer();
+    zplBuffer.writeln('^XA');
+    zplBuffer.writeln('^LL$alturaTotal');
+    zplBuffer.writeln('^LH0,0');
+    zplBuffer.writeln();
+    
+    // Solo incluir logo si se solicita (ahorra ~2000 bytes en COPIAS)
+    if (includeLogo) {
+      zplBuffer.writeln(logoZPL);
+      zplBuffer.writeln();
+    }
 
-$logoZPL
-
+    zplBuffer.write('''
 ^FX ===== HEADER EMPRESA CENTRADO =====
 ^CF0,24,24
 ^FO0,190^FB360,2,0,C,0^FH^FD$empresaNombre^FS
@@ -1012,7 +1082,6 @@ $logoZPL
 ^FO0,715^FB360,2,0,L,0^FDNo Constancia de reg de exonerados:^FS
 ^FO0,765^FB360,1,0,L,0^FDNo Registro de la SAG:^FS
 
-
 ^FX ===== TABLA PRODUCTOS (4 COLUMNAS) =====
 ^FO0,810^GB360,2,2^FS
 ^FO0,825^CF0,22,24^FDProd^FS
@@ -1029,7 +1098,9 @@ $productosZPL
 $totalesZPL
 
 $footerZPL
-^XZ''';
+^XZ''');
+
+    return zplBuffer.toString();
   }
 
   // Helper para formatear fecha
@@ -1206,6 +1277,7 @@ $footerZPL
         return null;
       }
 
+      //Mostrar dialogo de seleccion de impresora
       return await showDialog<BluetoothDevice?>(
         context: context,
         builder: (context) => Dialog(
@@ -1385,6 +1457,167 @@ $footerZPL
         );
       }
       return null;
+    }
+  }
+
+  // Método optimizado para imprimir con reconexión automática
+  Future<bool> printWithAutoConnect(
+    BuildContext context,
+    Future<bool> Function() printFunction, {
+    String loadingMessage = 'Preparando impresión...',
+  }) async {
+    try {
+      // Verificar si ya está conectado
+      if (_isConnected && _connectedDevice != null) {
+        debugPrint('Ya hay una impresora conectada, imprimiendo directamente...');
+        return await printFunction();
+      }
+
+      // Intentar reconectar a la impresora guardada
+      debugPrint('No hay impresora conectada, intentando reconectar...');
+      
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(loadingMessage),
+            ],
+          ),
+        ),
+      );
+
+      final reconnected = await tryReconnectToSavedPrinter();
+      
+      if (context.mounted) Navigator.of(context).pop();
+
+      if (reconnected) {
+        // Impresora reconectada, proceder a imprimir
+        debugPrint('Impresora reconectada, procediendo a imprimir...');
+        
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Imprimiendo...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final result = await printFunction();
+        
+        if (context.mounted) Navigator.of(context).pop();
+        
+        return result;
+      } else {
+        // No se pudo reconectar, mostrar diálogo de selección
+        debugPrint('No se pudo reconectar, mostrando diálogo de selección...');
+        
+        if (context.mounted) {
+          final selectedDevice = await showPrinterSelectionDialog(context);
+          
+          if (selectedDevice == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Impresión cancelada'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+            return false;
+          }
+
+          // Conectar a la impresora seleccionada
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const AlertDialog(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Conectando a impresora...'),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final connected = await connect(selectedDevice);
+          
+          if (context.mounted) Navigator.of(context).pop();
+
+          if (!connected) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error al conectar con la impresora'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            return false;
+          }
+
+          // Imprimir
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const AlertDialog(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Imprimiendo...'),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final result = await printFunction();
+          
+          if (context.mounted) Navigator.of(context).pop();
+          
+          return result;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('Error en printWithAutoConnect: $e');
+      
+      if (context.mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al imprimir: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      
+      return false;
     }
   }
 

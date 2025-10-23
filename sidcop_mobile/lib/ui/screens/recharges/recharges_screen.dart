@@ -65,12 +65,14 @@ class _RechargesScreenState extends State<RechargesScreen> {
     setState(() {});
   }
 
+  //se carga la lista de recargas
   Future<void> _loadRecargas() async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
+    // Verificar conectividad y carga offline en caso que no se disponga 
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
       final online = connectivityResult != ConnectivityResult.none;
@@ -133,6 +135,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     }
   }
 
+  //abrir modal para nueva recarga o editar una ya existente
   void _openRecargaModal() {
     showModalBottomSheet(
       context: context,
@@ -146,6 +149,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     });
   }
 
+  //sincroniza las recargas pendientes cuando se detecta que hay conexión
   Future<void> _sincronizarRecargasPendientes() async {
     if (_isSyncing) return;
     
@@ -195,6 +199,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     }
   }
 
+  //creación de la pantalla de recargas
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -311,6 +316,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     );
   }
 
+  // Mapeo del estado desde la API a una cadena legible
   String _mapEstadoFromApi(dynamic recaConfirmacion) {
     if (recaConfirmacion == "A") return 'Aprobada';
     if (recaConfirmacion == "R") return 'Rechazada';
@@ -318,6 +324,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     return 'En proceso';
   }
 
+  // Formateo de la fecha desde la API a un formato legible
   String _formatFechaFromApi(String fechaIso) {
     try {
       final date = DateTime.parse(fechaIso);
@@ -329,6 +336,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     }
   }
 
+  // Conversión del número del mes a su nombre
   String _mesEnEspanol(int mes) {
     const meses = [
       '',
@@ -348,6 +356,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
     return meses[mes];
   }
 
+  // Construcción de la tarjeta de historial de la recarga
   Widget _buildHistorialCard(
     String estado,
     String fecha,
@@ -620,6 +629,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
   }
 }
 
+//Funcion para determinar si se esta editando o creando una recarga
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
   final bool isEditMode;
@@ -634,6 +644,7 @@ class RecargaBottomSheet extends StatefulWidget {
   State<RecargaBottomSheet> createState() => _RecargaBottomSheetState();
 }
 
+//modal para crear o editar una recarga
 class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
   final ProductosService _productosService = ProductosService();
   List<Productos> _productos = [];
@@ -661,6 +672,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     });
   }
 
+  //sincroniza las recargas pendientes cuando se detecta que hay conexión
   Future<void> _sincronizarRecargasPendientes() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     final online = connectivityResult != ConnectivityResult.none;
@@ -699,6 +711,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
 
       await RecargasScreenOffline.guardarJson('recargas_pendientes.json', recargasNoSincronizadas);
 
+      //mensaje de exito en caso se sincronice alguna recarga
       if (mounted && sincronizadas > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -721,6 +734,8 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     super.dispose();
   }
 
+  //carga los productos disponibles para crear una recarga
+  //en caso no haya conexión, carga los productos guardados localmente
   Future<void> _fetchProductos() async {
     bool online = true;
     try {
@@ -751,6 +766,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     }
   }
 
+  //cargar los productos desde el almacenamiento local
   Future<void> _loadProductosOffline() async {
     try {
       final raw = await RecargasScreenOffline.leerJson('productos.json');
@@ -774,6 +790,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     }
   }
   
+  //prellenar los datos en caso de estar editando una recarga
   void _preFillEditData() {
     if (widget.recargasGrupoParaEditar == null) return;
     
@@ -802,6 +819,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     }
   }
 
+  //creación del widget para la creación o edición de una recarga
   @override
   Widget build(BuildContext context) {
     final filtered = _productos.where((p) {
@@ -891,6 +909,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                 onPressed: () async {
                   final perfilService = PerfilUsuarioService();
                   final userData = await perfilService.obtenerDatosUsuario();
+                  //validacion de los datos del usuario
                   if (userData == null || userData['usua_Id'] == null) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -930,6 +949,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                      
                   for(var detalle in detalles)
                   {
+                    //validación para la cantidad de productos que se pueden solicitar
                     if(int.tryParse(detalle['reDe_Cantidad'].toString())! > 99)
                     {
                        ScaffoldMessenger.of(context).showSnackBar(
@@ -940,6 +960,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                       return;
                     }
                   }
+                  //validacion en caso quiera hacer una recarga sin seleccionar productos
                   if (detalles.isEmpty) {
                     if (mounted) {
                       showDialog(
@@ -971,6 +992,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     online = false;
                   }
                   bool ok = false;
+                  //guardar la recarga de manera online en caso se tenga conexión
                   if (online) {
                     final recargaService = RecargasService();
                     ok = await recargaService.insertarRecarga(
@@ -987,6 +1009,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                       'detalles': detalles,
                     };
                     
+                    //guardar la recarga de manera offline en caso no se tenga conexión
                     try {
                       final raw = await RecargasScreenOffline.leerJson('recargas_pendientes.json') ?? [];
                       final lista = List<Map<String, dynamic>>.from(raw as List);
@@ -1006,6 +1029,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                     }
                   }
 
+                  //mensaje de exito o error al guardar la recarga
                   if (mounted) {
                     if (ok) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1035,6 +1059,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
     );
   }
 
+  //creación del widget para cada producto en la lista de selección
   Widget _buildProducto(Productos producto, int cantidad) {
     if (!_controllers.containsKey(producto.prod_Id)) {
       final controller = TextEditingController(
@@ -1063,6 +1088,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
       }
     }
 
+    //creación de las tarjedas donde se muestra cada producto
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(

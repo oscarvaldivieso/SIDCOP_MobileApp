@@ -47,13 +47,13 @@ class _VentasListScreenState extends State<VentasListScreen> {
     setState(() {});
   }
 
+  //Cargar las ventas
   Future<void> _loadVentas() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
     //Sincronizar ventas pendientes antes de cargar el historial
-    print('[DEBUG] Iniciando carga de ventas...');
     await VentasOfflineService.sincronizarVentasPendientes();
 
     // Usar el vendedorId pasado o el globalVendId, nunca el 13 por defecto
@@ -111,6 +111,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     }
   }
 
+  //Navegar a la pantalla de detalle de la factura
   void _navigateToInvoiceDetail(int factId) {
     Navigator.push(
       context,
@@ -205,6 +206,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  //Widget para mostrar el mensaje de que no hay ventas
   Widget _buildEmptyWidget() {
     return Center(
       child: Column(
@@ -252,6 +254,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  //Widget que muestra cada una de las ventas
   Widget _buildVentaCard(dynamic venta) {
     final factId = venta['fact_Id'] ?? 0;
     final factNumero = venta['fact_Numero']?.toString() ?? 'N/A';
@@ -543,6 +546,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  //Formato de fecha
   String _formatFechaFromApi(String fechaIso) {
     try {
       final date = DateTime.parse(fechaIso);

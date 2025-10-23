@@ -45,15 +45,14 @@ class DownloadService {
     }
   }
 
-  /// Starts a download and returns a Future that completes when the file is saved.
-  /// Progress updates are sent through `progressStream(id)`.
+
   Future<String> startDownload({
     required String id,
     required String url,
     String? filename,
   }) async {
     if (_controllers.containsKey(id)) {
-      throw StateError('Download with id already running');
+      throw StateError('Ya existe una descarga en curso');
     }
   final controller = StreamController<Map<String, int>>.broadcast();
     _controllers[id] = controller;
@@ -67,7 +66,7 @@ class DownloadService {
 
     final completer = Completer<String>();
 
-    // run async download
+    // correr descargar aun así se salga del componente.
     () async {
       final client = http.Client();
       try {

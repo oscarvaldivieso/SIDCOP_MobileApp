@@ -172,6 +172,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   Future<void> _disconnectPrinter() async {
     try {
       await _printerService.disconnect();
+      await _printerService.clearSavedPrinter(); // Limpiar impresora guardada
       setState(() {
         _isConnected = false;
         _connectedDevice = null;
@@ -180,7 +181,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impresora desconectada'),
+            content: Text('Impresora desconectada y configuración eliminada'),
             backgroundColor: Colors.blue,
           ),
         );

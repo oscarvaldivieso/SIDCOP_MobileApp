@@ -56,7 +56,6 @@ class _RutasScreenState extends State<RutasScreen> {
         final filePath = '${directory.path}/$nombreArchivo.png';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
-        // write metadata to help verify saved images
         try {
           final metaPath = '${directory.path}/$nombreArchivo.url.txt';
           final metaFile = File(metaPath);
@@ -64,16 +63,12 @@ class _RutasScreenState extends State<RutasScreen> {
             'url:$imageUrl\nbytes:${response.bodyBytes.length}',
           );
         } catch (_) {}
-        print('DEBUG: guardarImagenDeMapaStatic saved $filePath');
         return filePath;
       }
     } catch (e) {
-      print('Error guardando imagen de mapa: $e');
     }
     return null;
   }
-
-  // Obtiene la ruta local de la imagen static si existe
 
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   final RutasService _rutasService = RutasService();
@@ -99,21 +94,12 @@ class _RutasScreenState extends State<RutasScreen> {
       _isLoading = true;
     });
 
-    // On entering the Rutas screen we must persist all remote data locally
-    // (rutas, clientes, direcciones, vendedores, visitas_historial, etc).
-    // Run startup sync then load rutas. Use a microtask to avoid making
-    // initState async and to keep UI responsive while we perform the
-    // necessary persistence operations.
     Future.microtask(() async {
       try {
         // Intentar sincronización forzada - siempre intentamos sincronizar
         // todos los datos independientemente del estado de conexión previo
-        print('DEBUG: Iniciando sincronización FORZADA en _initState');
-        print('vendedor en rutas: $globalVendId');
         await _syncAllOnEntry();
-        print('DEBUG: Sincronización FORZADA completada');
       } catch (e) {
-        print('SYNC: forced full sync failed: $e');
         // Si falla la sincronización, asumimos que estamos offline
         isOnline = false;
 
@@ -129,64 +115,42 @@ class _RutasScreenState extends State<RutasScreen> {
         }
       }
 
-      // Notificar que la sincronización se ha completado
-      // No mostrar mensaje de éxito; dejamos solo el indicador de carga en la UI
-
-      // After attempting to persist all data, load rutas for the UI.
       await _fetchRutas();
     });
   }
 
   Future<void> _syncAllOnEntry() async {
     try {
-      print('SYNC: starting FORCED full startup sync...');
-
-      // Verificar conexión para actualizar estado - solo para mostrar en logs
+      // Verificar conexión para actualizar estado
       await verificarconexion();
-      print('DEBUG _syncAllOnEntry: Estado de conexión verificada: $isOnline');
 
       // IMPORTANTE: Ya no verificamos si estamos online,
       // siempre intentamos sincronizar para forzar actualización
       // de todos los datos incluyendo visitas
 
-      print(
-        'SYNC: Forzando sincronización completa independientemente del estado de conexión',
-      );
-
       // Limpiar datos obsoletos antes de obtener nuevos datos
       await RutasScreenOffline.limpiarTodosLosDetalles();
-      print('SYNC: limpiarTodosLosDetalles completed');
 
       // Sincronizar todos los datos en orden para asegurar consistencia
       await RutasScreenOffline.sincronizarRutas();
-      print('SYNC: sincronizarRutas completed');
 
       await RutasScreenOffline.sincronizarClientes();
-      print('SYNC: sincronizarClientes completed');
 
       await RutasScreenOffline.sincronizarDirecciones();
-      print('SYNC: sincronizarDirecciones completed');
 
       await RutasScreenOffline.sincronizarVendedores();
-      print('SYNC: sincronizarVendedores completed');
 
       // Forzar actualización de visitas historial (lo más importante)
       await RutasScreenOffline.sincronizarVisitasHistorial();
-      print('SYNC: sincronizarVisitasHistorial FORCED completed');
 
       await RutasScreenOffline.sincronizarVendedoresPorRutas();
-      print('SYNC: sincronizarVendedoresPorRutas completed');
 
       // Regenerar los detalles de rutas con los datos actualizados
       await RutasScreenOffline.guardarDetallesTodasRutas(forzar: true);
-      print('SYNC: guardarDetallesTodasRutas completed with force=true');
-
-      print('SYNC: forced full startup sync completed successfully!');
 
       // Si llegamos aquí, la sincronización tuvo éxito, actualizar estado online
       isOnline = true;
     } catch (e) {
-      print('SYNC: _syncAllOnEntry forced sync encountered error: $e');
       // No volver a lanzar el error para que el flujo continúe
       isOnline = false; // Si hay error, asumimos que estamos offline
     }
@@ -225,21 +189,15 @@ class _RutasScreenState extends State<RutasScreen> {
       await _guardarRutasOffline(_rutas);
       // Lanzar sincronización en background para asegurar que las ubicaciones
       // de clientes y direcciones se persistan al entrar al listado de rutas.
-      // Intentamos sincronizar clientes/direcciones primero (guardan JSON local)
-      // y luego generamos los detalles por ruta. Errores se registran pero no
-      // bloquean la UI.
       Future.microtask(() async {
         try {
           await RutasScreenOffline.sincronizarClientes();
           await RutasScreenOffline.sincronizarDirecciones();
         } catch (e) {
-          print('SYNC: warning - sincronizar clientes/direcciones failed: $e');
         }
         try {
           await RutasScreenOffline.guardarDetallesTodasRutas();
-          print('SYNC: guardarDetallesTodasRutas completed');
         } catch (e) {
-          print('SYNC: guardarDetallesTodasRutas failed: $e');
         }
       });
     } catch (e) {
@@ -271,24 +229,20 @@ class _RutasScreenState extends State<RutasScreen> {
   Future<List<Ruta>> _leerRutasOffline() async {
     try {
       final rutasString = await secureStorage.read(key: 'rutas_offline');
-      print('DEBUG rutas_offline (offline): $rutasString');
       if (rutasString != null) {
         final rutasList = jsonDecode(rutasString) as List;
         return rutasList.map((json) => Ruta.fromJson(json)).toList();
       }
     } catch (e) {
-      print('DEBUG: error leyendo rutas_offline key: $e');
     }
 
     // Fallback: intentar leer el JSON gestionado por RutasScreenOffline ('rutas.json')
     try {
       final raw = await RutasScreenOffline.leerJson('rutas.json');
-      print('DEBUG rutas.json (offline service): $raw');
       if (raw == null) return [];
       final lista = List.from(raw as List);
       return lista.map((json) => Ruta.fromJson(json)).toList();
     } catch (e) {
-      print('DEBUG: error leyendo rutas.json desde RutasScreenOffline: $e');
     }
 
     return [];
@@ -422,11 +376,8 @@ class _RutasScreenState extends State<RutasScreen> {
     return 'https://maps.googleapis.com/maps/api/staticmap?size=400x150&$markers&visible=$visiblePoints&key=$mapApikey';
   }
 
-  // Preferir siempre generar URL remota; usar local solo si offline
   Future<String> _getMapUrlPreferLocal(Ruta ruta) async {
     try {
-      print('DEBUG: Obteniendo mapa para ruta ${ruta.ruta_Id}');
-
       // Verificar si hay imagen local primero (para tenerla como backup)
       final directory = await getApplicationDocumentsDirectory();
       final filePath = '${directory.path}/map_static_${ruta.ruta_Id}.png';
@@ -435,15 +386,11 @@ class _RutasScreenState extends State<RutasScreen> {
 
       // Verificar conexión usando VerificarService
       isOnline = await verificarconexion();
-      print('DEBUG: Estado de conexión para ruta ${ruta.ruta_Id}: $isOnline');
 
       // Si estamos online, generar nueva imagen remota
       if (isOnline) {
         try {
           final remote = await _getStaticMapMarkers(ruta);
-          print(
-            'DEBUG: Generando nueva imagen remota para ruta ${ruta.ruta_Id}: $remote',
-          );
 
           // Guardar para uso offline futuro
           guardarImagenDeMapaStatic(remote, 'map_static_${ruta.ruta_Id}');
@@ -454,38 +401,28 @@ class _RutasScreenState extends State<RutasScreen> {
 
           // Si hay error obteniendo imagen remota pero tenemos local, usar local
           if (hasLocalImage) {
-            print(
-              'DEBUG: Error con imagen remota, usando local para ruta ${ruta.ruta_Id}',
-            );
             return 'file://$filePath';
           }
-          // No hay imagen local y falló la generación remota
           throw 'No se pudo generar imagen remota y no hay local disponible';
         }
       } else {
         // Estamos offline, verificar si hay imagen local disponible
         if (hasLocalImage) {
-          print(
-            'DEBUG: Offline, usando imagen local para ruta ${ruta.ruta_Id}',
-          );
           return 'file://$filePath';
         }
-        print('DEBUG: Offline y sin imagen local para ruta ${ruta.ruta_Id}');
         throw 'Offline y sin imagen local disponible';
       }
     } catch (e) {
-      print('ERROR general en _getMapUrlPreferLocal: $e');
-      // Retornar 'placeholder' en caso de error
       return 'placeholder';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // fallback use for map API key is available as mapApikey
     return Scaffold(
       backgroundColor: Colors.transparent,
-      drawer: CustomDrawer(permisos: permisos),
+      endDrawer: CustomDrawer(permisos: permisos),
+      endDrawerEnableOpenDragGesture: false,
       body: AppBackground(
         title: 'Rutas',
         icon: Icons.map,

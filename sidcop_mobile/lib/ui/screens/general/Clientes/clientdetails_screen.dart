@@ -41,6 +41,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   // Tipo de vendedor (P = Pedidos, V = Ventas)
   String? _vendTipo;
 
+  int? _roleId;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +61,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
       // Extraer tipo de vendedor de los datos del usuario
       _vendTipo =
           userData?['datosVendedor']?['vend_Tipo'] ?? userData?['vend_Tipo'];
+      _roleId = userData?['role_Id'] ?? 0;
       // Extraer ID de persona del usuario
       _usuaIdPersona = userData?['usua_IdPersona']?.toString();
     });
@@ -417,16 +420,20 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             child: Row(
                               children: [
                                 // Botón de Pedido o Venta según el tipo de vendedor
-                                if (_vendTipo == "P" || _vendTipo == "V")
+                                if ( _roleId == 2 || _roleId == 83)
                                   Expanded(
                                     child: CustomButton(
                                       text: _vendTipo == "P"
                                           ? "PEDIDO"
                                           : _vendTipo == "V"
                                           ? "VENTA"
+                                          : _roleId == 2
+                                          ? "VENTA"
+                                          : _roleId == 83
+                                          ? "PEDIDO"
                                           : "ACCIÓN",
                                       onPressed: () {
-                                        if (_vendTipo == "P") {
+                                        if (_roleId == 83) {
                                           // Navegar a crear pedido
                                           Navigator.push(
                                             context,
@@ -453,9 +460,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                       height: 50,
                                       fontSize: 14,
                                       icon: Icon(
-                                        _vendTipo == "P"
+                                        _roleId == 83
                                             ? Icons.assignment
-                                            : _vendTipo == "V"
+                                            : _roleId == 2
                                             ? Icons.shopping_cart
                                             : Icons.help_outline,
                                         color: Colors.white,
@@ -464,7 +471,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                     ),
                                   ),
 
-                                if (_vendTipo == "P" || _vendTipo == "V")
+                                if (_roleId == 83 || _roleId == 2)
                                   const SizedBox(width: 12),
 
                                 // Botón de cobro

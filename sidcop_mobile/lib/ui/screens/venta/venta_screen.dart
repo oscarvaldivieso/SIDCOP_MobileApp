@@ -173,17 +173,14 @@ class _VentaScreenState extends State<VentaScreen> {
       final hasConnection = await SyncService.hasInternetConnection();
 
       if (hasConnection) {
-        print('[DEBUG] Cargando direcciones ONLINE para cliente ${widget.clienteId}');
         _clientAddresses = await _clientesService.getDireccionesCliente(widget.clienteId!);
       }else {
-        print('[DEBUG] Cargando direcciones OFFLINE para cliente ${widget.clienteId}');
         final raw = await ClientesOfflineService.leerJson('direcciones.json');
         final direcciones = raw != null ? List<dynamic>.from(raw) : [];
         _clientAddresses = direcciones.where((dir) {
           final clienteId = dir['clie_Id'];
           return clienteId == widget.clienteId;
         }).toList();
-        print('[DEBUG] Direcciones offline obtenidas: ${_clientAddresses.length}');
       }
       // Seleccionar la primera dirección por defecto si hay direcciones disponibles
       if (_clientAddresses.isNotEmpty) {
@@ -212,9 +209,6 @@ class _VentaScreenState extends State<VentaScreen> {
     _loadClientAddresses();
     _searchController.addListener(_applyProductFilter);
     
-    // Debug print to verify the values
-    debugPrint('VentaScreen initialized with clieId: ${widget.clienteId}, vendId: ${widget.vendedorId}');
-
     // Verificar crédito al iniciar si ya hay un cliente seleccionado
     if (widget.clienteId != null) {
       _verificarCreditoCliente();
@@ -276,10 +270,7 @@ class _VentaScreenState extends State<VentaScreen> {
       for (var producto in _allProducts) {
         _productosConDescuento[producto.prodId] = producto;
       }
-
-      debugPrint('Productos cargados con descuentos: ${_allProducts.length}');
     } catch (e) {
-      debugPrint('Error cargando productos con descuento: $e');
       ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
     } finally {
       setState(() => _isLoadingProducts = false);
@@ -399,6 +390,7 @@ class _VentaScreenState extends State<VentaScreen> {
     ErrorHandler.showErrorToast(mensaje);
   }
 
+  
   void mostrarResumen() {
     showDialog(
       context: context,
@@ -469,11 +461,9 @@ class _VentaScreenState extends State<VentaScreen> {
     );
 
     try {
-      print('Iniciando procesamiento de venta...');
       
       // Generar un nuevo número de factura único
       final newInvoiceNumber = _generateInvoiceNumber();
-      print('Nuevo número de factura generado: $newInvoiceNumber');
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
@@ -498,19 +488,9 @@ class _VentaScreenState extends State<VentaScreen> {
       //_ventaModel.vendId = 12;
       _ventaModel.usuaCreacion = 1; // Usar el mismo ID para el usuario que crea la venta
       
-      // Validar el modelo antes de enviar
-      print('Validando modelo de venta...');
-      print('Direccion por cliente ID: ${_ventaModel.diClId}');
-      print('Vendedor ID: ${_ventaModel.vendId}');
-      print('Productos: ${_ventaModel.detallesFacturaInput.length}');
-      print('Detalles de productos:');
-      for (var detalle in _ventaModel.detallesFacturaInput) {
-        print('  - Producto ID: ${detalle.prodId}, Cantidad: ${detalle.faDeCantidad}');
-      }
 
       if(hasConnection){
         // Enviar venta al backend
-        print('Enviando datos al servidor...');
         final resultado = await _ventaService.insertarFacturaConValidacion(_ventaModel);
 
         // Cerrar indicador de carga
@@ -518,7 +498,6 @@ class _VentaScreenState extends State<VentaScreen> {
           Navigator.of(loadingContext, rootNavigator: true).pop();
         }
 
-        print('Respuesta del servidor: $resultado');
 
         if (resultado?['success'] == true) {
           // Venta exitosa - mostrar toast y dialog
@@ -532,7 +511,6 @@ class _VentaScreenState extends State<VentaScreen> {
         } else {
           // Error en la venta - usar toast en lugar de dialog
           ErrorHandler.handleBackendError(resultado, fallbackMessage: 'Error al procesar la venta');
-          print('Error al procesar venta: $resultado');
         }
       } else {
         // Guardar venta offline
@@ -567,8 +545,6 @@ class _VentaScreenState extends State<VentaScreen> {
         );
       }
     } catch (e, stackTrace) {
-      print('Excepción al procesar venta: $e');
-      print('Stack trace: $stackTrace');
       
       // Cerrar indicador de carga si está abierto
       if (Navigator.canPop(loadingContext)) {
@@ -580,6 +556,7 @@ class _VentaScreenState extends State<VentaScreen> {
     }
   }
 
+  // Resetear el formulario
   void _resetearFormulario() {
     setState(() {
       currentStep = 0;
@@ -851,7 +828,6 @@ class _VentaScreenState extends State<VentaScreen> {
     // Intentar extraer el ID del message_Status
     if (facturaData['message_Status'] != null) {
       facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
-      print('ID extraído del message_Status: $facturaId');
     }
     
     // Fallback: intentar obtener de otros campos
@@ -862,7 +838,6 @@ class _VentaScreenState extends State<VentaScreen> {
     
     final facturaNumero = _ventaModel.factNumero ?? 'N/A';
     
-    print('Navegando a InvoiceDetailScreen con ID: $facturaId, Número: $facturaNumero');
     
     // Navigate to InvoiceDetailScreen
     Navigator.push(
@@ -1012,7 +987,8 @@ class _VentaScreenState extends State<VentaScreen> {
 
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(permisos: []),
+      endDrawer: const CustomDrawer(permisos: []),
+      endDrawerEnableOpenDragGesture: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

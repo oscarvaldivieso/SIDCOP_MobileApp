@@ -248,7 +248,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
     );
   }
 
-
+  // Construye el encabezado de la empresa
   Widget _buildCompanyHeader() {
     return Container(
       padding: const EdgeInsets.all(20),

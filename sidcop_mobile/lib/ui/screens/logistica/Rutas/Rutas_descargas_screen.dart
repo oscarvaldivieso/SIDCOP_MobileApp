@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:sidcop_mobile/services/download_service.dart' as _ds;
 
+// Pantalla para descargar mapas offline de departamentos
 class RutasDescargasScreen extends StatefulWidget {
   const RutasDescargasScreen({Key? key}) : super(key: key);
 
@@ -14,15 +15,19 @@ class RutasDescargasScreen extends StatefulWidget {
 }
 
 class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
+  // Lista de departamentos disponibles para descarga
   final List<String> departamentos = const ['Honduras'];
 
+  // Overlay para mostrar progreso de descarga
   OverlayEntry? _downloadOverlay;
 
+  // URLs de descarga para el mapa offline de honduras
   final Map<String, String> urls = {
     'Honduras':
         'http://200.59.27.115/Honduras_map/mapa_honduras_2025-08-27_180657.mbtiles',
   };
 
+  // Obtiene el directorio donde se almacenan los mapas
   Future<Directory> _Mapdir() async {
     final dir = await getApplicationDocumentsDirectory();
     final mapsDir = Directory(p.join(dir.path, 'maps'));
@@ -30,12 +35,14 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     return mapsDir;
   }
 
+  // Obtiene la ruta completa del archivo mbtiles para un departamento
   Future<String> _mbtilesPathFor(String departamento) async {
     final mapsDir = await _Mapdir();
 
     return p.join(mapsDir.path, 'honduras.mbtiles');
   }
 
+  // Verifica si el mapa del departamento ya está descargado
   Future<bool> _isMbtilesDownloaded(String departamento) async {
     try {
       final mapsDir = await _Mapdir();
@@ -61,23 +68,19 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     return false;
   }
 
-  // Local direct download helper removed; using DownloadService singleton instead.
-
-  // Background execution is handled by DownloadService (DownloadService._ensureBackground)
-
+  // Limpia recursos al cerrar la pantalla
   @override
   void dispose() {
-    // remove overlay if present
     try {
       _downloadOverlay?.remove();
     } catch (_) {}
     super.dispose();
   }
 
+  // Inicializa la pantalla y verifica descargas en progreso
   @override
   void initState() {
     super.initState();
-    // If a download is already running when this screen is opened, show the overlay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       const id = 'honduras';
       if (_ds.DownloadService.instance.isDownloading(id)) {
@@ -89,6 +92,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     });
   }
 
+  // Muestra un overlay con el progreso de descarga
   OverlayEntry _showDownloadOverlay(
     BuildContext context,
     Stream<Map<String, int>> stream,
@@ -100,21 +104,22 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     try {
       Overlay.of(context).insert(entry);
     } catch (_) {
-      // Swallow insertion errors to avoid red screen.
     }
     return entry;
   }
 
+  // Maneja el proceso de descarga de un departamento
   Future<void> _handleDownload(String departamento) async {
     final url = urls[departamento];
     if (url == null) return;
 
     final id = departamento.toLowerCase();
 
-    // confirm overwrite if exists
     final mbPath = await _mbtilesPathFor(departamento);
     final f = File(mbPath);
     bool proceed = true;
+    
+    // Confirma si el usuario quiere reemplazar un mapa existente
     if (await f.exists()) {
       final answer = await showDialog<bool>(
         context: context,
@@ -139,7 +144,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
     }
     if (!proceed) return;
 
-    // start download via service
+    // Inicia la descarga usando el servicio de descargas
     try {
       final futurePath = _ds.DownloadService.instance.startDownload(
         id: id,
@@ -147,13 +152,11 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
         filename: 'honduras.mbtiles',
       );
 
-      // show overlay listening to service progress immediately
       _downloadOverlay ??= _showDownloadOverlay(
         context,
         _ds.DownloadService.instance.progressStream(id),
       );
 
-      // wait for completion
       final saved = await futurePath;
       try {
         _downloadOverlay?.remove();
@@ -264,7 +267,7 @@ class _RutasDescargasScreenState extends State<RutasDescargasScreen> {
   }
 }
 
-// Top-level overlay widget and helper
+// Widget para mostrar el progreso de descarga
 class _DownloadProgressOverlay extends StatelessWidget {
   final Stream<Map<String, int>> progressStream;
   const _DownloadProgressOverlay({required this.progressStream, Key? key})
@@ -308,5 +311,3 @@ class _DownloadProgressOverlay extends StatelessWidget {
     );
   }
 }
-
-// end of file

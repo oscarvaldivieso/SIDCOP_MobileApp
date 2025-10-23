@@ -25,11 +25,14 @@ class AppBackground extends StatelessWidget {
     this.onRefresh,
   });
 
+  //Creación del scaffold con el fondo degradado y el breadcrum en la parte superior para 
+  //reutilizar en las distintas pantallas
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: CustomDrawer(permisos: permisos),
+      endDrawer: CustomDrawer(permisos: permisos),
+      endDrawerEnableOpenDragGesture: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

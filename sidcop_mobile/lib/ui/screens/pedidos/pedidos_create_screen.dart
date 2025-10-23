@@ -24,6 +24,7 @@ class PedidosCreateScreen extends StatefulWidget {
   State<PedidosCreateScreen> createState() => _PedidosCreateScreenState();
 }
 
+
 class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   DateTime? _fechaEntrega;
   List<ProductosPedidosViewModel> _productos = [];
@@ -62,6 +63,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     super.dispose();
   }
 
+  // Crea la barra de búsqueda
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -77,6 +79,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
+  // Crea la lista de productos que se mostrara
   Widget _buildProductList() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -98,11 +101,13 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       );
     }
 
+    // Filtrar productos según búsqueda en caso no este vacia la barra
     final isSearching = _searchController.text.trim().isNotEmpty;
     final productosParaMostrar = isSearching
         ? _filteredProductos
         : _filteredProductos.take(_productosMostrados).toList();
 
+    // Lista de productos
     final listView = ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -156,6 +161,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
+                  // Mostrar número total de productos seleccionados
                   '${_cantidades.values.where((c) => c > 0).fold<int>(0, (sum, c) => sum + c)} items',
                   style: const TextStyle(
                     fontFamily: 'Satoshi',
@@ -170,6 +176,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
           const SizedBox(height: 16),
         ],
 
+        // Mostrar mensaje si no hay productos que coincidan con la búsqueda
         _filteredProductos.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -179,6 +186,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                 ),
               )
             : listView,
+        // Botón "Ver más" si no está buscando y hay más productos para mostrar
         if (!isSearching && _productosMostrados < _filteredProductos.length)
           Align(
             alignment: Alignment.centerRight,
@@ -203,6 +211,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
+  // Maneja cambios en la barra de búsqueda
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
     setState(() {
@@ -456,15 +465,16 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     }
   }
 
+  //cargar las direcciones del cliente
   Future<void> _fetchDirecciones() async {
     setState(() {
       _loadingDirecciones = true;
     });
 
     try {
-      print('🏠 Cargando direcciones para cliente: ${widget.clienteId}');
+      //print(' Cargando direcciones para cliente: ${widget.clienteId}');
       
-      // Usar el nuevo método offline-first
+      // Usar el nuevo método offline-primero
       final direcciones = await ClientesOfflineService.getDireccionesClienteOfflineFirst(
         widget.clienteId,
       );
@@ -476,9 +486,9 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         // Seleccionar la primera dirección por defecto si existe
         if (_direcciones.isNotEmpty) {
           _direccionSeleccionada = _direcciones[0];
-          print('✅ Dirección seleccionada por defecto: ${_direccionSeleccionada['diCl_DireccionExacta']}');
+          //print('Dirección seleccionada por defecto: ${_direccionSeleccionada['diCl_DireccionExacta']}');
         } else {
-          print('⚠️ No se encontraron direcciones para el cliente ${widget.clienteId}');
+          //print('No se encontraron direcciones para el cliente ${widget.clienteId}');
         }
       });
       
@@ -500,7 +510,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         _loadingDirecciones = false;
       });
 
-      print('❌ Error cargando direcciones: $e');
+      //print(' Error cargando direcciones: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -512,6 +522,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     }
   }
 
+  // Selector de fecha de entrega
   Future<void> _selectFechaEntrega(BuildContext context) async {
     try {
       final DateTime? picked = await showDatePicker(
@@ -585,6 +596,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     return precioBase;
   }
 
+  //calcula el descuento en caso haya uno seleccionado
   num _calcularDescuento(
     num precioBase,
     DescEspecificacionesModel descEsp,
@@ -688,6 +700,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     }
   }
 
+  //Crea el apartado de los descuentos que se puede seleccionar por producto
   Widget _buildDescuentosItem(
     ProductosPedidosViewModel producto,
     DescuentoEscalaModel descuento,
@@ -773,6 +786,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
     );
   }
 
+  //Crea cada item de producto en la lista
   Widget _buildProductoItem(ProductosPedidosViewModel producto) {
     final cantidad = _cantidades[producto.prodId] ?? 0;
     final isSelected = cantidad > 0;
@@ -1061,6 +1075,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                                 padding: EdgeInsets.zero,
                               ),
                             ),
+                            // Control de cantidad editable al tocar
                             InkWell(
                               onTap: () async {
                                 final TextEditingController controller =
@@ -1313,7 +1328,8 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(),
-      drawer: const CustomDrawer(permisos: []),
+      endDrawer: const CustomDrawer(permisos: []),
+      endDrawerEnableOpenDragGesture: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -1324,7 +1340,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         ),
         child: Column(
           children: [
-            // Header similar to AppBackground
+            // Header similar to AppBackground (daba problemas usarlo directamente)
             Padding(
               padding: EdgeInsets.only(
                 top: MediaQuery.of(context).size.height * 0.03,
@@ -1554,7 +1570,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
                       ),
                       const SizedBox(height: 8),
                       _buildProductList(),
-                      // Padding at bottom to prevent overlap with fixed button
+                      // Padding al final para que no quede pegado al botón
                       const SizedBox(height: 80),
                     ],
                   ),
@@ -1612,7 +1628,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         
         // Si se recuperó la conexión, intentar sincronizar pedidos pendientes
         if (!wasConnected && _isConnected) {
-          print('🔄 Conexión restaurada, sincronizando pedidos pendientes...');
+          //print('Conexión restaurada, sincronizando pedidos pendientes...');
           _sincronizarPedidosPendientes();
         }
       },
@@ -1625,7 +1641,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
       final pedidosPendientes = await PedidosScreenOffline.contarPedidosPendientes();
       
       if (pedidosPendientes > 0) {
-        print('📋 Encontrados $pedidosPendientes pedidos pendientes para sincronizar');
+       // print(' Encontrados $pedidosPendientes pedidos pendientes para sincronizar');
         
         final sincronizados = await PedidosScreenOffline.sincronizarPedidosPendientesOffline();
         
@@ -1651,7 +1667,7 @@ class _PedidosCreateScreenState extends State<PedidosCreateScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error sincronizando pedidos pendientes: $e');
+     // print(' Error sincronizando pedidos pendientes: $e');
     }
   }
 }

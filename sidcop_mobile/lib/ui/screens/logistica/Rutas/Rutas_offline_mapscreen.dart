@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'dart:math';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -39,13 +39,13 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   // Controller for programmatic map movements
   final MapController _mapController = MapController();
 
-  // Palette copied from Rutas_mapscreen (dark theme)
+  // Paleta copiada de Rutas_mapscreen (tema oscuro)
   static const Color _darkBg = Color(0xFF141A2F);
   static const Color _gold = Color(0xFFD6B68A);
   static const Color _body = Color(0xFFE6E8EC);
   static const Color _bodyDim = Color(0xFFB5B8BF);
 
-  // Simple LRU cache for tiles (key = z/x/y)
+  // Caché LRU simple para mosaicos (clave = z/x/y)
   final Map<String, Uint8List> _tileCache = {};
   final List<String> _cacheOrder = [];
   final int _cacheMaxEntries = 200;
@@ -54,19 +54,19 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   List<Map<String, dynamic>> _clientesFiltradosOffline = [];
   List<Map<String, dynamic>> _direccionesFiltradasOffline = [];
   List<Marker> _clientMarkers = [];
-  // Quick lookup by cliente id (string)
+  // Búsqueda rápida por ID de cliente (cadena)
   Map<String, Map<String, dynamic>> _clientesById = {};
   // Orden de paradas para el drawer (versión offline)
   List<Map<String, dynamic>> _ordenParadasOffline = [];
-  // scaffold key to open endDrawer from AppBar (parity with online screen)
+  // Clave del scaffold para abrir el endDrawer desde la AppBar (paridad con la pantalla en línea)
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  // Track visited addresses (store dicl_id as string)
+  // Seguimiento de direcciones visitadas (almacenar dicl_id como cadena)
   final Set<String> _direccionesVisitadasOffline = {};
-  // (visit-tracking will be sourced from visitas_historial.json; do not persist a separate order)
+  // (el seguimiento de visitas se obtendrá de visitas_historial.json; no persistir un orden separado)
 
-  // Device-based center (may be null until obtained). Fallback coords are
-  // initialized to a sensible default but will be updated from the device
-  // (last known position or current) when available.
+  // Centro basado en el dispositivo (puede ser nulo hasta que se obtenga). Las coordenadas de respaldo están
+  // inicializadas con un valor predeterminado razonable pero se actualizarán desde el dispositivo
+  // (última posición conocida o actual) cuando esté disponible.
   double? _centerLat;
   double? _centerLng;
   double _fallbackLat = 15.505456;
@@ -75,10 +75,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
   @override
   void initState() {
     super.initState();
-    // Start obtaining device location and initialize server in parallel.
+    // Comenzar a obtener la ubicación del dispositivo e inicializar el servidor en paralelo.
     _setInitialPositionFromDevice();
     _initMbtilesServer();
-    // Also load offline clients immediately so markers appear even without MBTiles
+    // También cargar clientes offline inmediatamente para que los marcadores aparezcan incluso sin MBTiles
     _loadClientesOffline().then((_) {
       // Depurar estado de las direcciones después de cargar
       _depurarEstadoDirecciones();
@@ -92,12 +92,12 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
     final origin = '$_centerLat,$_centerLng';
     final dest = '${destino.latitude},${destino.longitude}';
 
-    // Prefer Google Maps app scheme
+    // Preferir esquema de aplicación de Google Maps
     final googleMapsUri = Uri.parse(
       'google.navigation:q=${destino.latitude},${destino.longitude}&mode=d',
     );
 
-    // Fallback to web directions
+    // Alternativa a direcciones web
     final webUri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving',
     );
@@ -114,7 +114,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      print('Error abriendo Google Maps: $e');
     }
   }
 
@@ -139,47 +138,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      print('Error abriendo Waze: $e');
     }
   }
 
-  // Método para depurar el estado de las direcciones
   void _depurarEstadoDirecciones() {
-    print('====== DEPURACIÓN ESTADO DE DIRECCIONES ======');
-    print('Ruta ID: ${widget.rutaId}');
-    print('Total clientes filtrados: ${_clientesFiltradosOffline.length}');
-    print(
-      'Total direcciones filtradas: ${_direccionesFiltradasOffline.length}',
-    );
-    print(
-      'Total direcciones visitadas: ${_direccionesVisitadasOffline.length}',
-    );
-
-    // Mostrar los primeros clientes para verificar
-    print('Primeros 5 clientes:');
-    for (int i = 0; i < min(5, _clientesFiltradosOffline.length); i++) {
-      final cliente = _clientesFiltradosOffline[i];
-      final nombre =
-          cliente['clie_NombreNegocio'] ??
-          cliente['clie_Nombres'] ??
-          'Sin nombre';
-      final id = cliente['clie_Id'] ?? cliente['clieId'] ?? 'desconocido';
-      print('  - $nombre (ID: $id)');
-    }
-
-    // Mostrar las primeras direcciones
-    print('Primeras 5 direcciones:');
-    for (int i = 0; i < min(5, _direccionesFiltradasOffline.length); i++) {
-      final dir = _direccionesFiltradasOffline[i];
-      final diclId = dir['dicl_id'] ?? dir['diCl_Id'] ?? 'desconocido';
-      final clieId = dir['clie_id'] ?? dir['clieId'] ?? 'desconocido';
-      final visitada = _direccionesVisitadasOffline.contains(diclId.toString());
-      print(
-        '  - Dirección ID: $diclId, Cliente ID: $clieId, Visitada: $visitada',
-      );
-    }
-
-    print('==========================================');
   }
 
   Future<void> _setInitialPositionFromDevice() async {
@@ -197,7 +159,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       }
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
-        // no permission, keep fallback
+        // sin permiso, mantener respaldo
         return;
       }
       final pos = await Geolocator.getCurrentPosition(
@@ -256,26 +218,26 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         return;
       }
 
-      // Open the MBTiles database read-only
+      // Abrir la base de datos MBTiles en modo solo lectura
       _mbtilesDb = await openDatabase(mbtilesFile.path, readOnly: true);
 
-      // Start a loopback HTTP server to serve tiles
+      // Iniciar un servidor HTTP de loopback para servir mosaicos
       _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       _serverPort = _server!.port;
       print(
-        'MBTiles HTTP server started on port $_serverPort, file=${mbtilesFile.path}',
+        'Servidor HTTP MBTiles iniciado en el puerto $_serverPort, archivo=${mbtilesFile.path}',
       );
 
       _server!.listen((HttpRequest request) async {
         try {
           final path = request.uri.path; // e.g. /{z}/{x}/{y}.png
-          print('MBTiles server request: $path');
+
           final parts = path.split('/').where((s) => s.isNotEmpty).toList();
           if (parts.length >= 3) {
             final z = int.tryParse(parts[0]);
             final x = int.tryParse(parts[1]);
             var yStr = parts[2];
-            // strip possible extension
+            // eliminar posible extensión
             if (yStr.contains('.')) yStr = yStr.split('.').first;
             final y = int.tryParse(yStr);
 
@@ -286,15 +248,15 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
                 request.response.headers.set('Content-Type', mime);
                 request.response.add(bytes);
                 await request.response.close();
-                print('Served tile $z/$x/$y (${bytes.length} bytes)');
+                print('Se sirvió el mosaico $z/$x/$y (${bytes.length} bytes)');
                 return;
               } else {
-                print('Tile not found in MBTiles: $z/$x/$y');
+
               }
             }
           }
 
-          // Not found
+          // No encontrado
           request.response.statusCode = HttpStatus.notFound;
           await request.response.close();
         } catch (_) {
@@ -314,7 +276,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         await _loadClientesOffline();
       } catch (_) {}
     } catch (e) {
-      // If anything fails, fall back to no-mbtiles UI
+      // Si algo falla, volver a la interfaz sin mbtiles
       setState(() {
         _starting = false;
         _hasMbtiles = false;
@@ -358,7 +320,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           .map((s) => s!)
           .toSet();
 
-      print('OFFLINE: IDs de clientes encontrados: ${clienteIds.length}');
+
 
       // Build lookup map for quick access when creating marker tap handlers
       _clientesById = Map.fromEntries(
@@ -497,11 +459,6 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () {
-                  final clIdRaw = rawClId;
-                  final clIdStrLog = clIdRaw == null
-                      ? 'unknown'
-                      : clIdRaw.toString();
-                  print('OFFLINE: marker tapped clId=$clIdStrLog');
                   _showClienteDetails(clienteMap, d);
                 },
                 child: SizedBox(
@@ -610,7 +567,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
 
         // Combinar ambas fuentes para una lista completa
         final visitasLocal = [...visitasHistorial, ...visitasPendientes];
-        print('OFFLINE: Total visitas combinadas: ${visitasLocal.length}');
+
 
         // Obtener los IDs de todas las direcciones en la ruta actual
         final diclIdsInOrden = _ordenParadasOffline
@@ -618,7 +575,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
             .where((s) => s.isNotEmpty)
             .toSet();
 
-        print('OFFLINE: Direcciones en orden: ${diclIdsInOrden.length}');
+
 
         // Buscar las visitas que corresponden a direcciones de esta ruta
         final nuevos = <String>{};
@@ -656,7 +613,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           } catch (_) {}
         }
 
-        print('OFFLINE: Direcciones visitadas encontradas: ${nuevos.length}');
+
 
         if (nuevos.isNotEmpty) {
           setState(() {
@@ -668,7 +625,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
           // No persistir un archivo separado; el estado de visitas proviene de visitas_historial.json
         }
       } catch (e) {
-        print('OFFLINE: Error al cargar visitas: $e');
+
         // ignore
       }
       if (failures.isNotEmpty) {
@@ -677,10 +634,10 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
         );
       }
 
-      print('OFFLINE: created markers=${_clientMarkers.length}');
+
       setState(() {});
-    } catch (e, st) {
-      print('OFFLINE: error loading clientes offline: $e\n$st');
+    } catch (e) {
+
     }
   }
 
@@ -1129,7 +1086,7 @@ class _RutasOfflineMapScreenState extends State<RutasOfflineMapScreen> {
       );
     } else if (_hasMbtiles && _serverPort != null) {
       final urlTemplate = 'http://127.0.0.1:$_serverPort/{z}/{x}/{y}.png';
-      print('Using tile url template: $urlTemplate');
+
       // Always show device location marker along with client markers.
       final deviceMarker = Marker(
         point: LatLng(centerLat, centerLng),
