@@ -350,56 +350,89 @@ class PrinterService {
     }
   }
 
-  // MÉTODO PRINCIPAL DE IMPRESIÓN - CORREGIDO PARA ZQ310
   Future<bool> printZPL(String zplContent) async {
-    if (!_isConnected ||
-        _connectedDevice == null ||
-        _writeCharacteristic == null) {
-      throw Exception('No hay una impresora conectada');
+  if (!_isConnected ||
+      _connectedDevice == null ||
+      _writeCharacteristic == null) {
+    debugPrint('❌ No hay una impresora conectada');
+    throw Exception('No hay una impresora conectada');
+  }
+
+  try {
+    debugPrint('📝 Preparando ZPL para imprimir (${zplContent.length} bytes)');
+
+    // Asegurar que el ZPL termine correctamente
+    if (!zplContent.endsWith('^XZ')) {
+      zplContent += '^XZ';
     }
 
-    try {
-      // Asegurar que el ZPL termine correctamente
-      if (!zplContent.endsWith('^XZ')) {
-        zplContent += '^XZ';
-      }
+    // Verificar estado de conexión ANTES de enviar
+    var connectionState = await _connectedDevice!.connectionState.first
+        .timeout(const Duration(seconds: 3));
+    
+    if (connectionState != BluetoothConnectionState.connected) {
+      debugPrint('❌ Impresora desconectada durante printZPL');
+      return false;
+    }
 
-      // NO modificar el ZPL automáticamente - puede causar problemas
+    List<int> bytes = utf8.encode(zplContent);
+    debugPrint('📦 Total bytes a enviar: ${bytes.length}');
 
-      List<int> bytes = utf8.encode(zplContent);
+    // Verificar propiedades de escritura
+    bool useWithoutResponse =
+        _writeCharacteristic!.properties.writeWithoutResponse;
+    bool canWrite = _writeCharacteristic!.properties.write;
 
-      // MÉTODO CORREGIDO: Determinar si usar writeWithoutResponse o write
-      bool useWithoutResponse =
-          _writeCharacteristic!.properties.writeWithoutResponse;
-      bool canWrite = _writeCharacteristic!.properties.write;
+    debugPrint('✍️  Método de escritura: ${useWithoutResponse ? "writeWithoutResponse" : "write"}');
 
-      if (!useWithoutResponse && !canWrite) {
-        throw Exception('La característica no soporta escritura');
-      }
+    if (!useWithoutResponse && !canWrite) {
+      debugPrint('❌ La característica no soporta escritura');
+      throw Exception('La característica no soporta escritura');
+    }
 
-      // Usar chunks optimizados para BLE (150 bytes es seguro y rápido)
-      const int chunkSize = 150;
+    // Usar chunks optimizados para BLE
+    const int chunkSize = 150;
+    int chunksEnviados = 0;
+    int totalChunks = (bytes.length / chunkSize).ceil();
 
-      for (int i = 0; i < bytes.length; i += chunkSize) {
-        int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-        List<int> chunk = bytes.sublist(i, end);
+    debugPrint('📤 Enviando $totalChunks chunks de $chunkSize bytes...');
 
+    for (int i = 0; i < bytes.length; i += chunkSize) {
+      int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+      List<int> chunk = bytes.sublist(i, end);
+
+      try {
         // Usar el método apropiado según las propiedades de la característica
         if (useWithoutResponse) {
           await _writeCharacteristic!.write(chunk, withoutResponse: true);
-          // Sin delay para writeWithoutResponse (más rápido)
         } else {
           await _writeCharacteristic!.write(chunk, withoutResponse: false);
-          // Delay mínimo solo para write normal
           await Future.delayed(const Duration(milliseconds: 15));
         }
+        
+        chunksEnviados++;
+        
+        // Log cada 10 chunks o al final
+        if (chunksEnviados % 10 == 0 || chunksEnviados == totalChunks) {
+          debugPrint('   📊 Progreso: $chunksEnviados/$totalChunks chunks');
+        }
+      } catch (e) {
+        debugPrint('❌ Error enviando chunk $chunksEnviados: $e');
+        return false;
       }
-
-      return true;
-    } catch (e) {
-      return false;
     }
+
+    debugPrint('✅ Todos los chunks enviados correctamente ($chunksEnviados/$totalChunks)');
+
+    // Esperar a que la impresora procese (especialmente importante para gráficos grandes)
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return true;
+  } catch (e) {
+    debugPrint('❌ Error crítico en printZPL: $e');
+    return false;
   }
+}
 
   // Test de impresión MUY SIMPLE
   Future<bool> printSimpleTest() async {
@@ -417,43 +450,50 @@ class PrinterService {
     }
   }
 
-  // Test de impresión profesional CORREGIDO
-  Future<bool> printTest() async {
-    if (!_isConnected || _connectedDevice == null) {
-      throw Exception('No hay una impresora conectada');
-    }
+  // Test de impresión CON TU LOGO ORIGINAL - Reemplaza el método existente
+Future<bool> printTest() async {
+  if (!_isConnected || _connectedDevice == null) {
+    throw Exception('No hay una impresora conectada');
+  }
 
-    try {
-      // ZPL más simple y confiable para ZQ310
-      String professionalZPL =
-          '''^XA
-^CF0,30
-^FO50,50^FDSIDCOP MOBILE^FS
-^CF0,20
-^FO50,80^FDSistema de Ventas^FS
-^FO50,110^FDHonduras, CA^FS
-^FO50,140^GB300,2,2^FS
-^CF0,18
-^FO50,160^FDPRUEBA DE IMPRESORA^FS
-^FO50,180^FDDispositivo: ${_connectedDevice?.platformName ?? 'ZQ310'}^FS
-^FO50,200^FDFecha: ${DateTime.now().toString().split(' ')[0]}^FS
-^FO50,220^FDHora: ${DateTime.now().toString().split(' ')[1].split('.')[0]}^FS
-^FO50,250^GB300,2,2^FS
-^CF0,25
-^FO50,270^FDESTADO: OK^FS
-^XZ''';
-
-      bool success = await printZPL(professionalZPL);
-
-      if (success) {
-        await Future.delayed(const Duration(seconds: 2));
-      }
-
-      return success;
-    } catch (e) {
+  try {
+    debugPrint('🖨️ Iniciando prueba de impresión...');
+    
+    // Verificar estado de conexión primero
+    var connectionState = await _connectedDevice!.connectionState.first
+        .timeout(const Duration(seconds: 3));
+    
+    if (connectionState != BluetoothConnectionState.connected) {
+      debugPrint('❌ Impresora no conectada');
       return false;
     }
+
+    debugPrint('✅ Impresora conectada, generando ZPL con logo...');
+
+    // TU ZPL ORIGINAL CON EL LOGO (el que ya tenías)
+    String professionalZPL = '''^XA^FO60,50^GFA,7452,7452,23,gP0PFE31!gP0QF19!gO01FF7NF8D!gO03FB7KF7FDC79!gO03MFEFFCC3B!gO07FCNFCE1B!gO0FF03MFE78!gN01FF00MFE3C7!gN01FA003IFE7FF003!gN03FA003IF27FFE31!gN03EA00JF37FFE78!gN07EA00IFE73FFE7C7!gN0FCDE1F8FCABFFE7!gN0FC061E0F829!gM01F8023E0302DLFBgM03EI03FI0247!gM03E2003EJ027!gM0782001J010KFEDgM0F84M018BJF07gM0F8O026IFC87gL01E1Q0F78307gL03ER0F00307gL03CR0C00207gL078R0CJ07gL0FS0CJ07gL0ES08J07gK01EX07gK03CW01!gK03CW03!gK078W03!gK0FX07!gK0EX0F,gJ01EW01F,gJ03CW01F,gJ038W038,gJ078W03,gJ0F,gJ0E,gI01C,gI03C,gI038,O01F8Q07,O07FEQ0E,O0IF8P0C,O0IFCO01C,O0IFCO038,N01IFCO03,N01IFCO07,O0IF8O0E,O0IF8O0C,O03FCO01C,gG038,gG03,:gG06,,::::::::::::::X01,,::::::::::::::R07,R07F03FE4,Q04FFBJF8,Q04MFC,Q067LFE8,N0600E7NF6,I0207E0607QF8,I0FE0E0E07QFC,00BFF8F0EE7QFE,01IF9VFC,03gFC,:03gGFE,03gHFE,03gIF,03gIF8,:03gIFC,BgJFC,gKFE,gLF8,gMF8,gMFC,:gNF,gNFC,gNFE,gOF,:gOF8,gOFC,:gPF,:gPF8,gPFC,gQF,gQF8,:gXF,gYF,gYFC,hF,hFC,hFE,hGF,hGFC,hGFE,hHF,:hHF8,FFCgYFC,FFCCgXFC,FF8003gVFE,FFI03gVFE,FFI07KFA3gPF,FFI07IF8001gPF,FEI07IF8001gIFE1KF8,FEI07IFC003gIFC0KF8,FEI0JFC3C3gIFC0KF8,FEI0JFC3C3gIFC0KFC,FCI0JFC3C3gIFE1KFC,FCI0JFC3C3gPFC,:F8I0JFC3C3gIFE1KFC,F8001JFC3C3gIFC0KFC,:F8001JFC3C3OFBSFC0KFC,F8001JF83C1gIFC0KFC,F8I0JFJ0gIFE1KFC,F8I0JFJ0gPFC,:F8I0KFC3gJFE1KFC,F8I0KFC3gJFC0KF8,F8I07JFC3gJFC0KF8,:F8I07JFC3gJFE1KF,F8I07JFC7gQF,F8I03JFC7gQF,F8I03JFE7gPFE,F8I03gVFE,F807gXFC,D83gYF8,D8hF,DhGF,3hFE,3hFC,3hF8,3hF,3gYFC,3gYF8,3FE03IF0gPFE,1C403FFE03gOF,1C003FFE01gNF8,18003FFC00MFCK07NF8,18007FFC007KF8L03NF8,1800IFC003IFO01NF,1800IF8003FFCO01NF,380JFI01FFP01NF,300IFEI01FCP03NF,300IFCI01FCP03NF,3007FF8I01FCP07NF,2I01EJ01FEP0OF,2O01FFO07NFE,2O01FF8N0OFE,6P07F8M01OFE,6P07FCN07IFCJFC,CP03FEL0403IF01IFC,CP03FFL0C03IF00IF8,CP01FF8J03C01FFE00IF8,CQ07F8J0F800FFE007FF,CQ03FCI01F8007FE0027F,CR0FCI03F8007FE0023C,8R07CI07F8007FE00318,8R07EI07FI03FE00318,8R07EI0FFI03FE00308,8P0E1FFI0FFI03FE00708,8O03JFI0FEI03FC00788,P0KFI07CI03FC00788,O01KFI078I07FC00788,O03KFI03I01FF80078C,O07KFM03FFI078C,N01LFM07FFI0FCE,N03KFEM0IF001FCE,N0LFEL01FFE003FFE,M01LFEL03FFE007FFE,M03LFCL07FFC00IFE,M01LF8K01IFC01JF,O07JF8K01IF801JF,O03JF8K03IF803JF,O01IFEL07IF007JFT01P0IF8L0IFE01KFT07Q01CL01IFC03KFT0!Y03IF807JFET0!Y03IF00KFES07!Y07FFE01KFCS0!Y0IFC03KFCR0!Y0IFC0LFCR0!X01IF81LFCR0!JFCS01IF83LFCQ01!JFES01QFEQ03!JFES03RFQ07!KFS07RF8P0!KFR01SF8P0!KFJ03M03SF8P0!KF803FF8L0TF8P0!KF80FCM03TF8P0!KFC7F8M07TF8O01!KFCFFN0UF8O01!MFEM01UF8O01!MF8M0VF8O03!MFM07VFCO07!MFL01WFEO0!MFL03WFEO0!MFL0YFO0!MF8J03YFO07!MFK03YF8N07!MFK07YF8N07!MFK0gFCN07!LFEJ03gFCN0!LFEJ07gFEM01!LFCJ07gFEM03!LF8J0gGFEM03!LF8I03gGFEM03!LFJ03gHFL03!KFEJ07gHFL03!KFEJ0gIFL07!KFCI03gIFJ01!KFCI03gIFJ03!KF8I07gIF8I03!KFJ0gJFCI03!JFEI01gJFCI07!JFEI01gJFC43!JFCI01!JF8I03!:JFJ07!IFEJ07!IFEJ03!::IFCJ01!:IFCJ03!:::::IFCJ07!IFCJ0!:::::IFCJ03!IFCJ01!IFCK07!:IFCK03!IF8K03!:::IF8K07!IF8K07OFE7FF07E7!IF8K0PFC7FC01C7!IF8K0PFC7F800C7!IF818001PFC7F0F8C7!IF821003CC70FFE7C3C7F1FFC63F0JFC3!IF8J01802063C300C3E1FFC01C031E301C01!IF8K0CI023C600C7E3FFC00C011E200C01!IF8I078C70E23C63C47E3FFC38EF11C23C7E3!IF040100C71E23C42C47E3FFC78F018C43C7C7!IF038400C71E23C40047E3FFC78C018C40078!IF00CI0C71E23C40043E1FFC78861C0C0070!IF004078C71E23C43FC7F1FCC788F1C0E3FE1!IF008070C71E21863C47F8784788E1C1E3C43!IFI0400C71E30060047F800C78801E1F00C01!IF100E00C71E300701C7FE01C78C01E1F81C01!IF0E3B8LFEFFE7JFDKFBJFE7!IF03E1!IFJ07!IFJ03!IFJ01!:IFJ03!:IFI01!:IFI03!IFI07!:IFI0!IF001!FFE001!IF001!^FS^XZ''';
+
+    debugPrint('📄 ZPL generado (${professionalZPL.length} bytes)');
+    debugPrint('🚀 Enviando a impresora...');
+
+    // Enviar a la impresora
+    bool success = await printZPL(professionalZPL);
+
+    if (success) {
+      debugPrint('✅ ZPL enviado correctamente a la impresora');
+      
+      // Esperar a que la impresora procese el logo complejo
+      await Future.delayed(const Duration(milliseconds: 1500));
+    } else {
+      debugPrint('❌ Error al enviar ZPL a la impresora');
+    }
+
+    return success;
+  } catch (e) {
+    debugPrint('❌ Error en printTest: $e');
+    return false;
   }
+}
 
   Future<bool> printInventory(Map<String, dynamic> inventoryData) async {
   try {
