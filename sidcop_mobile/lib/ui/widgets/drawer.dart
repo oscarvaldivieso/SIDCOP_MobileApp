@@ -322,7 +322,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           if (tienePermiso(57)) // MVentas
-            if(_vendTipo == 'V')
               ListTile(
                 leading: const Icon(
                   Icons.sell_outlined,
@@ -369,7 +368,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
             },
           ),
           if (tienePermiso(35)) // Devoluciones
-            if(_vendTipo != 'P')
               ListTile(
                 leading: const Icon(
                   Icons.restart_alt_outlined,
@@ -392,23 +390,24 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
           //   if(pantallas!=null && pantallas.contains("DashBoard Admin") && !usuario!.usua_Admin)
 
-          ListTile(
-            leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
-            title: const Text(
-              'Pedidos',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Satoshi',
-                fontWeight: FontWeight.w500,
+          if(tienePermiso(38)) // MPedidos
+            ListTile(
+              leading: const Icon(Icons.map, color: Color(0xFFD6B68A)),
+              title: const Text(
+                'Pedidos',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Satoshi',
+                  fontWeight: FontWeight.w500,
+                ),
               ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PedidosScreen()),
+                );
+              },
             ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => PedidosScreen()),
-              );
-            },
-          ),
           if (tienePermiso(10)) // MClientes
             ListTile(
               leading: const Icon(
@@ -485,7 +484,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
               ),
           //   if(usuario!.usua_Admin)
           if (tienePermiso(58)) // MInventario
-            if(_vendTipo != 'P')
             ListTile(
               leading: const Icon(
                 Icons.assignment_turned_in_outlined,
