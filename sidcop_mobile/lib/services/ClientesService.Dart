@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 
 class ClientesService {
   // --- Ubicaciones ---
@@ -23,8 +24,62 @@ class ClientesService {
 
       if (response.statusCode == 200) {
         final List<dynamic> clientesList = jsonDecode(response.body);
-        // Filtrar clientes con clie_Estado == true
-        return clientesList.where((cliente) => cliente['clie_Estado'] == true).toList();
+        
+        print('🔍 Total clientes recibidos del API: ${clientesList.length}');
+        
+        // Debug: ver si los IDs problemáticos existen
+        final todosLosIds = clientesList.map((c) => c['clie_Id']).whereType<int>().toList();
+        print('🔍 Primeros 10 IDs en BD: ${todosLosIds.take(10).toList()}');
+        print('🔍 ¿Existe 4374? ${todosLosIds.contains(4374)}');
+        print('🔍 ¿Existe 4379? ${todosLosIds.contains(4379)}');
+        print('🔍 ¿Existe 4384? ${todosLosIds.contains(4384)}');
+        
+        // NO filtrar por clie_Estado para incluir TODOS los clientes del día
+        var clientesFiltrados = clientesList; // <-- CAMBIO: Ya no filtramos por estado
+        
+        print('🔍 Total clientes (sin filtrar por estado): ${clientesFiltrados.length}');
+        
+        final idsActivos = clientesFiltrados.map((c) => c['clie_Id']).whereType<int>().toList();
+        print('🔍 Primeros 10 IDs sin filtrar: ${idsActivos.take(10).toList()}');
+        print('🔍 ¿4374 disponible? ${idsActivos.contains(4374)}');
+        print('🔍 ¿4379 disponible? ${idsActivos.contains(4379)}');
+        
+        // Obtener IDs de clientes del día
+        final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+        
+        // Si hay clientes del día definidos, filtrar solo esos
+        if (clientesDelDiaIds.isNotEmpty) {
+          print('🔍 IDs a buscar: $clientesDelDiaIds');
+          
+          final idsEncontrados = <int>[];
+          final idsNoEncontrados = <int>[];
+          
+          clientesFiltrados = clientesFiltrados.where((cliente) {
+            final clieId = cliente['clie_Id'];
+            final existe = clieId != null && clientesDelDiaIds.contains(clieId);
+            if (existe) {
+              idsEncontrados.add(clieId);
+              print('  ✅ Cliente encontrado: ID $clieId - ${cliente['clie_Nombres']} (Estado: ${cliente['clie_Estado']})');
+            }
+            return existe;
+          }).toList();
+          
+          // Identificar clientes que no se encontraron
+          idsNoEncontrados.addAll(clientesDelDiaIds.where((id) => !idsEncontrados.contains(id)));
+          
+          print('🎯 Clientes después del filtro: ${clientesFiltrados.length}');
+          
+          if (idsNoEncontrados.isNotEmpty) {
+            print('⚠️ ADVERTENCIA: ${idsNoEncontrados.length} clientes del día NO EXISTEN en la BD:');
+            print('⚠️ IDs faltantes: $idsNoEncontrados');
+            print('⚠️ Estos clientes deben ser creados en el sistema primero.');
+          }
+        } else {
+          print('⚠️ Sin clientes del día definidos, mostrando lista vacía');
+          clientesFiltrados = [];
+        }
+        
+        return clientesFiltrados;
       } else {
         throw Exception(
           'Error en la solicitud: Código \\${response.statusCode}, Respuesta: \\${response.body}',
@@ -250,7 +305,33 @@ class ClientesService {
       developer.log('Get Clientes Por Ruta Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> clientesList = jsonDecode(response.body);
+        var clientesList = jsonDecode(response.body) as List<dynamic>;
+        
+        print('🔍 [POR RUTA] Total clientes recibidos: ${clientesList.length}');
+        
+        // Obtener IDs de clientes del día
+        final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+        
+        // Si hay clientes del día definidos, filtrar solo esos
+        if (clientesDelDiaIds.isNotEmpty) {
+          print('🔍 [POR RUTA] Filtrando ${clientesList.length} clientes por ${clientesDelDiaIds.length} IDs del día');
+          print('🔍 [POR RUTA] IDs a buscar: $clientesDelDiaIds');
+          
+          clientesList = clientesList.where((cliente) {
+            final clieId = cliente['clie_Id'];
+            final existe = clieId != null && clientesDelDiaIds.contains(clieId);
+            if (existe) {
+              print('  ✅ [POR RUTA] Cliente encontrado: ID $clieId - ${cliente['clie_Nombres']}');
+            }
+            return existe;
+          }).toList();
+          
+          print('🎯 [POR RUTA] Clientes después del filtro: ${clientesList.length}');
+        } else {
+          print('⚠️ [POR RUTA] Sin clientes del día definidos, mostrando lista vacía');
+          clientesList = [];
+        }
+        
         return clientesList;
       } else {
         throw Exception(

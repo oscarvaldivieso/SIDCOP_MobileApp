@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/clientesService.dart';
 import 'package:sidcop_mobile/services/DireccionClienteService.dart';
 import 'package:sidcop_mobile/models/ClientesViewModel.dart';
 import 'package:sidcop_mobile/models/RutasViewModel.dart';
+import 'package:sidcop_mobile/models/direccion_cliente_model.dart';
 import 'package:sidcop_mobile/ui/widgets/drawer.dart';
 import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:sidcop_mobile/services/GlobalService.dart';
@@ -30,6 +31,10 @@ class RutasScreen extends StatefulWidget {
 class _RutasScreenState extends State<RutasScreen> {
   bool isOnline =
       false; // Variable de clase para almacenar el estado de conexión
+
+  // Caché para optimizar generación de mapas estáticos
+  List<Cliente>? _todosClientes;
+  List<DireccionCliente>? _todasDirecciones;
 
   Future<bool> verificarconexion() async {
     try {
@@ -65,8 +70,7 @@ class _RutasScreenState extends State<RutasScreen> {
         } catch (_) {}
         return filePath;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -168,21 +172,20 @@ class _RutasScreenState extends State<RutasScreen> {
       // 1. Obtener rutas asignadas al vendedor (si existe variable global)
       await _cargarRutasAsignadasVendedor();
 
-      // 2. Obtener todas las rutas
+      // 2. Cargar caché de clientes y direcciones UNA SOLA VEZ
+      await _cargarCacheClientesYDirecciones();
+
+      // 3. Obtener rutas (ya filtradas por rutasDelDia en el servicio)
       final rutasJson = await _rutasService.getRutas();
       final rutasList = rutasJson
           .map<Ruta>((json) => Ruta.fromJson(json))
           .toList();
 
-      // 3. Filtrar si hay rutas permitidas (si _rutasPermitidas vacío, muestra todas)
-      final List<Ruta> rutasFiltradas = _rutasPermitidas.isEmpty
-          ? rutasList
-          : rutasList
-                .where((r) => _rutasPermitidas.contains(r.ruta_Id))
-                .toList();
+      print('Rutas_screen: Recibidas ${rutasList.length} rutas del servicio');
+
       setState(() {
-        _rutas = rutasFiltradas;
-        _filteredRutas = List.from(rutasFiltradas);
+        _rutas = rutasList;
+        _filteredRutas = List.from(rutasList);
         _isLoading = false;
       });
       // Guardar rutas encriptadas offline
@@ -193,12 +196,10 @@ class _RutasScreenState extends State<RutasScreen> {
         try {
           await RutasScreenOffline.sincronizarClientes();
           await RutasScreenOffline.sincronizarDirecciones();
-        } catch (e) {
-        }
+        } catch (e) {}
         try {
           await RutasScreenOffline.guardarDetallesTodasRutas();
-        } catch (e) {
-        }
+        } catch (e) {}
       });
     } catch (e) {
       // Si falla, intentar leer rutas offline
@@ -213,6 +214,34 @@ class _RutasScreenState extends State<RutasScreen> {
           SnackBar(content: Text('Mostrando rutas sin conexión a Internet.')),
         );
       }
+    }
+  }
+
+  /// Carga el caché de clientes y direcciones UNA SOLA VEZ para optimizar
+  Future<void> _cargarCacheClientesYDirecciones() async {
+    if (_todosClientes != null && _todasDirecciones != null) {
+      return; // Ya está en caché
+    }
+
+    try {
+      final clientesService = ClientesService();
+      final direccionesService = DireccionClienteService();
+
+      final clientesJson = await clientesService.getClientes();
+      _todosClientes = clientesJson
+          .map<Cliente>((j) => Cliente.fromJson(j))
+          .toList();
+
+      final direccionesJson = await direccionesService.getDireccionesPorCliente();
+      _todasDirecciones = direccionesJson
+          .map<DireccionCliente>((j) => DireccionCliente.fromJson(j as Map<String, dynamic>))
+          .toList();
+
+      print('Caché cargado: ${_todosClientes!.length} clientes, ${_todasDirecciones!.length} direcciones');
+    } catch (e) {
+      print('Error al cargar caché de clientes/direcciones: $e');
+      _todosClientes = [];
+      _todasDirecciones = [];
     }
   }
 
@@ -233,8 +262,7 @@ class _RutasScreenState extends State<RutasScreen> {
         final rutasList = jsonDecode(rutasString) as List;
         return rutasList.map((json) => Ruta.fromJson(json)).toList();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Fallback: intentar leer el JSON gestionado por RutasScreenOffline ('rutas.json')
     try {
@@ -242,8 +270,7 @@ class _RutasScreenState extends State<RutasScreen> {
       if (raw == null) return [];
       final lista = List.from(raw as List);
       return lista.map((json) => Ruta.fromJson(json)).toList();
-    } catch (e) {
-    }
+    } catch (e) {}
 
     return [];
   }
@@ -341,24 +368,27 @@ class _RutasScreenState extends State<RutasScreen> {
   }
 
   Future<String> _getStaticMapMarkers(Ruta ruta) async {
-    final clientesService = ClientesService();
-    final direccionesService = DireccionClienteService();
-    final clientesJson = await clientesService.getClientes();
-    final clientes = clientesJson
-        .map<Cliente>((j) => Cliente.fromJson(j))
-        .toList();
-    final clientesFiltrados = clientes
+    // Usar caché si está disponible, sino cargar
+    if (_todosClientes == null || _todasDirecciones == null) {
+      await _cargarCacheClientesYDirecciones();
+    }
+
+    // Filtrar clientes de esta ruta
+    final clientesFiltrados = _todosClientes!
         .where((c) => c.ruta_Id == ruta.ruta_Id)
         .toList();
-    final todasDirecciones = await direccionesService
-        .getDireccionesPorCliente();
+    
+    // Obtener IDs de clientes
     final clienteIds = clientesFiltrados
         .map((c) => c.clie_Id)
         .whereType<int>()
         .toSet();
-    final direccionesFiltradas = todasDirecciones
+    
+    // Filtrar direcciones por esos clientes
+    final direccionesFiltradas = _todasDirecciones!
         .where((d) => clienteIds.contains(d.clie_id))
         .toList();
+    
     // Usar URL remota para el icono marker
     const iconUrl =
         'http://200.59.27.115/Honduras_map/static_marker_cjmmpj.png';
@@ -447,7 +477,7 @@ class _RutasScreenState extends State<RutasScreen> {
                 ),
               )
             : _rutas.isEmpty
-            ? const Center(child: Text('No hay rutas'))
+            ? const Center(child: Text('No hay rutas asignadas al dia de hoy'))
             : SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
