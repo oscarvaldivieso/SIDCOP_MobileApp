@@ -9,6 +9,26 @@ class ClientesService {
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
 
+  /// Obtiene TODOS los clientes sin filtrar - para mapas estáticos
+  Future<List<dynamic>> getClientesSinFiltro() async {
+    final url = Uri.parse('$_apiServer/Cliente/Listar');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error en la solicitud: Código ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
   Future<List<dynamic>> getClientes() async {
     final url = Uri.parse('$_apiServer/Cliente/Listar');
 
