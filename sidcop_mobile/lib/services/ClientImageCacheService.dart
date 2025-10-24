@@ -23,7 +23,6 @@ class ClientImageCacheService {
   /// Cachea todas las imágenes de clientes para visualización offline
   Future<bool> cacheAllClientImages(List<Cliente> clients) async {
     if (_isCaching) {
-      print('ClientImageCacheService: Ya hay un proceso de caché en curso');
       return false;
     }
 
@@ -33,8 +32,6 @@ class ClientImageCacheService {
     _imageUrlToIdMap.clear();
 
     try {
-      print('ClientImageCacheService: Iniciando caché de imágenes de clientes');
-
       // Filtrar clientes con imágenes válidas
       final clientsWithImages = clients
           .where(
@@ -46,10 +43,8 @@ class ClientImageCacheService {
           .toList();
 
       _totalImages = clientsWithImages.length;
-      print('ClientImageCacheService: ${_totalImages} imágenes para cachear');
 
       if (_totalImages == 0) {
-        print('ClientImageCacheService: No hay imágenes válidas para cachear');
         return true;
       }
 
@@ -70,12 +65,8 @@ class ClientImageCacheService {
       // Guardar mapeo de imágenes en caché
       await _saveImageMapping();
 
-      print(
-        'ClientImageCacheService: Caché completado - ${_cachedImages}/${_totalImages} imágenes',
-      );
       return true;
     } catch (e) {
-      print('ClientImageCacheService: Error en caché de imágenes: $e');
       return false;
     } finally {
       _isCaching = false;
@@ -85,15 +76,11 @@ class ClientImageCacheService {
   /// Cachea un lote de imágenes
   Future<void> _cacheBatchImages(List<Cliente> batch, int startIndex) async {
     final futures = batch.asMap().entries.map((entry) async {
-      final index = entry.key;
       final client = entry.value;
-      final globalIndex = startIndex + index;
 
       try {
-        print(
-          'ClientImageCacheService: Cacheando imagen ${globalIndex}/${_totalImages} - ${client.clie_NombreNegocio}',
-        );
-
+        // Solo log para debug si es necesario
+        // print('ClientImageCacheService: Cacheando imagen - ${client.clie_NombreNegocio}');
         // Usar CachedNetworkImageProvider para forzar el caché
         final imageProvider = CachedNetworkImageProvider(
           client.clie_ImagenDelNegocio!,
@@ -108,18 +95,17 @@ class ClientImageCacheService {
         listener = ImageStreamListener(
           (ImageInfo info, bool synchronousCall) {
             // Imagen cargada exitosamente
-            _imageUrlToIdMap[client.clie_ImagenDelNegocio!] = client.clie_Id.toString();
+            _imageUrlToIdMap[client.clie_ImagenDelNegocio!] = client.clie_Id
+                .toString();
             _cachedImages++;
-            print(
-              'ClientImageCacheService: Imagen ${globalIndex} cacheada - ${client.clie_NombreNegocio}',
-            );
+            // Solo log para debug si es necesario
+            // print('ClientImageCacheService: Imagen ${globalIndex} cacheada - ${client.clie_NombreNegocio}');
             imageStream.removeListener(listener);
             completer.complete();
           },
           onError: (exception, stackTrace) {
-            print(
-              'ClientImageCacheService: Error cacheando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $exception',
-            );
+            // Solo log de errores
+            // print('ClientImageCacheService: Error cacheando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $exception');
             imageStream.removeListener(listener);
             completer
                 .complete(); // Completar aunque haya error para no bloquear
@@ -132,23 +118,18 @@ class ClientImageCacheService {
         await completer.future.timeout(
           Duration(seconds: 15),
           onTimeout: () {
-            print(
-              'ClientImageCacheService: Timeout para imagen ${globalIndex} - ${client.clie_NombreNegocio}',
-            );
+            // Solo log de timeouts
+            // print('ClientImageCacheService: Timeout para imagen ${globalIndex} - ${client.clie_NombreNegocio}');
             imageStream.removeListener(listener);
           },
         );
       } catch (e) {
-        print(
-          'ClientImageCacheService: Error procesando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $e',
-        );
+        // Solo log de errores críticos
+        // print('ClientImageCacheService: Error procesando imagen ${globalIndex} - ${client.clie_NombreNegocio}: $e');
       }
     });
 
     await Future.wait(futures);
-    print(
-      'ClientImageCacheService: Lote completado - ${_cachedImages}/${_totalImages} imágenes cacheadas',
-    );
   }
 
   /// Guarda el mapeo de imágenes en caché y SQLite cifrado
@@ -163,12 +144,8 @@ class ClientImageCacheService {
           .toList();
 
       await OfflineDatabaseService.saveData('client_images_mapping', csvData);
-
-      print(
-        'ClientImageCacheService: Mapeo de imágenes guardado en caché y SQLite cifrado',
-      );
     } catch (e) {
-      print('ClientImageCacheService: Error guardando mapeo: $e');
+      // Silencioso
     }
   }
 
@@ -235,12 +212,9 @@ class ClientImageCacheService {
   Future<bool> isImageCached(String imageUrl, String clientId) async {
     try {
       final cacheManager = DefaultCacheManager();
-      final fileInfo = await cacheManager.getFileFromCache(
-        'client_$clientId',
-      );
+      final fileInfo = await cacheManager.getFileFromCache('client_$clientId');
       return fileInfo != null && fileInfo.file.existsSync();
     } catch (e) {
-      print('ClientImageCacheService: Error verificando caché: $e');
       return false;
     }
   }
@@ -248,8 +222,6 @@ class ClientImageCacheService {
   /// Limpia el caché de imágenes
   Future<void> clearImageCache() async {
     try {
-      print('ClientImageCacheService: Limpiando caché de imágenes');
-
       // Limpiar caché de CachedNetworkImage
       await DefaultCacheManager().emptyCache();
 
@@ -262,10 +234,8 @@ class ClientImageCacheService {
       _imageUrlToIdMap.clear();
       _cachedImages = 0;
       _totalImages = 0;
-
-      print('ClientImageCacheService: Caché de imágenes limpiado');
     } catch (e) {
-      print('ClientImageCacheService: Error limpiando caché: $e');
+      // Silencioso
     }
   }
 
@@ -282,7 +252,6 @@ class ClientImageCacheService {
         'mappingCount': _imageUrlToIdMap.length,
       };
     } catch (e) {
-      print('ClientImageCacheService: Error obteniendo info de caché: $e');
       return {
         'isCaching': _isCaching,
         'totalImages': _totalImages,
@@ -310,7 +279,6 @@ class ClientImageCacheService {
 
       return totalSize / (1024 * 1024); // Convertir a MB
     } catch (e) {
-      print('ClientImageCacheService: Error calculando tamaño de caché: $e');
       return 0.0;
     }
   }
@@ -348,7 +316,6 @@ class ClientImageCacheService {
         },
       );
     } catch (e) {
-      print('ClientImageCacheService: Error precargando imagen: $e');
       return false;
     }
   }
