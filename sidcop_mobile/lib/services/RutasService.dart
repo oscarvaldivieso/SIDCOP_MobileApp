@@ -20,10 +20,8 @@ class RutasService {
 
         // Filtrar por rutasDelDia - si está vacío, no mostrar rutas
         final rutasDelDiaIds = await UsuarioService.obtenerRutasDelDiaIds();
-        print("rutas del dia: ${rutasDelDiaIds.length}");
 
         if (rutasDelDiaIds.isEmpty) {
-          print('RutasService: rutasDelDiaIds vacío - mostrando 0 rutas');
           return [];
         }
 
@@ -32,9 +30,6 @@ class RutasService {
           return rutasDelDiaIds.contains(rutaId);
         }).toList();
 
-        print(
-          'RutasService: ${rutasFiltradas.length} rutas filtradas de ${rutasList.length} totales',
-        );
         return rutasFiltradas;
       } else {
         throw Exception('Error en la solicitud: Código ${response.statusCode}');
