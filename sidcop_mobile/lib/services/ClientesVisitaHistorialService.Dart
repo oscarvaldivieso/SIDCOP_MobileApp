@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
-// import 'package:sidcop_mobile/services/UsuarioService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'dart:io';
-
 import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class ClientesVisitaHistorialService {
@@ -37,7 +36,16 @@ class ClientesVisitaHistorialService {
       print('ListarVisitasPorVendedor raw body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final dynamic decoded = jsonDecode(response.body);
+        
+        // Manejar caso donde la respuesta no es una lista
+        final List<dynamic> data = decoded is List ? decoded : [];
+        
+        // Si no hay datos, retornar lista vacía
+        if (data.isEmpty) {
+          developer.log('No hay visitas para el vendedor $vendId');
+          return [];
+        }
 
         // Filtrar solo las visitas de hoy
         final visitasHoy = data.where((visita) {
@@ -59,16 +67,20 @@ class ClientesVisitaHistorialService {
           }
         }).toList();
 
+        // Si no hay visitas de hoy, retornar lista vacía
+        if (visitasHoy.isEmpty) {
+          developer.log('No hay visitas para hoy');
+          return [];
+        }
+
         // Ordenar por fecha de creación (más reciente primero)
         visitasHoy.sort((a, b) {
           try {
             final fechaA = DateTime.parse(a['clVi_FechaCreacion'] ?? '');
             final fechaB = DateTime.parse(b['clVi_FechaCreacion'] ?? '');
-            return fechaB.compareTo(
-              fechaA,
-            ); // Orden descendente (más reciente primero)
+            return fechaB.compareTo(fechaA);
           } catch (e) {
-            return 0; // Si hay error, mantener el orden original
+            return 0;
           }
         });
 
@@ -313,7 +325,7 @@ class ClientesVisitaHistorialService {
       final vendId = globalVendId;
       if (vendId == null) throw Exception('ID del vendedor no disponible');
 
-      // Obtener rutas con toda la info, no solo ruta_Id
+      // Obtener rutas con toda la info
       final urlRutas = Uri.parse('$_apiServer/Vendedores/ListarPorRutas');
       final resRutas = await http.get(
         urlRutas,
@@ -340,10 +352,24 @@ class ClientesVisitaHistorialService {
 
       final List<dynamic> clientes = jsonDecode(resClientes.body);
 
+      // Obtener IDs de clientes del día desde UsuarioService
+      final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+
       final clientesFiltrados = clientes
           .where((cliente) {
             final rutaId = cliente['ruta_Id'];
-            return rutaId != null && rutaIds.contains(rutaId);
+            final clieId = cliente['clie_Id'];
+            
+            // Verificar que la ruta coincida
+            final rutaCoincide = rutaId != null && rutaIds.contains(rutaId);
+            
+            // Verificar que el cliente esté en la lista de clientes del día
+            // Si clientesDelDiaIds está vacío, no se filtra ningún cliente
+            final estaEnClientesDelDia = clientesDelDiaIds.isEmpty 
+                ? false 
+                : (clieId != null && clientesDelDiaIds.contains(clieId));
+            
+            return rutaCoincide && estaEnClientesDelDia;
           })
           .map<Map<String, dynamic>>((cliente) {
             final rutaId = cliente['ruta_Id'];
@@ -353,12 +379,13 @@ class ClientesVisitaHistorialService {
             );
             return {
               ...cliente,
-              'veRu_Id':
-                  relacion['veRu_Id'] ?? 0, // <-- Aquí agregas el veRu_Id
+              'veRu_Id': relacion['veRu_Id'] ?? 0,
             };
           })
           .toList();
 
+      developer.log('Clientes del día IDs: ${clientesDelDiaIds.length}, Clientes filtrados: ${clientesFiltrados.length}');
+      
       return clientesFiltrados;
     } catch (e) {
       developer.log('Error en obtenerClientesPorVendedor: $e');
