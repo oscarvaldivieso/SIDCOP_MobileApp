@@ -157,10 +157,16 @@ class CuentasXCobrarService {
     }
   }
 
-  // Método agregado para obtener el resumen por cliente
+  // Método para obtener el resumen por cliente filtrado por vendedor
   Future<List<dynamic>> getResumenCliente() async {
-    final url = Uri.parse('$_apiServer/CuentasPorCobrar/ResumenCliente');
-    developer.log('Get ResumenCliente Request URL: $url');
+    // Validar que tenemos el ID del vendedor
+    if (globalVendId == null) {
+      throw Exception('ID del vendedor no disponible. Debe iniciar sesión primero.');
+    }
+
+    final url = Uri.parse('$_apiServer/CuentasPorCobrar/ListaResumenFiltrao/$globalVendId');
+    developer.log('Get ResumenCliente Filtrado Request URL: $url');
+    developer.log('Vendor ID: $globalVendId');
 
     try {
       final response = await http.get(
@@ -169,9 +175,9 @@ class CuentasXCobrarService {
       );
 
       developer.log(
-        'Get ResumenCliente Response Status: ${response.statusCode}',
+        'Get ResumenCliente Filtrado Response Status: ${response.statusCode}',
       );
-      developer.log('Get ResumenCliente Response Body: ${response.body}');
+      developer.log('Get ResumenCliente Filtrado Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -199,7 +205,7 @@ class CuentasXCobrarService {
         );
       }
     } catch (e) {
-      developer.log('Get ResumenCliente Error: $e');
+      developer.log('Get ResumenCliente Filtrado Error: $e');
       throw Exception('Error en la solicitud: $e');
     }
   }

@@ -5,6 +5,7 @@ import 'package:sidcop_mobile/ui/widgets/appBackground.dart';
 import 'package:intl/intl.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 //import 'package:sidcop_mobile/ui/screens/venta/pagoCuentaPorCobrar_screen.dart';
 
 
@@ -65,14 +66,31 @@ class _CxCScreenState extends State<CxCScreen> {
 
       List<dynamic> response;
       
-      // MODO OFFLINE PRIORITARIO - Siempre usar datos offline para inmediatez
-      print('📱 Cargando datos offline actualizados para reflejo inmediato');
-      response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      // VERIFICAR CONECTIVIDAD PARA FORZAR RECARGA CUANDO SEA POSIBLE
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isConnected = connectivityResult != ConnectivityResult.none;
+      
+      if (isConnected && globalVendId != null) {
+        print('🔄 Conexión disponible - Forzando recarga desde servidor para vendedor $globalVendId');
+        try {
+          // Forzar sincronización del resumen de clientes desde el servidor
+          response = await CuentasPorCobrarOfflineService.sincronizarResumenClientes();
+          print('✅ Datos recargados desde servidor: ${response.length} registros');
+        } catch (e) {
+          print('⚠️ Error recargando desde servidor, usando datos offline: $e');
+          // Fallback a datos offline si falla la sincronización
+          response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+        }
+      } else {
+        // Sin conexión o sin vendor ID, usar datos offline
+        print('📱 Sin conexión o vendor ID - Usando datos offline');
+        response = await CuentasPorCobrarOfflineService.obtenerResumenClientesLocal();
+      }
       
       if (response.isEmpty) {
-        print('⚠️ No hay datos offline disponibles');
+        print('⚠️ No hay datos disponibles');
       } else {
-        print('✅ Cargados ${response.length} registros desde cache offline actualizado');
+        print('✅ Cargados ${response.length} registros');
       }
 
       final List<CuentasXCobrar> cuentas = response

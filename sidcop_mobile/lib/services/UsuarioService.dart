@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -106,6 +107,16 @@ class UsuarioService {
             'message': 'Error al procesar ID del usuario',
             'details': data,
           };
+        }
+
+        // VERIFICAR CAMBIO DE VENDEDOR Y LIMPIAR DATOS DE CUENTAS POR COBRAR SI ES NECESARIO
+        try {
+          final huboCambioVendedor = await CuentasPorCobrarOfflineService.verificarYLimpiarCambioVendedor(globalVendId!);
+          if (huboCambioVendedor) {
+            developer.log('🔄 Cambio de vendedor detectado, datos de CxC limpiados');
+          }
+        } catch (e) {
+          developer.log('⚠️ Error verificando cambio de vendedor: $e');
         }
 
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
