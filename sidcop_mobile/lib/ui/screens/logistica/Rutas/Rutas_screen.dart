@@ -65,8 +65,7 @@ class _RutasScreenState extends State<RutasScreen> {
         } catch (_) {}
         return filePath;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -193,12 +192,10 @@ class _RutasScreenState extends State<RutasScreen> {
         try {
           await RutasScreenOffline.sincronizarClientes();
           await RutasScreenOffline.sincronizarDirecciones();
-        } catch (e) {
-        }
+        } catch (e) {}
         try {
           await RutasScreenOffline.guardarDetallesTodasRutas();
-        } catch (e) {
-        }
+        } catch (e) {}
       });
     } catch (e) {
       // Si falla, intentar leer rutas offline
@@ -233,8 +230,7 @@ class _RutasScreenState extends State<RutasScreen> {
         final rutasList = jsonDecode(rutasString) as List;
         return rutasList.map((json) => Ruta.fromJson(json)).toList();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Fallback: intentar leer el JSON gestionado por RutasScreenOffline ('rutas.json')
     try {
@@ -242,8 +238,7 @@ class _RutasScreenState extends State<RutasScreen> {
       if (raw == null) return [];
       final lista = List.from(raw as List);
       return lista.map((json) => Ruta.fromJson(json)).toList();
-    } catch (e) {
-    }
+    } catch (e) {}
 
     return [];
   }
@@ -397,8 +392,6 @@ class _RutasScreenState extends State<RutasScreen> {
 
           return remote;
         } catch (remoteError) {
-          print('ERROR obteniendo imagen remota: $remoteError');
-
           // Si hay error obteniendo imagen remota pero tenemos local, usar local
           if (hasLocalImage) {
             return 'file://$filePath';
