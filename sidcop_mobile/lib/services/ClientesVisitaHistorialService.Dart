@@ -36,7 +36,16 @@ class ClientesVisitaHistorialService {
       print('ListarVisitasPorVendedor raw body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final dynamic decoded = jsonDecode(response.body);
+        
+        // Manejar caso donde la respuesta no es una lista
+        final List<dynamic> data = decoded is List ? decoded : [];
+        
+        // Si no hay datos, retornar lista vacía
+        if (data.isEmpty) {
+          developer.log('No hay visitas para el vendedor $vendId');
+          return [];
+        }
 
         // Filtrar solo las visitas de hoy
         final visitasHoy = data.where((visita) {
@@ -58,16 +67,20 @@ class ClientesVisitaHistorialService {
           }
         }).toList();
 
+        // Si no hay visitas de hoy, retornar lista vacía
+        if (visitasHoy.isEmpty) {
+          developer.log('No hay visitas para hoy');
+          return [];
+        }
+
         // Ordenar por fecha de creación (más reciente primero)
         visitasHoy.sort((a, b) {
           try {
             final fechaA = DateTime.parse(a['clVi_FechaCreacion'] ?? '');
             final fechaB = DateTime.parse(b['clVi_FechaCreacion'] ?? '');
-            return fechaB.compareTo(
-              fechaA,
-            ); // Orden descendente (más reciente primero)
+            return fechaB.compareTo(fechaA);
           } catch (e) {
-            return 0; // Si hay error, mantener el orden original
+            return 0;
           }
         });
 
