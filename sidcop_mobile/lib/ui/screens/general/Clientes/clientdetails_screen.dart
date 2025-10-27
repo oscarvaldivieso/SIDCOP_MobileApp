@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
 
 /// Pantalla que muestra los detalles completos de un cliente específico
 /// Incluye información personal, direcciones, imagen y acciones disponibles
@@ -479,7 +480,13 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   child: CustomButton(
                                     text: 'COBRAR',
                                     onPressed: () {
-                                      // TODO: Implementar lógica de cobro
+                                      // Navegar a la pantalla de cuentas por cobrar
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const CxCScreen(),
+                                        ),
+                                      );
                                     },
                                     height: 50,
                                     fontSize: 14,
