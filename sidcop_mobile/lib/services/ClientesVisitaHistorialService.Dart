@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
-// import 'package:sidcop_mobile/services/UsuarioService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/models/ClientesVisitaHistorialModel.dart';
 import 'package:sidcop_mobile/models/VisitasViewModel.dart';
 import 'dart:io';
-
 import 'package:sidcop_mobile/services/GlobalService.dart';
 
 class ClientesVisitaHistorialService {
@@ -313,7 +312,7 @@ class ClientesVisitaHistorialService {
       final vendId = globalVendId;
       if (vendId == null) throw Exception('ID del vendedor no disponible');
 
-      // Obtener rutas con toda la info, no solo ruta_Id
+      // Obtener rutas con toda la info
       final urlRutas = Uri.parse('$_apiServer/Vendedores/ListarPorRutas');
       final resRutas = await http.get(
         urlRutas,
@@ -340,10 +339,24 @@ class ClientesVisitaHistorialService {
 
       final List<dynamic> clientes = jsonDecode(resClientes.body);
 
+      // Obtener IDs de clientes del día desde UsuarioService
+      final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+
       final clientesFiltrados = clientes
           .where((cliente) {
             final rutaId = cliente['ruta_Id'];
-            return rutaId != null && rutaIds.contains(rutaId);
+            final clieId = cliente['clie_Id'];
+            
+            // Verificar que la ruta coincida
+            final rutaCoincide = rutaId != null && rutaIds.contains(rutaId);
+            
+            // Verificar que el cliente esté en la lista de clientes del día
+            // Si clientesDelDiaIds está vacío, no se filtra ningún cliente
+            final estaEnClientesDelDia = clientesDelDiaIds.isEmpty 
+                ? false 
+                : (clieId != null && clientesDelDiaIds.contains(clieId));
+            
+            return rutaCoincide && estaEnClientesDelDia;
           })
           .map<Map<String, dynamic>>((cliente) {
             final rutaId = cliente['ruta_Id'];
@@ -353,12 +366,13 @@ class ClientesVisitaHistorialService {
             );
             return {
               ...cliente,
-              'veRu_Id':
-                  relacion['veRu_Id'] ?? 0, // <-- Aquí agregas el veRu_Id
+              'veRu_Id': relacion['veRu_Id'] ?? 0,
             };
           })
           .toList();
 
+      developer.log('Clientes del día IDs: ${clientesDelDiaIds.length}, Clientes filtrados: ${clientesFiltrados.length}');
+      
       return clientesFiltrados;
     } catch (e) {
       developer.log('Error en obtenerClientesPorVendedor: $e');
