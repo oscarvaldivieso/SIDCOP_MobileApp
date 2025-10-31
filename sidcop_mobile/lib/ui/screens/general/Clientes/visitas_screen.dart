@@ -41,7 +41,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
   Future<void> _loadVisitas() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = '';
+      _errorMessage = ''; // Limpiar error anterior
     });
 
     // Sincronizar datos maestros para mantener los menús desplegables actualizados
@@ -58,8 +58,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
     // Verificar visitas pendientes al inicio
     try {
       await VisitasOffline.obtenerVisitasPendientesLocal();
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Intentar enviar visitas pendientes guardadas en modo sin conexión.
     try {
@@ -92,8 +91,7 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         // Fusionar con visitas pendientes para no sobrescribir visitas guardadas
         // en modo sin conexión cuando la API devuelva una lista vacía o parcial.
         try {
-          final pendientes =
-              await VisitasOffline.obtenerVisitasPendientesLocal();
+          final pendientes = await VisitasOffline.obtenerVisitasPendientesLocal();
 
           if (pendientes.isNotEmpty) {
             // Evitar duplicados basándose en la firma local
@@ -127,15 +125,15 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
         // Verificar visitas pendientes para preservarlas
         try {
           await VisitasOffline.obtenerVisitasPendientesLocal();
-        } catch (e) {
-        }
-      } catch (_) {
-      }
+        } catch (e) {}
+      } catch (_) {}
 
+      // ✅ CAMBIO AQUÍ: No establecer error si simplemente no hay visitas
       setState(() {
         _visitas = visitas;
         _filteredVisitas = List.from(visitas);
         _isLoading = false;
+        _errorMessage = ''; // Asegurar que no hay mensaje de error
       });
     } catch (e) {
       // Si hay error al obtener datos remotos, intentar cargar la copia local
@@ -183,16 +181,28 @@ class _VendedorVisitasScreenState extends State<VendedorVisitasScreen> {
             _visitas = visitasHoy;
             _filteredVisitas = List.from(visitasHoy);
             _isLoading = false;
-            _errorMessage = '';
+            _errorMessage = ''; // ✅ No hay error, solo carga local
           });
           return;
         }
-      } catch (_) {}
-
-      setState(() {
-        _errorMessage = 'Error al cargar las visitas';
-        _isLoading = false;
-      });
+        
+        // ✅ CAMBIO AQUÍ: Si no hay datos locales tampoco, NO es un error
+        // simplemente no hay visitas
+        setState(() {
+          _visitas = [];
+          _filteredVisitas = [];
+          _isLoading = false;
+          _errorMessage = ''; // Sin error, solo sin datos
+        });
+      } catch (localError) {
+        // ✅ SOLO establecer error si hubo un error REAL al cargar datos locales
+        setState(() {
+          _visitas = [];
+          _filteredVisitas = [];
+          _errorMessage = 'Error al cargar las visitas';
+          _isLoading = false;
+        });
+      }
     }
   }
 

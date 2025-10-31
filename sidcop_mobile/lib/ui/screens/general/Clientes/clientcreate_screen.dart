@@ -218,27 +218,37 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
   bool _validateFields() {
     setState(() {
-      // Validar campo de nombres (requerido)
-      _nombresError = _nombresController.text.trim().isEmpty
-          ? 'Este campo es requerido'
-          : null;
-      // Validar campo de apellidos (requerido)
-      _apellidosError = _apellidosController.text.trim().isEmpty
-          ? 'Este campo es requerido'
-          : null;
-      // Identidad es opcional
-      _dniError = null;
-      // RTN es opcional
-      _rtnError = null;
-      // Validar nombre del negocio (requerido)
-      _nombreNegocioError = _nombreNegocioController.text.trim().isEmpty
-          ? 'Este campo es requerido'
-          : null;
-      // Validar teléfono (requerido)
-      _telefonoError = _telefonoController.text.trim().isEmpty ? 'Este campo es requerido' : null;
+
     });
+
+    // Verificar que al menos un campo esté lleno
+    bool hasAtLeastOneField = _nombresController.text.trim().isNotEmpty ||
+                             _apellidosController.text.trim().isNotEmpty ||
+                             _nombreNegocioController.text.trim().isNotEmpty ||
+                             _telefonoController.text.trim().isNotEmpty ||
+                             _dniController.text.trim().isNotEmpty ||
+                             _rtnController.text.trim().isNotEmpty;
+
+    if (!hasAtLeastOneField) {
+      // Mostrar error en todos los campos si ninguno está lleno
+      _nombresError = 'Debe completar al menos un campo';
+      _apellidosError = 'Debe completar al menos un campo';
+      _nombreNegocioError = 'Debe completar al menos un campo';
+      _telefonoError = 'Debe completar al menos un campo';
+      _dniError = 'Debe completar al menos un campo';
+      _rtnError = 'Debe completar al menos un campo';
+    } else {
+      // Limpiar errores si al menos un campo está lleno
+      _nombresError = null;
+      _apellidosError = null;
+      _nombreNegocioError = null;
+      _telefonoError = null;
+      _dniError = null;
+      _rtnError = null;
+    }
+
     // Retornar true solo si no hay errores
-    return _nombresError == null && _apellidosError == null && _nombreNegocioError == null && _telefonoError == null;
+    return _nombresError == null && _apellidosError == null && _nombreNegocioError == null && _telefonoError == null && _rtnError == null && _dniError == null;
   }
 
   /// Navega a la pantalla de agregar dirección y agrega la dirección retornada a la lista
@@ -284,7 +294,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Por favor complete todos los campos requeridos',
+            'Debe completar al menos un campo (Nombre del Negocio, Nombres, Apellidos, Teléfono, Identidad o RTN)',
             style: _labelStyle,
           ),
         ),
@@ -747,7 +757,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   label: 'Nombre del Negocio',
                   controller: _nombreNegocioController,
                   hint: 'Ingrese el nombre del negocio',
-                  isRequired: true,
+                  isRequired: false,
                   errorText: _nombreNegocioError,
                   onChanged: (value) {
                     if (_nombreNegocioError != null) {
@@ -762,7 +772,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   label: 'Nombres',
                   controller: _nombresController,
                   hint: 'Ingrese los nombres',
-                  isRequired: true,
+                  isRequired: false,
                   errorText: _nombresError,
                   onChanged: (value) {
                     if (_nombresError != null) {
@@ -777,7 +787,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   label: 'Apellidos',
                   controller: _apellidosController,
                   hint: 'Ingrese los apellidos',
-                  isRequired: true,
+                  isRequired: false,
                   errorText: _apellidosError,
                   onChanged: (value) {
                     if (_apellidosError != null) {
@@ -792,7 +802,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                   controller: _telefonoController,
                   hint: '0000-0000',
                   inputFormatters: [MKTelefono],
-                  isRequired: true,
+                  isRequired: false,
                   errorText: _telefonoError,
                   keyboardType: TextInputType.number,
                   onChanged: (value) {

@@ -693,22 +693,9 @@ class CuentasPorCobrarOfflineService {
   /// Obtiene el saldo real actualizado de una cuenta considerando todos los pagos aplicados offline
   static Future<double> obtenerSaldoRealCuentaActualizado(int cpCoId) async {
     try {
-      // 1. Obtener saldo base de la cuenta
-      double saldoBase = 0;
-      
-      final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
-      if (cuentaDetalle != null) {
-        saldoBase = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
-      } else {
-        // Buscar en resumen de clientes
-        final resumenClientes = await obtenerResumenClientesLocal();
-        for (final item in resumenClientes) {
-          if (item['cpCo_Id'] == cpCoId) {
-            saldoBase = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
-            break;
-          }
-        }
-      }
+      // 1. Obtener saldo base de la cuenta usando la lógica mejorada
+      double saldoBase = await obtenerSaldoRealCuenta(cpCoId);
+      print('🔍 Saldo base obtenido para cuenta $cpCoId: $saldoBase');
 
       // 2. Restar pagos pendientes offline (incluye pagos ya aplicados localmente)
       final pagosPendientes = await obtenerPagosPendientesLocal();
@@ -751,20 +738,65 @@ class CuentasPorCobrarOfflineService {
       final cuentaDetalle = await obtenerDetalleCuentaLocal(cpCoId);
       if (cuentaDetalle != null) {
         saldoBase = cuentaDetalle.cpCo_Saldo ?? cuentaDetalle.totalPendiente ?? 0;
+        print('🔍 Saldo encontrado en detalle local cuenta $cpCoId: $saldoBase');
       } else {
         // Buscar en resumen de clientes
         final resumenClientes = await obtenerResumenClientesLocal();
+        bool encontradoEnResumen = false;
         for (final item in resumenClientes) {
           if (item['cpCo_Id'] == cpCoId) {
             saldoBase = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+            encontradoEnResumen = true;
+            print('🔍 Saldo encontrado en resumen cuenta $cpCoId: $saldoBase');
             break;
+          }
+        }
+        
+        // CORRECCIÓN: Si no se encuentra en resumen, buscar en todos los timelines de clientes
+        if (!encontradoEnResumen) {
+          print('🔍 Buscando cuenta $cpCoId en timelines de clientes...');
+          saldoBase = await _buscarSaldoEnTimelines(cpCoId);
+          if (saldoBase > 0) {
+            print('🔍 Saldo encontrado en timeline cuenta $cpCoId: $saldoBase');
           }
         }
       }
 
       return saldoBase;
     } catch (e) {
-      ('Error obteniendo saldo real de cuenta $cpCoId: $e');
+      print('❌ Error obteniendo saldo real de cuenta $cpCoId: $e');
+      return 0;
+    }
+  }
+
+  /// Busca el saldo de una cuenta específica en todos los timelines de clientes guardados
+  static Future<double> _buscarSaldoEnTimelines(int cpCoId) async {
+    try {
+      // Obtener todas las claves de secure storage que contengan timelines
+      final allKeys = await _secureStorage.readAll();
+      final timelineKeys = allKeys.keys.where((key) => key.startsWith('timeline_cliente_')).toList();
+      
+      for (final key in timelineKeys) {
+        try {
+          final timelineData = await leerJsonSeguro(key);
+          if (timelineData != null && timelineData is List) {
+            for (final item in timelineData) {
+              if (item is Map<String, dynamic> && item['cpCo_Id'] == cpCoId) {
+                final saldo = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
+                if (saldo > 0) {
+                  return saldo;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error leyendo timeline $key: $e');
+        }
+      }
+      
+      return 0;
+    } catch (e) {
+      print('❌ Error buscando en timelines: $e');
       return 0;
     }
   }
@@ -1722,6 +1754,113 @@ class CuentasPorCobrarOfflineService {
       }
     } catch (e) {
       ('⚠️ Error actualizando timeline inmediatamente: $e');
+    }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // MÉTODOS PARA GESTIÓN DE CAMBIO DE VENDEDOR
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /// Limpia todos los datos de cuentas por cobrar cuando cambia el vendedor
+  static Future<void> limpiarDatosCambioVendedor() async {
+    try {
+      print('🧹 Limpiando todos los datos de cuentas por cobrar por cambio de vendedor...');
+      
+      // Lista de todos los archivos y claves a limpiar
+      final archivosALimpiar = [
+        _archivoCuentasPorCobrar,
+        _archivoFormasPago,
+        _archivoResumenClientes,
+        _archivoPagosPendientes,
+        _archivoTimelineClientes,
+      ];
+
+      // Limpiar archivos JSON principales
+      for (final archivo in archivosALimpiar) {
+        try {
+          await borrar(archivo);
+          print('✅ Limpiado archivo: $archivo');
+        } catch (e) {
+          print('⚠️ Error limpiando archivo $archivo: $e');
+        }
+      }
+
+      // Limpiar todas las claves de secure storage relacionadas con CxC
+      try {
+        final allKeys = await _secureStorage.readAll();
+        final cxcKeys = allKeys.keys.where((key) => 
+          key.startsWith('cxc_') || 
+          key.startsWith('timeline_cliente_') ||
+          key.startsWith('pagos_cuenta_') ||
+          key.startsWith('detalle_cuenta_') ||
+          key.startsWith('info_credito_cliente_')
+        ).toList();
+
+        for (final key in cxcKeys) {
+          await _secureStorage.delete(key: key);
+          print('✅ Limpiada clave secure storage: $key');
+        }
+
+        print('🧹 Limpieza completa: ${cxcKeys.length} claves eliminadas');
+      } catch (e) {
+        print('⚠️ Error limpiando secure storage: $e');
+      }
+
+      print('✅ Limpieza de datos de cuentas por cobrar completada');
+    } catch (e) {
+      print('❌ Error en limpieza de datos por cambio de vendedor: $e');
+      rethrow;
+    }
+  }
+
+  /// Verifica si hay un cambio de vendedor y limpia datos si es necesario
+  static Future<bool> verificarYLimpiarCambioVendedor(int nuevoVendedorId) async {
+    try {
+      // Obtener el último vendedor almacenado
+      final ultimoVendedorStr = await _secureStorage.read(key: 'ultimo_vendedor_cxc');
+      final ultimoVendedorId = ultimoVendedorStr != null ? int.tryParse(ultimoVendedorStr) : null;
+
+      print('🔍 Verificando cambio de vendedor: Anterior=$ultimoVendedorId, Nuevo=$nuevoVendedorId');
+
+      // Si es diferente vendedor, limpiar datos
+      if (ultimoVendedorId != null && ultimoVendedorId != nuevoVendedorId) {
+        print('🔄 Detectado cambio de vendedor: $ultimoVendedorId → $nuevoVendedorId');
+        await limpiarDatosCambioVendedor();
+        
+        // Guardar el nuevo vendedor
+        await _secureStorage.write(key: 'ultimo_vendedor_cxc', value: nuevoVendedorId.toString());
+        return true; // Indica que hubo cambio
+      } else if (ultimoVendedorId == null) {
+        // Primera vez, solo guardar el vendedor
+        await _secureStorage.write(key: 'ultimo_vendedor_cxc', value: nuevoVendedorId.toString());
+        print('📝 Primer vendedor registrado: $nuevoVendedorId');
+        return false; // No hubo cambio, es la primera vez
+      }
+
+      print('✅ Mismo vendedor, no se requiere limpieza');
+      return false; // No hubo cambio
+    } catch (e) {
+      print('❌ Error verificando cambio de vendedor: $e');
+      return false;
+    }
+  }
+
+  /// Fuerza la recarga completa de todos los datos de cuentas por cobrar
+  static Future<Map<String, dynamic>> forzarRecargaCompleta() async {
+    try {
+      print('🔄 Forzando recarga completa de cuentas por cobrar...');
+      
+      // Primero limpiar todos los datos
+      await limpiarDatosCambioVendedor();
+      
+      // Luego sincronizar todo desde el servidor
+      final resultado = await sincronizarTodo();
+      
+      print('✅ Recarga completa finalizada');
+      return resultado;
+    } catch (e) {
+      print('❌ Error en recarga completa: $e');
+      rethrow;
     }
   }
 }

@@ -2,11 +2,32 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sidcop_mobile/services/GlobalService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 
 class ClientesService {
   // --- Ubicaciones ---
   final String _apiServer = apiServer;
   final String _apiKey = apikey;
+
+  /// Obtiene TODOS los clientes sin filtrar - para mapas estáticos
+  Future<List<dynamic>> getClientesSinFiltro() async {
+    final url = Uri.parse('$_apiServer/Cliente/Listar');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error en la solicitud: Código ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
 
   Future<List<dynamic>> getClientes() async {
     final url = Uri.parse('$_apiServer/Cliente/Listar');
@@ -23,8 +44,22 @@ class ClientesService {
 
       if (response.statusCode == 200) {
         final List<dynamic> clientesList = jsonDecode(response.body);
-        // Filtrar clientes con clie_Estado == true
-        return clientesList.where((cliente) => cliente['clie_Estado'] == true).toList();
+        var clientesFiltrados = clientesList;
+        
+        // Obtener IDs de clientes del día
+        final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+        
+        // Si hay clientes del día definidos, filtrar solo esos
+        if (clientesDelDiaIds.isNotEmpty) {
+          clientesFiltrados = clientesFiltrados.where((cliente) {
+            final clieId = cliente['clie_Id'];
+            return clieId != null && clientesDelDiaIds.contains(clieId);
+          }).toList();
+        } else {
+          clientesFiltrados = [];
+        }
+        
+        return clientesFiltrados;
       } else {
         throw Exception(
           'Error en la solicitud: Código \\${response.statusCode}, Respuesta: \\${response.body}',
@@ -250,7 +285,21 @@ class ClientesService {
       developer.log('Get Clientes Por Ruta Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> clientesList = jsonDecode(response.body);
+        var clientesList = jsonDecode(response.body) as List<dynamic>;
+        
+        // Obtener IDs de clientes del día
+        final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+        
+        // Si hay clientes del día definidos, filtrar solo esos
+        if (clientesDelDiaIds.isNotEmpty) {
+          clientesList = clientesList.where((cliente) {
+            final clieId = cliente['clie_Id'];
+            return clieId != null && clientesDelDiaIds.contains(clieId);
+          }).toList();
+        } else {
+          clientesList = [];
+        }
+        
         return clientesList;
       } else {
         throw Exception(

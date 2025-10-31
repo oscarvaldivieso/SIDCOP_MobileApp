@@ -6,6 +6,7 @@ import 'package:sidcop_mobile/services/ProductPreloadService.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sidcop_mobile/Offline_Services/Sincronizacion_Service.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 
 class UsuarioService {
   final String _apiServer = apiServer;
@@ -39,6 +40,7 @@ class UsuarioService {
       'usua_FechaModificacion': DateTime.now().toIso8601String(),
       'usua_Estado': true,
       'permisosJson': 'string',
+      'rutasDelDiaJson': 'string',
     };
 
     try {
@@ -50,7 +52,6 @@ class UsuarioService {
 
       developer.log('Iniciar Sesion Response Status: ${response.statusCode}');
       developer.log('Iniciar Sesion Response Body: ${response.body}');
-      print(response.body);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -97,9 +98,6 @@ class UsuarioService {
             ? data['usua_Id']
             : int.tryParse(data['usua_Id'].toString());
 
-        print('este es el globalVendId: $globalVendId');
-        print('este es el globalUsuaId: $globalUsuaId');
-
         developer.log('Usuario ID: $globalVendId');
 
         // Validar que se haya guardado correctamente el ID
@@ -111,14 +109,30 @@ class UsuarioService {
           };
         }
 
+        // VERIFICAR CAMBIO DE VENDEDOR Y LIMPIAR DATOS DE CUENTAS POR COBRAR SI ES NECESARIO
+        try {
+          final huboCambioVendedor = await CuentasPorCobrarOfflineService.verificarYLimpiarCambioVendedor(globalVendId!);
+          if (huboCambioVendedor) {
+            developer.log('🔄 Cambio de vendedor detectado, datos de CxC limpiados');
+          }
+        } catch (e) {
+          developer.log('⚠️ Error verificando cambio de vendedor: $e');
+        }
+
         // PASO 3B: Iniciar precarga de productos en segundo plano después del login exitoso
         iniciarPrecargaProductos();
+
+        // Guardar rutasDelDiaJson en SharedPreferences
+        if (data.containsKey('rutasDelDiaJson') &&
+            data['rutasDelDiaJson'] != null) {
+          await _guardarRutasDelDia(data['rutasDelDiaJson']);
+        }
 
         // Ejecutar sincronización completa en background (no bloquear login)
         SincronizacionService.sincronizarTodoOfflineConClientesAuto(
           vendedorId: globalVendId ?? 0,
         ).catchError((e) {
-          print('Error en sincronización background completa: $e');
+          developer.log('Error en sincronización background completa: $e');
         });
         return data;
       } else {
@@ -206,6 +220,83 @@ class UsuarioService {
       preloadService.clearPreload();
     } catch (e) {
       developer.log('UsuarioService: Error al limpiar precarga: $e');
+    }
+  }
+
+  /// Guarda rutasDelDiaJson en SharedPreferences
+  Future<void> _guardarRutasDelDia(String rutasDelDiaJson) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('rutasDelDiaJson', rutasDelDiaJson);
+
+      // Extraer IDs de rutas del JSON
+      final rutasList = jsonDecode(rutasDelDiaJson) as List;
+      final rutaIds = rutasList.map((r) => r['Ruta_Id'] as int).toList();
+
+      // Guardar los IDs como lista separada por comas para fácil acceso
+      await prefs.setString('rutasDelDiaIds', rutaIds.join(','));
+
+      developer.log('Rutas del día guardadas: IDs=${rutaIds.join(",")}');
+    } catch (e) {
+      developer.log('Error al guardar rutasDelDiaJson: $e');
+    }
+  }
+
+  /// Obtiene los IDs de las rutas del día
+  static Future<List<int>> obtenerRutasDelDiaIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final idsString = prefs.getString('rutasDelDiaIds');
+
+      if (idsString == null || idsString.isEmpty) {
+        return [];
+      }
+
+      return idsString.split(',').map((id) => int.parse(id)).toList();
+    } catch (e) {
+      developer.log('Error al obtener rutasDelDiaIds: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene el JSON completo de rutas del día
+  static Future<String?> obtenerRutasDelDiaJson() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('rutasDelDiaJson');
+    } catch (e) {
+      developer.log('Error al obtener rutasDelDiaJson: $e');
+      return null;
+    }
+  }
+
+  /// Obtiene los IDs de clientes del día desde rutasDelDiaJson
+  static Future<List<int>> obtenerClientesDelDiaIds() async {
+    try {
+      final jsonString = await obtenerRutasDelDiaJson();
+
+      if (jsonString == null || jsonString.isEmpty) {
+        return [];
+      }
+
+      final List<dynamic> rutas = jsonDecode(jsonString);
+      final Set<int> clienteIds = {};
+
+      for (var ruta in rutas) {
+        if (ruta['Clientes'] != null) {
+          final List<dynamic> clientes = ruta['Clientes'];
+          for (var cliente in clientes) {
+            if (cliente['Clie_Id'] != null) {
+              clienteIds.add(cliente['Clie_Id'] as int);
+            }
+          }
+        }
+      }
+
+      return clienteIds.toList();
+    } catch (e) {
+      developer.log('Error al obtener clientesDelDiaIds: $e');
+      return [];
     }
   }
 }

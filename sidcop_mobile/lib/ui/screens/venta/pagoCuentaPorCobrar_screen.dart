@@ -44,6 +44,8 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
     super.initState();
     // CORRECCIÓN: Pre-llenar el monto con el saldo real actualizado
     _inicializarMontoConSaldoReal();
+    // Inicializar referencia automáticamente con número de factura
+    _inicializarReferenciaConNumeroFactura();
     // Cargar formas de pago
     _loadFormasPago();
     // Nota: La sincronización se maneja automáticamente por el timer periódico del servicio
@@ -71,6 +73,41 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
       print('❌ Error inicializando monto con saldo real: $e');
       // Fallback al valor original en caso de error
       _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+    }
+  }
+
+  /// Inicializa automáticamente el campo de referencia con el número de factura
+  void _inicializarReferenciaConNumeroFactura() {
+    try {
+      String referenciaAutomatica = '';
+      
+      // Prioridad de campos para la referencia:
+      // 1. referencia (si está disponible)
+      // 2. secuencia (si está disponible)  
+      // 3. 'FACT-${fact_Id}' (si está disponible)
+      // 4. 'REF-${cpCo_Id}' (fallback)
+      
+      if (widget.cuentaResumen.referencia != null && widget.cuentaResumen.referencia!.isNotEmpty) {
+        referenciaAutomatica = widget.cuentaResumen.referencia!;
+        print('📋 Referencia tomada del campo referencia: $referenciaAutomatica');
+      } else if (widget.cuentaResumen.secuencia != null && widget.cuentaResumen.secuencia!.isNotEmpty) {
+        referenciaAutomatica = widget.cuentaResumen.secuencia!;
+        print('📋 Referencia tomada del campo secuencia: $referenciaAutomatica');
+      } else if (widget.cuentaResumen.fact_Id != null) {
+        referenciaAutomatica = 'FACT-${widget.cuentaResumen.fact_Id}';
+        print('📋 Referencia generada con fact_Id: $referenciaAutomatica');
+      } else {
+        referenciaAutomatica = 'REF-${widget.cuentaResumen.cpCo_Id ?? 0}';
+        print('📋 Referencia fallback con cpCo_Id: $referenciaAutomatica');
+      }
+      
+      _numeroReferenciaController.text = referenciaAutomatica;
+      print('✅ Campo de referencia inicializado automáticamente: $referenciaAutomatica');
+      
+    } catch (e) {
+      print('❌ Error inicializando referencia automática: $e');
+      // En caso de error, usar un fallback básico
+      _numeroReferenciaController.text = 'REF-${widget.cuentaResumen.cpCo_Id ?? 0}';
     }
   }
 
@@ -657,12 +694,17 @@ Future<void> _registrarPago() async {
           
           const SizedBox(height: 16),
           
-          // Número de Referencia
+          // Número de Referencia (Automático)
           _buildFormField(
             label: 'Número de Referencia',
             child: TextFormField(
               controller: _numeroReferenciaController,
-              decoration: _getInputDecoration('Ej: 123456789'),
+              readOnly: true,
+              decoration: _getInputDecoration('Generado automáticamente').copyWith(
+                fillColor: Colors.grey.shade100,
+                filled: true,
+                prefixIcon: const Icon(Icons.lock, color: Colors.grey, size: 20),
+              ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'El número de referencia es requerido';

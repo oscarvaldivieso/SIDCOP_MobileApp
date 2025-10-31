@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
 
 /// Pantalla que muestra los detalles completos de un cliente específico
 /// Incluye información personal, direcciones, imagen y acciones disponibles
@@ -433,7 +434,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                           ? "PEDIDO"
                                           : "ACCIÓN",
                                       onPressed: () {
-                                        if (_vendTipo == "P") {
+                                        if (_roleId == 83) {
                                           // Navegar a crear pedido
                                           Navigator.push(
                                             context,
@@ -460,9 +461,9 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                       height: 50,
                                       fontSize: 14,
                                       icon: Icon(
-                                        _vendTipo == "P"
+                                        _roleId == 83
                                             ? Icons.assignment
-                                            : _vendTipo == "V"
+                                            : _roleId == 2
                                             ? Icons.shopping_cart
                                             : Icons.help_outline,
                                         color: Colors.white,
@@ -471,7 +472,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                     ),
                                   ),
 
-                                if (_vendTipo == "P" || _vendTipo == "V")
+                                if (_roleId == 83 || _roleId == 2)
                                   const SizedBox(width: 12),
 
                                 // Botón de cobro
@@ -479,7 +480,13 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   child: CustomButton(
                                     text: 'COBRAR',
                                     onPressed: () {
-                                      // TODO: Implementar lógica de cobro
+                                      // Navegar a la pantalla de cuentas por cobrar
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const CxCScreen(),
+                                        ),
+                                      );
                                     },
                                     height: 50,
                                     fontSize: 14,
