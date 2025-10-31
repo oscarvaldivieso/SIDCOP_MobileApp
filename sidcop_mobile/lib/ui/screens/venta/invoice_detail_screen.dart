@@ -1132,7 +1132,7 @@ Widget _buildDefaultLogo() {
                 SizedBox(
                   width: 70,
                   child: Text(
-                    'TOTAL',
+                    'MONTO',
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 12,
