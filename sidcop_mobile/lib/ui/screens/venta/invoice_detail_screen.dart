@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/printer_service.dart';
+import 'package:sidcop_mobile/services/GlobalService.dart';
 import 'generateInvoicePdf.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:sidcop_mobile/Offline_Services/Ventas_OfflineService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/ventas_list_screen.dart';
 
 
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int facturaId;
   final String facturaNumero;
+  final bool fromVentasList;
 
   const InvoiceDetailScreen({
     Key? key,
     required this.facturaId,
     required this.facturaNumero,
+    this.fromVentasList = false,
   }) : super(key: key);
 
   @override
@@ -494,7 +498,21 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               ),
             ),
             child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                if (widget.fromVentasList) {
+                  // Si venimos de la lista de ventas, simplemente volvemos atrás
+                  Navigator.pop(context);
+                } else {
+                  // Si venimos de crear una nueva venta, volvemos a la lista de ventas
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const VentasListScreen(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              },
               icon: const Icon(
                 Icons.arrow_back_ios_new,
                 color: Colors.white,
@@ -860,7 +878,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
-                  factura['coFa_Logo'],
+                  '$apiServer/${factura['coFa_Logo']}',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => 
                     _buildDefaultLogo(),
@@ -980,7 +998,7 @@ Widget _buildDefaultLogo() {
           _buildHeaderRow('Fecha de Emisión:', _formatDate(factura['fact_FechaEmision'])),
           
           // Tipo de venta
-          _buildHeaderRow('Tipo de Venta:', factura['fact_TipoVenta'] ?? 'N/A'),
+          _buildHeaderRow('Tipo de Venta:', factura['fact_TipoVenta'] == 'CR' ? 'Crédito' : factura['fact_TipoVenta'] == 'CO' ? 'Contado' : 'N/A'),
           
           // Cliente
           _buildHeaderRow('Cliente:', factura['cliente'] ?? 'Cliente General'),
@@ -1114,7 +1132,7 @@ Widget _buildDefaultLogo() {
                 SizedBox(
                   width: 70,
                   child: Text(
-                    'TOTAL',
+                    'MONTO',
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 12,
@@ -1207,7 +1225,7 @@ Widget _buildDefaultLogo() {
                   SizedBox(
                     width: 70,
                     child: Text(
-                      'L ${(detalle['faDe_Total'] ?? 0).toStringAsFixed(2)}',
+                      'L ${(detalle['faDe_Subtotal'] ?? 0).toStringAsFixed(2)}',
                       textAlign: TextAlign.right,
                       style: const TextStyle(
                         fontSize: 12,
