@@ -533,7 +533,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
         'vend_Nombres': '',
         'vend_Apellidos': '',
         'vend_Telefono': '',
-        'vend_Tipo': '',
+        // 'vend_Tipo': '',
         'vend_Imagen': '',
         'ruta_Id': 0,
         'ruta_Descripcion': '',
