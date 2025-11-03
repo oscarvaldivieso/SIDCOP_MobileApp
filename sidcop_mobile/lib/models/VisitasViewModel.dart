@@ -10,7 +10,7 @@ class VisitasViewModel {
 	final String? vend_Nombres;
 	final String? vend_Apellidos;
 	final String? vend_Telefono;
-	final String? vend_Tipo;
+	// final String? vend_Tipo;
 	final String? vend_Imagen;
 	final int? ruta_Id;
 	final String? ruta_Descripcion;
@@ -41,7 +41,7 @@ class VisitasViewModel {
 		this.vend_Nombres,
 		this.vend_Apellidos,
 		this.vend_Telefono,
-		this.vend_Tipo,
+		// this.vend_Tipo,
 		this.vend_Imagen,
 		this.ruta_Id,
 		this.ruta_Descripcion,
@@ -91,7 +91,7 @@ class VisitasViewModel {
 			vend_Nombres: json['vend_Nombres'] as String?,
 			vend_Apellidos: json['vend_Apellidos'] as String?,
 			vend_Telefono: json['vend_Telefono'] as String?,
-			vend_Tipo: json['vend_Tipo'] as String?,
+			// vend_Tipo: json['vend_Tipo'] as String?,
 			vend_Imagen: json['vend_Imagen'] as String?,
 			ruta_Id: json['ruta_Id'] as int?,
 			ruta_Descripcion: json['ruta_Descripcion'] as String?,
@@ -127,7 +127,7 @@ class VisitasViewModel {
 			'vend_Nombres': vend_Nombres,
 			'vend_Apellidos': vend_Apellidos,
 			'vend_Telefono': vend_Telefono,
-			'vend_Tipo': vend_Tipo,
+			// 'vend_Tipo': vend_Tipo,
 			'vend_Imagen': vend_Imagen,
 			'ruta_Id': ruta_Id,
 			'ruta_Descripcion': ruta_Descripcion,
