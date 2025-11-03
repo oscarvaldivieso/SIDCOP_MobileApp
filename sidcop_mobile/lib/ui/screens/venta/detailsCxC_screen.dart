@@ -308,23 +308,59 @@ class _DetailsCxCScreenState extends State<DetailsCxCScreen> {
     if (_cuentaDetalle == null) return _buildNotFoundState();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          _buildHeaderCard(),
-          const SizedBox(height: 16),
-          _buildClientInfoCard(),
-          const SizedBox(height: 16),
-          _buildFinancialInfoCard(),
-          const SizedBox(height: 16),
-          _buildDatesCard(),
-          const SizedBox(height: 16),
-          _buildObservationsCard(),
-          const SizedBox(height: 16),
-          _buildPagosCard(),
-          const SizedBox(height: 16),
-          // _buildActionButtons(),
-          // const SizedBox(height: 32),
+          // Botón de regreso
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Row(
+              children: [
+                // Botón de regreso
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    size: 24,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Título de la sección
+                const Expanded(
+                  child: Text(
+                    'Detalle Cuenta por Cobrar',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF141A2F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                _buildHeaderCard(),
+                const SizedBox(height: 16),
+                _buildClientInfoCard(),
+                const SizedBox(height: 16),
+                _buildFinancialInfoCard(),
+                const SizedBox(height: 16),
+                _buildDatesCard(),
+                const SizedBox(height: 16),
+                _buildObservationsCard(),
+                const SizedBox(height: 16),
+                _buildPagosCard(),
+                const SizedBox(height: 16),
+                // _buildActionButtons(),
+                // const SizedBox(height: 32),
+              ],
+            ),
+          ),
         ],
       ),
     );
