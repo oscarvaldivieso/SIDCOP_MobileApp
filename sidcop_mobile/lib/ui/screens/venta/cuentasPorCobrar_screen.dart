@@ -185,6 +185,36 @@ class _CxCScreenState extends State<CxCScreen> {
     return SingleChildScrollView(
       child: Column(
         children: [
+          // Botón de regreso
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Row(
+              children: [
+                // Botón de regreso
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    size: 24,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Título de la sección
+                const Expanded(
+                  child: Text(
+                    'Cuentas por Cobrar',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF141A2F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: _buildSummaryHeader(),
