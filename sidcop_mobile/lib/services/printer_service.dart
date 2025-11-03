@@ -832,8 +832,21 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final clienteDireccion = invoiceData['diCl_DireccionExacta'] ?? '';
 
     final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
-    final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
-    final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
+    
+    // Formatear rango autorizado usando el prefijo del fact_Numero
+    final rangoInicial = invoiceData['regC_RangoInicial'] ?? '00000001';
+    final rangoFinal = invoiceData['regC_RangoFinal'] ?? '99999999';
+    
+    // Extraer el prefijo del fact_Numero (todo excepto los últimos 8 dígitos)
+    String prefijo = '';
+    if (factNumero.length >= 8) {
+      prefijo = factNumero.substring(0, factNumero.length - 8);
+    }
+    
+    // Formatear desde y hasta con 8 dígitos y el prefijo
+    final desde = '$prefijo${rangoInicial.toString().padLeft(8, '0')}';
+    final hasta = '$prefijo${rangoFinal.toString().padLeft(8, '0')}';
+    
     final anulada = invoiceData['fact_Anulado'] == true || invoiceData['fact_Anulado'] == 1;
 
     // Información del vendedor y sucursal
