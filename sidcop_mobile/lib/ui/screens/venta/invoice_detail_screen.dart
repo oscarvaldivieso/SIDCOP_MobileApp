@@ -1004,21 +1004,21 @@ Widget _buildDefaultLogo() {
           _buildHeaderRow('Cliente:', factura['cliente'] ?? 'Cliente General'),
 
           // RTN del  Cliente
-          _buildHeaderRow('RTN Cliente:', factura['clie_RTN'] ?? 'Cliente General'),
+          _buildHeaderRow('RTN Cliente:', factura['clie_RTN'] ?? '0'),
           
           // Direccion del  Cliente
-          _buildHeaderRow('RTN Cliente:', factura['diCl_DireccionExacta'] ?? 'Cliente General'),
+          _buildHeaderRow('Dirección:', factura['diCl_DireccionExacta'] ?? 'Cliente General'),
 
           // Vendedor
           _buildHeaderRow('Vendedor:', factura['vendedor'] ?? 'N/A'),
 
-          // Vendedor
+          // No Orden de Compra Exenta
           _buildHeaderRow('No Orden de compra exenta:', '' ?? 'N/A'),
 
-          // Vendedor
+          // No Constancia de reg de exonerados
           _buildHeaderRow('No Constancia de reg de exonerados:', '' ?? 'N/A'),
 
-          // Vendedor
+          // No Registro de la SAG
           _buildHeaderRow('No Registro de la SAG:', '' ?? 'N/A'),
           
           // Línea divisoria
