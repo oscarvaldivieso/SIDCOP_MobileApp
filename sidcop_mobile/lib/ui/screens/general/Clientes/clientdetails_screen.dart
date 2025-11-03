@@ -10,7 +10,9 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
-import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrar_screen.dart';
+import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
+import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
+import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
 
 /// Pantalla que muestra los detalles completos de un cliente específico
 /// Incluye información personal, direcciones, imagen y acciones disponibles
@@ -26,6 +28,9 @@ class ClientdetailsScreen extends StatefulWidget {
 class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   // Servicio para operaciones con clientes
   final ClientesService _clientesService = ClientesService();
+  
+  // Servicio para operaciones con cuentas por cobrar
+  final CuentasXCobrarService _cuentasService = CuentasXCobrarService();
   
   // Datos del cliente
   Map<String, dynamic>? _cliente;
@@ -43,6 +48,11 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   String? _vendTipo;
 
   int? _roleId;
+  
+  // Estado de cuentas por cobrar
+  bool _tieneCuentasPorCobrar = false;
+  bool _isLoadingCuentas = false;
+  CuentasXCobrar? _cuentaParaCobrar;
 
   @override
   void initState() {
@@ -50,6 +60,12 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     // Cargar datos del cliente y tipo de vendedor al iniciar
     _loadCliente();
     _loadTipoVendedor();
+    // Verificar cuentas por cobrar después de un pequeño delay para asegurar que el widget esté montado
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _verificarCuentasPorCobrar();
+      }
+    });
   }
 
   // ID de persona del usuario actual
@@ -145,6 +161,173 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
           _errorMessage = 'Error cargando direcciones: ${e.toString()}';
         });
       }
+    }
+  }
+
+  /// Verifica si el cliente tiene cuentas por cobrar pendientes
+  Future<void> _verificarCuentasPorCobrar() async {
+    if (!mounted) return;
+    
+    print('🔍 Verificando cuentas por cobrar para cliente ID: ${widget.clienteId}');
+    
+    try {
+      setState(() {
+        _isLoadingCuentas = true;
+      });
+
+      // Verificar si hay conexión a internet
+      final hasConnection = await SyncService.hasInternetConnection();
+      print('🌐 Conexión a internet: $hasConnection');
+      
+      if (hasConnection) {
+        print('📡 Llamando al servidor para verificar cuentas por cobrar...');
+        // Verificar en el servidor
+        final resultado = await _cuentasService.verificarCuentasPorCobrarCliente(widget.clienteId);
+        
+        print('📋 Resultado del servidor: $resultado');
+        print('📊 Code Status: ${resultado['code_Status']}');
+        print('💬 Message Status: ${resultado['message_Status']}');
+        
+        if (mounted) {
+          setState(() {
+            _tieneCuentasPorCobrar = resultado['code_Status'] == 1;
+            _isLoadingCuentas = false;
+          });
+          
+          print('✅ Estado actualizado - Tiene cuentas por cobrar: $_tieneCuentasPorCobrar');
+        }
+        
+        // Si tiene cuentas por cobrar, obtener la primera cuenta para navegar
+        if (_tieneCuentasPorCobrar) {
+          print('🔄 Obteniendo primera cuenta por cobrar...');
+          await _obtenerPrimeraCuentaPorCobrar();
+        }
+      } else {
+        print('❌ Sin conexión, ocultando botón por seguridad');
+        // Sin conexión, no mostrar el botón por seguridad
+        if (mounted) {
+          setState(() {
+            _tieneCuentasPorCobrar = false;
+            _isLoadingCuentas = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Error verificando cuentas por cobrar: $e');
+      if (mounted) {
+        setState(() {
+          _tieneCuentasPorCobrar = false;
+          _isLoadingCuentas = false;
+        });
+      }
+    }
+  }
+
+  /// Obtiene la primera cuenta por cobrar del cliente para navegar al detalle
+  Future<void> _obtenerPrimeraCuentaPorCobrar() async {
+    try {
+      print('📅 Obteniendo timeline del cliente ${widget.clienteId}...');
+      // Obtener el timeline del cliente para encontrar una cuenta
+      final timeline = await _cuentasService.getTimelineCliente(widget.clienteId);
+      
+      print('📋 Timeline obtenido: ${timeline.length} elementos');
+      
+      if (timeline.isNotEmpty && mounted) {
+        // Buscar la primera cuenta no saldada
+        for (int i = 0; i < timeline.length; i++) {
+          final item = timeline[i];
+          try {
+            print('🔍 Procesando item $i del timeline: $item');
+            final cuenta = CuentasXCobrar.fromJson(item);
+            print('💰 Cuenta ID: ${cuenta.cpCo_Id}, Saldada: ${cuenta.cpCo_Saldada}, Saldo: ${cuenta.cpCo_Saldo}');
+            
+            // Usar la primera cuenta que no esté saldada, independientemente del saldo
+            if (cuenta.cpCo_Saldada != true && cuenta.cpCo_Id != null) {
+              setState(() {
+                _cuentaParaCobrar = cuenta;
+              });
+              print('✅ Primera cuenta por cobrar encontrada: ID ${cuenta.cpCo_Id} (Saldo en timeline: ${cuenta.cpCo_Saldo})');
+              break;
+            }
+          } catch (e) {
+            print('❌ Error parseando cuenta del timeline item $i: $e');
+          }
+        }
+        
+        if (_cuentaParaCobrar == null) {
+          print('⚠️ No se encontró ninguna cuenta pendiente en el timeline');
+          print('📊 Resumen del timeline:');
+          for (int i = 0; i < timeline.length; i++) {
+            try {
+              final cuenta = CuentasXCobrar.fromJson(timeline[i]);
+              print('   - Item $i: ID=${cuenta.cpCo_Id}, Saldada=${cuenta.cpCo_Saldada}, Saldo=${cuenta.cpCo_Saldo}');
+            } catch (e) {
+              print('   - Item $i: Error parseando - $e');
+            }
+          }
+        }
+      } else {
+        print('⚠️ Timeline vacío o widget no montado');
+      }
+    } catch (e) {
+      print('❌ Error obteniendo primera cuenta por cobrar: $e');
+    }
+  }
+
+  /// Navega usando la primera cuenta encontrada en el timeline
+  Future<void> _navegarConPrimeraCuenta() async {
+    try {
+      print('🔍 Buscando primera cuenta en timeline...');
+      final timeline = await _cuentasService.getTimelineCliente(widget.clienteId);
+      
+      if (timeline.isNotEmpty) {
+        for (final item in timeline) {
+          try {
+            final cuenta = CuentasXCobrar.fromJson(item);
+            print('🔍 Evaluando cuenta: ID=${cuenta.cpCo_Id}, Saldada=${cuenta.cpCo_Saldada}, Saldo=${cuenta.cpCo_Saldo}');
+            
+            // Usar la primera cuenta que no esté saldada, independientemente del saldo
+            if (cuenta.cpCo_Saldada != true && cuenta.cpCo_Id != null) {
+              // Crear una copia con el ID correcto del cliente
+              final cuentaCorregida = CuentasXCobrar(
+                cpCo_Id: cuenta.cpCo_Id,
+                clie_Id: widget.clienteId, // Usar el ID correcto del cliente
+                fact_Id: cuenta.fact_Id,
+                cpCo_FechaEmision: cuenta.cpCo_FechaEmision,
+                cpCo_FechaVencimiento: cuenta.cpCo_FechaVencimiento,
+                cpCo_Valor: cuenta.cpCo_Valor,
+                cpCo_Saldo: cuenta.monto ?? cuenta.cpCo_Saldo, // Usar monto si está disponible
+                cpCo_Observaciones: cuenta.cpCo_Observaciones,
+                cpCo_Anulado: cuenta.cpCo_Anulado,
+                cpCo_Saldada: cuenta.cpCo_Saldada,
+                cliente: _cliente?['clie_Nombre'] ?? 'Cliente',
+                clie_Nombres: _cliente?['clie_Nombres'] ?? '',
+                clie_Apellidos: _cliente?['clie_Apellidos'] ?? '',
+                monto: cuenta.monto,
+                totalPendiente: cuenta.totalPendiente,
+              );
+              
+              print('✅ Usando cuenta corregida: ID=${cuentaCorregida.cpCo_Id}, Cliente=${cuentaCorregida.clie_Id}, Monto=${cuentaCorregida.monto}');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CuentasPorCobrarDetailsScreen(
+                    cuentaId: cuentaCorregida.cpCo_Id!,
+                    cuentaResumen: cuentaCorregida,
+                  ),
+                ),
+              );
+              return;
+            }
+          } catch (e) {
+            print('❌ Error parseando cuenta: $e');
+          }
+        }
+      }
+      
+      print('⚠️ No se encontró ninguna cuenta válida para navegar');
+    } catch (e) {
+      print('❌ Error obteniendo timeline para navegación: $e');
     }
   }
 
@@ -472,31 +655,63 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                     ),
                                   ),
 
-                                if (_roleId == 83 || _roleId == 2)
+                                // Espaciado condicional entre botones
+                                if ((_roleId == 83 || _roleId == 2) && _tieneCuentasPorCobrar)
                                   const SizedBox(width: 12),
 
-                                // Botón de cobro
-                                Expanded(
-                                  child: CustomButton(
-                                    text: 'COBRAR',
-                                    onPressed: () {
-                                      // Navegar a la pantalla de cuentas por cobrar
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => const CxCScreen(),
-                                        ),
-                                      );
-                                    },
-                                    height: 50,
-                                    fontSize: 14,
-                                    icon: const Icon(
-                                      Icons.monetization_on,
-                                      color: Colors.white,
-                                      size: 20,
+                                // Botón de cobro - solo mostrar si tiene cuentas por cobrar
+                                if (_tieneCuentasPorCobrar)
+                                  Expanded(
+                                    child: CustomButton(
+                                      text: _isLoadingCuentas ? 'VERIFICANDO...' : 'COBRAR',
+                                      onPressed: _isLoadingCuentas ? null : () {
+                                        print('🎯 Navegando a timeline - Cliente: ${widget.clienteId}');
+                                        
+                                        if (_cuentaParaCobrar != null) {
+                                          // Crear una copia de la cuenta con el ID correcto del cliente
+                                          final cuentaCorregida = CuentasXCobrar(
+                                            cpCo_Id: _cuentaParaCobrar!.cpCo_Id,
+                                            clie_Id: widget.clienteId, // Usar el ID correcto del cliente
+                                            fact_Id: _cuentaParaCobrar!.fact_Id,
+                                            cpCo_FechaEmision: _cuentaParaCobrar!.cpCo_FechaEmision,
+                                            cpCo_FechaVencimiento: _cuentaParaCobrar!.cpCo_FechaVencimiento,
+                                            cpCo_Valor: _cuentaParaCobrar!.cpCo_Valor,
+                                            cpCo_Saldo: _cuentaParaCobrar!.monto ?? _cuentaParaCobrar!.cpCo_Saldo, // Usar monto si está disponible
+                                            cpCo_Observaciones: _cuentaParaCobrar!.cpCo_Observaciones,
+                                            cpCo_Anulado: _cuentaParaCobrar!.cpCo_Anulado,
+                                            cpCo_Saldada: _cuentaParaCobrar!.cpCo_Saldada,
+                                            cliente: _cliente?['clie_Nombre'] ?? 'Cliente',
+                                            clie_Nombres: _cliente?['clie_Nombres'] ?? '',
+                                            clie_Apellidos: _cliente?['clie_Apellidos'] ?? '',
+                                            monto: _cuentaParaCobrar!.monto,
+                                            totalPendiente: _cuentaParaCobrar!.totalPendiente,
+                                          );
+                                          
+                                          print('💰 Navegando con cuenta corregida: ID=${cuentaCorregida.cpCo_Id}, Cliente=${cuentaCorregida.clie_Id}, Monto=${cuentaCorregida.monto}');
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => CuentasPorCobrarDetailsScreen(
+                                                cuentaId: cuentaCorregida.cpCo_Id!,
+                                                cuentaResumen: cuentaCorregida,
+                                              ),
+                                            ),
+                                          );
+                                        } else {
+                                          // Fallback: obtener timeline y usar la primera cuenta encontrada
+                                          print('🔄 No hay cuenta específica, obteniendo timeline para encontrar una cuenta...');
+                                          _navegarConPrimeraCuenta();
+                                        }
+                                      },
+                                      height: 50,
+                                      fontSize: 14,
+                                      icon: Icon(
+                                        _isLoadingCuentas ? Icons.hourglass_empty : Icons.monetization_on,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
