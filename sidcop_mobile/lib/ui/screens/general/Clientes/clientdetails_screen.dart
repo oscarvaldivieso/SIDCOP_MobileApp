@@ -10,6 +10,7 @@ import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/ui/screens/pedidos/pedidos_create_screen.dart';
 import 'package:sidcop_mobile/services/SyncService.dart';
 import 'package:sidcop_mobile/Offline_Services/Clientes_OfflineService.dart';
+import 'package:sidcop_mobile/Offline_Services/CuentasPorCobrar_OfflineService.dart';
 import 'package:sidcop_mobile/services/cuentasPorCobrarService.dart';
 import 'package:sidcop_mobile/ui/screens/venta/cuentasPorCobrarDetails_screen.dart';
 import 'package:sidcop_mobile/models/ventas/cuentasporcobrarViewModel.dart';
@@ -180,8 +181,12 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
       print('🌐 Conexión a internet: $hasConnection');
       
       if (hasConnection) {
+        // FORZAR LIMPIEZA DE CACHE ANTES DE VERIFICAR
+        print('🧹 Limpiando cache de cuentas por cobrar para datos frescos...');
+        await _limpiarCacheCliente();
+        
         print('📡 Llamando al servidor para verificar cuentas por cobrar...');
-        // Verificar en el servidor
+        // Verificar en el servidor con datos frescos
         final resultado = await _cuentasService.verificarCuentasPorCobrarCliente(widget.clienteId);
         
         print('📋 Resultado del servidor: $resultado');
@@ -201,6 +206,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
         if (_tieneCuentasPorCobrar) {
           print('🔄 Obteniendo primera cuenta por cobrar...');
           await _obtenerPrimeraCuentaPorCobrar();
+        } else {
+          print('✅ Cliente sin cuentas pendientes - ocultando botón COBRAR');
         }
       } else {
         print('❌ Sin conexión, ocultando botón por seguridad');
@@ -220,6 +227,21 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
           _isLoadingCuentas = false;
         });
       }
+    }
+  }
+
+  /// Limpia el cache de cuentas por cobrar para obtener datos frescos
+  Future<void> _limpiarCacheCliente() async {
+    try {
+      print('🧹 Forzando recarga completa de datos de cuentas por cobrar...');
+      
+      // Forzar recarga completa de datos de cuentas por cobrar
+      await CuentasPorCobrarOfflineService.forzarRecargaCompleta();
+      
+      print('✅ Cache limpiado - datos frescos disponibles');
+    } catch (e) {
+      print('⚠️ Error limpiando cache: $e');
+      // No es crítico si falla la limpieza, continuar con la verificación
     }
   }
 
@@ -304,15 +326,17 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                 clie_Nombres: _cliente?['clie_Nombres'] ?? '',
                 clie_Apellidos: _cliente?['clie_Apellidos'] ?? '',
                 monto: cuenta.monto,
-                totalPendiente: cuenta.totalPendiente,
+                totalPendiente: cuenta.monto ?? cuenta.totalPendiente, // Usar monto como totalPendiente
               );
+              
+              print('💰 Fallback - Cuenta corregida - Monto: ${cuentaCorregida.monto}, TotalPendiente: ${cuentaCorregida.totalPendiente}');
               
               print('✅ Usando cuenta corregida: ID=${cuentaCorregida.cpCo_Id}, Cliente=${cuentaCorregida.clie_Id}, Monto=${cuentaCorregida.monto}');
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => CuentasPorCobrarDetailsScreen(
-                    cuentaId: cuentaCorregida.cpCo_Id!,
+                    cuentaId: widget.clienteId, // Usar el ID del cliente
                     cuentaResumen: cuentaCorregida,
                   ),
                 ),
@@ -664,7 +688,7 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                   Expanded(
                                     child: CustomButton(
                                       text: _isLoadingCuentas ? 'VERIFICANDO...' : 'COBRAR',
-                                      onPressed: _isLoadingCuentas ? null : () {
+                                      onPressed: _isLoadingCuentas ? null : () async {
                                         print('🎯 Navegando a timeline - Cliente: ${widget.clienteId}');
                                         
                                         if (_cuentaParaCobrar != null) {
@@ -684,19 +708,28 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                                             clie_Nombres: _cliente?['clie_Nombres'] ?? '',
                                             clie_Apellidos: _cliente?['clie_Apellidos'] ?? '',
                                             monto: _cuentaParaCobrar!.monto,
-                                            totalPendiente: _cuentaParaCobrar!.totalPendiente,
+                                            totalPendiente: _cuentaParaCobrar!.monto ?? _cuentaParaCobrar!.totalPendiente, // Usar monto como totalPendiente
                                           );
                                           
+                                          print('💰 Cuenta corregida - Monto: ${cuentaCorregida.monto}, TotalPendiente: ${cuentaCorregida.totalPendiente}, cpCo_Saldo: ${cuentaCorregida.cpCo_Saldo}');
+                                          
                                           print('💰 Navegando con cuenta corregida: ID=${cuentaCorregida.cpCo_Id}, Cliente=${cuentaCorregida.clie_Id}, Monto=${cuentaCorregida.monto}');
-                                          Navigator.push(
+                                          // Navegar y esperar el resultado para refrescar si es necesario
+                                          final result = await Navigator.push(
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) => CuentasPorCobrarDetailsScreen(
-                                                cuentaId: cuentaCorregida.cpCo_Id!,
+                                                cuentaId: widget.clienteId, // Usar el ID del cliente, no de la cuenta específica
                                                 cuentaResumen: cuentaCorregida,
                                               ),
                                             ),
                                           );
+                                          
+                                          // Si regresa de la pantalla, refrescar los datos
+                                          if (result == true || result == null) {
+                                            print('🔄 Regresando de pantalla de cuentas - refrescando datos...');
+                                            await _verificarCuentasPorCobrar();
+                                          }
                                         } else {
                                           // Fallback: obtener timeline y usar la primera cuenta encontrada
                                           print('🔄 No hay cuenta específica, obteniendo timeline para encontrar una cuenta...');
