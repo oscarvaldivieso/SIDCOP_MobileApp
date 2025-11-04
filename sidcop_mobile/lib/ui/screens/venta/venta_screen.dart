@@ -1572,12 +1572,21 @@ Widget paso1() {
     final productoConDescuento = _productosConDescuento[product.prodId];
     final isImpulsado = product.prod_Impulsado ?? false;
     
-    // Obtener el mejor descuento disponible
+    // Obtener el descuento que aplica según la cantidad seleccionada
     double? mejorDescuento;
     if (productoConDescuento?.descuentosEscala.isNotEmpty ?? false) {
-      mejorDescuento = productoConDescuento!.descuentosEscala
-          .map((d) => d.deEsValor)
-          .reduce((a, b) => a > b ? a : b);
+      final cantidadActual = currentQuantity > 0 ? currentQuantity : 1;
+      
+      // Buscar el descuento que aplica según la escala de cantidad
+      final descuentoAplicable = productoConDescuento!.descuentosEscala
+          .where((d) => 
+              cantidadActual >= d.deEsInicioEscala && 
+              cantidadActual <= d.deEsFinEscala)
+          .toList();
+      
+      if (descuentoAplicable.isNotEmpty) {
+        mejorDescuento = descuentoAplicable.first.deEsValor;
+      }
     }
 
     return Container(
