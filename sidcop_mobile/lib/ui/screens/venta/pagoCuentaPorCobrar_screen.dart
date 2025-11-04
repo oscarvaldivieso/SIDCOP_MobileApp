@@ -261,11 +261,29 @@ Future<void> _registrarPago() async {
     return;
   }
 
-  // Obtener el saldo real actualizado desde los datos offline (incluyendo pagos ya aplicados)
-  final double saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+  // CORRECCIÓN: Usar el saldo que ya se inicializó correctamente en lugar de hacer una nueva consulta
+  // que puede fallar debido a problemas de cache
+  double saldoParaValidacion = _saldoRealActualizado ?? widget.cuentaResumen.totalPendiente ?? 0;
   
-  if (montoIngresado > saldoReal) {
-    _showErrorDialog('El monto ingresado no puede ser mayor al saldo pendiente (${_formatCurrency(saldoReal)})');
+  print('🔍 Validación de monto: montoIngresado=$montoIngresado, saldoParaValidacion=$saldoParaValidacion');
+  print('🔍 Fuente del saldo: _saldoRealActualizado=$_saldoRealActualizado, totalPendiente=${widget.cuentaResumen.totalPendiente}');
+  
+  // Solo hacer consulta adicional si no tenemos un saldo válido
+  if (saldoParaValidacion <= 0) {
+    try {
+      print('⚠️ Saldo para validación es 0, intentando obtener del servicio...');
+      final double saldoDelServicio = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+      if (saldoDelServicio > 0) {
+        saldoParaValidacion = saldoDelServicio;
+        print('✅ Saldo obtenido del servicio para validación: $saldoDelServicio');
+      }
+    } catch (e) {
+      print('⚠️ Error obteniendo saldo del servicio para validación: $e');
+    }
+  }
+  
+  if (montoIngresado > saldoParaValidacion) {
+    _showErrorDialog('El monto ingresado no puede ser mayor al saldo pendiente (${_formatCurrency(saldoParaValidacion)})');
     return;
   }
 
