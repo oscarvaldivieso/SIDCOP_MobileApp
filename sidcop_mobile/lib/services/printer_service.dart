@@ -935,59 +935,38 @@ final int anchoEtiqueta = 360; // ancho en puntos
 final int margenDerecho = 10;
 final int anchoTexto = anchoEtiqueta - margenDerecho;
 
-// OPTIMIZACIÓN: Solo mostrar campos con valores > 0 (reduce tamaño ZPL)
-// Subtotal (siempre mostrar)
+// Mostrar todos los campos de cálculo siempre, incluso si son 0
+// Subtotal
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDSubtotal: L$subtotal^FS\n';
 totalY += 25;
 
-// Descuento (solo si > 0)
-final descuentoVal = double.tryParse(descuento) ?? 0.0;
-if (descuentoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
-  totalY += 25;
-}
+// Descuento
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
+totalY += 25;
 
-// Importe Exento (solo si > 0)
-final exentoVal = double.tryParse(importeExento) ?? 0.0;
-if (exentoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
-  totalY += 25;
-}
+// Importe Exento
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
+totalY += 25;
 
-// Importe Exonerado (solo si > 0)
-final exoneradoVal = double.tryParse(importeExonerado) ?? 0.0;
-if (exoneradoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
-  totalY += 25;
-}
+// Importe Exonerado
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
+totalY += 25;
 
-// Gravado 15% (solo si > 0)
-final gravado15Val = double.tryParse(importeGravado15) ?? 0.0;
-if (gravado15Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
-  totalY += 25;
-}
+// Gravado 15%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
+totalY += 25;
 
-// Gravado 18% (solo si > 0)
-final gravado18Val = double.tryParse(importeGravado18) ?? 0.0;
-if (gravado18Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
-  totalY += 25;
-}
+// Gravado 18%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
+totalY += 25;
 
-// ISV 15% (solo si > 0)
-final isv15Val = double.tryParse(impuesto15) ?? 0.0;
-if (isv15Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
-  totalY += 25;
-}
+// ISV 15%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
+totalY += 25;
 
-// ISV 18% (solo si > 0)
-final isv18Val = double.tryParse(impuesto18) ?? 0.0;
-if (isv18Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
-  totalY += 25;
-}
+// ISV 18%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
+totalY += 25;
 
 // Línea divisoria antes del total (centrada o de extremo a extremo)
 totalY += 5;

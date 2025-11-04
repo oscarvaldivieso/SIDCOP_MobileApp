@@ -910,11 +910,6 @@ class _VentaScreenState extends State<VentaScreen> {
       },
     );
   }
-  
-  // Calculate taxes (15%)
-  double _calculateTaxes(double subtotal) {
-    return subtotal * 0.15;
-  }
 
   // Método para construir un ítem de producto en la factura
   Widget _buildProductoItem(String nombre, double cantidad, double precioUnitario) {
@@ -2295,7 +2290,8 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   
   final subtotalConDescuento = subtotal - descuento;
   // Calcular impuesto solo si el producto paga impuesto (prodPagaImpuesto == 'S')
-  final impuesto = product.prodPagaImpuesto == 'S' ? subtotalConDescuento * 0.15 : 0.0; // 15% ISV solo si paga impuesto
+  // Usar el valor de impuesto dinámico del producto (impu_Valor: 0.15 para 15%, 0.18 para 18%, o 0 si no paga)
+  final impuesto = product.prodPagaImpuesto == 'S' ? subtotalConDescuento * product.impuValor : 0.0;
   final totalProducto = subtotalConDescuento + impuesto;
 
   return Container(
@@ -2707,7 +2703,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   // Calcular el total del carrito
   double _calculateTotal() {
     double subtotal = 0.0;
-    double subtotalConImpuesto = 0.0;
+    double impuestoTotal = 0.0;
     final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
     
     _selectedProducts.forEach((prodId, cantidad) {
@@ -2718,9 +2714,9 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
       final subtotalProducto = precio * cantidad;
       subtotal += subtotalProducto;
       
-      // Calcular impuesto solo para productos que pagan impuesto
+      // Calcular impuesto individualmente por producto usando su impuValor (0.15 para 15%, 0.18 para 18%)
       if (product.prodPagaImpuesto == 'S') {
-        subtotalConImpuesto += subtotalProducto;
+        impuestoTotal += subtotalProducto * product.impuValor;
       }
     });
     
@@ -2728,18 +2724,21 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     final double descuentos = descuentosInfo['total'];
     final double subtotalConDescuento = subtotal - descuentos;
     
-    // Aplicar impuesto solo a los productos que pagan impuesto
-    final double impuestos = subtotalConImpuesto * 0.15;
+    // Ajustar impuestos proporcionalmente al descuento aplicado
+    final double factorDescuento = subtotal > 0 ? subtotalConDescuento / subtotal : 1.0;
+    final double impuestosAjustados = impuestoTotal * factorDescuento;
     
-    return subtotalConDescuento + impuestos;
+    return subtotalConDescuento + impuestosAjustados;
   }
 
   // Widget para el resumen del carrito
   Widget _buildCartSummary() {
     double subtotal = 0.0;
-    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
+    
+    // Agrupar impuestos por porcentaje
+    Map<double, double> impuestosPorPorcentaje = {};
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
@@ -2750,9 +2749,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
       subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
       
-      // Calcular subtotal solo para productos que pagan impuesto
+      // Agrupar impuestos por porcentaje (15% o 18%)
       if (product.prodPagaImpuesto == 'S') {
-        subtotalConImpuesto += subtotalProducto;
+        final porcentaje = product.impuValor;
+        impuestosPorPorcentaje[porcentaje] = (impuestosPorPorcentaje[porcentaje] ?? 0.0) + (subtotalProducto * porcentaje);
       }
     });
 
@@ -2763,13 +2763,19 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     
     final double subtotalConDescuento = subtotal - descuentos;
     
-    // Calcular impuesto solo sobre los productos que pagan impuesto
-    final double porcentajeImpuesto = 0.15; // 15% ISV
-    final double baseImponible = subtotalConImpuesto > 0 ? 
-        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
-    final double impuestos = baseImponible * porcentajeImpuesto;
+    // Ajustar impuestos proporcionalmente al descuento aplicado
+    final double factorDescuento = subtotal > 0 ? subtotalConDescuento / subtotal : 1.0;
     
-    final double total = subtotalConDescuento + impuestos;
+    // Calcular total de impuestos ajustados
+    double totalImpuestos = 0.0;
+    Map<double, double> impuestosAjustados = {};
+    impuestosPorPorcentaje.forEach((porcentaje, monto) {
+      final montoAjustado = monto * factorDescuento;
+      impuestosAjustados[porcentaje] = montoAjustado;
+      totalImpuestos += montoAjustado;
+    });
+    
+    final double total = subtotalConDescuento + totalImpuestos;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -2832,8 +2838,12 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
           if (descuentos > 0)
             _buildSummaryRowCart('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
           
-          // Impuestos
-          _buildSummaryRowCart('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
+          // Impuestos desglosados por porcentaje
+          ...impuestosAjustados.entries.map((entry) {
+            final porcentaje = (entry.key * 100).toStringAsFixed(0);
+            final monto = entry.value;
+            return _buildSummaryRowCart('ISV ($porcentaje%):', 'L. ${monto.toStringAsFixed(2)}');
+          }).toList(),
           
           const Divider(height: 24, thickness: 1, color: Color(0xFFE5E7EB)),
           
@@ -2989,9 +2999,11 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   Widget paso4() {
     // Calcular totales para mostrar en la confirmación
     double subtotal = 0.0;
-    double subtotalConImpuesto = 0.0;
     int totalItems = 0;
     final isCredito = _ventaModel.factTipoVenta == 'CR' || _ventaModel.factTipoVenta == 'CREDITO';
+    
+    // Agrupar impuestos por porcentaje
+    Map<double, double> impuestosPorPorcentaje = {};
     
     _selectedProducts.forEach((prodId, cantidad) {
       final product = _allProducts.firstWhere(
@@ -3002,9 +3014,10 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
       subtotal += subtotalProducto;
       totalItems += cantidad.toInt();
       
-      // Calcular subtotal solo para productos que pagan impuesto
+      // Agrupar impuestos por porcentaje (15% o 18%)
       if (product.prodPagaImpuesto == 'S') {
-        subtotalConImpuesto += subtotalProducto;
+        final porcentaje = product.impuValor;
+        impuestosPorPorcentaje[porcentaje] = (impuestosPorPorcentaje[porcentaje] ?? 0.0) + (subtotalProducto * porcentaje);
       }
     });
 
@@ -3014,13 +3027,19 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
     
     final double subtotalConDescuento = subtotal - descuentos;
     
-    // Calcular impuesto solo sobre los productos que pagan impuesto
-    final double porcentajeImpuesto = 0.15; // 15% ISV
-    final double baseImponible = subtotalConImpuesto > 0 ? 
-        (subtotalConImpuesto / subtotal) * subtotalConDescuento : 0.0;
-    final double impuestos = baseImponible * porcentajeImpuesto;
+    // Ajustar impuestos proporcionalmente al descuento aplicado
+    final double factorDescuento = subtotal > 0 ? subtotalConDescuento / subtotal : 1.0;
     
-    final double total = subtotalConDescuento + impuestos;
+    // Calcular total de impuestos ajustados
+    double totalImpuestos = 0.0;
+    Map<double, double> impuestosAjustados = {};
+    impuestosPorPorcentaje.forEach((porcentaje, monto) {
+      final montoAjustado = monto * factorDescuento;
+      impuestosAjustados[porcentaje] = montoAjustado;
+      totalImpuestos += montoAjustado;
+    });
+    
+    final double total = subtotalConDescuento + totalImpuestos;
     
     setState(() {
       formData.total = total;
@@ -3213,7 +3232,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   const SizedBox(height: 16),
                   
                   // Resumen financiero
-                  _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestos, total, totalItems),
+                  _buildFinancialSummary(subtotal, descuentos, subtotalConDescuento, impuestosAjustados, total, totalItems),
                   
               
                   const SizedBox(height: 24)
@@ -3467,7 +3486,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
   }
 
   // Widget para resumen financiero
-  Widget _buildFinancialSummary(double subtotal, double descuentos, double subtotalConDescuento, double impuestos, double total, int totalItems) {
+  Widget _buildFinancialSummary(double subtotal, double descuentos, double subtotalConDescuento, Map<double, double> impuestosAjustados, double total, int totalItems) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -3538,7 +3557,12 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
             _buildFinancialRow('Subtotal c/descuento:', 'L. ${subtotalConDescuento.toStringAsFixed(2)}', isBold: true),
           ],
           
-          _buildFinancialRow('ISV (15%):', 'L. ${impuestos.toStringAsFixed(2)}'),
+          // Impuestos desglosados por porcentaje
+          ...impuestosAjustados.entries.map((entry) {
+            final porcentaje = (entry.key * 100).toStringAsFixed(0);
+            final monto = entry.value;
+            return _buildFinancialRow('ISV ($porcentaje%):', 'L. ${monto.toStringAsFixed(2)}');
+          }).toList(),
           
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
