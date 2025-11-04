@@ -54,25 +54,43 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
   /// Inicializa el campo de monto con el saldo real actualizado
   Future<void> _inicializarMontoConSaldoReal() async {
     try {
-      final cpCoId = widget.cuentaResumen.cpCo_Id;
-      if (cpCoId != null) {
-        final saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
-        
-        if (mounted) {
-          setState(() {
-            _saldoRealActualizado = saldoReal;
-          });
-          _montoController.text = saldoReal.toStringAsFixed(2);
-          print('💰 Monto inicializado con saldo real: ${_formatCurrency(saldoReal)}');
+      print('🎯 Inicializando monto en pantalla de pagos');
+      print('💰 Datos recibidos: totalPendiente=${widget.cuentaResumen.totalPendiente}, cpCo_Saldo=${widget.cuentaResumen.cpCo_Saldo}');
+      
+      // CORRECCIÓN: Usar directamente el totalPendiente que ya viene calculado correctamente
+      // desde la pantalla anterior, evitando problemas de cache
+      double saldoParaInicializar = widget.cuentaResumen.totalPendiente ?? widget.cuentaResumen.cpCo_Saldo ?? 0;
+      
+      // Solo intentar obtener del servicio si el valor recibido es 0 o null
+      if (saldoParaInicializar <= 0) {
+        final cpCoId = widget.cuentaResumen.cpCo_Id;
+        if (cpCoId != null) {
+          try {
+            print('⚠️ Saldo recibido es 0, intentando obtener del servicio...');
+            final saldoDelServicio = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+            if (saldoDelServicio > 0) {
+              saldoParaInicializar = saldoDelServicio;
+              print('✅ Saldo obtenido del servicio: $saldoDelServicio');
+            }
+          } catch (e) {
+            print('⚠️ Error obteniendo saldo del servicio: $e');
+          }
         }
-      } else {
-        // Fallback al valor original si no hay ID
-        _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _saldoRealActualizado = saldoParaInicializar;
+        });
+        _montoController.text = saldoParaInicializar.toStringAsFixed(2);
+        print('💰 Monto inicializado con saldo: ${_formatCurrency(saldoParaInicializar)}');
       }
     } catch (e) {
-      print('❌ Error inicializando monto con saldo real: $e');
+      print('❌ Error inicializando monto: $e');
       // Fallback al valor original en caso de error
-      _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+      final fallbackValue = widget.cuentaResumen.totalPendiente ?? widget.cuentaResumen.cpCo_Saldo ?? 0;
+      _montoController.text = fallbackValue.toStringAsFixed(2);
+      print('💰 Usando valor fallback: ${_formatCurrency(fallbackValue)}');
     }
   }
 
