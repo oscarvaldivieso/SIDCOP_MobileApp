@@ -72,7 +72,8 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
       builder: (context) => RecargaBottomSheet(
         recargasGrupoParaEditar: recargasGrupo,
         isEditMode: true,
-        // recaId: recaId, // Removed because it's not defined in the constructor
+        recaId: recaId,
+        bode_IdU: recargasGrupo.first.bode_Id,
       ),
     ).then((result) {
       // Si la edición fue exitosa, ejecutar callback y cerrar modal
@@ -272,6 +273,9 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
+                        print('🔍 DEBUG: Botón de editar presionado');
+                         final recaId = recargasGrupo.isNotEmpty ? recargasGrupo.first.reca_Id : null;
+                          print('🔍 DEBUG: recaId para editar: $recaId');
                         Navigator.pop(context); // Cerrar el detalle
                         _openEditRecargaModal(context, recargasGrupo);
                       },
