@@ -77,21 +77,8 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
                 textAlign: pw.TextAlign.center,
               ),
               
-              pw.SizedBox(height: 8),
-              
-              // Dirección
-              if (factura['coFa_DireccionEmpresa']?.toString().isNotEmpty == true)
-                pw.Text(
-                  factura['coFa_DireccionEmpresa'],
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    color: PdfColors.grey,
-                  ),
-                  textAlign: pw.TextAlign.center,
-                ),
-              
               pw.SizedBox(height: 4),
-              
+
               // Casa Matriz
               pw.Text(
                 "CASA MATRIZ",
@@ -103,6 +90,19 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
                 ),
                 textAlign: pw.TextAlign.center,
               ),
+
+              pw.SizedBox(height: 8),
+
+              // Dirección
+              if (factura['coFa_DireccionEmpresa']?.toString().isNotEmpty == true)
+                pw.Text(
+                  factura['coFa_DireccionEmpresa'],
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    color: PdfColors.grey,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
               
               pw.SizedBox(height: 8),
               
@@ -137,7 +137,7 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
 
         pw.SizedBox(height: 16),
 
-        // INFORMACIÓN DE LA FACTURA - Alineada a la izquierda como en la imagen
+        // INFORMACIÓN DE LA FACTURA
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
@@ -151,13 +151,28 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
             _buildInfoRow("Fecha de Emisión:", _formatDate(factura['fact_FechaEmision'])),
             
             // Tipo de venta
-            _buildInfoRow("Tipo de Venta:", factura['fact_TipoVenta'] ?? 'N/A'),
+            _buildInfoRow("Tipo de Venta:", factura['fact_TipoVenta'] == 'CR' ? 'Crédito' : factura['fact_TipoVenta'] == 'CO' ? 'Contado' : 'N/A'),
             
             // Cliente
             _buildInfoRow("Cliente:", factura['cliente'] ?? 'Cliente General'),
+
+            // RTN del cliente
+            _buildInfoRow("RTN Cliente:", factura['clie_RTN'] ?? '0'),
+
+            // Dirección del cliente
+            _buildInfoRow("Dirección:", factura['diCl_DireccionExacta'] ?? 'Cliente General'),
             
             // Vendedor
             _buildInfoRow("Vendedor:", factura['vendedor'] ?? 'N/A'),
+
+            // No Orden de compra exenta
+            _buildInfoRow("No Orden de compra exenta:", '' ?? 'N/A'),
+
+            // No Constancia de reg de exonerados
+            _buildInfoRow("No Constancia de reg de exonerados:", '' ?? 'N/A'),
+
+            // No Registro de la SAG
+            _buildInfoRow("No Registro de la SAG:", '' ?? 'N/A'),
           ],
         ),
 
@@ -203,40 +218,56 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
 
         pw.SizedBox(height: 20),
 
+        // LÍNEA DIVISORIA SIMPLE
+        pw.Container(
+          height: 1,
+          width: double.infinity,
+          color: PdfColor.fromHex("#adadad"),
+        ),
+
+        pw.SizedBox(height: 8),
+
         // SECCIÓN DE TOTALES - Alineada debajo de la columna TOTAL
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
             pw.Container(
-              width: 200, // Ancho similar a las últimas dos columnas de la tabla
+              width: 550, // Ancho similar a las últimas dos columnas de la tabla
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
                   // Subtotal
                   _buildTotalRowRight("Subtotal:", "L ${(factura['fact_Subtotal'] ?? 0).toStringAsFixed(2)}"),
                   
-                  // Importes condicionalmente
-                  if ((factura['fact_ImporteExento'] ?? 0) > 0)
-                    _buildTotalRowRight("Importe Exento:", "L ${(factura['fact_ImporteExento']).toStringAsFixed(2)}"),
+                  // Total Descuento
+                  _buildTotalRowRight("Total Descuento:", "L ${(factura['fact_TotalDescuento']).toStringAsFixed(2)}"),
+
+                  // Importes exentos
+                  _buildTotalRowRight("Importe Exento:", "L ${(factura['fact_ImporteExento']).toStringAsFixed(2)}"),
                   
-                  if ((factura['fact_ImporteGravado15'] ?? 0) > 0)
-                    _buildTotalRowRight("Importe Gravado 15%:", "L ${(factura['fact_ImporteGravado15']).toStringAsFixed(2)}"),
+                  // Importe Exonerado
+                  _buildTotalRowRight("Importe Exonerado:", "L ${(factura['fact_ImporteExonerado']).toStringAsFixed(2)}"),
                   
-                  if ((factura['fact_ImporteGravado18'] ?? 0) > 0)
-                    _buildTotalRowRight("Importe Gravado 18%:", "L ${(factura['fact_ImporteGravado18']).toStringAsFixed(2)}"),
+                  // Importes gravados
+                  _buildTotalRowRight("Importe Gravado 15%:", "L ${(factura['fact_ImporteGravado15']).toStringAsFixed(2)}"),
+
+                  // Importes gravados
+                  _buildTotalRowRight("Importe Gravado 18%:", "L ${(factura['fact_ImporteGravado18']).toStringAsFixed(2)}"),  
                   
-                  if ((factura['fact_ImporteExonerado'] ?? 0) > 0)
-                    _buildTotalRowRight("Importe Exonerado:", "L ${(factura['fact_ImporteExonerado']).toStringAsFixed(2)}"),
+                  //Total Impuesto 15%
+                  _buildTotalRowRight("ISV 15%:", "L ${(factura['fact_TotalImpuesto15']).toStringAsFixed(2)}"),
+
+                  //Total Impuesto 18%
+                  _buildTotalRowRight("ISV 18%:", "L ${(factura['fact_TotalImpuesto18']).toStringAsFixed(2)}"),
                   
-                  if ((factura['fact_TotalDescuento'] ?? 0) > 0)
-                    _buildTotalRowRight("Total Descuento:", "- L ${(factura['fact_TotalDescuento']).toStringAsFixed(2)}", isNegative: true),
+                  pw.SizedBox(height: 8),
                   
-                  // ISV
-                  if ((factura['fact_TotalImpuesto15'] ?? 0) > 0)
-                    _buildTotalRowRight("ISV 15%:", "L ${(factura['fact_TotalImpuesto15']).toStringAsFixed(2)}"),
-                  
-                  if ((factura['fact_TotalImpuesto18'] ?? 0) > 0)
-                    _buildTotalRowRight("ISV 18%:", "L ${(factura['fact_TotalImpuesto18']).toStringAsFixed(2)}"),
+                  // LÍNEA DIVISORIA SIMPLE
+                  pw.Container(
+                    height: 1,
+                    width: double.infinity,
+                    color: PdfColor.fromHex("#adadad"),
+                  ),
                   
                   pw.SizedBox(height: 8),
                   
@@ -245,7 +276,7 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        "TOTAL A PAGAR:",
+                        "Total",
                         style: pw.TextStyle(
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,
@@ -257,7 +288,7 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
                         style: pw.TextStyle(
                           fontSize: 18,
                           fontWeight: pw.FontWeight.bold,
-                          color: PdfColor.fromHex("#98BF4A"),
+                          color: PdfColor.fromHex("#141A2F"),
                         ),
                       ),
                     ],
