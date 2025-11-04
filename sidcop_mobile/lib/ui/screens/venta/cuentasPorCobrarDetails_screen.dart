@@ -620,7 +620,13 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   double _getSaldoActualizadoMovimiento(CuentasXCobrar movimiento) {
     // SOLUCIÓN SIMPLIFICADA: Usar directamente los datos del movimiento
     // Esto elimina el problema del cache que mostraba 0.0 incorrectamente
-    return movimiento.totalPendiente ?? movimiento.cpCo_Saldo ?? 0;
+    final totalPendiente = movimiento.totalPendiente;
+    final cpCoSaldo = movimiento.cpCo_Saldo;
+    final resultado = totalPendiente ?? cpCoSaldo ?? 0;
+    
+    print('🔍 _getSaldoActualizadoMovimiento para cuenta ${movimiento.cpCo_Id}: totalPendiente=$totalPendiente, cpCo_Saldo=$cpCoSaldo, resultado=$resultado');
+    
+    return resultado;
   }
 
   /// Actualiza el cache de saldos para una cuenta específica
@@ -701,19 +707,68 @@ class _CuentasPorCobrarDetailsScreenState extends State<CuentasPorCobrarDetailsS
   }
 
   void _navigateToPaymentScreen(CuentasXCobrar movimiento) async {
+    print('🎯 Navegando a pago desde historial - Cuenta: ${movimiento.cpCo_Id}');
+    print('💰 Datos originales del movimiento: totalPendiente=${movimiento.totalPendiente}, cpCo_Saldo=${movimiento.cpCo_Saldo}');
+    
+    // CORRECCIÓN DEFINITIVA: Buscar el movimiento actualizado en la lista actual
+    // Esto garantiza que usamos los datos más recientes cargados en la pantalla
+    CuentasXCobrar movimientoActualizado = movimiento;
+    
+    if (movimiento.cpCo_Id != null) {
+      // Buscar el movimiento actualizado en la lista de movimientos actuales
+      final movimientoEncontrado = _timelineMovimientos.firstWhere(
+        (m) => m.cpCo_Id == movimiento.cpCo_Id,
+        orElse: () => movimiento,
+      );
+      
+      if (movimientoEncontrado != movimiento) {
+        print('✅ Movimiento actualizado encontrado en lista actual');
+        movimientoActualizado = movimientoEncontrado;
+      } else {
+        print('ℹ️ Usando movimiento original (no se encontró actualización)');
+      }
+    }
+    
+    print('💰 Datos del movimiento actualizado: totalPendiente=${movimientoActualizado.totalPendiente}, cpCo_Saldo=${movimientoActualizado.cpCo_Saldo}');
+    
+    // Usar el saldo del movimiento actualizado
+    final saldoActualEnPantalla = _getSaldoActualizadoMovimiento(movimientoActualizado);
+    print('💰 Saldo calculado en pantalla actual: $saldoActualEnPantalla');
+    
+    // Si el saldo en pantalla es válido (mayor a 0), usarlo directamente
+    // Si no, intentar obtenerlo del servicio como fallback
+    double saldoParaPago = saldoActualEnPantalla;
+    
+    if (saldoParaPago <= 0 && movimientoActualizado.cpCo_Id != null) {
+      try {
+        print('⚠️ Saldo en pantalla es 0, intentando obtener del servicio...');
+        saldoParaPago = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(movimientoActualizado.cpCo_Id!);
+        print('💰 Saldo obtenido del servicio como fallback: $saldoParaPago');
+      } catch (e) {
+        print('⚠️ Error obteniendo saldo del servicio: $e');
+        // Como último recurso, usar el totalPendiente original si es mayor a 0
+        if ((movimientoActualizado.totalPendiente ?? 0) > 0) {
+          saldoParaPago = movimientoActualizado.totalPendiente!;
+          print('💰 Usando totalPendiente original como último recurso: $saldoParaPago');
+        }
+      }
+    }
+    
     // Crear un objeto de resumen para el pago basado en el movimiento específico
     final cuentaParaPago = CuentasXCobrar(
-      cpCo_Id: movimiento.cpCo_Id,
+      cpCo_Id: movimientoActualizado.cpCo_Id,
       clie_Id: widget.cuentaResumen.clie_Id,
-      fact_Id: movimiento.fact_Id,
-      referencia: movimiento.referencia,
-      totalPendiente: movimiento.totalPendiente,
+      fact_Id: movimientoActualizado.fact_Id,
+      referencia: movimientoActualizado.referencia,
+      totalPendiente: saldoParaPago, // Usar el saldo calculado correctamente
       cliente: widget.cuentaResumen.nombreCompleto,
       clie_Nombres: widget.cuentaResumen.clie_Nombres,
       clie_Apellidos: widget.cuentaResumen.clie_Apellidos,
       clie_NombreNegocio: widget.cuentaResumen.clie_NombreNegocio,
       clie_Telefono: widget.cuentaResumen.clie_Telefono,
     );
+    
+    print('💰 Cuenta para pago final: totalPendiente=${cuentaParaPago.totalPendiente}');
 
     final result = await Navigator.push(
       context,
