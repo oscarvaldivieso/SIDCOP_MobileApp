@@ -1151,8 +1151,22 @@ Widget _buildDefaultLogo() {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          detalle['prod_Descripcion'] ?? 'Producto',
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              if (detalle['prod_PagaImpuesto'] == 'N')
+                                const TextSpan(
+                                  text: '* ',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              TextSpan(
+                                text: detalle['prod_Descripcion'] ?? 'Producto',
+                              ),
+                            ],
+                          ),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
