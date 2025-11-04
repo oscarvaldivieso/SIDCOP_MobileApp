@@ -264,4 +264,58 @@ class CuentasXCobrarService {
       throw Exception('Error en la solicitud: $e');
     }
   }
+
+  /// Verifica si un cliente tiene cuentas por cobrar pendientes
+  Future<Map<String, dynamic>> verificarCuentasPorCobrarCliente(int clienteId) async {
+    final url = Uri.parse('$_apiServer/CuentasPorCobrar/IrCuentasCobrar/$clienteId');
+    developer.log('Verificar CuentasPorCobrar Cliente Request URL: $url');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log(
+        'Verificar CuentasPorCobrar Cliente Response Status: ${response.statusCode}',
+      );
+      developer.log('Verificar CuentasPorCobrar Cliente Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+
+        // Verificar si la respuesta tiene la estructura con "data"
+        if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
+          final data = decoded['data'];
+          if (data is Map<String, dynamic>) {
+            return {
+              'success': decoded['success'] ?? true,
+              'code_Status': data['code_Status'] ?? 0,
+              'message_Status': data['message_Status'] ?? '',
+              'clie_Id': data['Clie_Id'] ?? clienteId,
+            };
+          }
+        }
+        
+        // Si no tiene "data", asumir que es directamente el objeto
+        if (decoded is Map<String, dynamic>) {
+          return {
+            'success': true,
+            'code_Status': decoded['code_Status'] ?? 0,
+            'message_Status': decoded['message_Status'] ?? '',
+            'clie_Id': decoded['Clie_Id'] ?? clienteId,
+          };
+        }
+        
+        throw Exception('Respuesta inesperada del servidor: formato no reconocido.');
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código ${response.statusCode}, Respuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Verificar CuentasPorCobrar Cliente Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
 }
