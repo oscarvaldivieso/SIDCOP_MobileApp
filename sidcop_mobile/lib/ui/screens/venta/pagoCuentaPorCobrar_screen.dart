@@ -54,25 +54,43 @@ class _PagoCuentaPorCobrarScreenState extends State<PagoCuentaPorCobrarScreen> {
   /// Inicializa el campo de monto con el saldo real actualizado
   Future<void> _inicializarMontoConSaldoReal() async {
     try {
-      final cpCoId = widget.cuentaResumen.cpCo_Id;
-      if (cpCoId != null) {
-        final saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
-        
-        if (mounted) {
-          setState(() {
-            _saldoRealActualizado = saldoReal;
-          });
-          _montoController.text = saldoReal.toStringAsFixed(2);
-          print('💰 Monto inicializado con saldo real: ${_formatCurrency(saldoReal)}');
+      print('🎯 Inicializando monto en pantalla de pagos');
+      print('💰 Datos recibidos: totalPendiente=${widget.cuentaResumen.totalPendiente}, cpCo_Saldo=${widget.cuentaResumen.cpCo_Saldo}');
+      
+      // CORRECCIÓN: Usar directamente el totalPendiente que ya viene calculado correctamente
+      // desde la pantalla anterior, evitando problemas de cache
+      double saldoParaInicializar = widget.cuentaResumen.totalPendiente ?? widget.cuentaResumen.cpCo_Saldo ?? 0;
+      
+      // Solo intentar obtener del servicio si el valor recibido es 0 o null
+      if (saldoParaInicializar <= 0) {
+        final cpCoId = widget.cuentaResumen.cpCo_Id;
+        if (cpCoId != null) {
+          try {
+            print('⚠️ Saldo recibido es 0, intentando obtener del servicio...');
+            final saldoDelServicio = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+            if (saldoDelServicio > 0) {
+              saldoParaInicializar = saldoDelServicio;
+              print('✅ Saldo obtenido del servicio: $saldoDelServicio');
+            }
+          } catch (e) {
+            print('⚠️ Error obteniendo saldo del servicio: $e');
+          }
         }
-      } else {
-        // Fallback al valor original si no hay ID
-        _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _saldoRealActualizado = saldoParaInicializar;
+        });
+        _montoController.text = saldoParaInicializar.toStringAsFixed(2);
+        print('💰 Monto inicializado con saldo: ${_formatCurrency(saldoParaInicializar)}');
       }
     } catch (e) {
-      print('❌ Error inicializando monto con saldo real: $e');
+      print('❌ Error inicializando monto: $e');
       // Fallback al valor original en caso de error
-      _montoController.text = (widget.cuentaResumen.totalPendiente ?? 0).toStringAsFixed(2);
+      final fallbackValue = widget.cuentaResumen.totalPendiente ?? widget.cuentaResumen.cpCo_Saldo ?? 0;
+      _montoController.text = fallbackValue.toStringAsFixed(2);
+      print('💰 Usando valor fallback: ${_formatCurrency(fallbackValue)}');
     }
   }
 
@@ -243,11 +261,29 @@ Future<void> _registrarPago() async {
     return;
   }
 
-  // Obtener el saldo real actualizado desde los datos offline (incluyendo pagos ya aplicados)
-  final double saldoReal = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+  // CORRECCIÓN: Usar el saldo que ya se inicializó correctamente en lugar de hacer una nueva consulta
+  // que puede fallar debido a problemas de cache
+  double saldoParaValidacion = _saldoRealActualizado ?? widget.cuentaResumen.totalPendiente ?? 0;
   
-  if (montoIngresado > saldoReal) {
-    _showErrorDialog('El monto ingresado no puede ser mayor al saldo pendiente (${_formatCurrency(saldoReal)})');
+  print('🔍 Validación de monto: montoIngresado=$montoIngresado, saldoParaValidacion=$saldoParaValidacion');
+  print('🔍 Fuente del saldo: _saldoRealActualizado=$_saldoRealActualizado, totalPendiente=${widget.cuentaResumen.totalPendiente}');
+  
+  // Solo hacer consulta adicional si no tenemos un saldo válido
+  if (saldoParaValidacion <= 0) {
+    try {
+      print('⚠️ Saldo para validación es 0, intentando obtener del servicio...');
+      final double saldoDelServicio = await CuentasPorCobrarOfflineService.obtenerSaldoRealCuentaActualizado(cpCoId);
+      if (saldoDelServicio > 0) {
+        saldoParaValidacion = saldoDelServicio;
+        print('✅ Saldo obtenido del servicio para validación: $saldoDelServicio');
+      }
+    } catch (e) {
+      print('⚠️ Error obteniendo saldo del servicio para validación: $e');
+    }
+  }
+  
+  if (montoIngresado > saldoParaValidacion) {
+    _showErrorDialog('El monto ingresado no puede ser mayor al saldo pendiente (${_formatCurrency(saldoParaValidacion)})');
     return;
   }
 
@@ -428,19 +464,55 @@ Future<void> _registrarPago() async {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildClientInfoCard(),
-            const SizedBox(height: 16),
-            _buildPaymentForm(),
-            const SizedBox(height: 24),
-            _buildSubmitButton(),
-          ],
-        ),
+      child: Column(
+        children: [
+          // Botón de regreso
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Row(
+              children: [
+                // Botón de regreso
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    size: 24,
+                    color: Color(0xFF141A2F),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Título de la sección
+                const Expanded(
+                  child: Text(
+                    'Registrar Pago',
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF141A2F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildClientInfoCard(),
+                  const SizedBox(height: 16),
+                  _buildPaymentForm(),
+                  const SizedBox(height: 24),
+                  _buildSubmitButton(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

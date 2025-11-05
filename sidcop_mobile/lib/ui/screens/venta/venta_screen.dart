@@ -839,15 +839,17 @@ class _VentaScreenState extends State<VentaScreen> {
     final facturaNumero = _ventaModel.factNumero ?? 'N/A';
     
     
-    // Navigate to InvoiceDetailScreen
-    Navigator.push(
+    // Navigate to InvoiceDetailScreen and clear the stack until VentasListScreen
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (context) => InvoiceDetailScreen(
           facturaId: facturaId ?? 0,
           facturaNumero: facturaNumero,
+          fromVentasList: false, // Indicamos que venimos de crear una nueva venta
         ),
       ),
+      (route) => false, // Esto elimina todas las rutas anteriores
     );
   }
 
@@ -1623,7 +1625,7 @@ Widget paso1() {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(171, 75, 212, 86),
+                    color: const Color.fromARGB(171, 96, 207, 105),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
@@ -2799,7 +2801,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF98BF4A).withOpacity(0.1),
+                  color: const Color.fromARGB(255, 184, 183, 119).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -2808,7 +2810,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                     fontFamily: 'Satoshi',
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF98BF4A),
+                    color: Color.fromARGB(255, 156, 150, 60),
                   ),
                 ),
               ),
@@ -2854,7 +2856,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   fontFamily: 'Satoshi',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF98BF4A),
+                  color: Color.fromARGB(255, 12, 17, 31),
                 ),
               ),
             ],
@@ -3511,7 +3513,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF98BF4A),
+                  color: const Color.fromARGB(255, 228, 220, 118),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -3561,7 +3563,7 @@ Widget _buildCartItem(ProductoConDescuento product, double cantidad) {
                   fontFamily: 'Satoshi',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF98BF4A),
+                  color: Color.fromARGB(255, 201, 195, 118),
                 ),
               ),
             ],

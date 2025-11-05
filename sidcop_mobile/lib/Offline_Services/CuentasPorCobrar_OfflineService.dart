@@ -776,24 +776,40 @@ class CuentasPorCobrarOfflineService {
       final allKeys = await _secureStorage.readAll();
       final timelineKeys = allKeys.keys.where((key) => key.startsWith('timeline_cliente_')).toList();
       
+      print('🔍 Buscando cuenta $cpCoId en ${timelineKeys.length} timelines de clientes...');
+      
       for (final key in timelineKeys) {
         try {
           final timelineData = await leerJsonSeguro(key);
           if (timelineData != null && timelineData is List) {
+            print('📋 Revisando timeline $key con ${timelineData.length} elementos');
+            
             for (final item in timelineData) {
-              if (item is Map<String, dynamic> && item['cpCo_Id'] == cpCoId) {
-                final saldo = (item['totalPendiente'] ?? item['cpCo_Saldo'] ?? 0).toDouble();
-                if (saldo > 0) {
-                  return saldo;
+              if (item is Map<String, dynamic>) {
+                final itemCpCoId = item['cpCo_Id'];
+                print('   - Elemento: cpCo_Id=$itemCpCoId, totalPendiente=${item['totalPendiente']}, cpCo_Saldo=${item['cpCo_Saldo']}');
+                
+                if (itemCpCoId == cpCoId) {
+                  final totalPendiente = item['totalPendiente'];
+                  final cpCoSaldo = item['cpCo_Saldo'];
+                  
+                  // Priorizar totalPendiente sobre cpCo_Saldo
+                  final saldo = (totalPendiente ?? cpCoSaldo ?? 0).toDouble();
+                  
+                  print('✅ ¡Cuenta $cpCoId encontrada! totalPendiente=$totalPendiente, cpCo_Saldo=$cpCoSaldo, saldo final=$saldo');
+                  return saldo; // Retornar el saldo real, sin importar si es 0
                 }
               }
             }
+          } else {
+            print('⚠️ Timeline $key no es una lista válida o está vacío');
           }
         } catch (e) {
           print('⚠️ Error leyendo timeline $key: $e');
         }
       }
       
+      print('❌ Cuenta $cpCoId NO encontrada en ningún timeline');
       return 0;
     } catch (e) {
       print('❌ Error buscando en timelines: $e');
