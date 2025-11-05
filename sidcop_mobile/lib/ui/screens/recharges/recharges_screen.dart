@@ -395,7 +395,7 @@ class _RechargesScreenState extends State<RechargesScreen> {
       case 'Rechazada':
         label = 'Rechazada';
         primaryColor = const Color(0xFFFF3B30);
-        secondaryColor = const Color(0xFF6B60);
+        secondaryColor = const Color(0xFFFF6B60);
         backgroundColor = const Color(0xFFFFE8E6);
         statusIcon = Icons.cancel_rounded;
         break;
