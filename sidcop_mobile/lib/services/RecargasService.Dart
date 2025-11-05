@@ -114,7 +114,7 @@ class RecargasService
     }
   }
 
-  Future<bool> updateRecarga({required int recaId, required int usuaModificacion, required List<Map<String, dynamic>> detalles}) async {
+  Future<bool> updateRecarga({required int recaId, required int usuaModificacion, required List<Map<String, dynamic>> detalles, int? bode_IdU}) async {
     final userData = await PerfilUsuarioService().obtenerDatosUsuario();
     final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'] ?? userData?['idPersona'];
     final url = Uri.parse('$_apiServer/Recargas/Actualizar');
@@ -124,7 +124,7 @@ class RecargasService
     final body = {
       "reca_Id": recaId,
       "vend_Id": personaId,
-      "bode_Id": 18,
+      "bode_Id": bode_IdU ?? 23,
       "reca_Fecha": fechaString,
       "reca_Observaciones": "N/A",
       "usua_Modificacion": usuaModificacion,

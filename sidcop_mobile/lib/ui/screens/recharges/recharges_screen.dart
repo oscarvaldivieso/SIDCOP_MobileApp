@@ -633,11 +633,15 @@ class _RechargesScreenState extends State<RechargesScreen> {
 class RecargaBottomSheet extends StatefulWidget {
   final List<RecargasViewModel>? recargasGrupoParaEditar;
   final bool isEditMode;
+  final int? recaId;
+  final int? bode_IdU;
   
   const RecargaBottomSheet({
     super.key,
     this.recargasGrupoParaEditar,
     this.isEditMode = false,
+    this.recaId,
+    this.bode_IdU,
   });
 
   @override
@@ -994,11 +998,23 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                   bool ok = false;
                   //guardar la recarga de manera online en caso se tenga conexión
                   if (online) {
-                    final recargaService = RecargasService();
-                    ok = await recargaService.insertarRecarga(
-                      usuaCreacion: usuaId,
-                      detalles: detalles,
-                    );
+                    if(widget.isEditMode)
+                    {
+                      final recargaService = RecargasService();
+                      ok = await recargaService.updateRecarga(
+                        recaId: widget.recaId!,
+                        usuaModificacion: usuaId,
+                        detalles: detalles,
+                      );
+                    }
+                    else
+                    {
+                      final recargaService = RecargasService();
+                      ok = await recargaService.insertarRecarga(
+                        usuaCreacion: usuaId,
+                        detalles: detalles,
+                      );
+                    }
                   } else {
                     final recargaOffline = {
                       'id': DateTime.now().microsecondsSinceEpoch,

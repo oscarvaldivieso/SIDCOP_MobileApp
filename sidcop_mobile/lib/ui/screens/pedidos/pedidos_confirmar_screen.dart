@@ -43,6 +43,8 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
   void initState() {
     super.initState();
     _productosEditables = List.from(widget.productosSeleccionados);
+    print('DIRECCIÓN SELECCIONADA: ${widget.direccionSeleccionada}');
+print('CLAVES: ${widget.direccionSeleccionada.keys.toList()}');
   }
  
   // Actualiza la cantidad de un producto y recalcula su precio final
@@ -354,7 +356,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
           'clie_Id': widget.clienteId,
           'diCl_DireccionExacta':
               widget.direccionSeleccionada['diCl_DireccionExacta'] ??
-              widget.direccionSeleccionada['DiCl_DescripcionExacta'] ??
+              widget.direccionSeleccionada['diCl_DireccionExacta'] ??
               'Dirección del vendedor',
           'diCl_EsPrincipal': true,
         };
@@ -421,7 +423,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
 
       // Usar la dirección seleccionada
       final direccion =
-          widget.direccionSeleccionada['DiCl_DescripcionExacta'] ??
+          widget.direccionSeleccionada['diCl_DireccionExacta'] ??
           widget.direccionSeleccionada['descripcion'] ??
           'Dirección no especificada';
       final rtn = cliente['clie_RTN'] ?? '';
@@ -652,7 +654,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
             'clie_Id': widget.clienteId,
             'diCl_DireccionExacta':
                 widget.direccionSeleccionada['diCl_DireccionExacta'] ??
-                widget.direccionSeleccionada['DiCl_DescripcionExacta'] ??
+                widget.direccionSeleccionada['diCl_DireccionExacta'] ??
                 'Dirección del vendedor',
             'diCl_EsPrincipal': true,
           };
@@ -743,6 +745,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       appBar: const AppBarWidget(),
       endDrawer: const CustomDrawer(permisos: []),
       endDrawerEnableOpenDragGesture: false,
@@ -841,9 +844,11 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                           i < p.productoOriginal!.descuentosEscala!.length;
                           i++
                         ) {
-                          print(
-                            p.productoOriginal?.descuentosEscala![i].toJson(),
-                          );
+//                           print(
+//                             p.productoOriginal?.descuentosEscala![i].toJson(),
+//                           );
+//                           print('DIRECCIÓN SELECCIONADA: ${widget.direccionSeleccionada}');
+// print('CLAVES: ${widget.direccionSeleccionada.keys.toList()}');
                         }
                       }
                       // print(p.productoOriginal?.descuentosEscala?.toJson());
@@ -1012,6 +1017,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                     ),
                                     // Controles de cantidad
                                     Column(
+                                      
                                       children: [
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -1352,6 +1358,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
+                                  
                                   'Fecha: ${widget.fechaEntrega.day.toString().padLeft(2, '0')}/${widget.fechaEntrega.month.toString().padLeft(2, '0')}/${widget.fechaEntrega.year}',
                                 ),
                               ],
@@ -1367,7 +1374,7 @@ class _PedidoConfirmarScreenState extends State<PedidoConfirmarScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Dirección: ${widget.direccionSeleccionada['DiCl_DescripcionExacta'] ?? widget.direccionSeleccionada['descripcion'] ?? 'Dirección no especificada'}',
+                                    'Dirección: ${widget.direccionSeleccionada['diCl_DireccionExacta'] ?? widget.direccionSeleccionada['diCl_DireccionExacta'] ?? 'Dirección no especificada'}',
                                     style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
