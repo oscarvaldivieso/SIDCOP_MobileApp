@@ -175,8 +175,24 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
     // Extraer y parsear el JSON de rutas del día
     final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
-
-    if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+    
+    // Obtener datos del vendedor si existe
+    final datosVendedor = userData?['datosVendedor'] as Map<String, dynamic>?;
+    
+    // Intentar obtener la ruta de los datos del vendedor si no está en rutasDelDiaJson
+    if (rutasDelDiaJson == null || rutasDelDiaJson.isEmpty) {
+      if (datosVendedor != null && datosVendedor['rutas'] != null) {
+        try {
+          final rutasList = datosVendedor['rutas'] as List<dynamic>;
+          if (rutasList.isNotEmpty) {
+            rutaId = rutasList[0]['ruta_Id'] as int?;
+            print('DEBUG: rutaId obtenido de datosVendedor: $rutaId');
+          }
+        } catch (e) {
+          print('ERROR al obtener ruta de datosVendedor: $e');
+        }
+      }
+    } else {
       try {
         // Decodificar el JSON de rutas
         final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
@@ -191,7 +207,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       }
     }
 
-    print('DEBUG: rutaId = $rutaId');
+    print('DEBUG: rutaId final = $rutaId');
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
     final esVendedor = userData?['usua_EsVendedor'] as bool? ?? false;
@@ -199,32 +215,45 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     usuaId = userData?['usua_Id'] as int?;
 
     // Cargar clientes por ruta usando el usua_IdPersona del usuario logueado
-    // lista de clientes se obtiene según permisos; variable local removida si no se usa
-
     if (esVendedor && usuaIdPersona != null) {
       print(
         'DEBUG: Usuario es VENDEDOR - Usando getClientesPorRuta con ID: $usuaIdPersona',
       );
+      
+      // Si no hay rutaId, intentar cargar clientes directos del vendedor
+      if (rutaId == null) {
+        print('DEBUG: No hay ruta asignada, mostrando clientes directos del vendedor');
+      }
     } else if (esVendedor && usuaIdPersona == null) {
       print(
         'DEBUG: Usuario vendedor sin usua_IdPersona válido - no se mostrarán clientes',
       );
       print('DEBUG: No se cargaron clientes (vendedor sin usua_IdPersona)');
+    } else if (esAdmin == true) {
+      print('DEBUG: Usuario es ADMIN - Mostrando todos los clientes');
     } else {
       print(
         'DEBUG: Usuario sin permisos (no es vendedor ni admin) - no se mostrarán clientes',
       );
-      print('DEBUG: Solicitando lista de clientes por permisos');
     }
   }
 
   /// Verifica si un cliente pertenece a la ruta del usuario
   bool _clienteBelongsToRuta(String? clieCode) {
-    if (rutaId == null || clieCode == null) return true;
-
-    // Aquí puedes implementar la lógica específica para verificar
-    // si el cliente pertenece a la ruta. Por ahora, retornamos true
-    // para permitir todos los clientes hasta que se implemente la lógica específica
+    // Si no hay código de cliente, no mostrar
+    if (clieCode == null) return false;
+    
+    // Si es admin, mostrar todos los clientes
+    if (esAdmin == true) return true;
+    
+    // Si no hay ruta asignada, mostrar todos los clientes del vendedor
+    if (rutaId == null) {
+      print('DEBUG: No hay ruta asignada, mostrando todos los clientes del vendedor');
+      return true;
+    }
+    
+    // Aquí iría la lógica específica para verificar si el cliente pertenece a la ruta
+    // Por ahora, asumimos que si llegó hasta aquí, el cliente pertenece a la ruta
     return true;
   }
 
@@ -262,10 +291,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       if (!isOnline) {
         // Cargar desde almacenamiento local si existe
         try {
-          final localFacturas =
-              await DevolucionesOffline.obtenerFacturasCreateLocal();
-          final localDirecciones =
-              await DevolucionesOffline.obtenerDireccionesCreateLocal();
+          final localFacturas = await DevolucionesOffline.obtenerFacturasCreateLocal();
+          final localDirecciones = await DevolucionesOffline.obtenerDireccionesCreateLocal();
 
           final direccionesList = localDirecciones
               .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
@@ -273,18 +300,20 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
           if (!mounted) return;
           setState(() {
-            // Filtrar direcciones por rutaId si el usuario no es admin
+            // Filtrar direcciones por vendedor y ruta si no es admin
             _direcciones = direccionesList.where((direccion) {
               // Si es admin, mostrar todas las direcciones
               if (esAdmin == true) return true;
 
-              // Si no es admin, filtrar solo por rutaId
-              bool matchesRuta =
-                  rutaId == null ||
-                  _clienteBelongsToRuta(direccion.clie_Codigo);
+              // Si no es admin, verificar que el cliente pertenezca al vendedor y a la ruta
+              final isVendorMatch = usuaIdPersona != null && 
+                                  direccion.usua_creacion == usuaIdPersona;
+              
+              final isRouteMatch = _clienteBelongsToRuta(direccion.clie_Codigo);
 
-              return matchesRuta;
+              return isVendorMatch && isRouteMatch;
             }).toList();
+            
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
             _isLoading = false;
           });
@@ -296,10 +325,23 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       }
 
       // Si estamos online, intentar cargar desde servicios remotos
-      final direccionesData = await _direccionClienteService
-          .getDireccionesPorCliente();
-      final facturasData = await _facturaService
-          .getFacturasDevolucionesLimite();
+      List<DireccionCliente> direccionesData = [];
+      
+      try {
+        // Cargar direcciones según el tipo de usuario
+        if (esAdmin == true) {
+          // Admin ve todas las direcciones
+          direccionesData = await _direccionClienteService.getDireccionesPorCliente();
+        } else if (usuaIdPersona != null) {
+          // Vendedor ve solo sus clientes asignados
+          direccionesData = await _direccionClienteService.getDireccionesPorCliente();
+        }
+      } catch (e) {
+        print('Error cargando direcciones: $e');
+        direccionesData = [];
+      }
+      
+      final facturasData = await _facturaService.getFacturasDevolucionesLimite();
 
       // Guardar versiones offline de facturas y direcciones para permitir crear devoluciones offline
       try {
@@ -318,16 +360,19 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       if (!mounted) return;
 
       setState(() {
-        // Filtrar direcciones por rutaId si el usuario no es admin
+        // Filtrar direcciones por vendedor y ruta si no es admin
         _direcciones = direccionesData.where((direccion) {
           // Si es admin, mostrar todas las direcciones
           if (esAdmin == true) return true;
 
-          // Si no es admin, filtrar solo por rutaId
-          bool matchesRuta =
-              rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+          // Si no es admin, filtrar por vendedor y ruta
+          bool matchesVendor = usuaIdPersona != null && 
+              direccion.usua_creacion == usuaIdPersona;
+          
+          bool matchesRuta = rutaId == null || 
+              _clienteBelongsToRuta(direccion.clie_Codigo);
 
-          return matchesRuta;
+          return matchesVendor && matchesRuta;
         }).toList();
         _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
@@ -352,11 +397,14 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
             // Si es admin, mostrar todas las direcciones
             if (esAdmin == true) return true;
 
-            // Si no es admin, filtrar solo por rutaId
-            bool matchesRuta =
-                rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+            // Si no es admin, filtrar por vendedor y ruta
+            bool matchesVendor = usuaIdPersona != null && 
+                direccion.usua_creacion == usuaIdPersona;
+            
+            bool matchesRuta = rutaId == null || 
+                _clienteBelongsToRuta(direccion.clie_Codigo);
 
-            return matchesRuta;
+            return matchesVendor && matchesRuta;
           }).toList();
           _facturas = List<Map<String, dynamic>>.from(localFacturas);
           _isLoading = false;
