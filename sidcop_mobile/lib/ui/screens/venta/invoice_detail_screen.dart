@@ -878,7 +878,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
-                  '$apiServer/${factura['coFa_Logo']}',
+                  '$apiServer${factura['coFa_Logo']}',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => 
                     _buildDefaultLogo(),

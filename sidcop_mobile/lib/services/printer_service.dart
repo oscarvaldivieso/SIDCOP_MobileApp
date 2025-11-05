@@ -446,54 +446,106 @@ class PrinterService {
 
       return await printZPL(ultraSimpleZPL);
     } catch (e) {
+      debugPrint('❌ Error en printSimpleTest: $e');
       return false;
     }
   }
 
-  // Test de impresión CON TU LOGO ORIGINAL - Reemplaza el método existente
-Future<bool> printTest() async {
-  if (!_isConnected || _connectedDevice == null) {
-    throw Exception('No hay una impresora conectada');
-  }
-
-  try {
-    debugPrint('🖨️ Iniciando prueba de impresión...');
-    
-    // Verificar estado de conexión primero
-    var connectionState = await _connectedDevice!.connectionState.first
-        .timeout(const Duration(seconds: 3));
-    
-    if (connectionState != BluetoothConnectionState.connected) {
-      debugPrint('❌ Impresora no conectada');
-      return false;
+  // Test de impresión profesional
+  Future<bool> printTest() async {
+    if (!_isConnected || _connectedDevice == null) {
+      throw Exception('No hay una impresora conectada');
     }
 
-    debugPrint('✅ Impresora conectada, generando ZPL con logo...');
-
-    // TU ZPL ORIGINAL CON EL LOGO (el que ya tenías)
-    String professionalZPL = '''^XA^FO60,50^GFA,7452,7452,23,gP0PFE31!gP0QF19!gO01FF7NF8D!gO03FB7KF7FDC79!gO03MFEFFCC3B!gO07FCNFCE1B!gO0FF03MFE78!gN01FF00MFE3C7!gN01FA003IFE7FF003!gN03FA003IF27FFE31!gN03EA00JF37FFE78!gN07EA00IFE73FFE7C7!gN0FCDE1F8FCABFFE7!gN0FC061E0F829!gM01F8023E0302DLFBgM03EI03FI0247!gM03E2003EJ027!gM0782001J010KFEDgM0F84M018BJF07gM0F8O026IFC87gL01E1Q0F78307gL03ER0F00307gL03CR0C00207gL078R0CJ07gL0FS0CJ07gL0ES08J07gK01EX07gK03CW01!gK03CW03!gK078W03!gK0FX07!gK0EX0F,gJ01EW01F,gJ03CW01F,gJ038W038,gJ078W03,gJ0F,gJ0E,gI01C,gI03C,gI038,O01F8Q07,O07FEQ0E,O0IF8P0C,O0IFCO01C,O0IFCO038,N01IFCO03,N01IFCO07,O0IF8O0E,O0IF8O0C,O03FCO01C,gG038,gG03,:gG06,,::::::::::::::X01,,::::::::::::::R07,R07F03FE4,Q04FFBJF8,Q04MFC,Q067LFE8,N0600E7NF6,I0207E0607QF8,I0FE0E0E07QFC,00BFF8F0EE7QFE,01IF9VFC,03gFC,:03gGFE,03gHFE,03gIF,03gIF8,:03gIFC,BgJFC,gKFE,gLF8,gMF8,gMFC,:gNF,gNFC,gNFE,gOF,:gOF8,gOFC,:gPF,:gPF8,gPFC,gQF,gQF8,:gXF,gYF,gYFC,hF,hFC,hFE,hGF,hGFC,hGFE,hHF,:hHF8,FFCgYFC,FFCCgXFC,FF8003gVFE,FFI03gVFE,FFI07KFA3gPF,FFI07IF8001gPF,FEI07IF8001gIFE1KF8,FEI07IFC003gIFC0KF8,FEI0JFC3C3gIFC0KF8,FEI0JFC3C3gIFC0KFC,FCI0JFC3C3gIFE1KFC,FCI0JFC3C3gPFC,:F8I0JFC3C3gIFE1KFC,F8001JFC3C3gIFC0KFC,:F8001JFC3C3OFBSFC0KFC,F8001JF83C1gIFC0KFC,F8I0JFJ0gIFE1KFC,F8I0JFJ0gPFC,:F8I0KFC3gJFE1KFC,F8I0KFC3gJFC0KF8,F8I07JFC3gJFC0KF8,:F8I07JFC3gJFE1KF,F8I07JFC7gQF,F8I03JFC7gQF,F8I03JFE7gPFE,F8I03gVFE,F807gXFC,D83gYF8,D8hF,DhGF,3hFE,3hFC,3hF8,3hF,3gYFC,3gYF8,3FE03IF0gPFE,1C403FFE03gOF,1C003FFE01gNF8,18003FFC00MFCK07NF8,18007FFC007KF8L03NF8,1800IFC003IFO01NF,1800IF8003FFCO01NF,380JFI01FFP01NF,300IFEI01FCP03NF,300IFCI01FCP03NF,3007FF8I01FCP07NF,2I01EJ01FEP0OF,2O01FFO07NFE,2O01FF8N0OFE,6P07F8M01OFE,6P07FCN07IFCJFC,CP03FEL0403IF01IFC,CP03FFL0C03IF00IF8,CP01FF8J03C01FFE00IF8,CQ07F8J0F800FFE007FF,CQ03FCI01F8007FE0027F,CR0FCI03F8007FE0023C,8R07CI07F8007FE00318,8R07EI07FI03FE00318,8R07EI0FFI03FE00308,8P0E1FFI0FFI03FE00708,8O03JFI0FEI03FC00788,P0KFI07CI03FC00788,O01KFI078I07FC00788,O03KFI03I01FF80078C,O07KFM03FFI078C,N01LFM07FFI0FCE,N03KFEM0IF001FCE,N0LFEL01FFE003FFE,M01LFEL03FFE007FFE,M03LFCL07FFC00IFE,M01LF8K01IFC01JF,O07JF8K01IF801JF,O03JF8K03IF803JF,O01IFEL07IF007JFT01P0IF8L0IFE01KFT07Q01CL01IFC03KFT0!Y03IF807JFET0!Y03IF00KFES07!Y07FFE01KFCS0!Y0IFC03KFCR0!Y0IFC0LFCR0!X01IF81LFCR0!JFCS01IF83LFCQ01!JFES01QFEQ03!JFES03RFQ07!KFS07RF8P0!KFR01SF8P0!KFJ03M03SF8P0!KF803FF8L0TF8P0!KF80FCM03TF8P0!KFC7F8M07TF8O01!KFCFFN0UF8O01!MFEM01UF8O01!MF8M0VF8O03!MFM07VFCO07!MFL01WFEO0!MFL03WFEO0!MFL0YFO0!MF8J03YFO07!MFK03YF8N07!MFK07YF8N07!MFK0gFCN07!LFEJ03gFCN0!LFEJ07gFEM01!LFCJ07gFEM03!LF8J0gGFEM03!LF8I03gGFEM03!LFJ03gHFL03!KFEJ07gHFL03!KFEJ0gIFL07!KFCI03gIFJ01!KFCI03gIFJ03!KF8I07gIF8I03!KFJ0gJFCI03!JFEI01gJFCI07!JFEI01gJFC43!JFCI01!JF8I03!:JFJ07!IFEJ07!IFEJ03!::IFCJ01!:IFCJ03!:::::IFCJ07!IFCJ0!:::::IFCJ03!IFCJ01!IFCK07!:IFCK03!IF8K03!:::IF8K07!IF8K07OFE7FF07E7!IF8K0PFC7FC01C7!IF8K0PFC7F800C7!IF818001PFC7F0F8C7!IF821003CC70FFE7C3C7F1FFC63F0JFC3!IF8J01802063C300C3E1FFC01C031E301C01!IF8K0CI023C600C7E3FFC00C011E200C01!IF8I078C70E23C63C47E3FFC38EF11C23C7E3!IF040100C71E23C42C47E3FFC78F018C43C7C7!IF038400C71E23C40047E3FFC78C018C40078!IF00CI0C71E23C40043E1FFC78861C0C0070!IF004078C71E23C43FC7F1FCC788F1C0E3FE1!IF008070C71E21863C47F8784788E1C1E3C43!IFI0400C71E30060047F800C78801E1F00C01!IF100E00C71E300701C7FE01C78C01E1F81C01!IF0E3B8LFEFFE7JFDKFBJFE7!IF03E1!IFJ07!IFJ03!IFJ01!:IFJ03!:IFI01!:IFI03!IFI07!:IFI0!IF001!FFE001!IF001!^FS^XZ''';
-
-    debugPrint('📄 ZPL generado (${professionalZPL.length} bytes)');
-    debugPrint('🚀 Enviando a impresora...');
-
-    // Enviar a la impresora
-    bool success = await printZPL(professionalZPL);
-
-    if (success) {
-      debugPrint('✅ ZPL enviado correctamente a la impresora');
+    try {
+      debugPrint('🖨️ Iniciando prueba de impresión...');
       
-      // Esperar a que la impresora procese el logo complejo
-      await Future.delayed(const Duration(milliseconds: 1500));
-    } else {
-      debugPrint('❌ Error al enviar ZPL a la impresora');
-    }
+      // Verificar estado de conexión primero
+      var connectionState = await _connectedDevice!.connectionState.first
+          .timeout(const Duration(seconds: 3));
+      
+      if (connectionState != BluetoothConnectionState.connected) {
+        debugPrint('❌ Impresora no conectada');
+        return false;
+      }
 
-    return success;
-  } catch (e) {
-    debugPrint('❌ Error en printTest: $e');
-    return false;
+      debugPrint('✅ Impresora conectada, generando prueba profesional...');
+
+      // Obtener fecha y hora actual
+      final now = DateTime.now();
+      final fecha = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+      final hora = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+      // ZPL profesional para prueba de impresión
+      String professionalZPL = '''
+^XA
+^PW360
+
+~SD10
+^LH0,0
+
+^FO10,10^GB340,2,2^FS
+
+^FO10,20^A0N,35,35^FBSIDCOP^FS
+
+^FO10,125^GB340,2,2^FS
+
+^FO10,140^A0N,28,28^FBPRUEBA DE IMPRESION^FS
+
+^FO10,180^GB340,1,1^FS
+
+^FO10,195^A0N,22,22^FBFecha: $fecha^FS
+^FO10,220^A0N,22,22^FBHora:  $hora^FS
+
+^FO10,255^GB340,1,1^FS
+
+^FO10,270^A0N,20,20^FBTEST DE CALIDAD^FS
+^FO10,295^A0N,18,18^FB340,3,0,L^FDVerifica que el texto sea legible y la impresion este alineada.^FS
+
+^FO10,350^GB340,1,1^FS
+
+^FO10,365^A0N,20,20^FBTamanos de Texto:^FS
+^FO10,390^A0N,25,25^FBTexto Grande^FS
+^FO10,420^A0N,18,18^FBTexto Mediano^FS
+^FO10,443^A0N,15,15^FBTexto Pequeno^FS
+
+^FO10,470^GB340,1,1^FS
+
+^FO10,485^A0N,20,20^FBCodigo de Barras:^FS
+^FO30,510^BY2^BCN,60,N,N,N^FDTEST123456^FS
+
+^FO10,585^GB340,1,1^FS
+
+^FO10,600^A0N,16,16^FB340,2,0,C^FDSi puede leer este texto, la impresora funciona correctamente.^FS
+
+^FO10,645^GB340,2,2^FS
+
+^FO10,665^A0N,18,18^FB340,1,0,C^FDwww.sidcop.com^FS
+
+^FO10,695^A0N,16,16^FB340,1,0,C^FDPrueba exitosa^FS
+
+^XZ
+''';
+
+      debugPrint('📄 ZPL generado (${professionalZPL.length} bytes)');
+      debugPrint('🚀 Enviando a impresora...');
+
+      // Enviar a la impresora
+      bool success = await printZPL(professionalZPL);
+
+      if (success) {
+        debugPrint('✅ ZPL enviado correctamente a la impresora');
+        await Future.delayed(const Duration(milliseconds: 800));
+      } else {
+        debugPrint('❌ Error al enviar ZPL a la impresora');
+      }
+
+      return success;
+    } catch (e) {
+      debugPrint('❌ Error en printTest: $e');
+      return false;
+    }
   }
-}
 
   Future<bool> printInventory(Map<String, dynamic> inventoryData) async {
   try {
@@ -810,7 +862,9 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final empresaRTN = invoiceData['coFa_RTN'] ?? '08019987654321';
     final empresaTelefono = invoiceData['coFa_Telefono1'] ?? '2234-5678';
     final empresaCorreo = invoiceData['coFa_Correo'] ?? 'info@sidcop.com';
-    final empresaLogo = invoiceData['coFa_Logo'] ?? 'info@sidcop.com';
+    
+    // Logo ZPL dinámico desde la base de datos
+    final empresaLogoZPL = invoiceData['coFa_LogoZPL'] as String?;
 
     // Información de la factura
     final factNumero = invoiceData['fact_Numero'] ?? 'F001-0000001';
@@ -832,8 +886,21 @@ double _getDoubleValue(Map<String, dynamic> map, String key) {
     final clienteDireccion = invoiceData['diCl_DireccionExacta'] ?? '';
 
     final fechaLimiteEmision = _formatDate(invoiceData['regC_FechaFinalEmision']) ?? '31/12/2024';
-    final desde = invoiceData['regC_RangoInicial'] ?? 'F001-00000001';
-    final hasta = invoiceData['regC_RangoFinal'] ?? 'F001-99999999';
+    
+    // Formatear rango autorizado usando el prefijo del fact_Numero
+    final rangoInicial = invoiceData['regC_RangoInicial'] ?? '00000001';
+    final rangoFinal = invoiceData['regC_RangoFinal'] ?? '99999999';
+    
+    // Extraer el prefijo del fact_Numero (todo excepto los últimos 8 dígitos)
+    String prefijo = '';
+    if (factNumero.length >= 8) {
+      prefijo = factNumero.substring(0, factNumero.length - 8);
+    }
+    
+    // Formatear desde y hasta con 8 dígitos y el prefijo
+    final desde = '$prefijo${rangoInicial.toString().padLeft(8, '0')}';
+    final hasta = '$prefijo${rangoFinal.toString().padLeft(8, '0')}';
+    
     final anulada = invoiceData['fact_Anulado'] == true || invoiceData['fact_Anulado'] == 1;
 
     // Información del vendedor y sucursal
@@ -922,59 +989,38 @@ final int anchoEtiqueta = 360; // ancho en puntos
 final int margenDerecho = 10;
 final int anchoTexto = anchoEtiqueta - margenDerecho;
 
-// OPTIMIZACIÓN: Solo mostrar campos con valores > 0 (reduce tamaño ZPL)
-// Subtotal (siempre mostrar)
+// Mostrar todos los campos de cálculo siempre, incluso si son 0
+// Subtotal
 totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDSubtotal: L$subtotal^FS\n';
 totalY += 25;
 
-// Descuento (solo si > 0)
-final descuentoVal = double.tryParse(descuento) ?? 0.0;
-if (descuentoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
-  totalY += 25;
-}
+// Descuento
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Descuento: L$descuento^FS\n';
+totalY += 25;
 
-// Importe Exento (solo si > 0)
-final exentoVal = double.tryParse(importeExento) ?? 0.0;
-if (exentoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
-  totalY += 25;
-}
+// Importe Exento
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exento: L$importeExento^FS\n';
+totalY += 25;
 
-// Importe Exonerado (solo si > 0)
-final exoneradoVal = double.tryParse(importeExonerado) ?? 0.0;
-if (exoneradoVal > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
-  totalY += 25;
-}
+// Importe Exonerado
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Exonerado: L$importeExonerado^FS\n';
+totalY += 25;
 
-// Gravado 15% (solo si > 0)
-final gravado15Val = double.tryParse(importeGravado15) ?? 0.0;
-if (gravado15Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
-  totalY += 25;
-}
+// Gravado 15%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 15%: L$importeGravado15^FS\n';
+totalY += 25;
 
-// Gravado 18% (solo si > 0)
-final gravado18Val = double.tryParse(importeGravado18) ?? 0.0;
-if (gravado18Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
-  totalY += 25;
-}
+// Gravado 18%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDImporte Gravado 18%: L$importeGravado18^FS\n';
+totalY += 25;
 
-// ISV 15% (solo si > 0)
-final isv15Val = double.tryParse(impuesto15) ?? 0.0;
-if (isv15Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
-  totalY += 25;
-}
+// ISV 15%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 15%: L$impuesto15^FS\n';
+totalY += 25;
 
-// ISV 18% (solo si > 0)
-final isv18Val = double.tryParse(impuesto18) ?? 0.0;
-if (isv18Val > 0) {
-  totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
-  totalY += 25;
-}
+// ISV 18%
+totalesZPL += '^FO$margenDerecho,$totalY^FB$anchoTexto,1,0,R^CF0,22,24^FDTotal Impuesto 18%: L$impuesto18^FS\n';
+totalY += 25;
 
 // Línea divisoria antes del total (centrada o de extremo a extremo)
 totalY += 5;
@@ -1070,12 +1116,19 @@ totalY += 10; // Espacio adicional para el total en letras
     final alturaTotal = currentFooterY + (anulada ? 100 : 50);
 
 
-    // Logo GFA (formato correcto y completo) - OPCIONAL
-    const String logoZPL = '''^FX ===== LOGO CENTRADO =====
+    // Procesar logo ZPL dinámico
+    String logoZPL = '';
+    if (empresaLogoZPL != null && empresaLogoZPL.isNotEmpty) {
+      // Limpiar el logo ZPL: remover ^XA y ^XZ si existen
+      logoZPL = _procesarLogoZPL(empresaLogoZPL);
+    } else {
+      // Logo por defecto si no viene de la BD
+      logoZPL = '''^FX ===== LOGO CENTRADO =====
 ^FO130,60
 ^GFA,1950,1666,17,
 ,::::::M07U018O0M0EU01EO0L01EV0FO00000807EV0F802L00001807CV0FC06L00001C0FCV07E07L00003C1FCV07E07L00003C1F8V03F0FL00003E3FW03F0F8K00003E3F0001F8Q01F8F8K00003E3E00071CR0F8F8K00007E3C000E0CR078F8K00007E21801E0CQ0318F8K00003E07001ES03C0F8K00003E0F003ES01E0F8K00003E3F003ES01F0F8K00043C3E007CS01F8F0800000061C7E007CT0FC70C000000618FE007CT0FE21C000000F00FC007CT07E01C000000F81F80078T07E03C000000F81F80078T03F03C000000F81F000F8T01F07C000000FC1E000FV0F07C000000FC12000FV0907C0000007C06000EV0C0FC0000007C0E001EV0E0FC0000007C1E001C0000FFFF8M0F0F80000003C3C00380007F7FFEM0F8F80000003C7C0070001E03C1FM0FC7K0001CFC00FE003807C078L07C7040000608FC01FFC06007C078L07E60C0000701F80787E0C0078078L07E01C0000781F80F01F180078078L03F03C00007C1F00E00F980078078L03F07C00007E1F004007F000F00FM01F0F800007E1E200003F060F01EL010F1F800003F1C6K0F8F0F03CL01871F800003F00EK079F0FFF8L01C13F000001F80EK03FE1EFEM01E03F000001F81EL0FC1E3CM01F03E000000F83EN01C3CM01F07E000000783EN03C1EM01F87C000000383EN03C1EM01F83K01C087EN0381EN0F82070000F007EN0780FN0FC03E0000FC07CN0780FN0FC0FE00007F07CN0700F8M07C1FC00007F8784M0F0078L047C3F800003FC78CM0E0078L063C7F800001FE71CM0E003CL071CFF000000FE43CM0C003EL0708FE0000007E03CP01EL0F81F80000001F03CP01FL0F81FK0K07CQ0F8K0F81L0070007C2P07800C10FC003C00003F007C3P03C00C18FC01F800003FC07C7P01E00C187C0FF000001FF0FC7Q0F81C3C7C1FF000000FF87C78P07E383C7C3FE0000007FC78F8P01FE03C7C7FC0000003FC78F8T03E3CFFK0000FE70F88R043E18FEK00003E20F8CR047E08F8K0M0F8ER0E7EO0M0F8FQ01E7EO0000FE00F8FQ03E3E01FEK0000FFC0F8F8P03E3E0FFCK00007FF0F0F8P07E3C1FF8K00003FF870FCP07E1C3FFL00000FFC60FCP07C087FEL000003FC007C6M01CFC00FF8L0K0FC007C7CL0F8FC00FEM0O07E3FK03F8F8Q0L03C03C3FC00007F0F80F8N0K0FFF83C1FE0001FE0F07FFCM0K07FFE1C0FF0003FE060FFFCM0K03FFF0C07F8003FC041FFF8M0L0FFF0003F8007F8001FFEN0L01FC0000FC007E00007FO0P0E003C007801ER0O0FFCN07FEQ0N03FFE00038000FFF8P0N0FFFC00078000FFFEP0M01FFF80F0781E03FFFP0N07FE0FFC38FFC0FF8P0Q03FFE00FFFT0Q0FFFC007FFCS0P01FFF0003FFFS0Q07FC0000FFCS0,
 ^FS''';
+    }
 
     // Construir ZPL dinámicamente
     final StringBuffer zplBuffer = StringBuffer();
@@ -1658,6 +1711,45 @@ $footerZPL
       }
       
       return false;
+    }
+  }
+
+  /// Procesa el logo ZPL dinámico desde la base de datos
+  /// Limpia los comandos ^XA y ^XZ y ajusta el posicionamiento
+  String _procesarLogoZPL(String logoZPLRaw) {
+    try {
+      // 1. Remover ^XA al inicio y ^XZ al final si existen
+      String logoLimpio = logoZPLRaw.trim();
+      
+      // Remover ^XA del inicio
+      if (logoLimpio.startsWith('^XA')) {
+        logoLimpio = logoLimpio.substring(3);
+      }
+      
+      // Remover ^XZ del final
+      if (logoLimpio.endsWith('^XZ')) {
+        logoLimpio = logoLimpio.substring(0, logoLimpio.length - 3);
+      }
+      
+      // 2. Limpiar espacios en blanco al inicio y final
+      logoLimpio = logoLimpio.trim();
+      
+      // 3. Verificar si el logo tiene un comando ^FO (Field Origin) para posicionamiento
+      // Si no lo tiene, necesitamos agregarlo para centrarlo
+      if (!logoLimpio.contains('^FO')) {
+        // Agregar posicionamiento centrado por defecto
+        // Asumiendo ancho de etiqueta de 360 dots y logo de ~100 dots de ancho
+        logoLimpio = '^FX ===== LOGO CENTRADO =====\n^FO130,60\n$logoLimpio';
+      } else {
+        // Si ya tiene ^FO, solo agregar comentario descriptivo
+        logoLimpio = '^FX ===== LOGO CENTRADO =====\n$logoLimpio';
+      }
+      
+      return logoLimpio;
+    } catch (e) {
+      debugPrint('Error al procesar logo ZPL: $e');
+      // Retornar logo vacío en caso de error
+      return '';
     }
   }
 
