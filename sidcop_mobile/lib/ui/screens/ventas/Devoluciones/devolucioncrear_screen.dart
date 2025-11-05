@@ -172,16 +172,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
     print('DEBUG: userData completo = $userData');
     print('DEBUG: userData keys = ${userData?.keys}');
-    
+
     // Extraer y parsear el JSON de rutas del día
     final rutasDelDiaJson = userData?['rutasDelDiaJson'] as String?;
-    
+
     if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
       try {
         // Decodificar el JSON de rutas
         final rutasList = jsonDecode(rutasDelDiaJson) as List<dynamic>;
         print('DEBUG: rutasDelDiaJson parseado = $rutasList');
-        
+
         // Obtener el ID de la primera ruta asignada
         if (rutasList.isNotEmpty) {
           rutaId = rutasList[0]['Ruta_Id'] as int?;
@@ -190,7 +190,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         print('ERROR al parsear rutasDelDiaJson: $e');
       }
     }
-    
+
     print('DEBUG: rutaId = $rutaId');
 
     usuaIdPersona = userData?['usua_IdPersona'] as int?;
@@ -221,7 +221,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   /// Verifica si un cliente pertenece a la ruta del usuario
   bool _clienteBelongsToRuta(String? clieCode) {
     if (rutaId == null || clieCode == null) return true;
-    
+
     // Aquí puedes implementar la lógica específica para verificar
     // si el cliente pertenece a la ruta. Por ahora, retornamos true
     // para permitir todos los clientes hasta que se implemente la lógica específica
@@ -274,19 +274,17 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           if (!mounted) return;
           setState(() {
             // Filtrar direcciones por rutaId si el usuario no es admin
-            _direcciones = direccionesList
-                .where(
-                  (direccion) {
-                    // Si es admin, mostrar todas las direcciones
-                    if (esAdmin == true) return true;
-                    
-                    // Si no es admin, filtrar solo por rutaId
-                    bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
-                    
-                    return matchesRuta;
-                  },
-                )
-                .toList();
+            _direcciones = direccionesList.where((direccion) {
+              // Si es admin, mostrar todas las direcciones
+              if (esAdmin == true) return true;
+
+              // Si no es admin, filtrar solo por rutaId
+              bool matchesRuta =
+                  rutaId == null ||
+                  _clienteBelongsToRuta(direccion.clie_Codigo);
+
+              return matchesRuta;
+            }).toList();
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
             _isLoading = false;
           });
@@ -321,19 +319,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
       setState(() {
         // Filtrar direcciones por rutaId si el usuario no es admin
-        _direcciones = direccionesData
-            .where(
-              (direccion) {
-                // Si es admin, mostrar todas las direcciones
-                if (esAdmin == true) return true;
-                
-                // Si no es admin, filtrar solo por rutaId
-                bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
-                
-                return matchesRuta;
-              },
-            )
-            .toList();
+        _direcciones = direccionesData.where((direccion) {
+          // Si es admin, mostrar todas las direcciones
+          if (esAdmin == true) return true;
+
+          // Si no es admin, filtrar solo por rutaId
+          bool matchesRuta =
+              rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+
+          return matchesRuta;
+        }).toList();
         _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
       });
@@ -353,19 +348,16 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
         if (!mounted) return;
         setState(() {
           // Filtrar direcciones por rutaId si el usuario no es admin
-          _direcciones = direccionesList
-              .where(
-                (direccion) {
-                  // Si es admin, mostrar todas las direcciones
-                  if (esAdmin == true) return true;
-                  
-                  // Si no es admin, filtrar solo por rutaId
-                  bool matchesRuta = rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
-                  
-                  return matchesRuta;
-                },
-              )
-              .toList();
+          _direcciones = direccionesList.where((direccion) {
+            // Si es admin, mostrar todas las direcciones
+            if (esAdmin == true) return true;
+
+            // Si no es admin, filtrar solo por rutaId
+            bool matchesRuta =
+                rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
+
+            return matchesRuta;
+          }).toList();
           _facturas = List<Map<String, dynamic>>.from(localFacturas);
           _isLoading = false;
         });
@@ -579,6 +571,8 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
               'productosDevueltos': productosADevolver.length,
               'facturaCreada':
                   response['facturaAjustada']?['facturaCreada'] == true,
+              'facturaData':
+                  response['facturaAjustada']?['ventaServiceResponse']?['data'],
             };
             showDialog(
               context: context,
