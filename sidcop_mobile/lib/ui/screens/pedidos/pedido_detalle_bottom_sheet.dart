@@ -440,8 +440,18 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
       if (hasConnection) {
         print('MODO ONLINE - LLAMANDO _insertarFacturaOnline()');
         // Modo online - usar el flujo original
-        await _insertarFacturaOnline();
+        final response = await _insertarFacturaOnline();
         print('_insertarFacturaOnline() COMPLETADO');
+        
+        // Si la inserción fue exitosa, navegar a la pantalla de vista previa
+        if (response != null && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
+            ),
+          );
+        }
       } else {
         print('MODO OFFLINE - LLAMANDO _insertarFacturaOffline()');
         // Modo offline - guardar localmente y mostrar factura
@@ -509,7 +519,7 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     }
   }
 
-  Future<void> _insertarFacturaOnline() async {
+  Future<Map<String, dynamic>?> _insertarFacturaOnline() async {
     /// Flujo para insertar la factura cuando se detecta conexión a internet.
     ///
     /// Pasos principales:
@@ -632,9 +642,26 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
     try {
       final response = await _facturaService.insertarFactura(facturaData);
      
-      // Si hay error, mostrar detalles adicionales
-      if (response['code_Status'] != 1 || response['success'] == false) {
+      // Verificar si la respuesta es exitosa según el formato esperado
+      if (response['success'] == true || response['code_Status'] == 1) {
+        print('=== FACTURA CREADA EXITOSAMENTE ===');
+        print('RESPUESTA DEL SERVIDOR:');
+        print(response);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Factura registrada correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        return response; // Retornar la respuesta para su procesamiento
+      } else {
+        // Si hay error, mostrar detalles adicionales
         print('=== ERROR EN LA INSERCIÓN ===');
+        print('RESPUESTA COMPLETA: $response');
         print('STATUS CODE: ${response['code_Status']}');
         print('SUCCESS FLAG: ${response['success']}');
         print('ERROR MESSAGE: ${response['message']}');
@@ -644,25 +671,18 @@ class _PedidoDetalleBottomSheetState extends State<PedidoDetalleBottomSheet> {
         throw Exception(response['message_Status'] ?? response['message'] ?? 'Error desconocido en la inserción');
       }
     } catch (e) {
-  
+      print('=== EXCEPCIÓN EN _insertarFactura ===');
+      print('TIPO: ${e.runtimeType}');
+      print('MENSAJE: $e');
+      print('STACK TRACE: ${e.toString()}');
       rethrow; // Re-lanzar la excepción para que sea manejada por el bloque superior
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Factura registrada correctamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Si la inserción fue exitosa, navegar a la pantalla de vista previa
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => InvoicePreviewScreen(pedido: widget.pedido),
-        ),
-      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInsertingInvoice = false; // Asegurar que el estado se actualice
+        });
+      }
+      print('=== _insertarFactura FINALIZADO ===');
     }
   }
 
