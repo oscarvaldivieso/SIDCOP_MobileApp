@@ -1117,7 +1117,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
   }
 
   /// Navega a la pantalla de detalle de factura
-  void _navigateToInvoiceDetail(Map<String, dynamic> data) {
+  void _navigateToInvoiceDetail(Map<String, dynamic> data) async {
     final facturaNumero = data['facturaNumero'] ?? 'N/A';
     final facturaData = data['facturaData'];
 
@@ -1145,15 +1145,20 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     print('ID de factura final: $facturaId');
 
     if (facturaId != null) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => InvoiceDetailScreen(
             facturaId: facturaId!,
             facturaNumero: facturaNumero,
+            fromVentasList: true,
           ),
         ),
       );
+      // Después de regresar de ver la factura, ir a la lista de devoluciones
+      if (mounted) {
+        _navigateToReturnsList();
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
