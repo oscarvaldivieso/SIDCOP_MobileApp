@@ -1,4 +1,5 @@
 // Importaciones necesarias para la pantalla de detalles del cliente
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sidcop_mobile/services/ClientesService.dart';
 import 'package:sidcop_mobile/services/ClientImageCacheService.dart';
@@ -53,6 +54,8 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
   // Estado de cuentas por cobrar
   bool _tieneCuentasPorCobrar = false;
   bool _isLoadingCuentas = false;
+  List<dynamic> permisos = [];
+  final PerfilUsuarioService _perfilUsuarioService = PerfilUsuarioService();
   CuentasXCobrar? _cuentaParaCobrar;
 
   @override
@@ -61,12 +64,34 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
     // Cargar datos del cliente y tipo de vendedor al iniciar
     _loadCliente();
     _loadTipoVendedor();
+    _loadPermisos();
     // Verificar cuentas por cobrar después de un pequeño delay para asegurar que el widget esté montado
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         _verificarCuentasPorCobrar();
       }
     });
+  }
+
+  bool tienePermiso(int pantId) {
+    return permisos.any((p) => p['Pant_Id'] == pantId);
+  }
+
+  Future<void> _loadPermisos() async {
+    final perfilService = PerfilUsuarioService();
+    final userData = await perfilService.obtenerDatosUsuario();
+    if (userData != null &&
+        (userData['PermisosJson'] != null ||
+            userData['permisosJson'] != null)) {
+      try {
+        final permisosJson =
+            userData['PermisosJson'] ?? userData['permisosJson'];
+        permisos = jsonDecode(permisosJson);
+      } catch (_) {
+        permisos = [];
+      }
+    }
+    setState(() {});
   }
 
   // ID de persona del usuario actual
@@ -628,20 +653,20 @@ class _ClientdetailsScreenState extends State<ClientdetailsScreen> {
                             child: Row(
                               children: [
                                 // Botón de Pedido o Venta según el tipo de vendedor
-                                if ( _roleId == 2 || _roleId == 83)
+                                if ( tienePermiso(57) || tienePermiso(38))
                                   Expanded(
                                     child: CustomButton(
                                       text: _vendTipo == "P"
                                           ? "PEDIDO"
                                           : _vendTipo == "V"
                                           ? "VENTA"
-                                          : _roleId == 2
+                                          : tienePermiso(57)
                                           ? "VENTA"
-                                          : _roleId == 83
+                                          : tienePermiso(38)
                                           ? "PEDIDO"
                                           : "ACCIÓN",
                                       onPressed: () {
-                                        if (_roleId == 83) {
+                                        if (tienePermiso(38)) {
                                           // Navegar a crear pedido
                                           Navigator.push(
                                             context,
