@@ -260,46 +260,7 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
     try {
       final isOnline = await VerificarService.verificarConexion();
 
-      if (!isOnline) {
-        // Cargar desde almacenamiento local si existe
-        try {
-          final localFacturas =
-              await DevolucionesOffline.obtenerFacturasCreateLocal();
-          final localDirecciones =
-              await DevolucionesOffline.obtenerDireccionesCreateLocal();
-
-          final direccionesList = localDirecciones
-              .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
-              .toList();
-
-          if (!mounted) return;
-          setState(() {
-            // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
-            _direcciones = direccionesList.where((direccion) {
-              // Si es admin, mostrar todas las direcciones
-              if (esAdmin == true) return true;
-
-              // Si no es admin, filtrar por rutaId y día de visita
-              bool matchesRuta = _clienteBelongsToRuta(direccion.clie_Codigo);
-              return matchesRuta;
-            }).toList();
-            _facturas = List<Map<String, dynamic>>.from(localFacturas);
-            _isLoading = false;
-          });
-          return;
-        } catch (localErr) {
-          print('Error cargando datos locales para create: $localErr');
-          // Continuar y tratar de cargar online a continuación
-        }
-      }
-
-      // Si estamos online, intentar cargar desde servicios remotos
-      final direccionesData = await _direccionClienteService
-          .getDireccionesPorCliente();
-      final facturasData = await _facturaService
-          .getFacturasDevolucionesLimite();
-
-      // Obtener rutas del día para el filtrado
+      // Obtener rutas del día para el filtrado (tanto para online como offline)
       final rutasDelDiaJson = await UsuarioService.obtenerRutasDelDiaJson();
       
       // Mapa para almacenar clientes por ID con sus días de visita
@@ -326,6 +287,63 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           print('Error al parsear rutasDelDiaJson: $e');
         }
       }
+
+      if (!isOnline) {
+        // Cargar desde almacenamiento local si existe
+        try {
+          final localFacturas =
+              await DevolucionesOffline.obtenerFacturasCreateLocal();
+          final localDirecciones =
+              await DevolucionesOffline.obtenerDireccionesCreateLocal();
+
+          final direccionesList = localDirecciones
+              .map<DireccionCliente>((m) => DireccionCliente.fromJson(m))
+              .toList();
+
+          if (!mounted) return;
+          
+          // Obtener el día actual (1 = lunes, 7 = domingo)
+          final int diaActual = DateTime.now().weekday;
+          
+          setState(() {
+            // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
+            _direcciones = direccionesList.where((direccion) {
+              // Si es admin, mostrar todas las direcciones
+              if (esAdmin == true) return true;
+              
+              // Verificar si el cliente está en la ruta del día
+              final clieId = direccion.clie_id;
+              final diasVisita = clientesConDiasVisita[clieId] ?? '';
+              
+              // Si no tiene días de visita definidos, no mostrarlo
+              if (diasVisita.isEmpty) return false;
+              
+              // Verificar si el día actual está en los días de visita
+              final diasVisitaList = diasVisita.split(',').map((d) => int.tryParse(d.trim())).whereType<int>().toList();
+              final incluyeDiaActual = diasVisitaList.contains(diaActual);
+              
+              // Verificar si el cliente pertenece a la ruta
+              final perteneceARuta = _clienteBelongsToRuta(direccion.clie_Codigo);
+              
+              return incluyeDiaActual && perteneceARuta;
+            }).toList();
+            
+            _facturas = List<Map<String, dynamic>>.from(localFacturas);
+            _isLoading = false;
+          });
+          return;
+        } catch (localErr) {
+          print('Error cargando datos locales para create: $localErr');
+          // Continuar y tratar de cargar online a continuación
+        }
+      }
+
+      // Si estamos online, intentar cargar desde servicios remotos
+      final direccionesData = await _direccionClienteService
+          .getDireccionesPorCliente();
+      final facturasData = await _facturaService
+          .getFacturasDevolucionesLimite();
+
 
       // Guardar versiones offline de facturas y direcciones para permitir crear devoluciones offline
       try {
