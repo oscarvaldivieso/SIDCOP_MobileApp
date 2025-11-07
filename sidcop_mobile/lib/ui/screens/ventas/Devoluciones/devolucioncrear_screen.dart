@@ -8,6 +8,7 @@ import 'package:sidcop_mobile/services/FacturaService.dart';
 import 'package:sidcop_mobile/services/PerfilUsuarioService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
 import 'package:sidcop_mobile/services/DevolucionesService.dart';
+import 'package:sidcop_mobile/services/UsuarioService.dart';
 import 'package:sidcop_mobile/Offline_Services/VerificarService.dart';
 import 'package:sidcop_mobile/Offline_Services/Devoluciones_OfflineServices.dart';
 import 'package:sidcop_mobile/ui/screens/ventas/Devoluciones/devolucioneslist_screen.dart';
@@ -220,12 +221,11 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
   /// Verifica si un cliente pertenece a la ruta del usuario
   bool _clienteBelongsToRuta(String? clieCode) {
-    if (rutaId == null || clieCode == null) return true;
-
-    // Aquí puedes implementar la lógica específica para verificar
-    // si el cliente pertenece a la ruta. Por ahora, retornamos true
-    // para permitir todos los clientes hasta que se implemente la lógica específica
-    return true;
+    if (rutaId == null || clieCode == null) return false;
+    
+    // Si el código del cliente contiene el ID de la ruta, pertenece a la ruta
+    // Esto es un ejemplo, ajusta según tu lógica de negocio
+    return clieCode.contains(rutaId.toString());
   }
 
   void _onClienteChanged(DireccionCliente? direccion) {
@@ -274,16 +274,13 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
           if (!mounted) return;
           setState(() {
-            // Filtrar direcciones por rutaId si el usuario no es admin
+            // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
             _direcciones = direccionesList.where((direccion) {
               // Si es admin, mostrar todas las direcciones
               if (esAdmin == true) return true;
 
-              // Si no es admin, filtrar solo por rutaId
-              bool matchesRuta =
-                  rutaId == null ||
-                  _clienteBelongsToRuta(direccion.clie_Codigo);
-
+              // Si no es admin, filtrar por rutaId y día de visita
+              bool matchesRuta = _clienteBelongsToRuta(direccion.clie_Codigo);
               return matchesRuta;
             }).toList();
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
@@ -302,6 +299,34 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       final facturasData = await _facturaService
           .getFacturasDevolucionesLimite();
 
+      // Obtener rutas del día para el filtrado
+      final rutasDelDiaJson = await UsuarioService.obtenerRutasDelDiaJson();
+      
+      // Mapa para almacenar clientes por ID con sus días de visita
+      final Map<int, String> clientesConDiasVisita = {};
+      
+      if (rutasDelDiaJson != null && rutasDelDiaJson.isNotEmpty) {
+        try {
+          final List<dynamic> rutasDelDia = jsonDecode(rutasDelDiaJson);
+          
+          if (rutasDelDia.isNotEmpty) {
+            for (var ruta in rutasDelDia) {
+              if (ruta['Clientes'] != null) {
+                final List<dynamic> clientes = ruta['Clientes'];
+                for (var cliente in clientes) {
+                  if (cliente['Clie_Id'] != null) {
+                    clientesConDiasVisita[cliente['Clie_Id'] as int] = 
+                        (cliente['Clie_DiaVisita']?.toString() ?? '');
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('Error al parsear rutasDelDiaJson: $e');
+        }
+      }
+
       // Guardar versiones offline de facturas y direcciones para permitir crear devoluciones offline
       try {
         await DevolucionesOffline.guardarFacturasCreate(
@@ -318,18 +343,32 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
       if (!mounted) return;
 
+      // Obtener el día actual (1 = lunes, 7 = domingo)
+      final int diaActual = DateTime.now().weekday;
+      
       setState(() {
-        // Filtrar direcciones por rutaId si el usuario no es admin
+        // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
         _direcciones = direccionesData.where((direccion) {
           // Si es admin, mostrar todas las direcciones
           if (esAdmin == true) return true;
-
-          // Si no es admin, filtrar solo por rutaId
-          bool matchesRuta =
-              rutaId == null || _clienteBelongsToRuta(direccion.clie_Codigo);
-
-          return matchesRuta;
+          
+          // Verificar si el cliente está en la ruta del día
+          final clieId = direccion.clie_id;
+          final diasVisita = clientesConDiasVisita[clieId] ?? '';
+          
+          // Si no tiene días de visita definidos, no mostrarlo
+          if (diasVisita.isEmpty) return false;
+          
+          // Verificar si el día actual está en los días de visita
+          final diasVisitaList = diasVisita.split(',').map((d) => int.tryParse(d.trim())).whereType<int>().toList();
+          final incluyeDiaActual = diasVisitaList.contains(diaActual);
+          
+          // Verificar si el cliente pertenece a la ruta
+          final perteneceARuta = _clienteBelongsToRuta(direccion.clie_Codigo);
+          
+          return incluyeDiaActual && perteneceARuta;
         }).toList();
+        
         _facturas = List<Map<String, dynamic>>.from(facturasData);
         _isLoading = false;
       });
