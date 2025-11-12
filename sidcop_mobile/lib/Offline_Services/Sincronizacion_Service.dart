@@ -11,20 +11,34 @@ class SincronizacionService {
   /// Solo necesitas pasar el vendedorId logueado.
   static Future<void> sincronizarTodoOfflineConClientesAuto({required int vendedorId}) async {
     try {
+      print('[DEBUG] Iniciando sincronización offline...');
       await RutasScreenOffline.sincronizarTodo();
+      print('[DEBUG] Rutas sincronizadas');
+      
       await VisitasOffline.sincronizarTodo();
+      print('[DEBUG] Visitas sincronizadas');
+      
       await VentasOfflineService.sincronizarTodo(vendedorId);
+      print('[DEBUG] Facturas sincronizadas');
+      
       // Obtener la lista de clientes guardados offline
       final clientes = await ClientesOfflineService.cargarClientes();
       final clientesIds = clientes.map((c) => c['clie_Id'] as int).toList();
-      print('IDs de clientes obtenidos para sincronización: $clientesIds');
+      print('[DEBUG] IDs de clientes obtenidos para sincronización: $clientesIds');
+      
       if (clientesIds.isNotEmpty) {
+        print('[DEBUG] Iniciando descarga de productos para ${clientesIds.length} clientes...');
         await VentasOfflineService.descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(vendedorId, clientesIds);
-        print('Guardado de productos con descuento completado para todos los clientes.');
+        print('[DEBUG] Guardado de productos con descuento completado para todos los clientes.');
+      } else {
+        print('[DEBUG] No hay clientes guardados offline, saltando descarga de productos');
       }
-      print('Sincronización offline completada.');
-    } catch (e) {
-      print('Error en la sincronización offline: $e');
+      
+      print('[DEBUG] ✅ Sincronización offline completada exitosamente.');
+    } catch (e, stackTrace) {
+      print('[DEBUG] ❌ Error en la sincronización offline: $e');
+      print('[DEBUG] Stack trace: $stackTrace');
+      // No relanzar para que no bloquee el login
     }
   }
 }

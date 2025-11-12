@@ -223,7 +223,13 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _loadProducts() async {
+    print('[INIT] ════════════════════════════════════════════════');
+    print('[INIT] 🚀 INICIANDO CARGA DE PRODUCTOS');
+    print('[INIT] Cliente: ${widget.clienteId}, Vendedor: ${widget.vendedorId}');
+    print('[INIT] ════════════════════════════════════════════════');
+    
     if (widget.clienteId == null || widget.vendedorId == null) {
+      print('[ERROR] ❌ Faltan datos del cliente o vendedor');
       ErrorHandler.showErrorToast('No se pudo cargar los productos: Faltan datos del cliente o vendedor');
       setState(() => _isLoadingProducts = false);
       return;
@@ -232,48 +238,82 @@ class _VentaScreenState extends State<VentaScreen> {
     setState(() => _isLoadingProducts = true);
 
     try {
+      print('[LOAD] 📡 Verificando conexión a internet...');
       final hasConnection = await SyncService.hasInternetConnection();
+      print('[LOAD] 📡 Conexión: ${hasConnection ? '✅ CON CONEXIÓN' : '❌ SIN CONEXIÓN'}');
 
       if (hasConnection) {
+        print('[LOAD] 📥 Descargando productos de la API...');
         _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
           widget.clienteId!,
           widget.vendedorId!,
         );
+        print('[LOAD] ✅ Productos descargados de API: ${_allProducts.length} productos');
       } else {
+        print('[LOAD] 📴 Modo OFFLINE - Cargando datos guardados localmente');
+        
         //Obtner nombre del Cliente offline y setear el data
+        print('[LOAD] 📋 Obteniendo datos del cliente offline...');
         final clienteOffline = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
         final nombreCliente = clienteOffline?['clie_Nombres'] ?? '';
         final apellidoCliente = clienteOffline?['clie_Apellidos'] ?? '';
         final nombreCompleto = '$nombreCliente $apellidoCliente'.trim();
+        print('[LOAD] ✅ Cliente: $nombreCompleto');
+        
         setState(() {
          formData.datosCliente = nombreCompleto.isEmpty ? 'Cliente general' : nombreCompleto;
         });
 
         //Apartado de Productos Offline-- Mandando el clie id y vend id para que coincida con la clave de algun json guardado
+        print('[LOAD] 🔍 Buscando productos guardados offline...');
+        print('[LOAD] 🔑 Clave buscada: productos_descuento_${widget.clienteId}_${widget.vendedorId}');
+        
         _allProducts = await VentasOfflineService.cargarProductosConDescuentoOffline(
           widget.clienteId!,
           widget.vendedorId!,
         );
+        
         if (_allProducts.isEmpty) {
-          ErrorHandler.showErrorToast('No hay productos disponibles offline');
+          print('[ERROR] ❌ NO se encontraron productos offline');
+          print('[ERROR] ❌ Para cliente ${widget.clienteId}, vendedor ${widget.vendedorId}');
+          print('[ERROR] ⚠️ Los productos no fueron descargados anteriormente');
+          print('[ERROR] ⚠️ Necesitas login CON CONEXIÓN para descargar los productos');
+          ErrorHandler.showErrorToast(
+            'No hay productos disponibles offline.\n'
+            'Descarga los datos de productos cuando tenga conexión.'
+          );
+        } else {
+          print('[LOAD] ✅ Productos cargados offline: ${_allProducts.length} productos');
         }
       }
 
+      print('[LOAD] 📊 Procesando productos (ordenando por impulso)...');
       _allProducts.sort((a, b) {
         if (a.prod_Impulsado == b.prod_Impulsado) return 0;
         return a.prod_Impulsado ? -1 : 1;
       });
+      print('[LOAD] ✅ Productos ordenados');
 
+      print('[LOAD] 🔄 Aplicando filtro inicial...');
       _filteredProducts = List.from(_allProducts);
+      print('[LOAD] ✅ Productos filtrados: ${_filteredProducts.length}');
 
+      print('[LOAD] 📦 Preparando mapa de descuentos...');
       _productosConDescuento.clear();
       for (var producto in _allProducts) {
         _productosConDescuento[producto.prodId] = producto;
       }
-    } catch (e) {
-      ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
+      print('[LOAD] ✅ Mapa de descuentos creado: ${_productosConDescuento.length} productos');
+    } catch (e, stackTrace) {
+      print('[ERROR] ❌ Excepción en _loadProducts: $e');
+      print('[ERROR] Stack trace: $stackTrace');
+      ErrorHandler.showErrorToast('Error al cargar productos: $e');
     } finally {
       setState(() => _isLoadingProducts = false);
+      print('[COMPLETE] ✅ ════════════════════════════════════════════════');
+      print('[COMPLETE] ✅ CARGA DE PRODUCTOS FINALIZADA');
+      print('[COMPLETE] ✅ Total de productos: ${_allProducts.length}');
+      print('[COMPLETE] ✅ ════════════════════════════════════════════════');
     }
   }
 
