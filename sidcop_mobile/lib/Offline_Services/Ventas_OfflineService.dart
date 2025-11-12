@@ -78,21 +78,58 @@ class VentasOfflineService {
   }
 
   static Future<void> descargarYGuardarProductosConDescuentoOffline(int clieId, int vendId) async {
-    final productosService = ProductosService();
-    final productos = await productosService.getProductosConDescuentoPorClienteVendedor(clieId, vendId);
-    // Convertir a JSON
-    final productosJson = productos.map((p) => p.toJson()).toList();
-    await _secureStorage.write(
-      key: 'json:productos_descuento_${clieId}_$vendId',
-      value: jsonEncode(productosJson),
-    );
+    try {
+      print('[SYNC] 📥 Descargando productos para cliente $clieId, vendedor $vendId...');
+      
+      final productosService = ProductosService();
+      final productos = await productosService.getProductosConDescuentoPorClienteVendedor(clieId, vendId);
+      
+      print('[SYNC] ✅ API devolvió ${productos.length} productos');
+      
+      // Convertir a JSON
+      final productosJson = productos.map((p) => p.toJson()).toList();
+      final jsonString = jsonEncode(productosJson);
+      
+      print('[SYNC] 💾 Guardando en almacenamiento seguro (${jsonString.length} caracteres)...');
+      print('[SYNC] 🔑 Clave: json:productos_descuento_${clieId}_$vendId');
+      
+      await _secureStorage.write(
+        key: 'json:productos_descuento_${clieId}_$vendId',
+        value: jsonString,
+      );
+      
+      print('[SYNC] ✅ ¡Guardado exitosamente! ${productos.length} productos para cliente $clieId');
+    } catch (e) {
+      print('[SYNC] ❌ Error descargando productos para cliente $clieId, vendedor $vendId: $e');
+      // No relanzar la excepción para permitir que continúe la sincronización
+    }
   }
   
   static Future<List<ProductoConDescuento>> cargarProductosConDescuentoOffline(int clieId, int vendId) async {
+    print('[STORAGE] 🔍 Leyendo de almacenamiento seguro...');
+    print('[STORAGE] 🔑 Clave: json:productos_descuento_${clieId}_$vendId');
+    
     final s = await _secureStorage.read(key: 'json:productos_descuento_${clieId}_$vendId');
-    if (s == null) return [];
-    final List<dynamic> list = jsonDecode(s);
-    return list.map((json) => ProductoConDescuento.fromJson(json)).toList();
+    
+    if (s == null) {
+      print('[STORAGE] ❌ No se encontró nada en el almacenamiento para esta clave');
+      return [];
+    }
+    
+    print('[STORAGE] ✅ Datos encontrados en almacenamiento (${s.length} caracteres)');
+    
+    try {
+      final List<dynamic> list = jsonDecode(s);
+      print('[STORAGE] ✅ JSON decodificado exitosamente');
+      
+      final productos = list.map((json) => ProductoConDescuento.fromJson(json)).toList();
+      print('[STORAGE] ✅ Productos parseados: ${productos.length} productos');
+      
+      return productos;
+    } catch (e) {
+      print('[STORAGE] ❌ Error parseando JSON: $e');
+      return [];
+    }
   }
 
   /// Sincroniza todas las facturas y guarda cada factura completa offline.
@@ -114,8 +151,13 @@ class VentasOfflineService {
 
   static Future<void> descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(int vendedorId, List<int> clientesIds) async {
     for (final clieId in clientesIds) {
-      print('Guardando lista de productos del cliente id: $clieId para vendedor id: $vendedorId');
-      await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
+      print('[DEBUG] Descargando productos del cliente id: $clieId para vendedor id: $vendedorId');
+      try {
+        await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
+      } catch (e) {
+        print('[DEBUG] Error procesando cliente $clieId: $e');
+        // Continuar con el siguiente cliente aunque falle este
+      }
     }
   }
 
@@ -168,30 +210,36 @@ class VentasOfflineService {
   }
 
   static Future<void> sincronizarVentasPendientes() async {
-    final key = 'ventas_pendientes';
-    final s = await _secureStorage.read(key: key);
-    if (s == null) return;
+    try {
+      final key = 'ventas_pendientes';
+      final s = await _secureStorage.read(key: key);
+      if (s == null) return;
 
-    List<dynamic> ventasPendientes = List.from(jsonDecode(s));
-    if (ventasPendientes.isEmpty) return;
+      List<dynamic> ventasPendientes = List.from(jsonDecode(s));
+      if (ventasPendientes.isEmpty) return;
 
-    final ventaService = VentaService();
-    List<dynamic> ventasNoEnviadas = [];
+      final ventaService = VentaService();
+      List<dynamic> ventasNoEnviadas = [];
 
-    for (final venta in ventasPendientes) {
-      try {
-        final ventaModel = VentaInsertarViewModel.fromJson(venta['ventaModel']);
-        final resultado = await ventaService.insertarFacturaConValidacion(ventaModel);
+      for (final venta in ventasPendientes) {
+        try {
+          final ventaModel = VentaInsertarViewModel.fromJson(venta['ventaModel']);
+          final resultado = await ventaService.insertarFacturaConValidacion(ventaModel);
 
-        if (resultado?['success'] != true) {
-          ventasNoEnviadas.add(venta); // Si falla, mantenerla en la lista
+          if (resultado?['success'] != true) {
+            ventasNoEnviadas.add(venta); // Si falla, mantenerla en la lista
+          }
+        } catch (e) {
+          print('[DEBUG] Error enviando venta pendiente: $e');
+          ventasNoEnviadas.add(venta); // Si hay error, mantenerla en la lista
         }
-      } catch (e) {
-        ventasNoEnviadas.add(venta); // Si hay error, mantenerla en la lista
       }
-    }
 
-    // Guardar solo las que no se pudieron enviar
-    await _secureStorage.write(key: key, value: jsonEncode(ventasNoEnviadas));
+      // Guardar solo las que no se pudieron enviar
+      await _secureStorage.write(key: key, value: jsonEncode(ventasNoEnviadas));
+    } catch (e) {
+      print('[DEBUG] Error en sincronizarVentasPendientes: $e');
+      // No relanzar la excepción para no romper el flujo de carga
+    }
   }
 }
