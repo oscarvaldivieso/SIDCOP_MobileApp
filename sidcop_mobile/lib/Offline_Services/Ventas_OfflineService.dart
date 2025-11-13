@@ -3,7 +3,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/services/VentaService.dart';
 import 'package:sidcop_mobile/services/ProductosService.dart';
-import 'package:sidcop_mobile/models/ventas/ProductosDescuentoViewModel.dart';
 import 'package:sidcop_mobile/models/ventas/VentaInsertarViewModel.dart';
 
 class VentasOfflineService {
@@ -79,55 +78,48 @@ class VentasOfflineService {
 
   static Future<void> descargarYGuardarProductosConDescuentoOffline(int clieId, int vendId) async {
     try {
-      print('[SYNC] 📥 Descargando productos para cliente $clieId, vendedor $vendId...');
-      
       final productosService = ProductosService();
       final productos = await productosService.getProductosConDescuentoPorClienteVendedor(clieId, vendId);
-      
-      print('[SYNC] ✅ API devolvió ${productos.length} productos');
       
       // Convertir a JSON
       final productosJson = productos.map((p) => p.toJson()).toList();
       final jsonString = jsonEncode(productosJson);
-      
-      print('[SYNC] 💾 Guardando en almacenamiento seguro (${jsonString.length} caracteres)...');
-      print('[SYNC] 🔑 Clave: json:productos_descuento_${clieId}_$vendId');
       
       await _secureStorage.write(
         key: 'json:productos_descuento_${clieId}_$vendId',
         value: jsonString,
       );
       
-      print('[SYNC] ✅ ¡Guardado exitosamente! ${productos.length} productos para cliente $clieId');
+      // Guardar timestamp de última sincronización
+      await _secureStorage.write(
+        key: 'timestamp_productos_${clieId}_$vendId',
+        value: DateTime.now().toIso8601String(),
+      );
+      
+      print('[SYNC] ✅ Productos guardados para cliente $clieId: ${productos.length} productos');
     } catch (e) {
-      print('[SYNC] ❌ Error descargando productos para cliente $clieId, vendedor $vendId: $e');
-      // No relanzar la excepción para permitir que continúe la sincronización
+      print('[SYNC] ❌ Error descargando productos cliente $clieId: $e');
     }
   }
   
   static Future<List<ProductoConDescuento>> cargarProductosConDescuentoOffline(int clieId, int vendId) async {
-    print('[STORAGE] 🔍 Leyendo de almacenamiento seguro...');
-    print('[STORAGE] 🔑 Clave: json:productos_descuento_${clieId}_$vendId');
-    
-    final s = await _secureStorage.read(key: 'json:productos_descuento_${clieId}_$vendId');
-    
-    if (s == null) {
-      print('[STORAGE] ❌ No se encontró nada en el almacenamiento para esta clave');
-      return [];
-    }
-    
-    print('[STORAGE] ✅ Datos encontrados en almacenamiento (${s.length} caracteres)');
-    
     try {
-      final List<dynamic> list = jsonDecode(s);
-      print('[STORAGE] ✅ JSON decodificado exitosamente');
+      final s = await _secureStorage.read(key: 'json:productos_descuento_${clieId}_$vendId');
+      if (s == null) {
+        print('[STORAGE] ℹ️ No hay productos guardados para cliente $clieId');
+        return [];
+      }
       
+      final List<dynamic> list = jsonDecode(s);
       final productos = list.map((json) => ProductoConDescuento.fromJson(json)).toList();
-      print('[STORAGE] ✅ Productos parseados: ${productos.length} productos');
+      
+      // Obtener fecha de última sincronización
+      final timestamp = await _secureStorage.read(key: 'timestamp_productos_${clieId}_$vendId');
+      print('[STORAGE] ✅ Cargados ${productos.length} productos (actualizado: $timestamp)');
       
       return productos;
     } catch (e) {
-      print('[STORAGE] ❌ Error parseando JSON: $e');
+      print('[STORAGE] ❌ Error cargando productos: $e');
       return [];
     }
   }
@@ -149,19 +141,28 @@ class VentasOfflineService {
     }
   }
 
-  static Future<void> descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(int vendedorId, List<int> clientesIds) async {
-    for (final clieId in clientesIds) {
-      print('[DEBUG] Descargando productos del cliente id: $clieId para vendedor id: $vendedorId');
-      try {
-        await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
-      } catch (e) {
-        print('[DEBUG] Error procesando cliente $clieId: $e');
-        // Continuar con el siguiente cliente aunque falle este
-      }
-    }
+  /// Obtiene la fecha de última actualización de los productos
+  static Future<String?> obtenerFechaActualizacionProductos(int clieId, int vendId) async {
+    return await _secureStorage.read(key: 'timestamp_productos_${clieId}_$vendId');
   }
 
-  static Future<void> guardarVentaOffline({
+  static Future<void> descargarYGuardarProductosConDescuentoDeTodosLosClientesOffline(int vendedorId, List<int> clientesIds) async {
+    int descargados = 0;
+    int errores = 0;
+    
+    for (final clieId in clientesIds) {
+      try {
+        await descargarYGuardarProductosConDescuentoOffline(clieId, vendedorId);
+        descargados++;
+      } catch (e) {
+        errores++;
+      }
+    }
+    
+    print('[SYNC] 📊 Descarga completada: $descargados OK, $errores errores de ${clientesIds.length} clientes');
+  }
+
+  static Future<int> guardarVentaOffline({
     required VentaInsertarViewModel ventaModel,
     required Map<int, double> selectedProducts,
     required List<ProductoConDescuento> allProducts,
@@ -174,8 +175,49 @@ class VentasOfflineService {
   }) async {
     final now = DateTime.now();
     final idNegativo = -now.millisecondsSinceEpoch;
+    
+    // Construir detalles de factura a partir de selectedProducts
+    final List<dynamic> detalles = [];
+    for (var productId in selectedProducts.keys) {
+      final cantidad = selectedProducts[productId]!;
+      final producto = allProducts.firstWhere(
+        (p) => p.prodId == productId,
+        orElse: () => ProductoConDescuento(
+          prodId: productId,
+          prodDescripcionCorta: 'Producto',
+          prodPrecioUnitario: 0.0,
+          cantidadDisponible: 0,
+          descuentosEscala: [],
+          listasPrecio: [],
+          prod_Impulsado: false,
+          prodPagaImpuesto: 'N',
+          impuValor: 0.0,
+          impuId: 0,
+          prodCostoTotal: 0.0,
+        ),
+      );
+      
+      detalles.add({
+        'prod_Id': productId,
+        'prod_Descripcion': producto.prodDescripcionCorta,
+        'prod_PagaImpuesto': producto.prodPagaImpuesto,
+        'prod_CodigoBarra': '',
+        'faDe_Cantidad': cantidad,
+        'faDe_PrecioUnitario': producto.prodPrecioUnitario,
+        'faDe_PorcentajeDescuento': 0.0,
+        'faDe_Monto': producto.prodPrecioUnitario * cantidad,
+      });
+    }
+    
     final ventaOffline = {
       'fact_Id': idNegativo,
+      'fact_Numero': ventaModel.factNumero,
+      'fact_FechaEmision': now.toIso8601String(),
+      'fact_Anulado': false,
+      'cliente': clienteNombre,
+      'fact_Total': totalCuenta,
+      'offline': true,
+      'detalleFactura': detalles,
       'ventaModel': ventaModel.toJson(),
       'selectedProducts': selectedProducts.map((k, v) => MapEntry(k.toString(), v)),
       'allProducts': allProducts.map((p) => p.toJson()).toList(),
@@ -184,29 +226,29 @@ class VentasOfflineService {
       'vendedorId': vendedorId,
       'selectedAddress': selectedAddress,
       'fechaGuardado': now.toIso8601String(),
-      'offline': true,
-      'fact_Numero': ventaModel.factNumero,
-      // Agrega los campos para visualización
-      'fact_Total': totalCuenta,
-      'cliente': clienteNombre, // Si tienes el nombre, ponlo aquí
-      'fact_FechaEmision': now.toIso8601String(),
     };
   
+    // Guardar factura completa offline con ID negativo
+    await guardarFacturaCompletaOffline(idNegativo.toInt(), ventaOffline);
+    print('[OFFLINE] ✅ Factura offline guardada con ID: $idNegativo');
+    
     // Guardar en ventas pendientes
     final keyPendientes = 'ventas_pendientes';
     final sPendientes = await _secureStorage.read(key: keyPendientes);
     List<dynamic> ventasPendientes = sPendientes == null ? [] : List.from(jsonDecode(sPendientes));
-    ventasPendientes.insert(0, ventaOffline); // Insertar al inicio
+    ventasPendientes.insert(0, ventaOffline);
     await _secureStorage.write(key: keyPendientes, value: jsonEncode(ventasPendientes));
-    print('[DEBUG] Venta offline guardada en pendientes. Total pendientes: ${ventasPendientes.length}');
+    print('[OFFLINE] ✅ Venta pendiente guardada. Total: ${ventasPendientes.length}');
   
-    // Guardar en historial local (facturas_por_vendedor.json)
+    // Guardar en historial local
     final keyHistorial = 'json:facturas_por_vendedor.json';
     final sHistorial = await _secureStorage.read(key: keyHistorial);
     List<dynamic> historial = sHistorial == null ? [] : List.from(jsonDecode(sHistorial));
-    historial.insert(0, ventaOffline); // Insertar al inicio
+    historial.insert(0, ventaOffline);
     await _secureStorage.write(key: keyHistorial, value: jsonEncode(historial));
-    print('[DEBUG] Venta offline guardada en historial. Total historial: ${historial.length}');
+    print('[OFFLINE] ✅ Factura agregada al historial. Total: ${historial.length}');
+    
+    return idNegativo;
   }
 
   static Future<void> sincronizarVentasPendientes() async {
