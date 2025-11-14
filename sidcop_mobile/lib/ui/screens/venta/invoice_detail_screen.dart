@@ -144,6 +144,108 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   //Metodo para mostrar las opciones de impresion
   void _showPrintOptions() {
+  // Si es offline, mostrar aviso bloqueado
+  if (_facturaData?['offline'] == true) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Icono de bloqueo
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.lock_outline,
+                size: 48,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Título
+            Text(
+              'Impresión No Disponible',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Satoshi',
+                color: Colors.grey.shade800,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            
+            // Mensaje
+            Text(
+              'Esta factura fue creada sin conexión a internet.\n\nLa impresión solo está disponible para facturas sincronizadas con el servidor.',
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Satoshi',
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            
+            // Botón cerrar
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey.shade800,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Entendido',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Satoshi',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return;
+  }
+
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
@@ -567,13 +669,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 ),
               ),
               child: IconButton(
-                onPressed: _showPrintOptions,
-                icon: const Icon(
+                onPressed: (_facturaData?['offline'] == true) ? null : _showPrintOptions,
+                icon: Icon(
                   Icons.print_outlined,
-                  color: Colors.white,
+                  color: (_facturaData?['offline'] == true) ? Colors.grey.withOpacity(0.5) : Colors.white,
                   size: 20,
                 ),
-                tooltip: 'Imprimir',
+                tooltip: (_facturaData?['offline'] == true) ? 'Impresión no disponible para facturas offline' : 'Imprimir',
               ),
             ),
             
@@ -813,38 +915,68 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     if (_facturaData == null) return const SizedBox();
 
     final factura = _facturaData!;
+    final isOffline = factura['offline'] == true;
 
-    return SingleChildScrollView(
-      child: Container(
-        margin: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 255, 255, 255),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+    return Stack(
+      children: [
+        // Contenido principal
+        SingleChildScrollView(
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 255, 255, 255),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ClipPath(
-          clipper: TornPaperClipper(),
-          child: Column(
-            children: [
-              // Agrega un padding superior aquí
-              Padding(
-                padding: const EdgeInsets.only(top: 0), // Ajusta este valor
-                child: _buildCompanyHeader(factura),
+            child: ClipPath(
+              clipper: TornPaperClipper(),
+              child: Column(
+                children: [
+                  // Agrega un padding superior aquí
+                  Padding(
+                    padding: const EdgeInsets.only(top: 0), // Ajusta este valor
+                    child: _buildCompanyHeader(factura),
+                  ),
+                  _buildInvoiceHeader(factura),
+                  _buildProductsTable(factura),
+                  _buildTotalsSection(factura),
+                  const SizedBox(height: 20),
+                ],
               ),
-              _buildInvoiceHeader(factura),
-              _buildProductsTable(factura),
-              _buildTotalsSection(factura),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
         ),
-      ),
+        
+        // Marca de agua para facturas offline
+        if (isOffline)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Transform.rotate(
+                angle: -0.2925,
+                child: Center(
+                  child: Text(
+                    'FACTURA\nNO IMPRIMIBLE',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 50,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.withOpacity(0.15),
+                      letterSpacing: 8,
+                      height: 1.2,
+                      fontFamily: 'Satoshi',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
