@@ -464,20 +464,21 @@ class _VentaScreenState extends State<VentaScreen> {
       
       // Generar un nuevo número de factura único
       final newInvoiceNumber = _generateInvoiceNumber();
+
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "01";
-      _ventaModel.regCId = 21;
+      _ventaModel.regCId = userData?['regC_Id'] ?? 1;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
       _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // Obtener datos del usuario actual
-      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       if (personaId == null) {
         throw Exception('No se pudo obtener el ID del vendedor de la sesión');
