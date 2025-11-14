@@ -478,20 +478,21 @@ class _VentaScreenState extends State<VentaScreen> {
       
       // Generar un nuevo número de factura único
       final newInvoiceNumber = _generateInvoiceNumber();
+
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "01";
-      _ventaModel.regCId = 21;
+      _ventaModel.regCId = userData?['regC_Id'] ?? 1;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
       _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // Obtener datos del usuario actual
-      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       if (personaId == null) {
         throw Exception('No se pudo obtener el ID del vendedor de la sesión');
@@ -1714,8 +1715,8 @@ Widget paso1() {
                         '¡IMPULSADO!',
                         style: TextStyle(
                           color: Colors.black87,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
                           fontFamily: 'Satoshi',
                         ),
                       ),
@@ -1813,24 +1814,6 @@ Widget paso1() {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if (mejorDescuento != null && mejorDescuento > 0)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF98BF4A).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '% OFF',
-                                      style: const TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1F4B3F),
-                                      ),
-                                    ),
-                                  ),
                               ],
                             ),
                             const SizedBox(height: 4),
