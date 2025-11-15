@@ -405,8 +405,11 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
 
         if (!mounted) return;
         setState(() {
-          // Filtrar direcciones por rutaId si el usuario no es admin
+          // Filtrar direcciones
           _direcciones = direccionesList.where((direccion) {
+            // Siempre incluir el cliente con ID 1
+            if (direccion.clie_id == 1) return true;
+            
             // Si es admin, mostrar todas las direcciones
             if (esAdmin == true) return true;
 
