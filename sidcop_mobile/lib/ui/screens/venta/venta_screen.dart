@@ -235,26 +235,37 @@ class _VentaScreenState extends State<VentaScreen> {
       final hasConnection = await SyncService.hasInternetConnection();
 
       if (hasConnection) {
+        print('[LOAD] � Descargando productos online...');
         _allProducts = await _productosService.getProductosConDescuentoPorClienteVendedor(
           widget.clienteId!,
           widget.vendedorId!,
         );
+        // Guardar productos actualizados offline
+        await VentasOfflineService.descargarYGuardarProductosConDescuentoOffline(
+          widget.clienteId!,
+          widget.vendedorId!,
+        );
+        print('[LOAD] ✅ Productos actualizados: ${_allProducts.length}');
       } else {
-        //Obtner nombre del Cliente offline y setear el data
+        print('[LOAD] 📴 Modo OFFLINE - Cargando productos guardados');
+        
+        //Obtener nombre del Cliente offline
         final clienteOffline = await ClientesOfflineService.cargarDetalleCliente(widget.clienteId!);
         final nombreCliente = clienteOffline?['clie_Nombres'] ?? '';
         final apellidoCliente = clienteOffline?['clie_Apellidos'] ?? '';
         final nombreCompleto = '$nombreCliente $apellidoCliente'.trim();
+        
         setState(() {
          formData.datosCliente = nombreCompleto.isEmpty ? 'Cliente general' : nombreCompleto;
         });
 
-        //Apartado de Productos Offline-- Mandando el clie id y vend id para que coincida con la clave de algun json guardado
         _allProducts = await VentasOfflineService.cargarProductosConDescuentoOffline(
           widget.clienteId!,
           widget.vendedorId!,
         );
+        
         if (_allProducts.isEmpty) {
+          print('[LOAD] ❌ No hay productos guardados offline');
           ErrorHandler.showErrorToast('No hay productos disponibles offline');
         }
       }
@@ -270,8 +281,11 @@ class _VentaScreenState extends State<VentaScreen> {
       for (var producto in _allProducts) {
         _productosConDescuento[producto.prodId] = producto;
       }
+      
+      print('[LOAD] ✅ Carga finalizada: ${_allProducts.length} productos');
     } catch (e) {
-      ErrorHandler.showErrorToast('Error al cargar productos con descuentos');
+      print('[ERROR] $e');
+      ErrorHandler.showErrorToast('Error al cargar productos');
     } finally {
       setState(() => _isLoadingProducts = false);
     }
@@ -464,20 +478,21 @@ class _VentaScreenState extends State<VentaScreen> {
       
       // Generar un nuevo número de factura único
       final newInvoiceNumber = _generateInvoiceNumber();
+
+      // Obtener datos del usuario actual
+      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
+      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       // Asignar el número de factura al modelo
       _ventaModel.factNumero = newInvoiceNumber;
       _ventaModel.factTipoDeDocumento = "01";
-      _ventaModel.regCId = 21;
+      _ventaModel.regCId = userData?['regC_Id'] ?? 1;
       _ventaModel.factFechaEmision = DateTime.now();
       _ventaModel.factReferencia = "Venta desde app móvil";
       _ventaModel.factLatitud = 14.072245;
       _ventaModel.factLongitud = -88.212665;
       _ventaModel.factAutorizadoPor = "Sistema";
       
-      // Obtener datos del usuario actual
-      final userData = await _perfilUsuarioService.obtenerDatosUsuario();
-      final personaId = userData?['personaId'] ?? userData?['usua_IdPersona'];
       
       if (personaId == null) {
         throw Exception('No se pudo obtener el ID del vendedor de la sesión');
@@ -514,7 +529,7 @@ class _VentaScreenState extends State<VentaScreen> {
         }
       } else {
         // Guardar venta offline
-        await VentasOfflineService.guardarVentaOffline(
+        int idNegativo = await VentasOfflineService.guardarVentaOffline(
           ventaModel: _ventaModel,
           selectedProducts: _selectedProducts,
           allProducts: _allProducts,
@@ -538,9 +553,9 @@ class _VentaScreenState extends State<VentaScreen> {
           barrierDismissible: false,
           builder: (_) => _buildModernSuccessDialog(context, {
             'offline': true,
+            'fact_Id': idNegativo,
             'fact_Numero': _ventaModel.factNumero,
             'ventaModel': _ventaModel.toJson(),
-            // Puedes agregar más campos si quieres mostrar detalles
           }),
         );
       }
@@ -822,22 +837,24 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   void _navigateToInvoiceDetail(Map<String, dynamic> facturaData) {
-    // Extract invoice ID from the backend response
+    // Extract invoice ID from the response
     int? facturaId;
     
-    // Intentar extraer el ID del message_Status
-    if (facturaData['message_Status'] != null) {
+    // Si es una venta offline, usar el ID negativo directamente
+    if (facturaData['offline'] == true && facturaData['fact_Id'] != null) {
+      facturaId = facturaData['fact_Id'];
+      print('[OFFLINE] Navegando a factura offline con ID: $facturaId');
+    } 
+    // Si viene del backend, extraer del mensaje
+    else if (facturaData['message_Status'] != null) {
       facturaId = _extractInvoiceIdFromMessage(facturaData['message_Status']);
-    }
-    
+    } 
     // Fallback: intentar obtener de otros campos
-    // Fallback: intentar obtener de otros campos
-    if (facturaId == null) {
+    else {
       facturaId = facturaData['fact_Id'] ?? facturaData['id'];
     }
     
     final facturaNumero = _ventaModel.factNumero ?? 'N/A';
-    
     
     // Navigate to InvoiceDetailScreen and clear the stack until VentasListScreen
     Navigator.pushAndRemoveUntil(
@@ -1483,6 +1500,56 @@ Widget paso1() {
   Widget paso2() {
     return Column(
       children: [
+        // Indicador de modo offline si aplica
+        FutureBuilder<bool>(
+          future: SyncService.hasInternetConnection(),
+          builder: (context, snapshot) {
+            final hasConnection = snapshot.data ?? true;
+            if (!hasConnection) {
+              return Container(
+                margin: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFF59E0B), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_off, color: Color(0xFFF59E0B), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Modo offline',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Satoshi',
+                              color: Color(0xFF92400E),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Usando productos guardados',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Satoshi',
+                              color: Color(0xFFB45309),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         // Barra de búsqueda
         Container(
           padding: const EdgeInsets.all(13),
@@ -1648,8 +1715,8 @@ Widget paso1() {
                         '¡IMPULSADO!',
                         style: TextStyle(
                           color: Colors.black87,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
                           fontFamily: 'Satoshi',
                         ),
                       ),
@@ -1747,24 +1814,6 @@ Widget paso1() {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if (mejorDescuento != null && mejorDescuento > 0)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF98BF4A).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '% OFF',
-                                      style: const TextStyle(
-                                        fontFamily: 'Satoshi',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1F4B3F),
-                                      ),
-                                    ),
-                                  ),
                               ],
                             ),
                             const SizedBox(height: 4),

@@ -34,37 +34,6 @@ Future<File> generateInvoicePdf(Map<String, dynamic> factura, String facturaNume
             mainAxisAlignment: pw.MainAxisAlignment.center,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              // Logo centrado
-              if (logo != null)
-                pw.Container(
-                  width: 80,
-                  height: 80,
-                  margin: const pw.EdgeInsets.only(bottom: 16),
-                  decoration: pw.BoxDecoration(
-                    borderRadius: pw.BorderRadius.circular(12),
-                    image: pw.DecorationImage(
-                      image: logo,
-                      fit: pw.BoxFit.cover,
-                    ),
-                  ),
-                )
-              else
-                pw.Container(
-                  width: 80,
-                  height: 80,
-                  margin: const pw.EdgeInsets.only(bottom: 16),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColor.fromHex("#98BF4A"),
-                    borderRadius: pw.BorderRadius.circular(12),
-                  ),
-                  child: pw.Center(
-                    child: pw.Icon(
-                      pw.IconData(0xe0af),
-                      size: 40,
-                      color: PdfColors.white,
-                    ),
-                  ),
-                ),
               
               // Nombre de la empresa
               pw.Text(
