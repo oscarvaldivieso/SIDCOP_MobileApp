@@ -308,6 +308,12 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           setState(() {
             // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
             _direcciones = direccionesList.where((direccion) {
+              // Siempre incluir al cliente con ID 1
+              if (direccion.clie_id == 1) {
+                print('Incluyendo cliente con ID 1: ${direccion.clie_Codigo}');
+                return true;
+              }
+              
               // Si es admin, mostrar todas las direcciones
               if (esAdmin == true) return true;
               
@@ -316,7 +322,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
               final diasVisita = clientesConDiasVisita[clieId] ?? '';
               
               // Si no tiene días de visita definidos, no mostrarlo
-              if (diasVisita.isEmpty) return false;
+              if (diasVisita.isEmpty) {
+                print('Cliente ${direccion.clie_Codigo} sin días de visita definidos');
+                return false;
+              }
               
               // Verificar si el día actual está en los días de visita
               final diasVisitaList = diasVisita.split(',').map((d) => int.tryParse(d.trim())).whereType<int>().toList();
@@ -325,7 +334,12 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
               // Verificar si el cliente pertenece a la ruta
               final perteneceARuta = _clienteBelongsToRuta(direccion.clie_Codigo);
               
-              return incluyeDiaActual && perteneceARuta;
+              final mostrar = incluyeDiaActual && perteneceARuta;
+              if (!mostrar) {
+                print('Cliente ${direccion.clie_Codigo} no cumple condiciones: incluyeDiaActual=$incluyeDiaActual, perteneceARuta=$perteneceARuta');
+              }
+              
+              return mostrar;
             }).toList();
             
             _facturas = List<Map<String, dynamic>>.from(localFacturas);
@@ -367,6 +381,12 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
       setState(() {
         // Filtrar direcciones por rutaId y día de visita si el usuario no es admin
         _direcciones = direccionesData.where((direccion) {
+          // Siempre incluir al cliente con ID 1
+          if (direccion.clie_id == 1) {
+            print('ONLINE - Incluyendo cliente con ID 1: ${direccion.clie_Codigo}');
+            return true;
+          }
+          
           // Si es admin, mostrar todas las direcciones
           if (esAdmin == true) return true;
           
@@ -375,7 +395,10 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           final diasVisita = clientesConDiasVisita[clieId] ?? '';
           
           // Si no tiene días de visita definidos, no mostrarlo
-          if (diasVisita.isEmpty) return false;
+          if (diasVisita.isEmpty) {
+            print('ONLINE - Cliente ${direccion.clie_Codigo} sin días de visita definidos');
+            return false;
+          }
           
           // Verificar si el día actual está en los días de visita
           final diasVisitaList = diasVisita.split(',').map((d) => int.tryParse(d.trim())).whereType<int>().toList();
@@ -384,7 +407,12 @@ class _DevolucioncrearScreenState extends State<DevolucioncrearScreen> {
           // Verificar si el cliente pertenece a la ruta
           final perteneceARuta = _clienteBelongsToRuta(direccion.clie_Codigo);
           
-          return incluyeDiaActual && perteneceARuta;
+          final mostrar = incluyeDiaActual && perteneceARuta;
+          if (!mostrar) {
+            print('ONLINE - Cliente ${direccion.clie_Codigo} no cumple condiciones: incluyeDiaActual=$incluyeDiaActual, perteneceARuta=$perteneceARuta');
+          }
+          
+          return mostrar;
         }).toList();
         
         _facturas = List<Map<String, dynamic>>.from(facturasData);
