@@ -572,7 +572,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
           ...visitaData,
           'imagenesBase64': imagenesBase64,
           'offline': true,
-          'usua_Creacion': 57, // ID fijo según requerimiento del SP
+          'usua_Creacion': 1, // ID fijo según requerimiento del SP
         };
 
         // Verificar si la visita proviene del mapa offline y añadir metadata para depurar
@@ -702,7 +702,7 @@ class _VisitaCreateScreenState extends State<VisitaCreateScreen> {
             await _visitaService.asociarImagenAVisita(
               visitaId: visitaId,
               imagenUrl: rutaImagen,
-              usuarioId: 57,
+              usuarioId: 1,
             );
           } else {
             throw Exception(
