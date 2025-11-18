@@ -1004,6 +1004,7 @@ class _RecargaBottomSheetState extends State<RecargaBottomSheet> {
                       ok = await recargaService.updateRecarga(
                         recaId: widget.recaId!,
                         usuaModificacion: usuaId,
+                        bode_IdU: widget.bode_IdU,
                         detalles: detalles,
                       );
                     }

@@ -121,16 +121,19 @@ class RecargasService
     final now = DateTime.now();
     final fechaString = now.toIso8601String();
 
+    print('🔍 DEBUG: bode_IdU en updateRecarga: $bode_IdU');
+
     final body = {
       "reca_Id": recaId,
       "vend_Id": personaId,
-      "bode_Id": bode_IdU ?? 23,
+      "bode_Id": bode_IdU,
       "reca_Fecha": fechaString,
       "reca_Observaciones": "N/A",
       "usua_Modificacion": usuaModificacion,
       "reca_FechaModificacion": fechaString,
       "detalles": detalles
     };
+    print('Actualizar Recarga Body: ${jsonEncode(body)}');
 
     try {
       final response = await http.put(

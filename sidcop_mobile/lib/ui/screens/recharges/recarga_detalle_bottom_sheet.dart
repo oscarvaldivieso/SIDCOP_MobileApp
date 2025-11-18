@@ -274,6 +274,7 @@ class RecargaDetalleBottomSheet extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         print('🔍 DEBUG: Botón de editar presionado');
+                        print('🔍 DEBUG: recargasGrupo para editar: ${recargasGrupo.first.bode_Id}');
                          final recaId = recargasGrupo.isNotEmpty ? recargasGrupo.first.reca_Id : null;
                           print('🔍 DEBUG: recaId para editar: $recaId');
                         Navigator.pop(context); // Cerrar el detalle
