@@ -111,9 +111,14 @@ class UsuarioService {
 
         // VERIFICAR CAMBIO DE VENDEDOR Y LIMPIAR DATOS DE CUENTAS POR COBRAR SI ES NECESARIO
         try {
-          final huboCambioVendedor = await CuentasPorCobrarOfflineService.verificarYLimpiarCambioVendedor(globalVendId!);
+          final huboCambioVendedor =
+              await CuentasPorCobrarOfflineService.verificarYLimpiarCambioVendedor(
+                globalVendId!,
+              );
           if (huboCambioVendedor) {
-            developer.log('🔄 Cambio de vendedor detectado, datos de CxC limpiados');
+            developer.log(
+              '🔄 Cambio de vendedor detectado, datos de CxC limpiados',
+            );
           }
         } catch (e) {
           developer.log('⚠️ Error verificando cambio de vendedor: $e');
@@ -126,6 +131,17 @@ class UsuarioService {
         if (data.containsKey('rutasDelDiaJson') &&
             data['rutasDelDiaJson'] != null) {
           await _guardarRutasDelDia(data['rutasDelDiaJson']);
+
+          // Asignar globalRutaId
+          try {
+            final rutasList =
+                jsonDecode(data['rutasDelDiaJson']) as List<dynamic>;
+            if (rutasList.isNotEmpty) {
+              globalRutaId = rutasList[0]['Ruta_Id'] as int?;
+            }
+          } catch (e) {
+            developer.log('Error al extraer globalRutaId: $e');
+          }
         }
 
         // Ejecutar sincronización completa en background (no bloquear login)

@@ -26,15 +26,15 @@ class clientScreen extends StatefulWidget {
 class _clientScreenState extends State<clientScreen> {
   // Lista de permisos del usuario
   List<dynamic> permisos = [];
-  
+
   // Lista de clientes y lista filtrada
   late Future<List<dynamic>> clientesList = Future.value([]);
   List<dynamic> filteredClientes = [];
-  
+
   // Controlador para la barra de búsqueda
   final TextEditingController _searchController = TextEditingController();
   bool isSearching = false;
-  
+
   // Servicio para operaciones con clientes
   final ClientesService _clienteService = ClientesService();
 
@@ -46,9 +46,9 @@ class _clientScreenState extends State<clientScreen> {
   List<dynamic> _cuentasPorCobrar = [];
 
   // Filtros de ubicación seleccionados
-  String? _selectedDepa;  // Código de departamento seleccionado
-  String? _selectedMuni;  // Código de municipio seleccionado
-  int? _selectedColo;     // ID de colonia seleccionada
+  String? _selectedDepa; // Código de departamento seleccionado
+  String? _selectedMuni; // Código de municipio seleccionado
+  int? _selectedColo; // ID de colonia seleccionada
 
   @override
   @override
@@ -78,7 +78,7 @@ class _clientScreenState extends State<clientScreen> {
 
         // Obtener ID de la persona del usuario actual
         final usuaIdPersona = await _getUsuarioIdPersona();
-        
+
         // Cargar clientes según los permisos del usuario
         if (usuaIdPersona != null) {
           // Si el usuario tiene ID de persona, cargar solo sus clientes asignados
@@ -870,6 +870,7 @@ class _clientScreenState extends State<clientScreen> {
           _selectedMuni = null;
           _selectedColo = null;
           await _loadAllClientData();
+
           if (mounted) setState(() {}); // Forzar rebuild tras refresh
         },
         child: Column(

@@ -1,5 +1,6 @@
-int? globalVendId; // usua_IdPersona del vendedor autenticado
-int? globalUsuaId; // usua_Id del usuario autenticado
+int? globalVendId;  // usua_IdPersona del vendedor autenticado
+int? globalUsuaId;  // usua_Id del usuario autenticado
+int? globalRutaId;  // ruta_Id del vendedor autenticado
 
 //const String apiServer = 'http://sidcop.somee.com';
 // const String apiServer = 'http://200.59.27.115:8091';
