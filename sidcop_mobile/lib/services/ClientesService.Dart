@@ -29,6 +29,92 @@ class ClientesService {
     }
   }
 
+
+Future<List<dynamic>> getClientesPorDiayRuta() async {
+    final url = Uri.parse('$_apiServer/Cliente/Listar');
+          final Set<int> clienteIds = {};
+
+     developer.log('Get Clientes Request URL: $url');
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json', 'X-Api-Key': _apiKey},
+      );
+
+      developer.log('Get Clientes Response Status: ${response.statusCode}');
+      developer.log('Get Clientes Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> clientesList = jsonDecode(response.body);
+        var clientesFiltrados = clientesList;
+        
+        // Obtener día actual (1=lunes, 7=domingo)
+        final int diaActual = DateTime.now().weekday;
+        
+        // Filtrar clientes por:
+        // 1. usua_Id del vendedor (globalVendId)
+        // 2. Misma ruta (globalRutaId)
+        // 3. clie_DiaVisita contenga el número del día actual
+        if (globalVendId != null && globalRutaId != null) {
+          clientesFiltrados = clientesFiltrados.where((cliente) {
+            final clieId = cliente['clie_Id'];
+            final clieVendId = cliente['usua_Id'];
+            final clieRutaId = cliente['ruta_Id'];
+            final clieDiaVisita = cliente['clie_DiaVisita']?.toString() ?? '';
+            
+            // Validar que tenga ID
+            if (clieId == null) return false;
+            
+          
+            // if (clieVendId != globalVendId) return false;
+            
+            // Validar que pertenezca a la misma ruta
+            if (clieRutaId != globalRutaId) return false;
+            
+            // Validar que sea día de visita
+            if (clieDiaVisita.isEmpty) return false;
+            
+            // Verificar si el día actual está en la lista de días de visita
+            final diasVisitaList = clieDiaVisita
+                .split(',')
+                .map((d) => int.tryParse(d.trim()))
+                .whereType<int>()
+                .toList();
+            
+            return diasVisitaList.contains(diaActual);
+          }).toList();
+
+
+         
+
+
+
+        } else {
+          clientesFiltrados = [];
+        }
+        
+       final Set<int> clienteIds = {};
+for (var cliente in clientesFiltrados) {
+  final clieId = cliente['clie_Id'];
+  if (clieId != null) {
+    clienteIds.add(clieId as int);
+  }
+}
+return clienteIds.toList();  
+
+
+        
+      } else {
+        throw Exception(
+          'Error en la solicitud: Código \\${response.statusCode}, Respuesta: \\${response.body}',
+        );
+      }
+    } catch (e) {
+      developer.log('Get Clientes Error: $e');
+      throw Exception('Error en la solicitud: $e');
+    }
+  }
+
   Future<List<dynamic>> getClientes() async {
     final url = Uri.parse('$_apiServer/Cliente/Listar');
 
@@ -70,6 +156,10 @@ class ClientesService {
       throw Exception('Error en la solicitud: $e');
     }
   }
+
+
+
+
 
   Future<Map<String, dynamic>> getClienteById(int id) async {
     final url = Uri.parse('$_apiServer/Cliente/Buscar/$id');
@@ -288,7 +378,7 @@ class ClientesService {
         var clientesList = jsonDecode(response.body) as List<dynamic>;
         
         // Obtener IDs de clientes del día
-        final clientesDelDiaIds = await UsuarioService.obtenerClientesDelDiaIds();
+        final clientesDelDiaIds = await getClientesPorDiayRuta();
         
         // Si hay clientes del día definidos, filtrar solo esos
         if (clientesDelDiaIds.isNotEmpty) {
