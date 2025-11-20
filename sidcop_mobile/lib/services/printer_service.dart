@@ -1716,109 +1716,40 @@ $footerZPL
 
   /// Procesa el logo ZPL dinámico desde la base de datos
   /// Limpia los comandos ^XA y ^XZ y ajusta el posicionamiento
-  /// Procesa el logo ZPL dinámico desde la base de datos
-/// Limpia los comandos ^XA y ^XZ y ajusta el posicionamiento
-/// Centra verticalmente el logo en el espacio reservado (170 puntos)
   String _procesarLogoZPL(String logoZPLRaw) {
     try {
-      const int espacioReservado = 170; // Altura del espacio reservado para el logo
-      const int yInicial = 0; // Posición Y inicial del espacio reservado
-      
       // 1. Remover ^XA al inicio y ^XZ al final si existen
       String logoLimpio = logoZPLRaw.trim();
       
+      // Remover ^XA del inicio
       if (logoLimpio.startsWith('^XA')) {
         logoLimpio = logoLimpio.substring(3);
       }
       
+      // Remover ^XZ del final
       if (logoLimpio.endsWith('^XZ')) {
         logoLimpio = logoLimpio.substring(0, logoLimpio.length - 3);
       }
       
+      // 2. Limpiar espacios en blanco al inicio y final
       logoLimpio = logoLimpio.trim();
       
-      // 2. Extraer la altura del logo desde el comando ^GFA
-      int? alturaLogo = _extraerAlturaLogoGFA(logoLimpio);
-      
-      if (alturaLogo == null) {
-        debugPrint('⚠️ No se pudo determinar la altura del logo, usando posición por defecto');
-        return logoLimpio;
-      }
-      
-      debugPrint('📏 Altura del logo detectada: $alturaLogo puntos');
-      
-      // 3. Calcular el offset Y para centrar verticalmente
-      int offsetY = yInicial + ((espacioReservado - alturaLogo) ~/ 2);
-      
-      // Asegurar que el offset no sea negativo
-      if (offsetY < yInicial) offsetY = yInicial;
-      
-      debugPrint('📍 Posición Y calculada para centrar: $offsetY');
-      
-      // 4. Buscar y ajustar el comando ^FO existente o agregar uno nuevo
-      String logoFinal = _ajustarPosicionLogo(logoLimpio, offsetY);
-      
-      return logoFinal;
-      
-    } catch (e) {
-      debugPrint('❌ Error al procesar logo ZPL: $e');
-      return '';
-    }
-  }
-
-  /// Extrae la altura del logo desde el comando ^GFA
-  /// Formato: ^GFA,totalBytes,bytesPerRow,height,data
-  int? _extraerAlturaLogoGFA(String logoZPL) {
-    try {
-      // Buscar el comando ^GFA
-      final RegExp gfaRegex = RegExp(r'\^GFA,(\d+),(\d+),(\d+),');
-      final Match? match = gfaRegex.firstMatch(logoZPL);
-      
-      if (match != null && match.groupCount >= 3) {
-        // El tercer grupo es la altura
-        return int.parse(match.group(3)!);
-      }
-      
-      return null;
-    } catch (e) {
-      debugPrint('Error extrayendo altura GFA: $e');
-      return null;
-    }
-  }
-
-  /// Ajusta la posición del logo modificando o agregando el comando ^FO
-  String _ajustarPosicionLogo(String logoZPL, int nuevaY) {
-    try {
-      // Buscar comando ^FO existente
-      final RegExp foRegex = RegExp(r'\^FO(\d+),(\d+)');
-      final Match? match = foRegex.firstMatch(logoZPL);
-      
-      if (match != null) {
-        // Ya existe un ^FO, modificarlo
-        final xOriginal = int.parse(match.group(1)!);
-        final nuevoComando = '^FO$xOriginal,$nuevaY';
-        
-        return logoZPL.replaceFirst(match.group(0)!, nuevoComando);
+      // 3. Verificar si el logo tiene un comando ^FO (Field Origin) para posicionamiento
+      // Si no lo tiene, necesitamos agregarlo para centrarlo
+      if (!logoLimpio.contains('^FO')) {
+        // Agregar posicionamiento centrado por defecto
+        // Asumiendo ancho de etiqueta de 360 dots y logo de ~100 dots de ancho
+        logoLimpio = '^FX ===== LOGO CENTRADO =====\n^FO130,60\n$logoLimpio';
       } else {
-        // No existe ^FO, necesitamos agregarlo
-        // Buscar donde empieza el ^GFA para insertar el ^FO antes
-        final gfaIndex = logoZPL.indexOf('^GFA');
-        
-        if (gfaIndex != -1) {
-          // Calcular X centrado (etiqueta de 360 puntos de ancho, asumiendo logo de ~100 puntos)
-          // Puedes ajustar esto según el ancho de tu logo
-          const int xCentrado = 130; // Ajusta según necesites
-          
-          final foComando = '^FO$xCentrado,$nuevaY\n';
-          return logoZPL.substring(0, gfaIndex) + foComando + logoZPL.substring(gfaIndex);
-        }
-        
-        // Si no se encuentra ^GFA, agregar ^FO al inicio
-        return '^FO130,$nuevaY\n$logoZPL';
+        // Si ya tiene ^FO, solo agregar comentario descriptivo
+        logoLimpio = '^FX ===== LOGO CENTRADO =====\n$logoLimpio';
       }
+      
+      return logoLimpio;
     } catch (e) {
-      debugPrint('Error ajustando posición del logo: $e');
-      return logoZPL;
+      debugPrint('Error al procesar logo ZPL: $e');
+      // Retornar logo vacío en caso de error
+      return '';
     }
   }
 
